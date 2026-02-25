@@ -63,7 +63,7 @@ section{padding:120px 32px;position:relative}
 .btn-g{display:inline-flex;align-items:center;gap:10px;background:transparent;color:var(--white);padding:16px 36px;border-radius:60px;font-size:.95rem;font-weight:500;border:1px solid rgba(255,255,255,0.12);cursor:pointer;font-family:'Poppins',sans-serif;transition:all .4s}
 .btn-g:hover{border-color:var(--lime);color:var(--lime);background:rgba(204,255,0,0.04);transform:translateY(-2px)}
 .page{display:none}
-.page.active{display:block}
+.page.active{display:block;overflow-x:hidden}
 .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:140px 32px 60px;overflow:visible;position:relative}
 .hero-orb{position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle at 40% 40%,rgba(204,255,0,0.12),rgba(204,255,0,0.02) 60%,transparent 80%);top:50%;left:50%;transform:translate(-50%,-50%);animation:orb 8s ease-in-out infinite;filter:blur(60px)}
 @keyframes orb{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:.6}50%{transform:translate(-50%,-50%) scale(1.15);opacity:1}}
@@ -124,7 +124,7 @@ section{padding:120px 32px;position:relative}
 .step p{font-size:.82rem;color:var(--gray);line-height:1.6;font-weight:300}
 .show-s{background:var(--d2);overflow:hidden;padding:140px 32px}
 .show-grid{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
-.show-vis{position:relative;display:flex;justify-content:center;align-items:center;min-height:560px}
+.show-vis{position:relative;overflow:hidden;display:flex;justify-content:center;align-items:center;min-height:560px}
 .phone-w{position:relative;will-change:transform}
 .phone{width:280px;height:580px;background:#0c0c0c;border-radius:44px;border:2.5px solid rgba(255,255,255,0.08);position:relative;overflow:hidden;box-shadow:0 50px 100px rgba(0,0,0,0.5),0 0 80px rgba(204,255,0,0.06);animation:pfl 7s ease-in-out infinite}
 @keyframes pfl{0%,100%{transform:translateY(0)}33%{transform:translateY(-12px) rotate(.5deg)}66%{transform:translateY(-6px) rotate(-.3deg)}}
