@@ -342,6 +342,16 @@ section{padding:80px 20px}nav{padding:14px 20px}.nav-links{display:none}.hamburg
 .subpage{padding:120px 20px 60px}
 }
 @media(max-width:480px){.steps{grid-template-columns:1fr}.team-grid{grid-template-columns:1fr;max-width:300px;margin:0 auto}}
+.video-s{background:var(--dark);padding:100px 0;overflow:hidden}
+.video-s .container{max-width:960px;margin:0 auto;padding:0 32px}
+.video-wrap{position:relative;width:100%;padding-top:56.25%;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,var(--d3),var(--d2));border:1px solid rgba(255,255,255,0.06);box-shadow:0 20px 80px rgba(0,0,0,0.5)}
+.video-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:20px}
+.video-placeholder{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;cursor:default}
+.video-play{width:80px;height:80px;border-radius:50%;background:var(--lime);display:flex;align-items:center;justify-content:center;transition:transform .3s,box-shadow .3s;box-shadow:0 8px 40px rgba(204,255,0,0.25)}
+.video-play:hover{transform:scale(1.1);box-shadow:0 12px 50px rgba(204,255,0,0.4)}
+.video-play svg{margin-left:4px}
+.video-placeholder span{font-size:.85rem;color:var(--gray);font-weight:400}
+.video-glow{position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(204,255,0,0.06),transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;filter:blur(40px)}
 </style>
 </head>
 <body>
@@ -396,6 +406,18 @@ section{padding:80px 20px}nav{padding:14px 20px}.nav-links{display:none}.hamburg
   <div class="mtrack">
     <div class="mitem">Réalité augmentée <span class="mdot"></span> Géolocalisation <span class="mdot"></span> Faune & Flore <span class="mdot"></span> Patrimoine <span class="mdot"></span> Gamification <span class="mdot"></span> Occitanie <span class="mdot"></span> Hors-ligne <span class="mdot"></span></div>
     <div class="mitem">Réalité augmentée <span class="mdot"></span> Géolocalisation <span class="mdot"></span> Faune & Flore <span class="mdot"></span> Patrimoine <span class="mdot"></span> Gamification <span class="mdot"></span> Occitanie <span class="mdot"></span> Hors-ligne <span class="mdot"></span></div>
+  </div>
+</section>
+<section class="video-s">
+  <div class="container" style="text-align:center;margin-bottom:48px"><div class="slabel ctr r">Découvrez Isard</div><h2 class="stitle r d1" style="text-align:center">Vivez l’expérience en <span class="a">vidéo</span></h2><p class="sdesc r d2" style="margin:0 auto">Découvrez comment Isard transforme chaque randonnée en aventure immersive.</p></div>
+  <div class="container">
+    <div class="video-wrap r d3">
+      <div class="video-glow"></div>
+      <div class="video-placeholder" id="videoPlaceholder">
+        <div class="video-play"><svg width="32" height="32" viewBox="0 0 24 24" fill="var(--black)"><polygon points="6,3 20,12 6,21"/></svg></div>
+        <span>Vidéo à venir</span>
+      </div>
+    </div>
   </div>
 </section>
 <section class="feat-s" id="features">
