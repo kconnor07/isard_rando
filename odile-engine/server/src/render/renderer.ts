@@ -125,7 +125,8 @@ export async function renderHtmlToPng(
       return route.abort();
     });
     await page.setContent(html, { waitUntil: 'load', timeout: 30_000 });
-    await page.evaluate(() => document.fonts.ready);
+    // Attendre le chargement des polices (contexte navigateur, pas Node)
+    await page.evaluate('document.fonts.ready');
     await page.waitForTimeout(120);
     return await page.screenshot({ type: 'png', clip: { x: 0, y: 0, ...size } });
   } finally {
