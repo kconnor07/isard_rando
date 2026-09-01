@@ -294,15 +294,45 @@ body {
   background-size: cover;
   background-position: center 30%;
 }
+/* Fond de teint : ramène la colorimétrie de l'image vers la gamme bleue Odile */
+.hero-grade {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(160deg,
+    rgba(0, 82, 190, 0.5) 0%,
+    rgba(4, 14, 40, 0.55) 55%,
+    rgba(0, 60, 150, 0.45) 100%);
+  mix-blend-mode: color;
+}
 .hero-scrim {
   position: absolute;
   inset: 0;
   z-index: 4;
-  background: linear-gradient(180deg,
+  /* Vignette : les bords de l'image se fondent dans le marine du thème,
+     + dégradé de lisibilité pour le texte en bas */
+  background:
+    radial-gradient(115% 100% at 50% 36%, rgba(5, 5, 16, 0) 52%, rgba(5, 5, 16, 0.9) 100%),
+    linear-gradient(180deg,
     rgba(4, 6, 15, 0.18) 0%,
     rgba(4, 6, 15, 0.05) 30%,
     rgba(4, 6, 15, 0.55) 62%,
     rgba(4, 6, 15, 0.92) 100%);
+}
+
+/* Écho ambiant : sur les slides sans illustration propre, la même image
+   floutée diffuse sa lumière sous les décors du thème → un seul univers
+   colorimétrique du début à la fin du carrousel. */
+.hero-ambient {
+  position: absolute;
+  inset: -8%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(72px) saturate(1.25) brightness(0.42);
+  opacity: 0.5;
+  /* Le bas reste sombre : la lisibilité du corps de texte prime sur l'écho */
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0, 0, 0, 0.35) 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0, 0, 0, 0.35) 100%);
 }
 .has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.22; }
 .has-hero .bg { opacity: 0.4; }

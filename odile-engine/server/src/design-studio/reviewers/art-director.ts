@@ -16,6 +16,9 @@ Tu évalues les slides rendues d'un post Instagram/LinkedIn de la marque Odile A
   espace négatif pour le titre, pas de kitsch ni d'artefacts IA visibles) et la fidélité à
   l'archétype de composition annoncé. Pour demander une NOUVELLE illustration, utilise
   target "image" et décris dans "fix" le nouveau concept de scène souhaité.
+- Harmonie image ↔ décor : l'illustration doit se fondre dans l'univers du thème (bords qui
+  se dissolvent dans le marine, lumière cohérente avec les orbes du décor, aucune rupture
+  visuelle entre la slide illustrée et les slides suivantes du carrousel).
 Corrections actionnables UNIQUEMENT sur le contenu des slides (raccourcir un titre, déplacer une
 info sur une autre slide, supprimer un élément, changer le mot accentué) ou sur l'illustration
 (target "image") — la charte CSS est fixe.`,

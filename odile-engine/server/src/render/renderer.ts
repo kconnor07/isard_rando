@@ -48,6 +48,8 @@ export interface SlideRenderInput {
   logoDataUri?: string | null;
   /** illustration générée (fond plein cadre sous un dégradé de lisibilité) */
   heroDataUri?: string | null;
+  /** illustration du post, diffusée en écho flouté sur les slides sans hero */
+  ambientHeroDataUri?: string | null;
 }
 
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
@@ -87,10 +89,15 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
 <body>
 <div class="slide theme-${input.theme} kind-${input.kind}${input.heroDataUri ? ' has-hero' : ''}">
   <div class="bg"></div>
+  ${
+    !input.heroDataUri && input.ambientHeroDataUri
+      ? `<div class="hero-ambient" style="background-image:url(${input.ambientHeroDataUri})"></div>`
+      : ''
+  }
   <div class="decor-1"></div><div class="decor-2"></div><div class="decor-3"></div>
   ${
     input.heroDataUri
-      ? `<div class="hero-image" style="background-image:url(${input.heroDataUri})"></div><div class="hero-scrim"></div>`
+      ? `<div class="hero-image" style="background-image:url(${input.heroDataUri})"></div><div class="hero-grade"></div><div class="hero-scrim"></div>`
       : ''
   }
   <div class="safe">
@@ -199,6 +206,11 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
   const format = post.format as PostFormat;
   const size = RENDER_SIZES[format];
   const assetIds: string[] = [];
+
+  // L'illustration du post (celle du hook) diffuse un écho flouté sur les
+  // slides sans image propre → harmonie colorimétrique sur tout le carrousel.
+  const postHeroAssetId = slides.find((s) => s.heroAssetId)?.heroAssetId ?? null;
+  const ambientHeroDataUri = assetDataUri(postHeroAssetId);
 
   for (const slide of slides) {
     const content = slideContentSchema.parse(JSON.parse(slide.content));

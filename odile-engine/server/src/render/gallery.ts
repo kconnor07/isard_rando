@@ -91,10 +91,12 @@ export async function renderGallery(): Promise<{ dir: string; files: number }> {
     }
   }
 
-  // Variante hook avec illustration (placeholder mock) pour contrôler le scrim
+  // Variantes illustration : hook plein cadre (scrim + fond de teint) et
+  // écho ambiant sur une slide suivante — contrôle de l'harmonie du carrousel
   {
     const { generateMockPlaceholderBuffer } = await import('../imagegen/index.js');
     const hero = await generateMockPlaceholderBuffer();
+    const heroDataUri = `data:image/jpeg;base64,${hero.toString('base64')}`;
     const html = buildSlideHtml({
       theme: 'odile-nuit',
       kind: 'hook',
@@ -103,11 +105,27 @@ export async function renderGallery(): Promise<{ dir: string; files: number }> {
       brand,
       slideNum: 1,
       slideTotal: SAMPLES.length,
-      heroDataUri: `data:image/jpeg;base64,${hero.toString('base64')}`,
+      heroDataUri,
       screenshotDataUri: null,
     });
     const png = await renderHtmlToPng(html, { width: 1080, height: 1350 });
     fs.writeFileSync(path.join(dir, `odile-nuit--hook-hero.png`), png);
+    files++;
+
+    const ambientSample = SAMPLES.find((s) => s.kind === 'value_prop') ?? SAMPLES[1]!;
+    const ambientHtml = buildSlideHtml({
+      theme: 'odile-nuit',
+      kind: ambientSample.kind,
+      content: ambientSample,
+      format: 'carousel',
+      brand,
+      slideNum: 2,
+      slideTotal: SAMPLES.length,
+      ambientHeroDataUri: heroDataUri,
+      screenshotDataUri: null,
+    });
+    const ambientPng = await renderHtmlToPng(ambientHtml, { width: 1080, height: 1350 });
+    fs.writeFileSync(path.join(dir, `odile-nuit--${ambientSample.kind}-ambient.png`), ambientPng);
     files++;
   }
 
