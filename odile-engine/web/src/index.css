@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #07070c;
+  --color-panel: #101018;
+  --color-panel2: #16161f;
+  --color-line: rgba(255, 255, 255, 0.09);
+  --color-accent: #0099ff;
+  --color-accent-soft: rgba(0, 153, 255, 0.14);
+  --color-txt: #f2f5fa;
+  --color-muted: #97a1b3;
+}
+
+html, body { background: var(--color-ink); color: var(--color-txt); }
+
+::selection { background: rgba(0, 153, 255, 0.35); }
+
+.card { @apply bg-panel border border-line rounded-2xl; }
+.btn-primary, .btn-ghost, .btn-danger, .btn-success {
+  @apply inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed;
+}
+.btn-primary { @apply bg-accent text-white hover:bg-sky-400; }
+.btn-ghost { @apply border border-line text-txt hover:bg-panel2; }
+.btn-danger { @apply bg-red-600 text-white hover:bg-red-500; }
+.btn-success { @apply bg-emerald-600 text-white hover:bg-emerald-500; }
+.input { @apply w-full rounded-xl bg-panel2 border border-line px-3 py-2 text-sm text-txt outline-none focus:border-accent; }
+.label { @apply block text-xs font-semibold uppercase tracking-wider text-muted mb-1.5; }
