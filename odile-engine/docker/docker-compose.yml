@@ -1,0 +1,40 @@
+# Production (Oracle Cloud ou tout VPS) : app + Caddy (HTTPS automatique).
+# Prérequis : .env à la racine d'odile-engine/ (copie de .env.example rempli)
+# et la variable DOMAIN (ex: engine.odileai.com) pointée en DNS vers le serveur.
+#
+#   cd odile-engine
+#   docker compose -f docker/docker-compose.yml up -d --build
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file: ../.env
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - odile-data:/data
+    restart: unless-stopped
+    expose:
+      - '3080'
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      DOMAIN: ${DOMAIN:?définir DOMAIN dans .env (ex: engine.odileai.com)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  odile-data:
+  caddy-data:
+  caddy-config:

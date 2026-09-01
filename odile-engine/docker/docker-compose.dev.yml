@@ -1,0 +1,22 @@
+# Développement local : app exposée en direct + Mailpit pour visualiser les emails.
+#
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up --build app mailpit
+
+services:
+  app:
+    ports:
+      - '3080:3080'
+    environment:
+      PUBLIC_URL: http://localhost:3080
+      PUBLISH_MODE: dry
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      SMTP_SECURE: 'false'
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '8025:8025' # interface web : http://localhost:8025
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: '1'
