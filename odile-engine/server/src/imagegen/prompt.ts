@@ -7,7 +7,7 @@ import { ARCHETYPES } from '@odile/shared';
  */
 export const STYLE_GUIDE = `Premium social media advertising visual, cinematic photorealistic 3D render quality.
 COLOR PALETTE (strict): deep navy / near-black background (#050510), electric blue (#0099FF) as the ONLY accent color — rim lights, glows, halos and light trails are electric blue or cool white. Subtle cool cyan-blue gradients allowed.
-ABSOLUTELY FORBIDDEN: warm tones, orange, red, yellow, gold, green; any text, letters, numbers as typography, words, logos, watermarks, user interfaces, buttons.
+ABSOLUTELY FORBIDDEN: warm tones, orange, red, yellow, gold, green, purple, violet, magenta; any text, letters, numbers as typography, words, logos, watermarks, user interfaces, buttons.
 LIGHTING: dramatic studio lighting, volumetric light, strong rim light, deep shadows, subtle atmospheric haze, faint film grain.
 COMPOSITION: one single strong subject, generous negative space reserved for a headline overlay, balanced vertical 4:5 composition, high-end production value like a top-tier brand campaign.`;
 

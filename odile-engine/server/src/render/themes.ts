@@ -9,8 +9,8 @@ export const TEMPLATES_DIR = path.resolve(here, '../../../templates');
 
 export const THEME_LABELS: Record<ThemeId, string> = {
   'odile-nuit': 'Odile Nuit — bleu nuit horizon',
-  'violet-glow': 'Violet Glow — halos violets',
-  'cyan-tech': 'Cyan Tech — dégradés cyan',
+  'violet-glow': 'Halo Bleu — orbes lumineux',
+  'cyan-tech': 'Bleu Tech — dégradés électriques',
 };
 
 export function isTheme(id: string): id is ThemeId {

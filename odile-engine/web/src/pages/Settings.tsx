@@ -305,8 +305,8 @@ export default function Settings() {
           <div><label className="label">Thème par défaut</label>
             <select className="input" value={form.default_theme} onChange={(e) => set('default_theme', e.target.value)}>
               <option value="odile-nuit">Odile Nuit (bleu horizon)</option>
-              <option value="violet-glow">Violet Glow</option>
-              <option value="cyan-tech">Cyan Tech</option>
+              <option value="violet-glow">Halo Bleu (orbes lumineux)</option>
+              <option value="cyan-tech">Bleu Tech (dégradés électriques)</option>
             </select></div>
           <div><label className="label">Format Instagram par défaut</label>
             <select className="input" value={form.default_format} onChange={(e) => set('default_format', e.target.value)}>

@@ -8,8 +8,9 @@ Tu contrôles des slides destinées à être lues sur un téléphone, souvent en
   focus: `Évalue UNIQUEMENT couleurs et lisibilité :
 - Contraste texte/fond : chaque texte doit rester lisible sur mobile (petite taille perçue).
   Signale tout texte qui se fond dans un halo lumineux ou un décor.
-- Harmonie de la palette : la marque Odile AI est noir profond + bleu électrique #0099FF
-  (déclinaisons nuit/violet/cyan autorisées). AUCUN orange, aucun rouge chaud : si tu en vois, c'est bloquant.
+- Harmonie de la palette : la marque Odile AI est STRICTEMENT noir/marine profond + bleu
+  électrique #0099FF (nuances de bleu clair/blanc froid autorisées). AUCUN orange, rouge,
+  jaune, doré, vert ni violet : toute teinte hors de la famille bleue est bloquante.
 - Débordements : texte coupé, qui touche les bords, ou qui chevauche le pied de marque.
 - Cohérence des accents : le mot accentué doit ressortir clairement.
 - Illustrations générées par IA (fonds d'image) : toute dominante chaude (orange, rouge, jaune,
