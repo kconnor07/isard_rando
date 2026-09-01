@@ -9,7 +9,8 @@
     "job": "tsx src/cli.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "demo": "tsx src/demo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
