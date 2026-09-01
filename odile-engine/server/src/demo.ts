@@ -49,15 +49,32 @@ async function main(): Promise<void> {
     console.log('📰 Actualité de démonstration injectée');
   }
 
-  // 2. Un post complet prêt à valider (si aucun n'existe encore)
-  const hasPosts = db.select({ id: schema.posts.id }).from(schema.posts).limit(1).all().length > 0;
+  // 2. Un post complet prêt à valider (si aucun n'existe encore).
+  // Les posts restés en "draft" sont des restes d'un run précédent qui a
+  // échoué en cours de préparation : on repart de zéro.
+  const { eq, ne } = await import('drizzle-orm');
+  db.delete(schema.posts).where(eq(schema.posts.status, 'draft')).run();
+  const hasPosts =
+    db.select({ id: schema.posts.id }).from(schema.posts).where(ne(schema.posts.status, 'draft')).limit(1).all()
+      .length > 0;
   if (!hasPosts) {
     console.log('✍️  Préparation du post de démonstration (rédaction → illustration → rendu → studio de design)…');
-    const { runDraftPipeline } = await import('./scheduler/pipeline.js');
-    const result = await runDraftPipeline();
-    console.log(
-      `✅ Post #${result.postId} prêt — studio de design : ${result.review.iterations} itération(s), ${result.review.passed ? 'validé' : 'à vérifier'}`,
-    );
+    try {
+      const { runDraftPipeline } = await import('./scheduler/pipeline.js');
+      const result = await runDraftPipeline();
+      console.log(
+        `✅ Post #${result.postId} prêt — studio de design : ${result.review.iterations} itération(s), ${result.review.passed ? 'validé' : 'à vérifier'}`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`\n⚠️  La préparation du post de démo a échoué : ${msg}`);
+      if (/chrom|browser/i.test(msg)) {
+        console.error(
+          '   → Installez Google Chrome (https://www.google.com/chrome/) puis relancez :  npm run demo',
+        );
+      }
+      console.error('   Le dashboard démarre quand même (sans post de démonstration).\n');
+    }
   }
 
   // 3. Dashboard
