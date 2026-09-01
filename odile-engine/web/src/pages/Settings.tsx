@@ -307,6 +307,7 @@ export default function Settings() {
               <option value="odile-nuit">Odile Nuit (bleu horizon)</option>
               <option value="violet-glow">Halo Bleu (orbes lumineux)</option>
               <option value="cyan-tech">Bleu Tech (dégradés électriques)</option>
+              <option value="verre-bleu">Verre Bleu (courbes de verre)</option>
             </select></div>
           <div><label className="label">Format Instagram par défaut</label>
             <select className="input" value={form.default_format} onChange={(e) => set('default_format', e.target.value)}>

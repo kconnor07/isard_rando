@@ -121,7 +121,7 @@ export const ARCHETYPES: Archetype[] = [
   },
 ];
 
-export const THEMES = ['odile-nuit', 'violet-glow', 'cyan-tech'] as const;
+export const THEMES = ['odile-nuit', 'violet-glow', 'cyan-tech', 'verre-bleu'] as const;
 export type ThemeId = (typeof THEMES)[number];
 
 export const REVIEWERS = ['art_director', 'colorimetry', 'copy', 'engagement'] as const;

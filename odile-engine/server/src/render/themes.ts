@@ -11,6 +11,7 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   'odile-nuit': 'Odile Nuit — bleu nuit horizon',
   'violet-glow': 'Halo Bleu — orbes lumineux',
   'cyan-tech': 'Bleu Tech — dégradés électriques',
+  'verre-bleu': 'Verre Bleu — courbes de verre',
 };
 
 export function isTheme(id: string): id is ThemeId {
