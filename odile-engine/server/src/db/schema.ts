@@ -11,7 +11,7 @@ export const settings = sqliteTable('settings', {
 export const newsSources = sqliteTable('news_sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  kind: text('kind', { enum: ['rss', 'hn'] }).notNull(),
+  kind: text('kind', { enum: ['rss', 'hn', 'websearch'] }).notNull(),
   url: text('url').notNull(),
   lang: text('lang', { enum: ['fr', 'en'] }).notNull().default('en'),
   weight: real('weight').notNull().default(1),
@@ -20,6 +20,7 @@ export const newsSources = sqliteTable('news_sources', {
   lastModified: text('last_modified'),
   lastFetchedAt: text('last_fetched_at'),
   lastError: text('last_error'),
+  consecutiveErrors: integer('consecutive_errors').notNull().default(0),
 });
 
 export const newsItems = sqliteTable(
@@ -41,6 +42,13 @@ export const newsItems = sqliteTable(
     scoreTotal: integer('score_total'),
     scoreReason: text('score_reason'),
     scoredAt: text('scored_at'),
+    /* Veille v2 : enrichissement des candidats shortlist */
+    contentText: text('content_text'),
+    extractedAt: text('extracted_at'),
+    engagement: integer('engagement'), // 0-100 normalisé
+    engagementRaw: text('engagement_raw'), // JSON {hnPoints,hnComments,redditScore,redditComments}
+    topics: text('topics'), // JSON string[] (tags FR)
+    scoreFinal: real('score_final'),
     shortlistDate: text('shortlist_date'), // YYYY-MM-DD
     shortlistRank: integer('shortlist_rank'),
     status: text('status', { enum: ['new', 'scored', 'shortlisted', 'used', 'discarded'] })

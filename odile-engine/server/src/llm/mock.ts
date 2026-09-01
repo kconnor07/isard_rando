@@ -18,13 +18,23 @@ function buildMockText(req: LlmRequest): string {
     case 'scoring': {
       // Le prompt du scorer étiquette chaque item "[id=N]" — on les note tous.
       const ids = [...req.prompt.matchAll(/\[id=(\d+)\]/g)].map((m) => Number(m[1]));
-      const scores = ids.map((id, i) => ({
+      const score = (id: number, i: number) => ({
         id,
         relevance: 30 + ((id + i) % 20),
         click: 25 + ((id * 7) % 25),
         reason: 'Mock : sujet IA actionnable pour une PME (score simulé).',
-      }));
-      return JSON.stringify({ scores });
+      });
+      // Étape 2 (rescoring plein texte) : le prompt demande des "topics"
+      if (/topics/.test(req.prompt)) {
+        const pool = ['automatisation', 'chatbot', 'facturation', 'no-code', 'prospection', 'productivité'];
+        return JSON.stringify({
+          items: ids.map((id, i) => ({
+            ...score(id, i),
+            topics: [pool[id % pool.length], pool[(id + 2) % pool.length]],
+          })),
+        });
+      }
+      return JSON.stringify({ scores: ids.map(score) });
     }
     case 'writing':
       return JSON.stringify(MOCK_GENERATED_POST);

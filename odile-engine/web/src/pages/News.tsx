@@ -52,18 +52,41 @@ export default function News() {
         {news?.map((item) => (
           <div key={item.id} className="card flex items-start gap-4 p-4">
             <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-soft">
-              <span className="text-lg font-extrabold text-accent">{item.score ?? '–'}</span>
+              <span className="text-lg font-extrabold text-accent">
+                {item.scoreFinal != null ? Math.round(item.scoreFinal) : (item.score ?? '–')}
+              </span>
               <span className="text-[9px] uppercase text-muted">score</span>
             </div>
             <div className="min-w-0 flex-1">
               <a href={item.url} target="_blank" rel="noreferrer" className="font-bold hover:text-accent">
                 {item.title}
               </a>
-              <div className="mt-0.5 text-xs text-muted">
-                {item.source} · {item.lang.toUpperCase()}
-                {item.shortlistRank ? ` · shortlist #${item.shortlistRank}` : ''}
-                {item.scoreRelevance != null ? ` · pertinence ${item.scoreRelevance}/50 · clic ${item.scoreClick}/50` : ''}
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                <span>{item.source} · {item.lang.toUpperCase()}</span>
+                {item.shortlistRank ? <span>· shortlist #{item.shortlistRank}</span> : null}
+                {item.scoreRelevance != null && (
+                  <span>· pertinence {item.scoreRelevance}/50 · clic {item.scoreClick}/50</span>
+                )}
+                {item.engagement != null && item.engagement > 0 && (
+                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-200">
+                    🔥 engagement {item.engagement}
+                  </span>
+                )}
+                {item.contentExtracted && (
+                  <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-300">
+                    📄 texte extrait
+                  </span>
+                )}
               </div>
+              {item.topics.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {item.topics.map((t) => (
+                    <span key={t} className="rounded-full bg-panel2 px-2 py-0.5 text-[11px] text-muted">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
               {item.reason && <p className="mt-1 text-sm text-muted">{item.reason}</p>}
             </div>
             <div className="flex shrink-0 gap-2">

@@ -7,6 +7,12 @@ interface ClicksDto {
   perDay: { day: string; count: number }[];
   perLink: { linkId: number; postId: number | null; label: string; target: string; count: number }[];
 }
+interface LearningDto {
+  sources: { name: string; weight: number; enabled: boolean }[];
+  topics: { topic: string; factor: number }[];
+  lastLearnAt: string | null;
+}
+
 interface PostStatDto {
   id: number;
   hook: string;
@@ -25,6 +31,10 @@ export default function Analytics() {
   const { data: posts } = useQuery({
     queryKey: ['analytics', 'posts'],
     queryFn: () => api.get<PostStatDto[]>('/api/analytics/posts'),
+  });
+  const { data: learning } = useQuery({
+    queryKey: ['analytics', 'learning'],
+    queryFn: () => api.get<LearningDto>('/api/analytics/learning'),
   });
 
   const max = Math.max(1, ...(clicks?.perDay.map((d) => d.count) ?? [1]));
@@ -52,6 +62,48 @@ export default function Analytics() {
           {(clicks?.perDay.length ?? 0) === 0 && <div className="text-sm text-muted">Pas encore de clics.</div>}
         </div>
       </div>
+
+      {learning && (
+        <div className="mb-6 grid grid-cols-2 gap-4">
+          <div className="card p-5">
+            <h2 className="mb-1 text-base font-bold">Sources qui performent</h2>
+            <p className="mb-3 text-xs text-muted">
+              Poids ajustés chaque lundi par la boucle d'apprentissage
+              {learning.lastLearnAt ? ` (dernier passage : ${fmtDate(learning.lastLearnAt)})` : ' (pas encore exécutée)'}.
+            </p>
+            <div className="flex flex-col gap-1 text-sm">
+              {learning.sources.slice(0, 8).map((s) => (
+                <div key={s.name} className="flex items-center gap-2">
+                  <span className={`flex-1 truncate ${s.enabled ? '' : 'line-through opacity-50'}`}>{s.name}</span>
+                  <div className="h-1.5 w-28 overflow-hidden rounded-full bg-panel2">
+                    <div className="h-full rounded-full bg-accent" style={{ width: `${((s.weight - 0.5) / 1.5) * 100}%` }} />
+                  </div>
+                  <span className="w-8 text-right font-mono text-xs text-muted">{s.weight.toFixed(1)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="card p-5">
+            <h2 className="mb-1 text-base font-bold">Sujets qui performent</h2>
+            <p className="mb-3 text-xs text-muted">Affinités apprises des clics — elles boostent (ou pénalisent) le score des actus.</p>
+            {learning.topics.length === 0 && (
+              <p className="text-sm text-muted">Pas encore de données — les affinités apparaîtront après quelques posts publiés.</p>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {learning.topics.slice(0, 16).map((t) => (
+                <span
+                  key={t.topic}
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    t.factor >= 1.05 ? 'bg-emerald-500/20 text-emerald-200' : t.factor <= 0.95 ? 'bg-red-500/15 text-red-300' : 'bg-panel2 text-muted'
+                  }`}
+                >
+                  {t.topic} ×{t.factor.toFixed(2)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <h2 className="mb-3 text-lg font-bold">Posts publiés</h2>
       {posts && posts.length === 0 && <Empty>Aucun post publié pour l'instant.</Empty>}

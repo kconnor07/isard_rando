@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import type { z } from 'zod';
+import { z } from 'zod';
 import {
   approvalEmailSettingsSchema,
   brandSettingsSchema,
@@ -77,6 +77,13 @@ export const getDesignStudio = () =>
   getSetting('design_studio', designStudioSettingsSchema, { ...DEFAULTS.designStudio });
 export const getImageGen = () =>
   getSetting('image_gen', imageGenSettingsSchema, { ...DEFAULTS.imageGen });
+
+const topicAffinitySchema = z.record(z.string(), z.number().min(0.5).max(2));
+/** Multiplicateurs d'affinité par sujet, appris des clics (job learn hebdo). */
+export const getTopicAffinity = (): Record<string, number> =>
+  getSetting('topic_affinity', topicAffinitySchema, {});
+export const setTopicAffinity = (value: Record<string, number>): void =>
+  setSetting('topic_affinity', value);
 export const getLlmRouting = () =>
   getSetting('llm_routing', llmRoutingSchema, {
     copywriting: 'anthropic',

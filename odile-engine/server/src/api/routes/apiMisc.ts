@@ -1,7 +1,8 @@
-import { and, desc, eq, gte, inArray } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, like } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { loginSchema } from '@odile/shared';
 import { db, schema } from '../../db/client.js';
+import { getTopicAffinity } from '../../db/settingsRepo.js';
 import { nextPublishSlot, shouldDraftToday } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
 
@@ -119,6 +120,36 @@ export function registerMiscRoutes(app: FastifyInstance): void {
         target: links.get(linkId)?.targetUrl ?? '',
         count,
       })),
+    };
+  });
+
+  // Ce que la boucle d'apprentissage a retenu (poids sources + affinités sujets)
+  app.get('/api/analytics/learning', async () => {
+    const sources = db
+      .select({
+        name: schema.newsSources.name,
+        weight: schema.newsSources.weight,
+        enabled: schema.newsSources.enabled,
+      })
+      .from(schema.newsSources)
+      .orderBy(desc(schema.newsSources.weight))
+      .all();
+    const affinity = getTopicAffinity();
+    const topics = Object.entries(affinity)
+      .map(([topic, factor]) => ({ topic, factor }))
+      .sort((a, b) => b.factor - a.factor);
+    const lastLearn = db
+      .select()
+      .from(schema.jobRuns)
+      .where(and(eq(schema.jobRuns.jobName, 'learn'), like(schema.jobRuns.summary, '%postsAnalyzed%')))
+      .orderBy(desc(schema.jobRuns.id))
+      .limit(1)
+      .get();
+    return {
+      sources,
+      topics,
+      lastLearnAt: lastLearn?.finishedAt ?? null,
+      lastLearn: lastLearn?.summary ? JSON.parse(lastLearn.summary) : null,
     };
   });
 

@@ -21,9 +21,26 @@ export function registerJobs(): void {
     void runJob('scrape', runScrape).then(() => runJob('score', () => runScore()));
   }, { timezone: TZ });
 
-  // Shortlist quotidienne
+  // Collecte par recherche web IA (hors flux RSS), puis scoring des nouveaux items
+  cron.schedule('20 6 * * *', () => {
+    void (async () => {
+      const { runWebsearch } = await import('../scraper/websearch.js');
+      await runJob('websearch', runWebsearch);
+      await runJob('score', () => runScore());
+    })().catch((err) => logger.error({ err: String(err) }, 'websearch en échec'));
+  }, { timezone: TZ });
+
+  // Shortlist quotidienne v2 (extraction plein texte + engagement + rescoring + mélange)
   cron.schedule('30 6 * * *', () => {
-    void runJob('shortlist', async () => buildDailyShortlist());
+    void runJob('shortlist', () => buildDailyShortlist());
+  }, { timezone: TZ });
+
+  // Apprentissage hebdomadaire (clics → poids des sources + affinités de sujets)
+  cron.schedule('50 7 * * 1', () => {
+    void (async () => {
+      const { runLearn } = await import('../scorer/learn.js');
+      await runJob('learn', () => runLearn());
+    })().catch((err) => logger.error({ err: String(err) }, 'learn en échec'));
   }, { timezone: TZ });
 
   // Brouillon du jour si la cadence l'exige (pipeline complet → email d'approbation)
@@ -102,6 +119,9 @@ async function sendApprovalReminders(): Promise<{ reminded: number }> {
 
 async function runMaintenance(): Promise<Record<string, number>> {
   const now = Date.now();
+  // 0. Items shortlistés jamais utilisés depuis 72 h → retour au pool
+  const { recycleStaleShortlist } = await import('../scorer/shortlist.js');
+  const recycled = recycleStaleShortlist();
   // 1. Alerte tokens OAuth qui expirent sous 7 jours
   let expiryWarnings = 0;
   const tokens = db.select().from(schema.oauthTokens).all();
@@ -143,7 +163,7 @@ Ouvre le dashboard → Réglages → Connexions pour le renouveler en un clic.</
     .set({ raw: null })
     .where(lt(schema.comments.fetchedAt, new Date(now - 30 * 86400000).toISOString()))
     .run().changes;
-  return { expiryWarnings, purged, rawPurged };
+  return { expiryWarnings, purged, rawPurged, recycled };
 }
 
 async function sendWeeklyRecap(): Promise<{ sent: boolean }> {

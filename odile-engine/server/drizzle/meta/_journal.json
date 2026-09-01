@@ -15,6 +15,13 @@
       "when": 1788249093053,
       "tag": "0001_hero-images",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788269726028,
+      "tag": "0002_veille-v2",
+      "breakpoints": true
     }
   ]
 }

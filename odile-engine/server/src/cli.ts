@@ -25,7 +25,26 @@ async function main() {
     }
     case 'shortlist': {
       const { buildDailyShortlist } = await import('./scorer/shortlist.js');
-      return runJob('shortlist', async () => buildDailyShortlist());
+      return runJob('shortlist', () => buildDailyShortlist());
+    }
+    case 'enrich': {
+      // Extraction plein texte + engagement d'un item (débogage/contrôle)
+      const { extractForItem } = await import('./scraper/extract.js');
+      const { enrichEngagement } = await import('./scraper/engagement.js');
+      const newsId = Number(arg('news'));
+      if (!newsId) throw new Error('--news <id> requis');
+      return runJob('enrich', async () => ({
+        extracted: await extractForItem(newsId),
+        engagement: await enrichEngagement(newsId),
+      }));
+    }
+    case 'websearch': {
+      const { runWebsearch } = await import('./scraper/websearch.js');
+      return runJob('websearch', runWebsearch);
+    }
+    case 'learn': {
+      const { runLearn } = await import('./scorer/learn.js');
+      return runJob('learn', () => runLearn());
     }
     case 'draft': {
       const { draftPost } = await import('./writer/generate.js');
@@ -123,7 +142,7 @@ async function main() {
       return { ok: true };
     }
     default:
-      console.log(`Commandes : scrape | score | shortlist | draft [--news <id>] | render --post <id> | gallery | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | poll-li-comments | seed | fixture [--title ..] [--url ..]`);
+      console.log(`Commandes : scrape | score | shortlist | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | poll-li-comments | seed | fixture [--title ..] [--url ..]`);
       return { ok: false };
   }
 }

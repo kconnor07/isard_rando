@@ -31,6 +31,10 @@ export function registerNewsRoutes(app: FastifyInstance): void {
       score: n.scoreTotal,
       scoreRelevance: n.scoreRelevance,
       scoreClick: n.scoreClick,
+      scoreFinal: n.scoreFinal,
+      engagement: n.engagement,
+      topics: n.topics ? (JSON.parse(n.topics) as string[]) : [],
+      contentExtracted: Boolean(n.contentText),
       reason: n.scoreReason,
       status: n.status,
       shortlistRank: n.shortlistRank,
@@ -40,8 +44,8 @@ export function registerNewsRoutes(app: FastifyInstance): void {
   app.post('/api/news/refresh', async () => {
     const scrape = await runJob('scrape', runScrape);
     const score = await runJob('score', () => runScore());
-    const shortlist = buildDailyShortlist();
-    return { scrape: scrape.result, score: score.result, shortlist };
+    const shortlist = await runJob('shortlist', () => buildDailyShortlist());
+    return { scrape: scrape.result, score: score.result, shortlist: shortlist.result };
   });
 
   app.post<{ Params: { id: string } }>('/api/news/:id/generate', async (request, reply) => {

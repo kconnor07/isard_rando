@@ -146,6 +146,13 @@ Résumé : ${news.summary ?? '(pas de résumé)'}
 URL : ${news.url}
 Langue source : ${news.lang}
 Pourquoi elle a été retenue : ${news.scoreReason ?? ''}
+${
+  news.contentText
+    ? `\nEXTRAIT DE L'ARTICLE (matière première pour comprendre le sujet — rédige un contenu
+100 % ORIGINAL en français, avec tes propres mots ; ne recopie aucune phrase de la source, cite-la
+seulement comme référence via le lien) :\n"""\n${news.contentText.slice(0, 2800)}\n"""`
+    : ''
+}
 
 TON DE LA MARQUE :
 ${toneToPrompt(tone)}

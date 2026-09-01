@@ -59,6 +59,10 @@ export interface NewsDto {
   score: number | null;
   scoreRelevance: number | null;
   scoreClick: number | null;
+  scoreFinal: number | null;
+  engagement: number | null;
+  topics: string[];
+  contentExtracted: boolean;
   reason: string | null;
   status: string;
   shortlistRank: number | null;

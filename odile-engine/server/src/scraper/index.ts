@@ -6,6 +6,10 @@ import { fetchHackerNews } from './hackernews.js';
 import { fetchRss, type FetchedItem } from './rss.js';
 import { seedSourcesIfEmpty } from './sources.js';
 
+/** Échecs consécutifs avant auto-désactivation d'une source (≈ 12 h au rythme horaire). */
+const MAX_CONSECUTIVE_ERRORS = 12;
+const SCRAPE_CONCURRENCY = 4;
+
 export interface ScrapeSummary {
   sources: number;
   fetched: number;
@@ -32,68 +36,107 @@ export async function runScrape(): Promise<ScrapeSummary> {
     errors: [],
   };
 
-  for (const source of sources) {
-    try {
-      let items: FetchedItem[] = [];
-      if (source.kind === 'hn') {
-        items = await fetchHackerNews(source.url);
-      } else {
-        const result = await fetchRss(source.url, source.etag, source.lastModified);
-        if (result.notModified) {
-          db.update(schema.newsSources)
-            .set({ lastFetchedAt: new Date().toISOString(), lastError: null })
-            .where(eq(schema.newsSources.id, source.id))
-            .run();
-          continue;
-        }
-        items = result.items;
-        db.update(schema.newsSources)
-          .set({ etag: result.etag, lastModified: result.lastModified })
-          .where(eq(schema.newsSources.id, source.id))
-          .run();
-      }
-
-      summary.fetched += items.length;
-      for (const item of items.slice(0, 60)) {
-        const canonical = canonicalizeUrl(item.url);
-        const hash = contentHash(canonical);
-        const inserted = db
-          .insert(schema.newsItems)
-          .values({
-            sourceId: source.id,
-            url: item.url,
-            canonicalUrl: canonical,
-            title: item.title,
-            summary: item.summary,
-            imageUrl: item.imageUrl,
-            publishedAt: item.publishedAt,
-            lang: source.lang,
-            contentHash: hash,
-          })
-          .onConflictDoNothing({ target: schema.newsItems.contentHash })
-          .returning({ id: schema.newsItems.id })
-          .all();
-        if (inserted.length > 0) summary.inserted++;
-        else summary.duplicates++;
-      }
-
-      db.update(schema.newsSources)
-        .set({ lastFetchedAt: new Date().toISOString(), lastError: null })
-        .where(eq(schema.newsSources.id, source.id))
-        .run();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      summary.errors.push({ source: source.name, error: message });
-      db.update(schema.newsSources)
-        .set({ lastFetchedAt: new Date().toISOString(), lastError: message.slice(0, 500) })
-        .where(eq(schema.newsSources.id, source.id))
-        .run();
-      logger.warn({ source: source.name, err: message }, 'échec de récupération de la source');
+  // Traitement parallèle (pool de concurrence limitée)
+  const queue = [...sources];
+  const workers = Array.from({ length: Math.min(SCRAPE_CONCURRENCY, queue.length) }, async () => {
+    for (let source = queue.shift(); source; source = queue.shift()) {
+      await processSource(source, summary);
     }
-  }
+  });
+  await Promise.allSettled(workers);
 
   summary.crossDuplicates = crossSourceDedupe();
   return summary;
+}
+
+async function processSource(
+  source: typeof schema.newsSources.$inferSelect,
+  summary: ScrapeSummary,
+): Promise<void> {
+  try {
+    let items: FetchedItem[] = [];
+    if (source.kind === 'websearch') {
+      return; // source virtuelle alimentée par le job websearch quotidien
+    }
+    if (source.kind === 'hn') {
+      items = await fetchHackerNews(source.url);
+    } else {
+      const result = await fetchRss(source.url, source.etag, source.lastModified);
+      if (result.notModified) {
+        db.update(schema.newsSources)
+          .set({ lastFetchedAt: new Date().toISOString(), lastError: null, consecutiveErrors: 0 })
+          .where(eq(schema.newsSources.id, source.id))
+          .run();
+        return;
+      }
+      items = result.items;
+      db.update(schema.newsSources)
+        .set({ etag: result.etag, lastModified: result.lastModified })
+        .where(eq(schema.newsSources.id, source.id))
+        .run();
+    }
+
+    summary.fetched += items.length;
+    for (const item of items.slice(0, 60)) {
+      const canonical = canonicalizeUrl(item.url);
+      const inserted = db
+        .insert(schema.newsItems)
+        .values({
+          sourceId: source.id,
+          url: item.url,
+          canonicalUrl: canonical,
+          title: item.title,
+          summary: item.summary,
+          imageUrl: item.imageUrl,
+          publishedAt: item.publishedAt,
+          lang: source.lang,
+          contentHash: contentHash(canonical),
+        })
+        .onConflictDoNothing({ target: schema.newsItems.contentHash })
+        .returning({ id: schema.newsItems.id })
+        .all();
+      if (inserted.length > 0) summary.inserted++;
+      else summary.duplicates++;
+    }
+
+    db.update(schema.newsSources)
+      .set({ lastFetchedAt: new Date().toISOString(), lastError: null, consecutiveErrors: 0 })
+      .where(eq(schema.newsSources.id, source.id))
+      .run();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    summary.errors.push({ source: source.name, error: message });
+    const errors = source.consecutiveErrors + 1;
+    const disable = errors >= MAX_CONSECUTIVE_ERRORS;
+    db.update(schema.newsSources)
+      .set({
+        lastFetchedAt: new Date().toISOString(),
+        lastError: message.slice(0, 500),
+        consecutiveErrors: errors,
+        ...(disable ? { enabled: false } : {}),
+      })
+      .where(eq(schema.newsSources.id, source.id))
+      .run();
+    logger.warn({ source: source.name, errors, err: message }, 'échec de récupération de la source');
+    if (disable) {
+      logger.error({ source: source.name }, 'source auto-désactivée après échecs répétés');
+      try {
+        const { sendMail } = await import('../mailer/smtp.js');
+        const { getApprovalEmail } = await import('../db/settingsRepo.js');
+        await sendMail({
+          kind: 'error',
+          to: getApprovalEmail().to,
+          subject: `[Odile] ⚠️ Source de veille désactivée : ${source.name}`,
+          html: `<p>La source <b>${source.name}</b> a échoué ${errors} fois d'affilée et a été désactivée.<br/>
+Dernière erreur : <code>${message.slice(0, 300)}</code><br/>
+Réactive-la depuis le dashboard → Réglages → Sources (après avoir corrigé l'URL si besoin).</p>`,
+          text: `Source ${source.name} désactivée après ${errors} échecs. Dernière erreur : ${message.slice(0, 200)}`,
+        });
+      } catch {
+        /* l'alerte email ne doit pas casser le scrape */
+      }
+    }
+  }
 }
 
 /**

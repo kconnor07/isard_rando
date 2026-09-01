@@ -27,14 +27,28 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'Usine Digitale', kind: 'rss', url: 'https://www.usine-digitale.fr/rss', lang: 'fr', weight: 1.2 },
   { name: 'JDN Intelligence artificielle', kind: 'rss', url: 'https://www.journaldunet.com/rss/', lang: 'fr', weight: 1.0 },
   { name: 'Blog du Modérateur', kind: 'rss', url: 'https://www.blogdumoderateur.com/feed/', lang: 'fr', weight: 1.1 },
+  // Veille v2 — angle outils/automatisation + presse FR (URLs vérifiées)
+  { name: 'Zapier Blog', kind: 'rss', url: 'https://zapier.com/blog/feeds/latest/', lang: 'en', weight: 1.2 },
+  { name: 'n8n Blog', kind: 'rss', url: 'https://blog.n8n.io/rss/', lang: 'en', weight: 1.2 },
+  { name: 'ActuIA', kind: 'rss', url: 'https://www.actuia.com/feed/', lang: 'fr', weight: 1.3 },
+  { name: 'FrenchWeb', kind: 'rss', url: 'https://www.frenchweb.fr/feed', lang: 'fr', weight: 1.1 },
+  { name: 'Siècle Digital', kind: 'rss', url: 'https://siecledigital.fr/feed/', lang: 'fr', weight: 1.1 },
 ];
 
-/** Insère les sources par défaut si la table est vide. */
+/**
+ * Insère les sources par défaut manquantes (par nom) — les bases existantes
+ * reçoivent donc les nouvelles sources au démarrage, sans écraser les
+ * personnalisations (poids, activation) des sources déjà présentes.
+ */
 export function seedSourcesIfEmpty(): number {
-  const existing = db.select({ id: schema.newsSources.id }).from(schema.newsSources).all();
-  if (existing.length > 0) return 0;
+  const existing = new Set(
+    db.select({ name: schema.newsSources.name }).from(schema.newsSources).all().map((s) => s.name),
+  );
+  let added = 0;
   for (const s of SEED_SOURCES) {
+    if (existing.has(s.name)) continue;
     db.insert(schema.newsSources).values(s).run();
+    added++;
   }
-  return SEED_SOURCES.length;
+  return added;
 }

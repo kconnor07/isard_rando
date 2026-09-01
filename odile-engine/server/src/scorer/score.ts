@@ -1,4 +1,5 @@
 import { eq, inArray } from 'drizzle-orm';
+import { z } from 'zod';
 import { newsScoreBatchSchema } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { completeJson } from '../llm/router.js';
@@ -17,6 +18,76 @@ Ajoute "reason" : une phrase en français qui justifie la note (elle sera montr�
 export interface ScoreSummary {
   scored: number;
   batches: number;
+}
+
+const rescoreSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.number().int(),
+      relevance: z.number().min(0).max(50),
+      click: z.number().min(0).max(50),
+      reason: z.string().max(300),
+      topics: z.array(z.string().min(2).max(30)).min(1).max(5),
+    }),
+  ),
+});
+
+/**
+ * Étape 2 : rescoring des candidats shortlist sur le TEXTE COMPLET de
+ * l'article (extrait en interne pour analyse) + attribution de sujets.
+ */
+export async function rescoreWithContent(itemIds: number[]): Promise<number> {
+  if (itemIds.length === 0) return 0;
+  const items = db
+    .select()
+    .from(schema.newsItems)
+    .where(inArray(schema.newsItems.id, itemIds))
+    .all();
+  let rescored = 0;
+  for (let i = 0; i < items.length; i += 5) {
+    const batch = items.slice(i, i + 5);
+    const list = batch
+      .map((it) => {
+        const body = (it.contentText ?? it.summary ?? '').slice(0, 2500);
+        return `[id=${it.id}] (${it.lang}) ${it.title}\n${body}`;
+      })
+      .join('\n\n---\n\n');
+    try {
+      const { value } = await completeJson(
+        {
+          task: 'scoring',
+          tier: 'fast',
+          system: SYSTEM,
+          prompt: `${RUBRIC}\n\nCette fois tu disposes du texte (ou d'un large extrait) de chaque article :
+note avec précision, et ajoute "topics" : 3 à 5 sujets courts en français, en minuscules
+(ex: "facturation", "chatbot", "no-code", "prospection", "juridique") — ils servent à
+apprendre quels sujets performent auprès de notre audience.\n\nArticles :\n\n${list}`,
+          maxTokens: 4000,
+        },
+        rescoreSchema,
+      );
+      const validIds = new Set(batch.map((b) => b.id));
+      for (const s of value.items) {
+        if (!validIds.has(s.id)) continue;
+        db.update(schema.newsItems)
+          .set({
+            scoreRelevance: Math.round(s.relevance),
+            scoreClick: Math.round(s.click),
+            scoreTotal: Math.round(s.relevance + s.click),
+            scoreReason: s.reason,
+            topics: JSON.stringify(s.topics.map((t) => t.toLowerCase())),
+            scoredAt: new Date().toISOString(),
+          })
+          .where(eq(schema.newsItems.id, s.id))
+          .run();
+        rescored++;
+      }
+    } catch (err) {
+      // non bloquant : les scores de l'étape 1 restent valables
+      console.warn(`rescoring lot ${i / 5 + 1} en échec:`, String(err).slice(0, 200));
+    }
+  }
+  return rescored;
 }
 
 /** Note les items encore non scorés, par lots de 10. */
