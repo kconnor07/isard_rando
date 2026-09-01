@@ -1,0 +1,11 @@
+<% if (it.content.annotation) { %>
+<div class="annotation"><%= it.content.annotation %>
+  <svg class="annotation-arrow" width="52" height="56" viewBox="0 0 52 56" fill="none">
+    <path d="M8 4 C 34 10, 44 26, 38 48" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+    <path d="M28 42 L 38 50 L 44 38" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </svg>
+</div>
+<% } %>
+<% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<h1 class="title"><%~ it.titleHtml %></h1>
+<% if (it.content.body) { %><p class="body" style="align-self:center"><%= it.content.body %></p><% } %>

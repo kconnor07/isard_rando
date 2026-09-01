@@ -1,0 +1,5 @@
+<% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<% if (it.content.bigNumber) { %><div class="big-number"><%= it.content.bigNumber %></div><% } %>
+<h2 class="title"><%~ it.titleHtml %></h2>
+<% if (it.content.body) { %><p class="body"><%= it.content.body %></p><% } %>
+<% if (it.content.footer) { %><p class="body" style="font-size:32px;opacity:0.75"><%= it.content.footer %></p><% } %>

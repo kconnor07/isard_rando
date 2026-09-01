@@ -1,0 +1,9 @@
+<% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<% if (it.content.bigNumber) { %><div class="big-number"><%= it.content.bigNumber %></div><% } %>
+<h2 class="title"><%~ it.titleHtml %></h2>
+<% if (it.content.body) { %><p class="body"><%= it.content.body %></p><% } %>
+<% if (it.content.bullets && it.content.bullets.length) { %>
+<ul class="bullets">
+  <% it.content.bullets.forEach(function (b) { %><li><%= b %></li><% }) %>
+</ul>
+<% } %>

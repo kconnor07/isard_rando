@@ -117,4 +117,9 @@ main()
   .catch((err) => {
     console.error(err);
     process.exitCode = 1;
+  })
+  .finally(async () => {
+    // Le navigateur partagé maintient la boucle d'événements : fermeture explicite.
+    const { closeBrowser } = await import('./render/browser.js');
+    await closeBrowser();
   });

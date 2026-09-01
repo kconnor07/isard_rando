@@ -1,0 +1,16 @@
+<% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<h2 class="title" style="font-size:76px"><%~ it.titleHtml %></h2>
+<div class="browser-frame">
+  <div class="browser-bar">
+    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    <span class="url"><%= it.toolUrlDisplay || (it.content.toolName ? it.content.toolName.toLowerCase().replace(/\s+/g, '') + '.com' : 'app.exemple.com') %></span>
+  </div>
+  <% if (it.screenshotDataUri) { %>
+  <img src="<%~ it.screenshotDataUri %>" alt="Capture d'écran de l'outil" />
+  <% } else { %>
+  <div style="height:520px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:34px;background:repeating-linear-gradient(45deg,rgba(255,255,255,0.03) 0 24px,transparent 24px 48px)">
+    Capture en cours de préparation…
+  </div>
+  <% } %>
+</div>
+<% if (it.content.body) { %><p class="body" style="font-size:36px"><%= it.content.body %></p><% } %>

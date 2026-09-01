@@ -1,0 +1,67 @@
+/* Thème « Odile Nuit » — dégradé bleu nuit, horizon lumineux, ciel étoilé.
+   Inspiration : référence “Headline Goes Here” (ciel nocturne + collines). */
+
+.slide { background: linear-gradient(180deg, #010208 0%, #04102e 46%, #0a2a66 78%, #123c7e 100%); }
+
+.bg {
+  position: absolute; inset: 0; z-index: 1;
+}
+
+/* Halo d'horizon */
+.decor-1 {
+  position: absolute; z-index: 2;
+  left: -20%; right: -20%; bottom: -26%;
+  height: 72%;
+  background: radial-gradient(ellipse 75% 55% at 50% 100%,
+    rgba(170, 208, 255, 1) 0%,
+    rgba(64, 130, 230, 0.55) 30%,
+    rgba(10, 42, 102, 0) 72%);
+  filter: blur(6px);
+}
+
+/* Collines douces */
+.decor-2 {
+  position: absolute; z-index: 3;
+  left: -30%; right: -30%; bottom: -46%;
+  height: 60%;
+  background:
+    radial-gradient(ellipse 62% 46% at 32% 100%, #0d2f6b 0%, rgba(13, 47, 107, 0) 68%),
+    radial-gradient(ellipse 70% 52% at 74% 104%, #092150 0%, rgba(9, 33, 80, 0) 70%);
+}
+
+/* Étoiles */
+.decor-3 {
+  position: absolute; z-index: 2;
+  top: 60px; left: 80px;
+  width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    140px 90px 0 0 rgba(255,255,255,0.55), 420px 30px 0 1px rgba(255,255,255,0.7),
+    680px 140px 0 0 rgba(255,255,255,0.4), 860px 60px 0 1px rgba(255,255,255,0.8),
+    240px 260px 0 0 rgba(255,255,255,0.5), 560px 330px 0 0 rgba(255,255,255,0.35),
+    790px 300px 0 1px rgba(255,255,255,0.6), 90px 420px 0 0 rgba(255,255,255,0.45),
+    380px 480px 0 0 rgba(255,255,255,0.3), 930px 420px 0 0 rgba(255,255,255,0.5),
+    650px 520px 0 1px rgba(255,255,255,0.4), 180px 620px 0 0 rgba(255,255,255,0.35);
+}
+
+.title { text-shadow: 0 6px 60px rgba(3, 12, 40, 0.8); }
+.title .accent { color: #cfe5ff; text-shadow: 0 0 46px rgba(151, 199, 255, 0.65); }
+
+.kind-hook .title {
+  background: linear-gradient(180deg, #ffffff 30%, rgba(220, 236, 255, 0.55) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.kind-hook .title .accent {
+  background: none; -webkit-background-clip: initial; background-clip: initial;
+  -webkit-text-fill-color: #d9ecff; color: #d9ecff;
+}
+
+.body { color: rgba(226, 238, 255, 0.82); }
+.badge { border-color: rgba(180, 210, 255, 0.3); color: #bcd9ff; }
+.badge::before { background: #9cc6ff; box-shadow: 0 0 18px #9cc6ff; }
+.big-number {
+  background: linear-gradient(160deg, #ffffff 20%, #8fbdff 90%);
+  -webkit-background-clip: text; background-clip: text;
+}

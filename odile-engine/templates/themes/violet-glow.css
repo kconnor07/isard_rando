@@ -1,0 +1,76 @@
+/* Thème « Violet Glow » — noir profond, halos violets, grille de points.
+   Inspiration : référence “Latência” (orbes lumineux + dot grid + badges). */
+
+:root { --secondary: #8b5cf6; }
+
+.slide { background: #05030a; }
+
+/* Grille de points violette */
+.bg {
+  position: absolute; inset: 0; z-index: 1;
+  background-image: radial-gradient(rgba(139, 92, 246, 0.32) 2px, transparent 2px);
+  background-size: 30px 30px;
+  mask-image: radial-gradient(ellipse 90% 85% at 50% 50%, black 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 85% at 50% 50%, black 30%, transparent 100%);
+}
+
+/* Orbe lumineux haut-gauche */
+.decor-1 {
+  position: absolute; z-index: 2;
+  top: -420px; left: -420px;
+  width: 860px; height: 860px;
+  background: radial-gradient(circle closest-side at 62% 62%,
+    rgba(255, 255, 255, 0.85) 0%,
+    rgba(196, 165, 255, 0.55) 22%,
+    rgba(124, 77, 255, 0.28) 46%,
+    transparent 70%);
+  filter: blur(10px);
+}
+
+/* Orbe bas-droite */
+.decor-2 {
+  position: absolute; z-index: 2;
+  right: -380px; bottom: -380px;
+  width: 900px; height: 900px;
+  background: radial-gradient(circle closest-side at 34% 34%,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(177, 140, 255, 0.5) 24%,
+    rgba(97, 57, 214, 0.24) 48%,
+    transparent 72%);
+  filter: blur(12px);
+}
+
+/* Fins arcs de cercle */
+.decor-3 {
+  position: absolute; z-index: 3;
+  top: -540px; left: -220px;
+  width: 1500px; height: 1500px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+}
+.decor-3::after {
+  content: '';
+  position: absolute; inset: 340px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.09);
+}
+
+.title .accent { color: #b79bff; text-shadow: 0 0 55px rgba(139, 92, 246, 0.6); }
+.kind-hook .title {
+  background: linear-gradient(120deg, #ffffff 25%, #b79bff 85%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.kind-hook .title .accent { -webkit-text-fill-color: #cdb6ff; color: #cdb6ff; }
+
+.badge { color: #cdb6ff; border-color: rgba(183, 155, 255, 0.35); }
+.badge::before { background: #a97fff; box-shadow: 0 0 18px #a97fff; }
+.big-number {
+  background: linear-gradient(135deg, #ffffff 15%, #a97fff 85%);
+  -webkit-background-clip: text; background-clip: text;
+}
+.keyword-chip { border-color: rgba(183, 155, 255, 0.8); background: rgba(139, 92, 246, 0.14); }
+.cta-button {
+  background: linear-gradient(135deg, #8b5cf6, #5b2fd6);
+  box-shadow: 0 18px 70px rgba(139, 92, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.browser-frame { box-shadow: 0 50px 120px rgba(0,0,0,0.7), 0 0 90px rgba(139, 92, 246, 0.25); }
