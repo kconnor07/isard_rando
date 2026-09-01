@@ -70,6 +70,24 @@ async function main() {
       const { pollLinkedInComments } = await import('./webhooks/linkedinPoller.js');
       return runJob('poll-li-comments', pollLinkedInComments);
     }
+    case 'generate-image': {
+      const { generateHeroImage, generateImagesForPost } = await import('./imagegen/index.js');
+      const postId = Number(arg('post'));
+      const slideIdx = arg('slide');
+      if (!postId) throw new Error('--post <id> requis');
+      if (slideIdx !== undefined) {
+        const { db, schema } = await import('./db/client.js');
+        const { and, eq } = await import('drizzle-orm');
+        const slide = db
+          .select()
+          .from(schema.slides)
+          .where(and(eq(schema.slides.postId, postId), eq(schema.slides.idx, Number(slideIdx))))
+          .get();
+        if (!slide) throw new Error(`Slide ${slideIdx} introuvable`);
+        return runJob('generate-image', () => generateHeroImage(slide.id, { quality: arg('quality') as 'pro' | 'fast' | undefined }));
+      }
+      return runJob('generate-image', () => generateImagesForPost(postId));
+    }
     case 'seed': {
       const { seedSourcesIfEmpty } = await import('./scraper/sources.js');
       return runJob('seed', async () => ({ seeded: seedSourcesIfEmpty() }));

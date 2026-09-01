@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import { runDesignReview } from '../design-studio/index.js';
+import { generateImagesForPost, type ImagesSummary } from '../imagegen/index.js';
 import { renderPost } from '../render/renderer.js';
 import { captureForPost } from '../screenshot/capture.js';
 import { draftPost, type DraftOptions } from '../writer/generate.js';
@@ -9,6 +10,7 @@ import { draftPost, type DraftOptions } from '../writer/generate.js';
 export interface PipelineSummary {
   postId: number;
   screenshot: string;
+  images: ImagesSummary;
   review: { iterations: number; passed: boolean };
   emailed: boolean;
 }
@@ -23,6 +25,10 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
   logger.info({ postId: draft.postId }, 'brouillon généré');
 
   const capture = await captureForPost(draft.postId, draft.screenshotUrl);
+  const images = await generateImagesForPost(draft.postId).catch((err) => {
+    logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
+    return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
+  });
   await renderPost(draft.postId);
   const review = await runDesignReview(draft.postId);
 
@@ -43,6 +49,7 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
   return {
     postId: draft.postId,
     screenshot: capture.ok ? 'ok' : `échec: ${capture.reason.slice(0, 120)}`,
+    images,
     review: { iterations: review.iterations, passed: review.passed },
     emailed,
   };

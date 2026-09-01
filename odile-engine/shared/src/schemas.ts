@@ -77,6 +77,22 @@ export const designStudioSettingsSchema = z.object({
 });
 export type DesignStudioSettings = z.infer<typeof designStudioSettingsSchema>;
 
+export const imageGenSettingsSchema = z.object({
+  enabled: z.boolean(),
+  /** nombre max d'illustrations générées par post */
+  imagesPerPost: z.number().int().min(0).max(2),
+  /** notes de style libres ajoutées au prompt (ex: « plus minimaliste ») */
+  styleNotes: z.string().max(500).default(''),
+  /** pro = Nano Banana Pro (qualité max), fast = variante rapide/économique */
+  quality: z.enum(['pro', 'fast']),
+});
+export type ImageGenSettings = z.infer<typeof imageGenSettingsSchema>;
+
+export const generateImageSchema = z.object({
+  instructions: z.string().max(500).optional(),
+  quality: z.enum(['pro', 'fast']).optional(),
+});
+
 export const llmRoutingSchema = z.object({
   copywriting: z.enum(['anthropic', 'gemini', 'mock']),
   scoring: z.enum(['anthropic', 'gemini', 'mock']),
@@ -104,10 +120,21 @@ export const slideContentSchema = z.object({
   toolUrl: z.string().url().optional(),
   ctaLabel: z.string().max(80).optional(),
   footer: z.string().max(120).optional(),
+  /** concept d'illustration IA (archétypes A1/A3/A4/A5/A7) — FR, une scène précise */
+  imageIdea: z.string().max(300).optional(),
+  /** kind "notifications" : les cartes empilées */
+  notifications: z
+    .array(z.object({ title: z.string().max(60), body: z.string().max(120) }))
+    .max(3)
+    .optional(),
+  /** kind "echo" : le mot répété en fond (le title sert de bandeau) */
+  echoWord: z.string().max(24).optional(),
 });
 export type SlideContent = z.infer<typeof slideContentSchema>;
 
 export const generatedPostSchema = z.object({
+  /** archétype de composition choisi (id du registre ARCHETYPES) */
+  archetype: z.string().max(40).optional(),
   hook: z.string().max(220),
   caption: z.string().max(2900),
   hashtags: z.array(z.string().regex(/^#?[\p{L}\p{N}_]+$/u)).max(12),

@@ -46,6 +46,8 @@ export interface SlideRenderInput {
   screenshotDataUri?: string | null;
   toolUrlDisplay?: string | null;
   logoDataUri?: string | null;
+  /** illustration générée (fond plein cadre sous un dégradé de lisibilité) */
+  heroDataUri?: string | null;
 }
 
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
@@ -78,9 +80,14 @@ ${themeCss(input.theme)}
 html, body, .slide { width: ${width}px; height: ${height}px; }
 </style></head>
 <body>
-<div class="slide theme-${input.theme} kind-${input.kind}">
+<div class="slide theme-${input.theme} kind-${input.kind}${input.heroDataUri ? ' has-hero' : ''}">
   <div class="bg"></div>
   <div class="decor-1"></div><div class="decor-2"></div><div class="decor-3"></div>
+  ${
+    input.heroDataUri
+      ? `<div class="hero-image" style="background-image:url(${input.heroDataUri})"></div><div class="hero-scrim"></div>`
+      : ''
+  }
   <div class="safe">
 ${inner}
   </div>
@@ -143,14 +150,15 @@ function assetDataUri(assetId: string | null): string | null {
 }
 
 export function saveAsset(
-  png: Buffer,
-  kind: 'render' | 'screenshot' | 'logo' | 'upload',
+  data: Buffer,
+  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage',
   meta: { postId?: number | null; slideId?: number | null; extraMeta?: Record<string, unknown> },
   size?: { width?: number; height?: number },
+  format: { ext: 'png' | 'jpg'; mime: string } = { ext: 'png', mime: 'image/png' },
 ): string {
   const id = nanoAsset();
-  const filePath = path.join(config.assetsDir, `${id}.png`);
-  fs.writeFileSync(filePath, png);
+  const filePath = path.join(config.assetsDir, `${id}.${format.ext}`);
+  fs.writeFileSync(filePath, data);
   db.insert(schema.assets)
     .values({
       id,
@@ -160,9 +168,9 @@ export function saveAsset(
       path: filePath,
       width: size?.width ?? null,
       height: size?.height ?? null,
-      mime: 'image/png',
-      bytes: png.length,
-      sha256: createHash('sha256').update(png).digest('hex'),
+      mime: format.mime,
+      bytes: data.length,
+      sha256: createHash('sha256').update(data).digest('hex'),
       meta: meta.extraMeta ? JSON.stringify(meta.extraMeta) : null,
     })
     .run();
@@ -196,6 +204,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
   for (const slide of slides) {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
     const screenshotDataUri = assetDataUri(slide.screenshotAssetId);
+    const heroDataUri = assetDataUri(slide.heroAssetId);
     const html = buildSlideHtml({
       theme: post.theme,
       kind: content.kind,
@@ -206,6 +215,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
       slideTotal: slides.length,
       keyword: post.commentTriggerKeyword,
       screenshotDataUri,
+      heroDataUri,
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,
       logoDataUri,
     });

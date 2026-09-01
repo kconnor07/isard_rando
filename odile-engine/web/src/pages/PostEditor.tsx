@@ -57,6 +57,21 @@ function SlideCard({
     }
   };
 
+  const generateImage = async () => {
+    const instructions = prompt('Direction pour l’illustration (facultatif, ex: « plus minimaliste ») :') ?? undefined;
+    setBusy(true);
+    try {
+      await api.post(`/api/posts/${postId}/slides/${slide.idx}/generate-image`, {
+        instructions: instructions || undefined,
+      });
+      onChanged();
+    } catch (err) {
+      alert(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="card overflow-hidden">
       {slide.renderAssetId ? (
@@ -75,8 +90,16 @@ function SlideCard({
             <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={() => setEditing(!editing)}>
               {editing ? 'Fermer' : '✏️'}
             </button>
-            <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={regenerate} title="Régénérer par l'IA">
+            <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={regenerate} title="Régénérer le texte par l'IA">
               🔄
+            </button>
+            <button
+              className={`btn-ghost !px-2 !py-1 text-xs ${slide.heroAssetId ? '!border-sky-500/60' : ''}`}
+              disabled={busy}
+              onClick={generateImage}
+              title={slide.heroAssetId ? "Régénérer l'illustration IA" : 'Générer une illustration IA'}
+            >
+              🖼
             </button>
           </div>
         </div>
@@ -92,6 +115,10 @@ function SlideCard({
             <div>
               <label className="label !mb-0.5">body</label>
               <textarea className="input !py-1.5" rows={3} value={str('body')} onChange={(e) => set('body', e.target.value)} />
+            </div>
+            <div>
+              <label className="label !mb-0.5">imageIdea (concept d'illustration IA)</label>
+              <textarea className="input !py-1.5" rows={2} value={str('imageIdea')} onChange={(e) => set('imageIdea', e.target.value)} />
             </div>
             <div>
               <label className="label !mb-0.5">bullets (1 par ligne)</label>

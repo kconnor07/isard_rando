@@ -282,3 +282,134 @@ body {
   filter: blur(2px);
   pointer-events: none;
 }
+
+/* --- Illustration générée (hero) --------------------------------------- */
+
+.hero-image {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background-size: cover;
+  background-position: center 30%;
+}
+.hero-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: linear-gradient(180deg,
+    rgba(4, 6, 15, 0.18) 0%,
+    rgba(4, 6, 15, 0.05) 30%,
+    rgba(4, 6, 15, 0.55) 62%,
+    rgba(4, 6, 15, 0.92) 100%);
+}
+.has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.22; }
+.has-hero .bg { opacity: 0.4; }
+.has-hero .safe { justify-content: flex-end; padding-bottom: 190px; }
+.has-hero .title { text-shadow: 0 8px 50px rgba(2, 6, 20, 0.9); }
+
+/* --- Pile de notifications (archétype A2) ------------------------------- */
+
+.notif-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  margin-top: 30px;
+  width: 100%;
+}
+.notif-card {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  width: 92%;
+  padding: 30px 34px;
+  border-radius: 24px;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent) 30%, #0a1220),
+    color-mix(in srgb, var(--accent) 12%, #070b14));
+  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55),
+              0 0 60px color-mix(in srgb, var(--accent) 25%, transparent),
+              inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.notif-card.depth-1 { width: 84%; opacity: 0.62; filter: blur(1px); transform: translateY(-6px); }
+.notif-card.depth-2 { width: 76%; opacity: 0.34; filter: blur(2.2px); transform: translateY(-12px); }
+.notif-icon {
+  width: 66px; height: 66px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 18px;
+  font-size: 32px;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 50%, #003060));
+  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.notif-text { flex: 1; min-width: 0; text-align: left; }
+.notif-title { font-size: 33px; font-weight: 800; }
+.notif-body { font-size: 28px; color: rgba(235, 243, 255, 0.82); margin-top: 4px; }
+.notif-time { font-family: 'Fragment Mono', monospace; font-size: 22px; color: var(--muted); align-self: flex-start; }
+
+/* --- Texte répété + bandeau tampon (archétype A9) ----------------------- */
+
+.echo-stack {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+.echo-line {
+  font-weight: 900;
+  font-size: 190px;
+  line-height: 0.96;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(255, 255, 255, 0.16);
+  text-align: center;
+}
+.echo-0 { color: rgba(255, 255, 255, 0.06); -webkit-text-stroke: 0; }
+.echo-1 { -webkit-text-stroke-color: rgba(255, 255, 255, 0.24); }
+.echo-2 { color: var(--text); -webkit-text-stroke: 0; }
+.echo-3 { -webkit-text-stroke-color: rgba(255, 255, 255, 0.24); }
+.echo-4 { color: rgba(255, 255, 255, 0.06); -webkit-text-stroke: 0; }
+
+.stamp {
+  position: relative;
+  z-index: 6;
+  align-self: center;
+  transform: rotate(-5deg);
+  padding: 22px 46px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-family: 'Fragment Mono', monospace;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: 0 18px 60px color-mix(in srgb, var(--accent) 55%, transparent);
+  outline: 3px dashed rgba(255, 255, 255, 0.55);
+  outline-offset: -12px;
+}
+.stamp .accent { font-family: inherit; font-style: normal; color: #eaf6ff; }
+.kind-echo .body {
+  position: relative;
+  z-index: 6;
+  background: rgba(4, 6, 15, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 18px 32px;
+  border-radius: 16px;
+  max-width: 700px;
+}
+
+/* Mot surligné pill (archétype A8) */
+.highlight-pill {
+  background: color-mix(in srgb, var(--accent) 80%, #003a6b);
+  color: #fff;
+  padding: 0 22px;
+  border-radius: 14px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}

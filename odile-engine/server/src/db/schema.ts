@@ -80,6 +80,7 @@ export const posts = sqliteTable(
       .notNull()
       .default('draft'),
     hook: text('hook').notNull().default(''),
+    archetype: text('archetype'),
     caption: text('caption').notNull().default(''),
     cta: text('cta').notNull().default(''),
     hashtags: text('hashtags').notNull().default('[]'), // JSON string[]
@@ -108,10 +109,13 @@ export const slides = sqliteTable(
       .notNull()
       .references(() => posts.id, { onDelete: 'cascade' }),
     idx: integer('idx').notNull(),
-    kind: text('kind', { enum: ['hook', 'content', 'value_prop', 'screenshot', 'cta'] }).notNull(),
+    kind: text('kind', {
+      enum: ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'],
+    }).notNull(),
     content: text('content').notNull(), // JSON SlideContent
     renderAssetId: text('render_asset_id'),
     screenshotAssetId: text('screenshot_asset_id'),
+    heroAssetId: text('hero_asset_id'),
     updatedAt: text('updated_at').notNull().$defaultFn(now),
   },
   (t) => [uniqueIndex('slides_post_idx').on(t.postId, t.idx)],
@@ -119,7 +123,7 @@ export const slides = sqliteTable(
 
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
-  kind: text('kind', { enum: ['render', 'screenshot', 'logo', 'upload'] }).notNull(),
+  kind: text('kind', { enum: ['render', 'screenshot', 'logo', 'upload', 'genimage'] }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),
   path: text('path').notNull(),

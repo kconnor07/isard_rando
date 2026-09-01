@@ -1,5 +1,6 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq, isNotNull } from 'drizzle-orm';
 import {
+  ARCHETYPES,
   DEFAULTS,
   generatedPostSchema,
   type Channel,
@@ -13,6 +14,7 @@ import {
   getDefaultFormat,
   getDefaultTheme,
   getDmTriggers,
+  getImageGen,
   getTone,
 } from '../db/settingsRepo.js';
 import { completeJson } from '../llm/router.js';
@@ -53,6 +55,54 @@ function channelFromRotation(): Channel {
   return cadence.rotation[count % cadence.rotation.length] ?? 'ig';
 }
 
+/** Les 5 derniers archétypes utilisés — interdits pour forcer la variété visuelle. */
+function recentArchetypes(): string[] {
+  return db
+    .select({ archetype: schema.posts.archetype })
+    .from(schema.posts)
+    .where(isNotNull(schema.posts.archetype))
+    .orderBy(desc(schema.posts.id))
+    .limit(5)
+    .all()
+    .map((r) => r.archetype!)
+    .filter(Boolean);
+}
+
+const BANNED_CLICHES = [
+  'un robot qui serre la main d’un humain',
+  'un cerveau lumineux ou en circuits imprimés',
+  'des lignes de code qui défilent en pluie',
+  'un hologramme flottant au-dessus d’une main ouverte',
+  'un cadenas numérique générique',
+];
+
+function buildArchetypeSpec(isCarousel: boolean, imagesAllowed: number): string {
+  const recent = recentArchetypes();
+  const catalog = ARCHETYPES.map(
+    (a) =>
+      `- "${a.id}" (${a.label}) : ${a.description}${a.needsImage ? ' [nécessite imageIdea]' : ''}${
+        recent.includes(a.id) ? ' ⛔ UTILISÉ RÉCEMMENT — INTERDIT' : ''
+      }`,
+  ).join('\n');
+  const imageSpec =
+    imagesAllowed > 0
+      ? `Si l'archétype nécessite une illustration, renseigne "imageIdea" sur ${
+          imagesAllowed === 1 ? 'la slide hook UNIQUEMENT' : `au maximum ${imagesAllowed} slides (hook en priorité)`
+        } : décris UNE scène précise et originale en français (sujet, matière, ambiance) — l'image sera générée
+sans aucun texte dedans, le titre restant en surimpression. Idées bannies (déjà trop vues) : ${BANNED_CLICHES.join(' ; ')}.`
+      : `La génération d'images est désactivée : ne renseigne aucun "imageIdea" et choisis un archétype sans image.`;
+
+  return `DIRECTION ARTISTIQUE — choisis UN archétype de composition dans ce catalogue et renseigne son id dans "archetype".
+Sois créatif : varie les archétypes d'un post à l'autre (ceux marqués ⛔ sont interdits aujourd'hui).
+${catalog}
+
+${imageSpec}
+
+Kinds de slides disponibles en plus : "notifications" (pile de 3 cartes de notification — renseigne notifications[{title,body}], parfait pour montrer des résultats concrets type « Devis signé », « Paiement reçu ») et "echo" (mot répété en fond — renseigne echoWord + un title court qui sert de bandeau).${
+    isCarousel ? " Tu peux remplacer une slide 'content' par l'un de ces kinds si l'archétype s'y prête." : ''
+  }`;
+}
+
 /** Génère un brouillon de post (copy + slides) depuis une actu shortlistée. */
 export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const news = opts.newsItemId
@@ -68,8 +118,10 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const tone = getTone();
   const brand = getBrand();
   const dm = getDmTriggers();
+  const imageGen = getImageGen();
 
   const isCarousel = format === 'carousel';
+  const imagesAllowed = imageGen.enabled ? imageGen.imagesPerPost : 0;
   const slideSpec = isCarousel
     ? `un carrousel de ${DEFAULTS.carouselSlides.min} à ${DEFAULTS.carouselSlides.max} slides :
   1. kind "hook" — l'accroche (annotation manuscrite optionnelle, titre court, accentWord = LE mot fort du titre)
@@ -97,6 +149,8 @@ Pourquoi elle a été retenue : ${news.scoreReason ?? ''}
 
 TON DE LA MARQUE :
 ${toneToPrompt(tone)}
+
+${buildArchetypeSpec(isCarousel, imagesAllowed)}
 
 FORMAT DEMANDÉ : ${slideSpec}
 
@@ -130,6 +184,9 @@ function persistDraft(args: {
 }): DraftResult {
   const { news, channel, platform, format, theme, tone, generated } = args;
 
+  const archetype = ARCHETYPES.some((a) => a.id === generated.archetype)
+    ? generated.archetype!
+    : null;
   const post = db
     .insert(schema.posts)
     .values({
@@ -139,6 +196,7 @@ function persistDraft(args: {
       format,
       theme,
       status: 'draft',
+      archetype,
       hook: generated.hook,
       caption: generated.caption,
       cta: generated.cta,

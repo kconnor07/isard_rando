@@ -1,0 +1,8 @@
+<div class="echo-stack" aria-hidden="true">
+  <% for (let i = 0; i < 5; i++) { %>
+  <div class="echo-line echo-<%= i %>"><%= (it.content.echoWord || it.content.title).toUpperCase() %></div>
+  <% } %>
+</div>
+<div class="stamp"><%~ it.titleHtml %></div>
+<% if (it.content.body) { %><p class="body" style="align-self:center;text-align:center;margin-top:26px"><%= it.content.body %></p><% } %>
+<% if (it.content.ctaLabel) { %><div class="cta-button" style="margin-top:24px"><%= it.content.ctaLabel %></div><% } %>

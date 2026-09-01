@@ -11,6 +11,7 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast' };
   default_theme: string;
   default_format: string;
 };
@@ -249,6 +250,39 @@ export default function Settings() {
               onChange={(e) => set('design_studio', { ...form.design_studio, passThreshold: Number(e.target.value) })} />
           </div>
         </div>
+      </Section>
+
+      <Section title="🖼 Illustrations IA" saving={save.isPending} onSave={() => save.mutate({ key: 'image_gen', value: form.image_gen })}>
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.image_gen.enabled}
+            onChange={(e) => set('image_gen', { ...form.image_gen, enabled: e.target.checked })} />
+          Générer des illustrations IA (Nano Banana Pro) quand l'archétype du post s'y prête
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Illustrations max par post : {form.image_gen.imagesPerPost}</label>
+            <input type="range" min={0} max={2} className="w-full accent-sky-500" value={form.image_gen.imagesPerPost}
+              onChange={(e) => set('image_gen', { ...form.image_gen, imagesPerPost: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="label">Qualité</label>
+            <select className="input" value={form.image_gen.quality}
+              onChange={(e) => set('image_gen', { ...form.image_gen, quality: e.target.value as 'pro' | 'fast' })}>
+              <option value="pro">Pro — Nano Banana Pro (qualité max)</option>
+              <option value="fast">Rapide — Nano Banana 2 (économique)</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="label">Notes de direction artistique (ajoutées à chaque génération)</label>
+            <textarea className="input" rows={2} value={form.image_gen.styleNotes}
+              placeholder="ex : privilégier les objets en verre, ambiance très minimaliste…"
+              onChange={(e) => set('image_gen', { ...form.image_gen, styleNotes: e.target.value })} />
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          Le texte n'est jamais dans l'image : il reste en surimpression HTML (typographie parfaite).
+          Les reviewers colorimétrie/DA bloquent toute dérive hors palette bleue.
+        </p>
       </Section>
 
       <Section title="📧 Email de validation" saving={save.isPending} onSave={() => save.mutate({ key: 'approval_email', value: form.approval_email })}>

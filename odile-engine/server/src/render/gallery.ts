@@ -45,6 +45,24 @@ const SAMPLES: SlideContent[] = [
     body: 'Méthode pas à pas + 3 outils comparés pour automatiser vos devis.',
     ctaLabel: 'Commente OUTIL',
   },
+  {
+    kind: 'notifications',
+    badge: 'RÉSULTATS RÉELS',
+    title: 'Pendant que vous dormez',
+    accentWord: 'dormez',
+    notifications: [
+      { title: 'Devis signé ✔', body: 'Client Martin BTP — 4 200 €' },
+      { title: 'Devis envoyé', body: 'Généré en 87 secondes' },
+      { title: 'Nouveau prospect', body: 'Formulaire site → CRM' },
+    ],
+  },
+  {
+    kind: 'echo',
+    title: 'On automatise tout ça',
+    accentWord: 'automatise',
+    echoWord: 'Répéter',
+    body: 'Chaque tâche répétitive est une tâche automatisable.',
+  },
 ];
 
 /** Galerie de contrôle : chaque thème × chaque type de slide → var/assets/gallery/. */
@@ -71,6 +89,26 @@ export async function renderGallery(): Promise<{ dir: string; files: number }> {
       fs.writeFileSync(path.join(dir, `${theme}--${content.kind}.png`), png);
       files++;
     }
+  }
+
+  // Variante hook avec illustration (placeholder mock) pour contrôler le scrim
+  {
+    const { generateMockPlaceholderBuffer } = await import('../imagegen/index.js');
+    const hero = await generateMockPlaceholderBuffer();
+    const html = buildSlideHtml({
+      theme: 'odile-nuit',
+      kind: 'hook',
+      content: SAMPLES[0]!,
+      format: 'carousel',
+      brand,
+      slideNum: 1,
+      slideTotal: SAMPLES.length,
+      heroDataUri: `data:image/jpeg;base64,${hero.toString('base64')}`,
+      screenshotDataUri: null,
+    });
+    const png = await renderHtmlToPng(html, { width: 1080, height: 1350 });
+    fs.writeFileSync(path.join(dir, `odile-nuit--hook-hero.png`), png);
+    files++;
   }
 
   const tiles = fs

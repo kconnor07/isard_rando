@@ -16,6 +16,9 @@ const fixSchema = z.object({
  * (re-rendu nécessaire).
  */
 export async function applyFixes(postId: number, issues: ReviewIssue[]): Promise<{ applied: number }> {
+  // Les critiques d'illustration (target "image") sont traitées par la boucle du
+  // studio (régénération d'image) — surtout pas par une réécriture de texte.
+  issues = issues.filter((i) => i.target !== 'image');
   if (issues.length === 0) return { applied: 0 };
   const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (!post) throw new Error(`Post ${postId} introuvable`);
@@ -52,6 +55,7 @@ CORRECTIFS À APPLIQUER :
 ${issuesText}
 
 Règles : même nombre de slides, mêmes "kind" dans le même ordre. title ≤ 9 mots.
+Recopie les champs "imageIdea" tels quels (l'illustration est gérée séparément).
 Renvoie l'intégralité corrigée (slides + caption + cta).`,
       maxTokens: 16000,
     },

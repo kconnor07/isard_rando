@@ -27,6 +27,7 @@ export interface SlideDto {
   content: Record<string, unknown> & { kind: string; title: string };
   renderAssetId: string | null;
   screenshotAssetId: string | null;
+  heroAssetId: string | null;
 }
 
 export interface ReviewDto {

@@ -8,6 +8,7 @@ import {
   DEFAULTS,
   designStudioSettingsSchema,
   dmTriggerSettingsSchema,
+  imageGenSettingsSchema,
   llmRoutingSchema,
   publishSlotsSchema,
   toneSettingsSchema,
@@ -74,6 +75,8 @@ export const getApprovalEmail = () =>
   });
 export const getDesignStudio = () =>
   getSetting('design_studio', designStudioSettingsSchema, { ...DEFAULTS.designStudio });
+export const getImageGen = () =>
+  getSetting('image_gen', imageGenSettingsSchema, { ...DEFAULTS.imageGen });
 export const getLlmRouting = () =>
   getSetting('llm_routing', llmRoutingSchema, {
     copywriting: 'anthropic',

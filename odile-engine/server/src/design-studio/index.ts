@@ -108,6 +108,14 @@ target = champ visé, problem, fix). Aucun issue si le score passe.`;
       .flatMap((r) => r.issues)
       .sort((a, b) => severityRank(b.severity) - severityRank(a.severity))
       .slice(0, 8);
+
+    // Critiques d'illustration → régénération de l'image (1 max par itération),
+    // traitées à part pour ne pas polluer la réécriture de texte.
+    const imageIssue = issues.find((i) => i.target === 'image');
+    if (imageIssue) {
+      await regenerateHeroFromIssue(postId, imageIssue);
+    }
+
     await applyFixes(postId, issues);
   }
 
@@ -125,6 +133,40 @@ target = champ visé, problem, fix). Aucun issue si le score passe.`;
 
 function severityRank(s: ReviewIssue['severity']): number {
   return s === 'blocking' ? 2 : s === 'major' ? 1 : 0;
+}
+
+/** Applique une critique d'illustration : nouveau concept + régénération du hero. */
+async function regenerateHeroFromIssue(postId: number, issue: ReviewIssue): Promise<void> {
+  const slides = db
+    .select()
+    .from(schema.slides)
+    .where(eq(schema.slides.postId, postId))
+    .orderBy(schema.slides.idx)
+    .all();
+  const target =
+    (issue.slideIdx !== null ? slides.find((s) => s.idx === issue.slideIdx) : undefined) ??
+    slides.find((s) => s.heroAssetId);
+  if (!target) return;
+  try {
+    const content = JSON.parse(target.content) as Record<string, unknown>;
+    if (typeof issue.fix === 'string' && issue.fix.length > 10) {
+      content.imageIdea = issue.fix.slice(0, 300);
+      db.update(schema.slides)
+        .set({ content: JSON.stringify(content), heroAssetId: null, updatedAt: new Date().toISOString() })
+        .where(eq(schema.slides.id, target.id))
+        .run();
+    } else {
+      db.update(schema.slides)
+        .set({ heroAssetId: null, updatedAt: new Date().toISOString() })
+        .where(eq(schema.slides.id, target.id))
+        .run();
+    }
+    const { generateHeroImage } = await import('../imagegen/index.js');
+    await generateHeroImage(target.id, { instructions: issue.problem });
+    logger.info({ postId, slideId: target.id }, 'illustration régénérée sur critique du studio');
+  } catch (err) {
+    logger.warn({ postId, err: String(err) }, "échec de régénération d'illustration (non bloquant)");
+  }
 }
 
 async function ensureRendered(postId: number): Promise<void> {

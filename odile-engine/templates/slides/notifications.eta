@@ -1,0 +1,15 @@
+<% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<h2 class="title"><%~ it.titleHtml %></h2>
+<% if (it.content.body) { %><p class="body"><%= it.content.body %></p><% } %>
+<div class="notif-stack">
+  <% (it.content.notifications || []).slice(0, 3).forEach(function (n, i) { %>
+  <div class="notif-card depth-<%= i %>">
+    <div class="notif-icon">⚡</div>
+    <div class="notif-text">
+      <div class="notif-title"><%= n.title %></div>
+      <div class="notif-body"><%= n.body %></div>
+    </div>
+    <div class="notif-time">à l'instant</div>
+  </div>
+  <% }) %>
+</div>

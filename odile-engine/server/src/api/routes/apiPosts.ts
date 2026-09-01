@@ -1,7 +1,13 @@
 import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { customAlphabet } from 'nanoid';
-import { patchPostSchema, putSlideSchema, regenerateSchema, rejectSchema } from '@odile/shared';
+import {
+  generateImageSchema,
+  patchPostSchema,
+  putSlideSchema,
+  regenerateSchema,
+  rejectSchema,
+} from '@odile/shared';
 import { executeApprovalAction } from '../../approvals/service.js';
 import { db, schema } from '../../db/client.js';
 import { runDesignReview } from '../../design-studio/index.js';
@@ -92,6 +98,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
         content: JSON.parse(s.content),
         renderAssetId: s.renderAssetId,
         screenshotAssetId: s.screenshotAssetId,
+        heroAssetId: s.heroAssetId,
       }));
     const reviews = db
       .select()
@@ -185,6 +192,55 @@ export function registerPostRoutes(app: FastifyInstance): void {
   app.post<{ Params: { id: string } }>('/api/posts/:id/render', async (request) => {
     return renderPost(Number(request.params.id));
   });
+
+  // Génération / régénération de l'illustration IA d'une slide
+  app.post<{ Params: { id: string; idx: string } }>(
+    '/api/posts/:id/slides/:idx/generate-image',
+    async (request, reply) => {
+      const parsed = generateImageSchema.safeParse(request.body ?? {});
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
+      const slide = db
+        .select()
+        .from(schema.slides)
+        .where(
+          and(
+            eq(schema.slides.postId, Number(request.params.id)),
+            eq(schema.slides.idx, Number(request.params.idx)),
+          ),
+        )
+        .get();
+      if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
+      // Nouvelle génération demandée explicitement : on repart de zéro
+      db.update(schema.slides).set({ heroAssetId: null }).where(eq(schema.slides.id, slide.id)).run();
+      const { generateHeroImage } = await import('../../imagegen/index.js');
+      const result = await generateHeroImage(slide.id, parsed.data);
+      if (!result.ok) return reply.status(422).send({ error: result.reason });
+      return result;
+    },
+  );
+
+  // Retirer l'illustration d'une slide
+  app.post<{ Params: { id: string; idx: string } }>(
+    '/api/posts/:id/slides/:idx/remove-image',
+    async (request, reply) => {
+      const slide = db
+        .select()
+        .from(schema.slides)
+        .where(
+          and(
+            eq(schema.slides.postId, Number(request.params.id)),
+            eq(schema.slides.idx, Number(request.params.idx)),
+          ),
+        )
+        .get();
+      if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
+      db.update(schema.slides)
+        .set({ heroAssetId: null, renderAssetId: null, updatedAt: new Date().toISOString() })
+        .where(eq(schema.slides.id, slide.id))
+        .run();
+      return { ok: true };
+    },
+  );
 
   app.post<{ Params: { id: string } }>('/api/posts/:id/review', async (request) => {
     return runDesignReview(Number(request.params.id));

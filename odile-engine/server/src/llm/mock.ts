@@ -60,6 +60,7 @@ function buildMockText(req: LlmRequest): string {
 }
 
 const MOCK_GENERATED_POST = {
+  archetype: 'objet_halo',
   hook: "Cette IA rédige vos devis en 90 secondes (et vos concurrents l'utilisent déjà)",
   caption:
     "⏱️ 4 heures. C'est le temps moyen qu'une TPE passe chaque semaine sur ses devis.\n\nUne nouvelle génération d'outils IA vient de changer la donne : description du besoin → devis complet, chiffré et personnalisé, en 90 secondes.\n\nCe que ça change concrètement :\n→ Réponse aux prospects le jour même (au lieu de J+3)\n→ Zéro erreur de calcul\n→ Un taux de signature qui grimpe de 20 à 30 %\n\nOn a testé l'outil, capturé les écrans et résumé la méthode dans ce carrousel. 👇\n\nCommente OUTIL et je t'envoie le guide complet en message privé.",
@@ -72,14 +73,19 @@ const MOCK_GENERATED_POST = {
       title: 'Vos devis en 90 secondes chrono',
       accentWord: '90 secondes',
       body: "L'IA qui répond à vos prospects avant vos concurrents.",
+      imageIdea:
+        "Un chronomètre analogique en verre et chrome suspendu dans le vide, aiguilles bleues lumineuses, halo circulaire bleu électrique derrière, particules de poussière dans la lumière",
     },
     {
-      kind: 'content',
-      badge: 'LE PROBLÈME',
-      title: '4 h par semaine perdues',
-      accentWord: 'perdues',
-      body: 'Rédaction, calculs, relances : le devis est le goulot d’étranglement n°1 des TPE.',
-      bigNumber: '4h',
+      kind: 'notifications',
+      badge: 'RÉSULTATS RÉELS',
+      title: 'Pendant que vous dormez',
+      accentWord: 'dormez',
+      notifications: [
+        { title: 'Devis signé ✔', body: 'Client Martin BTP — 4 200 €' },
+        { title: 'Devis envoyé', body: 'Généré en 87 secondes' },
+        { title: 'Nouveau prospect', body: 'Formulaire site → CRM' },
+      ],
     },
     {
       kind: 'content',
