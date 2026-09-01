@@ -37,13 +37,14 @@ export async function getBrowser(): Promise<Browser> {
     const executablePath = findChromium();
     logger.debug({ executablePath }, 'lancement de Chromium');
     const proxyServer = process.env.HTTPS_PROXY ?? process.env.https_proxy;
+    const proxyBypass = process.env.NO_PROXY ?? 'localhost,127.0.0.1';
     browserPromise = chromium.launch({
       executablePath,
       headless: true,
       args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--force-color-profile=srgb'],
       // Environnements derrière un proxy sortant (ex: sandbox de dev) : le CA
       // du proxy doit être dans le magasin NSS du système.
-      ...(proxyServer ? { proxy: { server: proxyServer } } : {}),
+      ...(proxyServer ? { proxy: { server: proxyServer, bypass: proxyBypass } } : {}),
     });
   }
   return browserPromise;
