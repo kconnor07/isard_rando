@@ -24,14 +24,9 @@ export default function Login() {
           }
         }}
       >
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-lg font-black text-white">
-            O
-          </div>
-          <div>
-            <div className="text-lg font-extrabold">Odile Engine</div>
-            <div className="text-xs text-muted">Connexion au studio</div>
-          </div>
+        <div className="mb-6">
+          <img src="/logo-odile.png" alt="Odile AI" className="h-14 w-auto" />
+          <div className="mt-1 text-xs text-muted">Connexion au studio de publication</div>
         </div>
         <label className="label">Mot de passe</label>
         <input

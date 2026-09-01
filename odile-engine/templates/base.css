@@ -244,6 +244,8 @@ body {
   justify-content: space-between;
 }
 .brand-id { display: flex; align-items: center; gap: 20px; }
+/* Logo officiel (wordmark) — remplace le bloc nom + handle */
+.brand-wordmark { height: 74px; width: auto; display: block; }
 .brand-logo {
   width: 56px; height: 56px; border-radius: 14px; object-fit: cover;
   background: var(--glass);

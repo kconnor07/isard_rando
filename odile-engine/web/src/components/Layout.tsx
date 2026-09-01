@@ -35,14 +35,9 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen">
       <aside className="fixed inset-y-0 w-60 border-r border-line bg-panel px-4 py-6 flex flex-col">
-        <div className="mb-8 flex items-center gap-3 px-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent font-black text-white">
-            O
-          </div>
-          <div>
-            <div className="font-extrabold leading-tight">Odile Engine</div>
-            <div className="text-[11px] text-muted">studio de publication</div>
-          </div>
+        <div className="mb-8 px-2">
+          <img src="/logo-odile.png" alt="Odile AI" className="h-12 w-auto" />
+          <div className="mt-1 text-[11px] text-muted">studio de publication</div>
         </div>
         <nav className="flex flex-col gap-1">
           {NAV.map(({ to, label, icon: Icon }) => (

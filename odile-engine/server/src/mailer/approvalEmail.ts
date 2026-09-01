@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { customAlphabet } from 'nanoid';
 import sharp from 'sharp';
@@ -6,6 +7,7 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getBrand } from '../db/settingsRepo.js';
 import { createToken } from '../lib/signedToken.js';
+import { TEMPLATES_DIR } from '../render/themes.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
 import { sendMail } from './smtp.js';
 
@@ -61,6 +63,18 @@ export async function sendApprovalEmail(
 
   // Aperçus inline (CID), réduits pour rester < 3 Mo
   const attachments: { filename: string; content: Buffer; cid: string; contentType: string }[] = [];
+
+  // Logo officiel dans l'en-tête (blanc sur fond sombre)
+  const logoPath = path.join(TEMPLATES_DIR, 'brand', 'logo-odile.png');
+  const hasLogo = fs.existsSync(logoPath);
+  if (hasLogo) {
+    attachments.push({
+      filename: 'logo.png',
+      content: fs.readFileSync(logoPath),
+      cid: 'brandlogo@odile',
+      contentType: 'image/png',
+    });
+  }
   const slideImgs: string[] = [];
   for (const slide of slides) {
     if (!slide.renderAssetId) continue;
@@ -101,9 +115,13 @@ export async function sendApprovalEmail(
   const html = `<!doctype html><html><body style="margin:0;background:#f2f4f8;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="620" cellpadding="0" cellspacing="0" style="max-width:620px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden">
-  <tr><td style="background:#0a0a12;padding:22px 28px">
-    <span style="color:#ffffff;font-weight:800;font-size:18px">${brand.name}</span>
-    <span style="color:#0099ff;font-weight:700;font-size:13px;margin-left:10px">moteur de publication</span>
+  <tr><td style="background:#0a0a12;padding:20px 28px">
+    ${
+      hasLogo
+        ? `<img src="cid:brandlogo@odile" height="34" alt="${brand.name}" style="height:34px;vertical-align:middle"/>`
+        : `<span style="color:#ffffff;font-weight:800;font-size:18px">${brand.name}</span>`
+    }
+    <span style="color:#0099ff;font-weight:700;font-size:13px;margin-left:12px">moteur de publication</span>
   </td></tr>
   <tr><td style="padding:26px 28px 8px">
     <h1 style="margin:0 0 4px;font-size:20px;color:#0a0a12">Un post ${CHANNEL_LABELS[post.channel] ?? post.channel} attend ta validation</h1>

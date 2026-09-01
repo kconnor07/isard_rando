@@ -11,7 +11,7 @@ import { db, schema } from '../db/client.js';
 import { getBrand } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
-import { baseCss, fontFaceCss, slideTemplate, themeCss } from './themes.js';
+import { baseCss, defaultBrandLogoDataUri, fontFaceCss, slideTemplate, themeCss } from './themes.js';
 
 const nanoAsset = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 21);
 const eta = new Eta({ useWith: false, autoEscape: true });
@@ -61,9 +61,14 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     toolUrlDisplay: input.toolUrlDisplay ?? null,
   });
 
-  const brandBlock = input.logoDataUri
-    ? `<img class="brand-logo" src="${input.logoDataUri}" alt="" />`
-    : `<div class="brand-mark">${escapeHtml(initials(input.brand.name))}</div>`;
+  // Pied de marque : le logo officiel (uploadé via le dashboard, sinon celui
+  // embarqué dans templates/brand) remplace intégralement le texte « nom + handle ».
+  const wordmarkUri = input.logoDataUri ?? defaultBrandLogoDataUri();
+  const brandBlock = wordmarkUri
+    ? `<img class="brand-wordmark" src="${wordmarkUri}" alt="${escapeHtml(input.brand.name)}" />`
+    : `<div class="brand-id"><div class="brand-mark">${escapeHtml(initials(input.brand.name))}</div>
+      <div><div class="brand-name">${escapeHtml(input.brand.name)}</div>
+      <div class="brand-handle">${escapeHtml(input.brand.handle)}</div></div></div>`;
   const counter =
     input.slideTotal > 1
       ? input.slideNum < input.slideTotal
@@ -92,13 +97,7 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
 ${inner}
   </div>
   <footer class="brand-footer">
-    <div class="brand-id">
-      ${brandBlock}
-      <div>
-        <div class="brand-name">${escapeHtml(input.brand.name)}</div>
-        <div class="brand-handle">${escapeHtml(input.brand.handle)}</div>
-      </div>
-    </div>
+    ${brandBlock}
     ${counter}
   </footer>
   <div class="grain"></div>

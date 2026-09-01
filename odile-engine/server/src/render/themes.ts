@@ -31,6 +31,17 @@ export function slideTemplate(kind: string): string {
   return fs.readFileSync(path.join(TEMPLATES_DIR, 'slides', `${kind}.eta`), 'utf8');
 }
 
+let brandLogoCache: string | null | undefined;
+/** Logo officiel embarqué (templates/brand/logo-odile.png) en data URI, ou null s'il est absent. */
+export function defaultBrandLogoDataUri(): string | null {
+  if (brandLogoCache !== undefined) return brandLogoCache;
+  const p = path.join(TEMPLATES_DIR, 'brand', 'logo-odile.png');
+  brandLogoCache = fs.existsSync(p)
+    ? `data:image/png;base64,${fs.readFileSync(p).toString('base64')}`
+    : null;
+  return brandLogoCache;
+}
+
 let fontCssCache: string | null = null;
 /** @font-face avec polices embarquées en data URI (aucun accès réseau au rendu). */
 export function fontFaceCss(): string {
