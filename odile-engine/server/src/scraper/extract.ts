@@ -87,9 +87,10 @@ export async function extractForItem(itemId: number): Promise<boolean> {
   const item = db.select().from(schema.newsItems).where(eq(schema.newsItems.id, itemId)).get();
   if (!item) return false;
   if (item.contentText) return true;
-  // Vidéos et threads sociaux : pas d'article à extraire (le titre + la
-  // description du flux suffisent au scoring)
-  if (/(?:youtube\.com|youtu\.be|reddit\.com)\//.test(item.url)) return false;
+  // Vidéos et posts sociaux : pas d'article à extraire (le titre + le
+  // résumé de la récolte suffisent au scoring ; LinkedIn est derrière un
+  // mur d'authentification)
+  if (/(?:youtube\.com|youtu\.be|reddit\.com|linkedin\.com)\//.test(item.url)) return false;
   const result = await extractArticle(item.url);
   db.update(schema.newsItems)
     .set({ contentText: result.text, extractedAt: new Date().toISOString() })
