@@ -2,7 +2,7 @@ import { db, schema } from '../db/client.js';
 
 export interface SeedSource {
   name: string;
-  kind: 'rss' | 'hn';
+  kind: 'rss' | 'hn' | 'youtube' | 'reddit';
   url: string;
   lang: 'fr' | 'en';
   weight: number;
@@ -33,6 +33,14 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'ActuIA', kind: 'rss', url: 'https://www.actuia.com/feed/', lang: 'fr', weight: 1.3 },
   { name: 'FrenchWeb', kind: 'rss', url: 'https://www.frenchweb.fr/feed', lang: 'fr', weight: 1.1 },
   { name: 'Siècle Digital', kind: 'rss', url: 'https://siecledigital.fr/feed/', lang: 'fr', weight: 1.1 },
+  // Veille v3 — YouTube (IDs de chaînes vérifiés via leur flux Atom officiel)
+  { name: 'YouTube · Matt Wolfe', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UChpleBmo18P08aKCIgti38g', lang: 'en', weight: 1.2 },
+  { name: 'YouTube · The AI Advantage', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCHhYXsLBEVVnbvsq57n1MTQ', lang: 'en', weight: 1.2 },
+  { name: 'YouTube · AI Explained', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCNJ1Ymd5yFuUPtn21xtRbbw', lang: 'en', weight: 1.0 },
+  { name: 'YouTube · Ludo IA²', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCICO611QA-KLoV6iAQvca_w', lang: 'fr', weight: 1.3 },
+  { name: 'YouTube · Micode', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCYnvxJ-PKiGXo_tYXpWAC-w', lang: 'fr', weight: 0.9 },
+  // Veille v3 — Reddit top quotidien (nécessite REDDIT_CLIENT_ID/SECRET, sinon ignoré)
+  { name: 'Reddit · IA & automatisation', kind: 'reddit', url: 'r/artificial+OpenAI+automation+nocode/top?t=day&limit=25', lang: 'en', weight: 1.1 },
 ];
 
 /**

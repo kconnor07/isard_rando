@@ -7,6 +7,9 @@ export interface FetchedItem {
   summary: string | null;
   imageUrl: string | null;
   publishedAt: string | null;
+  /** Signaux sociaux déjà connus au moment du scrape (ex. score Reddit) */
+  engagement?: number | null;
+  engagementRaw?: string | null;
 }
 
 export interface RssFetchResult {
@@ -17,7 +20,14 @@ export interface RssFetchResult {
 }
 
 const parser = new Parser({
-  customFields: { item: [['media:content', 'mediaContent'], ['content:encoded', 'contentEncoded']] },
+  customFields: {
+    item: [
+      ['media:content', 'mediaContent'],
+      ['content:encoded', 'contentEncoded'],
+      // Flux Atom YouTube : description et miniature dans media:group
+      ['media:group', 'mediaGroup'],
+    ],
+  },
 });
 
 /** Récupère un flux RSS avec requête conditionnelle (ETag / Last-Modified). */
@@ -50,11 +60,16 @@ export async function fetchRss(
     const media = (item as unknown as Record<string, unknown>).mediaContent as
       | { $?: { url?: string } }
       | undefined;
+    const group = (item as unknown as Record<string, unknown>).mediaGroup as
+      | { 'media:description'?: string[]; 'media:thumbnail'?: { $?: { url?: string } }[] }
+      | undefined;
     items.push({
       url: link,
       title,
-      summary: stripHtml(item.contentSnippet ?? item.summary ?? '').slice(0, 800) || null,
-      imageUrl: item.enclosure?.url ?? media?.$?.url ?? null,
+      summary:
+        stripHtml(item.contentSnippet ?? item.summary ?? group?.['media:description']?.[0] ?? '').slice(0, 800) ||
+        null,
+      imageUrl: item.enclosure?.url ?? media?.$?.url ?? group?.['media:thumbnail']?.[0]?.$?.url ?? null,
       publishedAt: item.isoDate ?? (item.pubDate ? new Date(item.pubDate).toISOString() : null),
     });
   }

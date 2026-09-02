@@ -58,7 +58,11 @@ async function processSource(
     if (source.kind === 'websearch') {
       return; // source virtuelle alimentée par le job websearch quotidien
     }
-    if (source.kind === 'hn') {
+    if (source.kind === 'reddit') {
+      const { fetchRedditTop, redditConfigured } = await import('./reddit.js');
+      if (!redditConfigured()) return; // clés absentes → source en veille, sans erreur
+      items = await fetchRedditTop(source.url);
+    } else if (source.kind === 'hn') {
       items = await fetchHackerNews(source.url);
     } else {
       const result = await fetchRss(source.url, source.etag, source.lastModified);
@@ -91,6 +95,7 @@ async function processSource(
           publishedAt: item.publishedAt,
           lang: source.lang,
           contentHash: contentHash(canonical),
+          ...(item.engagement != null ? { engagement: item.engagement, engagementRaw: item.engagementRaw } : {}),
         })
         .onConflictDoNothing({ target: schema.newsItems.contentHash })
         .returning({ id: schema.newsItems.id })

@@ -57,13 +57,22 @@ export async function runWebsearch(): Promise<WebsearchSummary> {
 
   const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
   const prompt = `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
-Cherche sur le web les actualités IA des dernières 24 heures les plus pertinentes pour ce public :
-nouveaux outils accessibles, annonces majeures utilisables par une PME, tutoriels/cas d'usage concrets,
-actualité française du secteur. Ignore la recherche fondamentale et la géopolitique.
+Odile ne fait pas de posts « actu outil » : elle raconte des bénéfices, des capacités et des
+résultats d'entreprises. Cherche sur le web (dernières 24-48 h) sur TROIS axes :
+1. CAS D'ENTREPRISES : des entreprises (PME de préférence, US ou FR) qui ont mis en place de
+   l'IA/automatisation avec des RÉSULTATS MESURÉS (temps gagné, CA, conversion, coûts) —
+   études de cas, retours d'expérience, interviews.
+2. CONTENU SOCIAL US QUI PERFORME : threads X/Twitter, posts LinkedIn ou vidéos qui buzzent
+   en ce moment sur l'IA appliquée au business — la preuve sociale est faite, on l'adaptera
+   au public français. Donne l'URL du contenu original.
+3. DONNÉES ET ÉTUDES : statistiques récentes d'adoption de l'IA par les PME, benchmarks,
+   rapports chiffrés exploitables dans un post.
+Ignore : annonces produit sans application concrète, levées de fonds, recherche fondamentale,
+géopolitique.
 
-Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 3 à 5 items —
-"title" en français, "url" = l'article source précis (pas une home page), "summary" = 2 phrases
-factuelles écrites par toi, "why" = pourquoi c'est pertinent pour une PME française.`;
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 3 à 6 items —
+"title" en français, "url" = la source précise (pas une home page), "summary" = 2 phrases
+factuelles écrites par toi (avec les chiffres clés), "why" = pourquoi ça fera un bon post PME France.`;
 
   const webSearchTool = (type: string) =>
     ({ type, name: 'web_search', max_uses: 5 }) as unknown as Anthropic.Messages.ToolUnion;

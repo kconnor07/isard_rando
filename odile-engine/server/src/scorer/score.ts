@@ -5,14 +5,21 @@ import { db, schema } from '../db/client.js';
 import { completeJson } from '../llm/router.js';
 
 const SYSTEM = `Tu es l'analyste veille d'Odile AI, agence française d'automatisation IA pour les PME et TPE.
-Tu évalues des actualités IA pour décider lesquelles méritent un post LinkedIn/Instagram.`;
+Odile VEND l'implémentation de solutions IA : ses posts ne présentent jamais un outil « en tant
+qu'actu produit » — ils racontent des bénéfices, des capacités et des résultats d'entreprises.
+Tu évalues des contenus (articles, vidéos, posts sociaux) pour décider lesquels méritent un post.`;
 
 const RUBRIC = `Note chaque item sur deux axes :
-- "relevance" (0-50) : utilité concrète pour un dirigeant de PME/TPE française — outils accessibles,
-  automatisation de tâches réelles (devis, relances, support, compta, marketing), gains chiffrables.
-  Les levées de fonds abstraites, la recherche fondamentale et la géopolitique scorent bas.
-- "click" (0-50) : potentiel d'accroche et de clic — nouveauté, chiffre marquant, outil testable,
-  tutoriel possible, sujet qui fait réagir. Bonus si on peut en faire une démonstration visuelle.
+- "relevance" (0-50) : matière pour un post « bénéfices/résultats » destiné à un dirigeant de
+  PME/TPE française. Score HAUT : cas d'entreprise avec résultats mesurés (temps gagné, CA,
+  taux de conversion, coûts), données réelles/études d'adoption chiffrées, capacité IA nouvelle
+  expliquée par ce qu'elle permet (devis, relances, support, compta, prospection, marketing),
+  ce que des entreprises comparables mettent déjà en place. Score BAS : annonce produit sans
+  application concrète, levée de fonds, recherche fondamentale, géopolitique, actu corporate.
+- "click" (0-50) : potentiel d'accroche — chiffre marquant, histoire d'entreprise racontable,
+  résultat surprenant, sujet qui fait réagir, démonstration visuelle possible.
+  Un contenu US qui a déjà beaucoup d'engagement (points, partages, vues) est un excellent
+  candidat : la preuve sociale est faite, il ne reste qu'à l'adapter au public français.
 Ajoute "reason" : une phrase en français qui justifie la note (elle sera montrée à l'humain qui valide).`;
 
 export interface ScoreSummary {

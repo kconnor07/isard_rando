@@ -11,7 +11,7 @@ export const settings = sqliteTable('settings', {
 export const newsSources = sqliteTable('news_sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  kind: text('kind', { enum: ['rss', 'hn', 'websearch'] }).notNull(),
+  kind: text('kind', { enum: ['rss', 'hn', 'websearch', 'youtube', 'reddit'] }).notNull(),
   url: text('url').notNull(),
   lang: text('lang', { enum: ['fr', 'en'] }).notNull().default('en'),
   weight: real('weight').notNull().default(1),

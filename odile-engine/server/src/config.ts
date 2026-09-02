@@ -16,6 +16,8 @@ const envSchema = z.object({
   LLM_MODE: z.enum(['live', 'mock']).default('live'),
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
+  REDDIT_CLIENT_ID: z.string().optional(),
+  REDDIT_CLIENT_SECRET: z.string().optional(),
   ANTHROPIC_MODEL_WRITER: z.string().default('claude-sonnet-5'),
   ANTHROPIC_MODEL_FAST: z.string().default('claude-haiku-4-5'),
   GEMINI_MODEL_SCORING: z.string().default('gemini-2.5-flash-lite'),
