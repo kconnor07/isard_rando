@@ -51,9 +51,11 @@ ssh ubuntu@<IP>
 curl -fsSL https://get.docker.com | sudo sh
 sudo usermod -aG docker ubuntu && newgrp docker
 
-# Code
+# Code (le moteur vit sur cette branche)
 git clone https://github.com/kconnor07/isard_rando.git
-cd isard_rando/odile-engine
+cd isard_rando
+git checkout claude/linkedin-instagram-auto-publish-v11wef
+cd odile-engine
 
 # Configuration
 cp .env.example .env
