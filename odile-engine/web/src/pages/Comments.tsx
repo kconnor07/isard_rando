@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Copy, ExternalLink } from 'lucide-react';
 import { api } from '../api/client';
 import type { CommentDto } from '../api/types';
 import { Empty, fmtDate, PageTitle } from '../components/shared';
@@ -46,7 +47,7 @@ export default function Comments() {
                 <span className="font-semibold">{comment.authorName || 'Anonyme'}</span>
                 {comment.matchedKeyword && (
                   <span className="rounded bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">
-                    🔑 {comment.matchedKeyword}
+                    mot-clé « {comment.matchedKeyword} »
                   </span>
                 )}
                 <span className={`text-xs font-semibold ${dm.cls}`}>{dm.label}</span>
@@ -64,15 +65,15 @@ export default function Comments() {
                       className="btn-primary !py-1.5 text-xs"
                       onClick={() => void navigator.clipboard.writeText(comment.suggestedReply!)}
                     >
-                      📋 Copier
+                      <Copy size={13} /> Copier
                     </button>
                     {comment.externalPostUrl && (
                       <a href={comment.externalPostUrl} target="_blank" rel="noreferrer" className="btn-ghost !py-1.5 text-xs">
-                        Ouvrir le post ↗
+                        Ouvrir le post <ExternalLink size={12} />
                       </a>
                     )}
                     <button className="btn-ghost !py-1.5 text-xs" onClick={() => markHandled.mutate(comment.id)}>
-                      ✔ Marquer traité
+                      <Check size={13} /> Marquer traité
                     </button>
                   </div>
                 </div>

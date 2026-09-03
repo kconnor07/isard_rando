@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Pencil, X, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto } from '../api/types';
@@ -27,9 +28,11 @@ export default function Approvals() {
     <div>
       <PageTitle
         title="Posts à valider"
-        subtitle="Rien ne part sans ton accord — approuve, modifie ou rejette."
+        subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez."
       />
-      {posts && posts.length === 0 && <Empty>Aucun post en attente de validation. 🎉</Empty>}
+      {posts && posts.length === 0 && (
+        <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>
+      )}
       <div className="flex flex-col gap-4">
         {posts?.map((post) => (
           <div key={post.id} className="card p-5">
@@ -42,7 +45,7 @@ export default function Approvals() {
                 <span
                   className={`text-xs font-semibold ${post.reviewSummary.passed ? 'text-emerald-300' : 'text-amber-300'}`}
                 >
-                  🎨 studio : {post.reviewSummary.iterations} itér. ·{' '}
+                  studio : {post.reviewSummary.iterations} itér. ·{' '}
                   {Object.values(post.reviewSummary.finalScores).join(' / ')}
                 </span>
               )}
@@ -53,7 +56,7 @@ export default function Approvals() {
             </Link>
             {post.newsTitle && (
               <p className="mt-1 text-xs text-muted">
-                📰 Source : {post.newsTitle}
+                Source : {post.newsTitle}
               </p>
             )}
             <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{post.caption}</p>
@@ -63,17 +66,17 @@ export default function Approvals() {
                 disabled={approve.isPending}
                 onClick={() => approve.mutate({ id: post.id, publishNow: false })}
               >
-                ✅ Approuver (créneau optimal)
+                <Check size={14} /> Approuver (créneau optimal)
               </button>
               <button
                 className="btn-ghost"
                 disabled={approve.isPending}
                 onClick={() => approve.mutate({ id: post.id, publishNow: true })}
               >
-                ⚡ Publier maintenant
+                <Zap size={14} /> Publier maintenant
               </button>
               <Link to={`/posts/${post.id}`} className="btn-ghost">
-                ✏️ Modifier
+                <Pencil size={13} /> Modifier
               </Link>
               <button
                 className="btn-danger ml-auto"
@@ -83,7 +86,7 @@ export default function Approvals() {
                   reject.mutate({ id: post.id, reason });
                 }}
               >
-                ❌ Rejeter
+                <X size={14} /> Rejeter
               </button>
             </div>
           </div>

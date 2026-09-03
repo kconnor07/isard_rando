@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FileText, Flame, RefreshCw, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../api/client';
 import type { NewsDto } from '../api/types';
@@ -35,13 +36,14 @@ export default function News() {
         subtitle="Les meilleures actualités des dernières 24 h, notées pour leur pertinence PME/TPE et leur potentiel de clic."
         actions={
           <button className="btn-primary" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
-            {refresh.isPending ? 'Scan en cours…' : '🔄 Scanner maintenant'}
+            <RefreshCw size={14} className={refresh.isPending ? 'animate-spin' : ''} />
+            {refresh.isPending ? 'Scan en cours…' : 'Scanner maintenant'}
           </button>
         }
       />
       {generating && (
         <div className="card mb-4 border-accent/50 p-4 text-sm">
-          🚀 Pipeline lancé pour l'actu #{generating} : rédaction → captures → rendu → studio de design → email.
+          Pipeline lancé pour l'actu #{generating} : rédaction → captures → rendu → studio de design → email.
           Le post apparaîtra dans « À valider » dans quelques minutes.
         </div>
       )}
@@ -68,13 +70,13 @@ export default function News() {
                   <span>· pertinence {item.scoreRelevance}/50 · clic {item.scoreClick}/50</span>
                 )}
                 {item.engagement != null && item.engagement > 0 && (
-                  <span className="rounded bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-200">
-                    🔥 engagement {item.engagement}
+                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-200">
+                    <Flame size={11} /> engagement {item.engagement}
                   </span>
                 )}
                 {item.contentExtracted && (
-                  <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-300">
-                    📄 texte extrait
+                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-300">
+                    <FileText size={11} /> texte extrait
                   </span>
                 )}
               </div>
@@ -95,7 +97,7 @@ export default function News() {
                 disabled={generate.isPending}
                 onClick={() => generate.mutate(item.id)}
               >
-                ✨ Générer un post
+                <Sparkles size={14} /> Générer un post
               </button>
               <button className="btn-ghost" onClick={() => discard.mutate(item.id)}>
                 Écarter

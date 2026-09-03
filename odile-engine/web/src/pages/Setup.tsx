@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { RefreshCw } from 'lucide-react';
 import { api } from '../api/client';
 import { fmtDate, PageTitle } from '../components/shared';
 
@@ -44,7 +45,7 @@ export default function Setup() {
   return (
     <div className="max-w-3xl">
       <PageTitle title="Connexions & santé" subtitle="État des services et connexion des comptes sociaux."
-        actions={<button className="btn-ghost" onClick={() => void refetch()}>🔄 Actualiser</button>} />
+        actions={<button className="btn-ghost" onClick={() => void refetch()}><RefreshCw size={14} /> Actualiser</button>} />
 
       <div className="card mb-5 p-5">
         <h2 className="mb-3 text-base font-bold">Comptes sociaux</h2>

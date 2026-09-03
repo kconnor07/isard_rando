@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, Image as ImageIcon, Mail, Pencil, RefreshCw, X, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -88,10 +89,10 @@ function SlideCard({
           </span>
           <div className="flex gap-1">
             <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={() => setEditing(!editing)}>
-              {editing ? 'Fermer' : '✏️'}
+              {editing ? 'Fermer' : <Pencil size={13} />}
             </button>
             <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={regenerate} title="Régénérer le texte par l'IA">
-              🔄
+              <RefreshCw size={13} />
             </button>
             <button
               className={`btn-ghost !px-2 !py-1 text-xs ${slide.heroAssetId ? '!border-sky-500/60' : ''}`}
@@ -99,7 +100,7 @@ function SlideCard({
               onClick={generateImage}
               title={slide.heroAssetId ? "Régénérer l'illustration IA" : 'Générer une illustration IA'}
             >
-              🖼
+              <ImageIcon size={13} />
             </button>
           </div>
         </div>
@@ -181,19 +182,19 @@ export default function PostEditor() {
       {editable && (
         <div className="mb-6 flex flex-wrap gap-2">
           <button className="btn-success" disabled={!!busy} onClick={run('approve', () => api.post(`/api/posts/${post.id}/approve`, { publishNow: false }))}>
-            ✅ Approuver
+            <Check size={14} /> Approuver
           </button>
           <button className="btn-ghost" disabled={!!busy} onClick={run('now', () => api.post(`/api/posts/${post.id}/approve`, { publishNow: true }))}>
-            ⚡ Publier maintenant
+            <Zap size={14} /> Publier maintenant
           </button>
           <button className="btn-ghost" disabled={!!busy} onClick={run('render', () => api.post(`/api/posts/${post.id}/render`))}>
-            {busy === 'render' ? 'Rendu…' : '🖼 Re-rendre les slides'}
+            {busy === 'render' ? 'Rendu…' : 'Re-rendre les slides'}
           </button>
           <button className="btn-ghost" disabled={!!busy} onClick={run('review', () => api.post(`/api/posts/${post.id}/review`))}>
-            {busy === 'review' ? 'Studio en cours…' : '🎨 Repasser au studio de design'}
+            {busy === 'review' ? 'Studio en cours…' : 'Repasser au studio de design'}
           </button>
           <button className="btn-ghost" disabled={!!busy} onClick={run('email', () => api.post(`/api/posts/${post.id}/send-approval-email`))}>
-            📧 Renvoyer l'email
+            <Mail size={14} /> Renvoyer l'email
           </button>
           <button
             className="btn-danger ml-auto"
@@ -204,7 +205,7 @@ export default function PostEditor() {
               navigate('/approvals');
             })}
           >
-            ❌ Rejeter
+            <X size={14} /> Rejeter
           </button>
         </div>
       )}
@@ -241,13 +242,13 @@ export default function PostEditor() {
                 await api.post(`/api/posts/${post.id}/regenerate`, { scope: 'caption', instructions });
               })}
             >
-              🔄 Régénérer par l'IA
+              <RefreshCw size={12} /> Régénérer par l'IA
             </button>
             <span className="text-xs text-muted">{post.hashtags.join(' ')}</span>
           </div>
           {post.commentTriggerKeyword && (
             <p className="mt-2 text-sm text-muted">
-              💬 Déclencheur DM : commenter « <b className="text-accent">{post.commentTriggerKeyword}</b> »
+              Déclencheur DM : commenter « <b className="text-accent">{post.commentTriggerKeyword}</b> »
             </p>
           )}
         </div>

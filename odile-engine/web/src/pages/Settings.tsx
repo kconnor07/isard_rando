@@ -106,7 +106,7 @@ export default function Settings() {
     <div className="max-w-3xl">
       <PageTitle title="Réglages" subtitle="Ton, marque, cadence, déclencheurs DM, studio de design, veille." />
 
-      <Section title="🎙 Ton des posts" saving={save.isPending} onSave={() => save.mutate({ key: 'tone', value: form.tone })}>
+      <Section title="Ton des posts" saving={save.isPending} onSave={() => save.mutate({ key: 'tone', value: form.tone })}>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Personnalité</label>
@@ -143,7 +143,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="🏷 Marque" saving={save.isPending} onSave={() => save.mutate({ key: 'brand', value: form.brand })}>
+      <Section title="Marque" saving={save.isPending} onSave={() => save.mutate({ key: 'brand', value: form.brand })}>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Nom</label>
             <input className="input" value={form.brand.name} onChange={(e) => set('brand', { ...form.brand, name: e.target.value })} /></div>
@@ -178,7 +178,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="🗓 Cadence & créneaux" saving={save.isPending}
+      <Section title="Cadence & créneaux" saving={save.isPending}
         onSave={() => { save.mutate({ key: 'cadence', value: form.cadence }); save.mutate({ key: 'publish_slots', value: form.publish_slots }); }}>
         <div className="mb-4 grid grid-cols-2 gap-4">
           <div>
@@ -212,7 +212,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="💬 Commentaire → DM" saving={save.isPending} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>
+      <Section title="Commentaire → DM" saving={save.isPending} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.dm_triggers.enabled}
             onChange={(e) => set('dm_triggers', { ...form.dm_triggers, enabled: e.target.checked })} />
@@ -232,7 +232,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="🎨 Studio de design" saving={save.isPending} onSave={() => save.mutate({ key: 'design_studio', value: form.design_studio })}>
+      <Section title="Studio de design" saving={save.isPending} onSave={() => save.mutate({ key: 'design_studio', value: form.design_studio })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.design_studio.enabled}
             onChange={(e) => set('design_studio', { ...form.design_studio, enabled: e.target.checked })} />
@@ -252,7 +252,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="🖼 Illustrations IA" saving={save.isPending} onSave={() => save.mutate({ key: 'image_gen', value: form.image_gen })}>
+      <Section title="Illustrations IA" saving={save.isPending} onSave={() => save.mutate({ key: 'image_gen', value: form.image_gen })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.image_gen.enabled}
             onChange={(e) => set('image_gen', { ...form.image_gen, enabled: e.target.checked })} />
@@ -285,7 +285,7 @@ export default function Settings() {
         </p>
       </Section>
 
-      <Section title="📧 Email de validation" saving={save.isPending} onSave={() => save.mutate({ key: 'approval_email', value: form.approval_email })}>
+      <Section title="Email de validation" saving={save.isPending} onSave={() => save.mutate({ key: 'approval_email', value: form.approval_email })}>
         <div className="grid grid-cols-3 gap-4">
           <div className="col-span-2"><label className="label">Destinataire</label>
             <input className="input" value={form.approval_email.to}
@@ -299,7 +299,7 @@ export default function Settings() {
         </button>
       </Section>
 
-      <Section title="🎭 Défauts de création" saving={save.isPending}
+      <Section title="Défauts de création" saving={save.isPending}
         onSave={() => { save.mutate({ key: 'default_theme', value: form.default_theme }); save.mutate({ key: 'default_format', value: form.default_format }); }}>
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Thème par défaut</label>
@@ -317,7 +317,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="📡 Sources de veille">
+      <Section title="Sources de veille">
         <div className="flex flex-col gap-1.5">
           {sources?.map((source) => (
             <label key={source.id} className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-panel2">
@@ -325,7 +325,7 @@ export default function Settings() {
                 onChange={(e) => toggleSource.mutate({ id: source.id, enabled: e.target.checked })} />
               <span className="w-52 font-medium">{source.name}</span>
               <span className="text-xs text-muted">{source.lang.toUpperCase()} · poids {source.weight}</span>
-              {source.lastError && <span className="truncate text-xs text-red-400" title={source.lastError}>⚠ {source.lastError.slice(0, 60)}</span>}
+              {source.lastError && <span className="truncate text-xs text-red-400" title={source.lastError}>{source.lastError.slice(0, 60)}</span>}
             </label>
           ))}
         </div>
