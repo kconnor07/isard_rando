@@ -88,8 +88,6 @@
 /* Pied de page : le logo blanc doit s'inverser pour rester lisible */
 .brand-wordmark { filter: invert(1); }
 .brand-footer { border-top-color: rgba(11, 11, 14, 0.1); }
-.slide-counter { color: rgba(11, 11, 14, 0.55); }
-.slide-counter .swipe { color: #0b0b0e; }
 .brand-name { color: #0b0b0e; }
 .brand-handle { color: rgba(11, 11, 14, 0.55); }
 
