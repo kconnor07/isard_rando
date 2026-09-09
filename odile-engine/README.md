@@ -59,7 +59,7 @@ gratuite Oracle ARM), puis [docs/setup-meta.md](docs/setup-meta.md),
 [docs/setup-linkedin.md](docs/setup-linkedin.md), [docs/setup-smtp.md](docs/setup-smtp.md).
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d --build
+docker compose --env-file .env -f docker/docker-compose.yml up -d --build
 ```
 
 ## Architecture

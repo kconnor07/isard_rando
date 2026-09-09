@@ -64,8 +64,8 @@ nano .env      # APP_SECRET (openssl rand -base64 32), ADMIN_PASSWORD,
                # clés IA + SMTP (voir les autres guides)
 
 # Lancement (build ~5-10 min la première fois sur ARM)
-docker compose -f docker/docker-compose.yml up -d --build
-docker compose -f docker/docker-compose.yml logs -f app   # suivre le démarrage
+docker compose --env-file .env -f docker/docker-compose.yml up -d --build
+docker compose --env-file .env -f docker/docker-compose.yml logs -f app   # suivre le démarrage
 ```
 
 Caddy obtient automatiquement le certificat HTTPS (Let's Encrypt) dès que le
@@ -78,20 +78,20 @@ DNS pointe vers la VM. Ouvre ensuite **https://engine.odileai.com** → dashboar
 3. Laisse `PUBLISH_MODE=dry` le temps de valider un premier cycle complet
    (email reçu → approbation → payload dans la outbox), puis passe
    `PUBLISH_MODE=live` dans `.env` et relance :
-   `docker compose -f docker/docker-compose.yml up -d`.
+   `docker compose --env-file .env -f docker/docker-compose.yml up -d`.
 
 ## Exploitation
 
 ```bash
 # Mise à jour du code
-git pull && docker compose -f docker/docker-compose.yml up -d --build
+git pull && docker compose --env-file .env -f docker/docker-compose.yml up -d --build
 
 # Sauvegarde de la base (quotidienne conseillée, via cron système)
-docker compose -f docker/docker-compose.yml exec app \
+docker compose --env-file .env -f docker/docker-compose.yml exec app \
   sh -c 'cp /data/data.sqlite /data/backup-$(date +%F).sqlite'
 
 # Logs
-docker compose -f docker/docker-compose.yml logs -f --tail 100 app
+docker compose --env-file .env -f docker/docker-compose.yml logs -f --tail 100 app
 ```
 
 La base, les visuels et la outbox vivent dans le volume Docker `odile-data`
