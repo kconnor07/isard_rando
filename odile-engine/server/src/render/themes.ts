@@ -12,6 +12,8 @@ export const THEME_LABELS: Record<ThemeId, string> = {
   'violet-glow': 'Halo Bleu — orbes lumineux',
   'cyan-tech': 'Bleu Tech — dégradés électriques',
   'verre-bleu': 'Verre Bleu — courbes de verre',
+  'encre-blanche': 'Encre Blanche — monochrome sombre',
+  'papier-blanc': 'Papier Blanc — monochrome clair',
 };
 
 export function isTheme(id: string): id is ThemeId {

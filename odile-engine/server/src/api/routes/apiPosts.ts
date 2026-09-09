@@ -242,6 +242,53 @@ export function registerPostRoutes(app: FastifyInstance): void {
     },
   );
 
+  // Illustration maison : l'utilisateur téléverse sa propre image pour une slide
+  app.post<{ Params: { id: string; idx: string } }>(
+    '/api/posts/:id/slides/:idx/upload-image',
+    async (request, reply) => {
+      const slide = db
+        .select()
+        .from(schema.slides)
+        .where(
+          and(
+            eq(schema.slides.postId, Number(request.params.id)),
+            eq(schema.slides.idx, Number(request.params.idx)),
+          ),
+        )
+        .get();
+      if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
+      const file = await request.file();
+      if (!file) return reply.status(400).send({ error: 'Aucun fichier reçu' });
+      if (!/^image\/(png|jpe?g|webp|avif)$/.test(file.mimetype)) {
+        return reply.status(415).send({ error: `Format non pris en charge : ${file.mimetype}` });
+      }
+      const raw = await file.toBuffer();
+      const sharp = (await import('sharp')).default;
+      // Même normalisation que les illustrations générées : 1080×1350 JPEG
+      const normalized = await sharp(raw)
+        .resize(1080, 1350, { fit: 'cover', position: 'attention' })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      const { saveAsset } = await import('../../render/renderer.js');
+      const assetId = saveAsset(
+        normalized,
+        'genimage',
+        {
+          postId: slide.postId,
+          slideId: slide.id,
+          extraMeta: { source: 'upload', filename: file.filename },
+        },
+        { width: 1080, height: 1350 },
+        { ext: 'jpg', mime: 'image/jpeg' },
+      );
+      db.update(schema.slides)
+        .set({ heroAssetId: assetId, renderAssetId: null, updatedAt: new Date().toISOString() })
+        .where(eq(schema.slides.id, slide.id))
+        .run();
+      return { ok: true, assetId };
+    },
+  );
+
   app.post<{ Params: { id: string } }>('/api/posts/:id/review', async (request) => {
     return runDesignReview(Number(request.params.id));
   });

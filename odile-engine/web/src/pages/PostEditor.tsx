@@ -1,10 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Image as ImageIcon, Mail, Pencil, RefreshCw, X, Zap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Check, Image as ImageIcon, Mail, Pencil, RefreshCw, Trash2, Upload, X, Zap } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostDetailDto, SlideDto } from '../api/types';
 import { CHANNEL_LABELS, fmtDate, PageTitle, StatusBadge } from '../components/shared';
+
+const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'] as const;
+
+const THEME_CHOICES: { id: string; label: string }[] = [
+  { id: 'odile-nuit', label: 'Odile Nuit — bleu nuit horizon' },
+  { id: 'violet-glow', label: 'Halo Bleu — orbes lumineux' },
+  { id: 'cyan-tech', label: 'Bleu Tech — dégradés électriques' },
+  { id: 'verre-bleu', label: 'Verre Bleu — courbes de verre' },
+  { id: 'encre-blanche', label: 'Encre Blanche — monochrome sombre' },
+  { id: 'papier-blanc', label: 'Papier Blanc — monochrome clair' },
+];
 
 const REVIEWER_LABELS: Record<string, string> = {
   art_director: 'Direction artistique',
@@ -25,6 +36,7 @@ function SlideCard({
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>(slide.content);
   const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
   const str = (k: string) => (typeof form[k] === 'string' ? (form[k] as string) : '');
@@ -32,12 +44,13 @@ function SlideCard({
   const save = async () => {
     setBusy(true);
     try {
-      const content: Record<string, unknown> = { ...form, kind: slide.kind };
+      const chosenKind = typeof form.kind === 'string' ? (form.kind as string) : slide.kind;
+      const content: Record<string, unknown> = { ...form, kind: chosenKind };
       for (const key of Object.keys(content)) {
         if (content[key] === '' || (Array.isArray(content[key]) && (content[key] as unknown[]).length === 0))
           delete content[key];
       }
-      content.kind = slide.kind;
+      content.kind = chosenKind;
       content.title = str('title') || '—';
       await api.put(`/api/posts/${postId}/slides/${slide.idx}`, { content });
       setEditing(false);
@@ -73,6 +86,36 @@ function SlideCard({
     }
   };
 
+  /** Illustration maison : recadrée en 1080×1350 côté serveur. */
+  const uploadImage = async (file: File) => {
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch(`/api/posts/${postId}/slides/${slide.idx}/upload-image`, {
+        method: 'POST',
+        body,
+        credentials: 'same-origin',
+      });
+      if (!res.ok) throw new Error(((await res.json()) as { error?: string }).error ?? `HTTP ${res.status}`);
+      onChanged();
+    } catch (err) {
+      alert(`Téléversement impossible : ${String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeImage = async () => {
+    setBusy(true);
+    try {
+      await api.post(`/api/posts/${postId}/slides/${slide.idx}/remove-image`);
+      onChanged();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="card overflow-hidden">
       {slide.renderAssetId ? (
@@ -102,6 +145,35 @@ function SlideCard({
             >
               <ImageIcon size={13} />
             </button>
+            <button
+              className="btn-ghost !px-2 !py-1 text-xs"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+              title="Téléverser ma propre image de fond"
+            >
+              <Upload size={13} />
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/avif"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void uploadImage(f);
+              }}
+            />
+            {slide.heroAssetId && (
+              <button
+                className="btn-ghost !px-2 !py-1 text-xs"
+                disabled={busy}
+                onClick={removeImage}
+                title="Retirer l'illustration de fond"
+              >
+                <Trash2 size={13} />
+              </button>
+            )}
           </div>
         </div>
         {!editing && <p className="line-clamp-2 text-sm font-semibold">{String(slide.content.title ?? '')}</p>}
@@ -129,6 +201,55 @@ function SlideCard({
                 value={Array.isArray(form.bullets) ? (form.bullets as string[]).join('\n') : ''}
                 onChange={(e) => set('bullets', e.target.value.split('\n').filter(Boolean))}
               />
+            </div>
+            <div>
+              <label className="label !mb-0.5">notifications (1 par ligne : titre | détail)</label>
+              <textarea
+                className="input !py-1.5"
+                rows={3}
+                placeholder={'Devis signé | Client Martin — 4 200 €'}
+                value={
+                  Array.isArray(form.notifications)
+                    ? (form.notifications as { title?: string; body?: string }[])
+                        .map((n) => `${n.title ?? ''} | ${n.body ?? ''}`)
+                        .join('\n')
+                    : ''
+                }
+                onChange={(e) =>
+                  set(
+                    'notifications',
+                    e.target.value
+                      .split('\n')
+                      .filter((l) => l.trim())
+                      .map((l) => {
+                        const [title, ...rest] = l.split('|');
+                        return { title: (title ?? '').trim(), body: rest.join('|').trim() };
+                      }),
+                  )
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="label !mb-0.5">toolName</label>
+                <input className="input !py-1.5" value={str('toolName')} onChange={(e) => set('toolName', e.target.value)} />
+              </div>
+              <div>
+                <label className="label !mb-0.5">toolUrl (capture)</label>
+                <input className="input !py-1.5" value={str('toolUrl')} onChange={(e) => set('toolUrl', e.target.value)} />
+              </div>
+            </div>
+            <div>
+              <label className="label !mb-0.5">type de slide</label>
+              <select
+                className="input !py-1.5"
+                value={typeof form.kind === 'string' ? (form.kind as string) : slide.kind}
+                onChange={(e) => set('kind', e.target.value)}
+              >
+                {SLIDE_KINDS.map((k) => (
+                  <option key={k} value={k}>{k}</option>
+                ))}
+              </select>
             </div>
             <button className="btn-primary justify-center" disabled={busy} onClick={save}>
               Enregistrer la slide
@@ -178,6 +299,64 @@ export default function PostEditor() {
         subtitle={`${CHANNEL_LABELS[post.channel] ?? post.channel} · ${post.format} · thème ${post.theme}${post.scheduledAt ? ` · prévu ${fmtDate(post.scheduledAt)}` : ''}${post.clicks ? ` · ${post.clicks} clic(s)` : ''}`}
         actions={<StatusBadge status={post.status} />}
       />
+
+      {editable && (
+        <div className="card mb-4 flex flex-wrap items-end gap-4 p-4">
+          <div className="min-w-[15rem] flex-1">
+            <label className="label !mb-1">Thème visuel de ce post</label>
+            <select
+              className="input"
+              value={post.theme}
+              disabled={!!busy}
+              onChange={(e) =>
+                void run('theme', async () => {
+                  await api.patch(`/api/posts/${post.id}`, { theme: e.target.value });
+                  await api.post(`/api/posts/${post.id}/render`);
+                })()
+              }
+            >
+              {THEME_CHOICES.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-[11rem]">
+            <label className="label !mb-1">Format</label>
+            <select
+              className="input"
+              value={post.format}
+              disabled={!!busy}
+              onChange={(e) =>
+                void run('format', async () => {
+                  await api.patch(`/api/posts/${post.id}`, { format: e.target.value });
+                  await api.post(`/api/posts/${post.id}/render`);
+                })()
+              }
+            >
+              <option value="carousel">Carrousel</option>
+              <option value="single">Image unique</option>
+            </select>
+          </div>
+          <div className="min-w-[11rem]">
+            <label className="label !mb-1">Canal</label>
+            <select
+              className="input"
+              value={post.channel}
+              disabled={!!busy}
+              onChange={(e) =>
+                void run('channel', () => api.patch(`/api/posts/${post.id}`, { channel: e.target.value }))()
+              }
+            >
+              <option value="ig">Instagram</option>
+              <option value="li_personal">LinkedIn perso</option>
+              <option value="li_org">LinkedIn entreprise</option>
+            </select>
+          </div>
+          {busy === 'theme' || busy === 'format' ? (
+            <span className="pb-2 text-xs text-muted">Nouveau rendu des slides…</span>
+          ) : null}
+        </div>
+      )}
 
       {editable && (
         <div className="mb-6 flex flex-wrap gap-2">

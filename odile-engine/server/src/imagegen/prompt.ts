@@ -12,20 +12,31 @@ LIGHTING: dramatic studio lighting, volumetric light, strong rim light, deep sha
 COMPOSITION: one single strong subject, generous negative space reserved for a headline overlay, balanced vertical 4:5 composition, high-end production value like a top-tier brand campaign.
 EDGES: all four edges of the frame fade smoothly into near-black deep navy (#050510) — soft dark falloff, no bright elements touching the borders — so the image melts seamlessly into a dark layout around it.`;
 
+/** Variante monochrome : imposée par le thème « encre-blanche ». */
+export const STYLE_GUIDE_MONO = `Premium social media advertising visual, cinematic photorealistic 3D render quality.
+COLOR PALETTE (strict): pure BLACK AND WHITE — near-black background (#050506), neutral greys, white rim lights and highlights. Absolutely NO color of any kind, not even a tint: a fully desaturated, monochrome image.
+ABSOLUTELY FORBIDDEN: any hue whatsoever (blue, orange, red, green, purple included); any text, letters, numbers as typography, words, logos, watermarks, user interfaces, buttons.
+LIGHTING: dramatic studio lighting, volumetric light, strong white rim light, deep shadows, subtle atmospheric haze, faint film grain — editorial black-and-white photography feel.
+COMPOSITION: one single strong subject, generous negative space reserved for a headline overlay, balanced vertical 4:5 composition, high-end production value like a top-tier brand campaign.
+EDGES: all four edges of the frame fade smoothly into near-black — soft dark falloff, no bright elements touching the borders.`;
+
 export interface ImagePromptArgs {
   idea: string;
   archetypeId?: string | null;
   styleNotes?: string;
   instructions?: string;
+  /** thème du post : « encre-blanche » impose une illustration monochrome */
+  theme?: string | null;
 }
 
 /** Assemble le prompt final envoyé au générateur d'images. */
 export function buildImagePrompt(args: ImagePromptArgs): string {
   const archetype = ARCHETYPES.find((a) => a.id === args.archetypeId);
+  const guide = args.theme === 'encre-blanche' ? STYLE_GUIDE_MONO : STYLE_GUIDE;
   const parts = [
     `SUBJECT: ${args.idea}`,
     archetype?.imageComposition ? `COMPOSITION TEMPLATE: ${archetype.imageComposition}` : null,
-    STYLE_GUIDE,
+    guide,
     args.styleNotes ? `BRAND ART DIRECTION NOTES: ${args.styleNotes}` : null,
     args.instructions ? `SPECIFIC REVISION REQUEST: ${args.instructions}` : null,
   ];

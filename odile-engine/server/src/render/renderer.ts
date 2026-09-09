@@ -82,8 +82,9 @@ export function buildSlideHtml(input: SlideRenderInput): string {
 <html><head><meta charset="utf-8"><style>
 ${fontFaceCss()}
 ${baseCss()}
-${themeCss(input.theme)}
+/* Accent de marque avant le thème : un thème monochrome peut l'imposer */
 :root { --accent: ${input.brand.accentColor}; }
+${themeCss(input.theme)}
 html, body, .slide { width: ${width}px; height: ${height}px; }
 </style></head>
 <body>

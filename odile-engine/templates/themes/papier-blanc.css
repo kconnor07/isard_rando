@@ -1,0 +1,108 @@
+/* Thème « Papier Blanc » — monochrome CLAIR : papier ivoire, encre noire,
+   courbes de verre en gris doux. Même grammaire que les thèmes sombres,
+   inversée : pour les posts éditoriaux et les carrousels très lisibles. */
+
+:root {
+  --accent: #111114;
+  --secondary: #6b6b75;
+  --text: #0b0b0e;
+  --muted: rgba(11, 11, 14, 0.62);
+  --glass: rgba(11, 11, 14, 0.04);
+  --glass-border: rgba(11, 11, 14, 0.14);
+}
+
+.slide { background: #f5f3ef; color: var(--text); }
+
+/* Voile de profondeur très doux */
+.bg {
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(ellipse 90% 70% at 50% 40%, rgba(11, 11, 14, 0.05) 0%, transparent 72%);
+}
+
+/* Courbe de verre haut-droit : gris clairs, arête blanche */
+.decor-1 {
+  position: absolute; z-index: 2;
+  top: -50%; right: -28%;
+  width: 1300px; height: 1300px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%,
+    #ffffff 0%,
+    #f2efe9 40%,
+    #e2ded6 66%,
+    #cdc8be 86%,
+    #ada79c 97%,
+    #8d8781 100%);
+  box-shadow: 0 0 2px rgba(255, 255, 255, 0.9), 0 30px 90px rgba(11, 11, 14, 0.06);
+}
+
+/* Courbe bas-gauche */
+.decor-2 {
+  position: absolute; z-index: 2;
+  bottom: -32%; left: -24%;
+  width: 980px; height: 980px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 62% 34%,
+    #fbfaf7 0%,
+    #f0ece5 44%,
+    #dfdad1 72%,
+    #c6c0b5 92%,
+    #a8a298 100%);
+  box-shadow: 0 -20px 80px rgba(11, 11, 14, 0.05);
+}
+
+.decor-3 {
+  position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(172deg, rgba(255, 255, 255, 0.6) 0%, transparent 30%);
+}
+
+/* Typographie : encre franche */
+.title { color: #0b0b0e; text-shadow: none; }
+.title .accent { color: #26262c; }
+.body, .bullets li { color: rgba(11, 11, 14, 0.7); }
+.bullets li::before { color: #0b0b0e; }
+.big-number { color: #0b0b0e; -webkit-text-fill-color: #0b0b0e; background: none; }
+.annotation { color: rgba(11, 11, 14, 0.8); }
+
+/* Éléments d'interface : contours sombres sur fond clair */
+.badge {
+  background: rgba(11, 11, 14, 0.04);
+  border-color: rgba(11, 11, 14, 0.16);
+  color: rgba(11, 11, 14, 0.82);
+}
+.badge::before { background: #0b0b0e; }
+.cta-button { background: #0b0b0e; color: #fbfbfc; }
+.keyword-chip { background: rgba(11, 11, 14, 0.06); border-color: rgba(11, 11, 14, 0.18); color: #0b0b0e; }
+.highlight-pill { background: rgba(11, 11, 14, 0.05); color: #0b0b0e; }
+.stamp { border-color: rgba(11, 11, 14, 0.28); color: #0b0b0e; }
+
+/* Notifications empilées */
+.notif-card {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(11, 11, 14, 0.1);
+  box-shadow: 0 18px 40px -22px rgba(11, 11, 14, 0.25);
+}
+.notif-title { color: #0b0b0e; }
+.notif-body { color: rgba(11, 11, 14, 0.65); }
+.notif-icon { background: #0b0b0e; color: #fff; }
+
+/* Pied de page : le logo blanc doit s'inverser pour rester lisible */
+.brand-wordmark { filter: invert(1); }
+.brand-footer { border-top-color: rgba(11, 11, 14, 0.1); }
+.slide-counter { color: rgba(11, 11, 14, 0.55); }
+.slide-counter .swipe { color: #0b0b0e; }
+.brand-name { color: #0b0b0e; }
+.brand-handle { color: rgba(11, 11, 14, 0.55); }
+
+/* Illustration en fond : dégradé vers le papier, pas vers le noir */
+.hero-grade { background: none; mix-blend-mode: normal; }
+.hero-scrim {
+  background:
+    radial-gradient(115% 100% at 50% 36%, rgba(245, 243, 239, 0) 46%, rgba(245, 243, 239, 0.94) 100%),
+    linear-gradient(180deg, rgba(245, 243, 239, 0.1) 0%, rgba(245, 243, 239, 0.5) 55%, rgba(245, 243, 239, 0.96) 100%);
+}
+.hero-ambient { opacity: 0.16; filter: blur(72px) grayscale(1) brightness(1.5); }
+.kind-echo .body { background: rgba(255, 255, 255, 0.72); color: rgba(11, 11, 14, 0.75); }
+.echo-line { color: rgba(11, 11, 14, 0.14); }
+
+/* Grain quasi imperceptible sur fond clair */
+.grain { opacity: 0.16; mix-blend-mode: multiply; }

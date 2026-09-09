@@ -1,0 +1,64 @@
+/* Thème « Encre Blanche » — monochrome absolu : encre profonde, courbes de
+   verre en niveaux de gris, arêtes blanches. Même grammaire visuelle que
+   Verre Bleu, sans aucune teinte : pour les posts sobres et éditoriaux. */
+
+:root { --secondary: #d8d8dc; --accent: #ffffff; }
+
+.slide { background: #050506; }
+
+/* Vignette de profondeur */
+.bg {
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(ellipse 85% 70% at 50% 46%, rgba(255, 255, 255, 0.06) 0%, transparent 70%);
+}
+
+/* Orbe de verre haut-droit — intérieur sombre, arête blanche */
+.decor-1 {
+  position: absolute; z-index: 2;
+  top: -52%; right: -30%;
+  width: 1350px; height: 1350px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%,
+    #050506 0%,
+    #101013 38%,
+    #26262b 62%,
+    #4f4f57 82%,
+    #9d9da6 94%,
+    #f2f2f4 100%);
+  box-shadow:
+    0 0 3px rgba(255, 255, 255, 0.85),
+    0 0 40px rgba(255, 255, 255, 0.18),
+    0 0 140px rgba(255, 255, 255, 0.08);
+}
+
+/* Orbe bas-gauche, plus discret */
+.decor-2 {
+  position: absolute; z-index: 2;
+  bottom: -34%; left: -26%;
+  width: 1020px; height: 1020px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 62% 34%,
+    #050506 0%,
+    #0d0d10 42%,
+    #1e1e23 68%,
+    #3a3a41 86%,
+    #8a8a93 97%,
+    #e6e6ea 100%);
+  box-shadow:
+    0 0 2px rgba(255, 255, 255, 0.55),
+    0 0 90px rgba(255, 255, 255, 0.07);
+}
+
+/* Voile de lumière rasante en haut */
+.decor-3 {
+  position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(172deg, rgba(255, 255, 255, 0.055) 0%, transparent 34%);
+}
+
+/* Textes : blanc franc, gris pour le corps */
+.title { color: #fbfbfc; }
+.title .accent { color: #ffffff; }
+.body, .bullets li { color: rgba(255, 255, 255, 0.72); }
+.badge { border-color: rgba(255, 255, 255, 0.22); color: rgba(255, 255, 255, 0.9); }
+.annotation { color: rgba(255, 255, 255, 0.88); }
+.big-number { color: #ffffff; }

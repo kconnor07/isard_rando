@@ -113,6 +113,7 @@ export async function generateHeroImage(
     archetypeId: post?.archetype,
     styleNotes: settings.styleNotes,
     instructions: opts.instructions,
+    theme: post?.theme,
   });
 
   const quality = opts.quality ?? settings.quality;
