@@ -106,3 +106,10 @@
 
 /* Grain quasi imperceptible sur fond clair */
 .grain { opacity: 0.16; mix-blend-mode: multiply; }
+
+/* Pilule du compteur sur fond clair */
+.slide-counter {
+  background: rgba(11, 11, 14, 0.045);
+  border-color: rgba(11, 11, 14, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}

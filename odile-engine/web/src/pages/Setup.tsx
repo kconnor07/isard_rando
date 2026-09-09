@@ -20,7 +20,7 @@ interface HealthDto {
 }
 
 function Dot({ ok }: { ok: boolean }) {
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-white' : 'bg-transparent ring-1 ring-white/35'}`} />;
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-accent' : 'bg-transparent ring-1 ring-white/35'}`} />;
 }
 
 export default function Setup() {

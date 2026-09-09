@@ -130,15 +130,20 @@ function SlideCard({
           <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
             {slide.idx + 1} · {slide.kind}
           </span>
-          <div className="flex gap-1">
-            <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={() => setEditing(!editing)}>
+          <div className="pill-bar">
+            <button
+              className="pill-btn pill-btn--text"
+              disabled={busy}
+              onClick={() => setEditing(!editing)}
+              title={editing ? 'Fermer l’édition' : 'Modifier les textes'}
+            >
               {editing ? 'Fermer' : <Pencil size={13} />}
             </button>
-            <button className="btn-ghost !px-2 !py-1 text-xs" disabled={busy} onClick={regenerate} title="Régénérer le texte par l'IA">
+            <button className="pill-btn" disabled={busy} onClick={regenerate} title="Régénérer le texte par l'IA">
               <RefreshCw size={13} />
             </button>
             <button
-              className={`btn-ghost !px-2 !py-1 text-xs ${slide.heroAssetId ? '!border-white/45' : ''}`}
+              className={`pill-btn ${slide.heroAssetId ? 'pill-btn--on' : ''}`}
               disabled={busy}
               onClick={generateImage}
               title={slide.heroAssetId ? "Régénérer l'illustration IA" : 'Générer une illustration IA'}
@@ -146,7 +151,7 @@ function SlideCard({
               <ImageIcon size={13} />
             </button>
             <button
-              className="btn-ghost !px-2 !py-1 text-xs"
+              className="pill-btn"
               disabled={busy}
               onClick={() => fileInput.current?.click()}
               title="Téléverser ma propre image de fond"
@@ -165,12 +170,7 @@ function SlideCard({
               }}
             />
             {slide.heroAssetId && (
-              <button
-                className="btn-ghost !px-2 !py-1 text-xs"
-                disabled={busy}
-                onClick={removeImage}
-                title="Retirer l'illustration de fond"
-              >
+              <button className="pill-btn" disabled={busy} onClick={removeImage} title="Retirer l'illustration de fond">
                 <Trash2 size={13} />
               </button>
             )}

@@ -42,7 +42,7 @@ export default function News() {
         }
       />
       {generating && (
-        <div className="card mb-4 border-white/30 p-4 text-sm">
+        <div className="card mb-4 border-accent/40 p-4 text-sm">
           Pipeline lancé pour l'actu #{generating} : rédaction → captures → rendu → studio de design → email.
           Le post apparaîtra dans « À valider » dans quelques minutes.
         </div>
@@ -60,7 +60,7 @@ export default function News() {
               <span className="text-[9px] uppercase text-muted">score</span>
             </div>
             <div className="min-w-0 flex-1">
-              <a href={item.url} target="_blank" rel="noreferrer" className="font-bold hover:text-accent">
+              <a href={item.url} target="_blank" rel="noreferrer" className="font-bold hover:text-ice">
                 {item.title}
               </a>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">

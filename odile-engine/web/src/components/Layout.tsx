@@ -48,7 +48,7 @@ function CountBadge({ value, tone }: { value: number; tone: 'solid' | 'outline' 
     <span
       className={`mono rounded-full px-2 py-0.5 text-[10px] ${
         tone === 'solid'
-          ? 'bg-white text-ink'
+          ? 'bg-accent text-white'
           : 'border border-line text-txt'
       }`}
     >
@@ -82,7 +82,7 @@ export default function Layout() {
               {({ isActive }) => (
                 <>
                   <span
-                    className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-white transition-opacity ${
+                    className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent transition-opacity ${
                       isActive ? 'opacity-100' : 'opacity-0'
                     }`}
                   />
@@ -149,7 +149,7 @@ export default function Layout() {
               className={({ isActive }) =>
                 `whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                   isActive
-                    ? 'border-white/40 bg-accent-soft text-ice'
+                    ? 'border-accent/45 bg-accent-soft text-ice'
                     : 'border-line text-muted hover:text-txt'
                 }`
               }

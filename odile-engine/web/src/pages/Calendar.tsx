@@ -31,7 +31,7 @@ export default function Calendar() {
             </h2>
             <div className="flex flex-col gap-2">
               {byDay.get(day)!.map((post) => (
-                <Link key={post.id} to={`/posts/${post.id}`} className="card flex items-center gap-4 p-4 hover:border-white/30">
+                <Link key={post.id} to={`/posts/${post.id}`} className="card flex items-center gap-4 p-4 hover:border-accent/40">
                   <span className="mono w-14 text-sm text-ice">
                     {fmtDate(post.scheduledAt ?? post.publishedAt).split(' ').pop()}
                   </span>

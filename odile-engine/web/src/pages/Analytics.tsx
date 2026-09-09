@@ -51,7 +51,7 @@ export default function Analytics() {
           {clicks?.perDay.map((d) => (
             <div key={d.day} className="group relative flex-1">
               <div
-                className="rounded-t bg-white/45 transition-colors group-hover:bg-white/85"
+                className="rounded-t bg-accent/60 transition-colors group-hover:bg-accent"
                 style={{ height: `${Math.max(4, (d.count / max) * 120)}px` }}
               />
               <div className="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded-md border border-line bg-panel px-1.5 py-0.5 text-[10px] group-hover:block">
@@ -76,7 +76,7 @@ export default function Analytics() {
                 <div key={s.name} className="flex items-center gap-2">
                   <span className={`flex-1 truncate ${s.enabled ? '' : 'line-through opacity-50'}`}>{s.name}</span>
                   <div className="h-1.5 w-28 overflow-hidden rounded-full bg-panel2">
-                    <div className="h-full rounded-full bg-white/80" style={{ width: `${((s.weight - 0.5) / 1.5) * 100}%` }} />
+                    <div className="h-full rounded-full bg-accent" style={{ width: `${((s.weight - 0.5) / 1.5) * 100}%` }} />
                   </div>
                   <span className="w-8 text-right font-mono text-xs text-muted">{s.weight.toFixed(1)}</span>
                 </div>

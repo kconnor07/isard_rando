@@ -3,10 +3,10 @@ import type { ReactNode } from 'react';
 export const STATUS_LABELS: Record<string, { label: string; dot: string; text: string }> = {
   draft: { label: 'Brouillon', dot: 'bg-white/25', text: 'text-muted' },
   reviewing: { label: 'Studio design', dot: 'bg-white/45', text: 'text-muted' },
-  awaiting_approval: { label: 'À valider', dot: 'bg-white', text: 'text-txt' },
+  awaiting_approval: { label: 'À valider', dot: 'bg-accent', text: 'text-ice' },
   approved: { label: 'Approuvé', dot: 'bg-white/70', text: 'text-txt' },
-  scheduled: { label: 'Programmé', dot: 'bg-white/55', text: 'text-txt' },
-  publishing: { label: 'Publication…', dot: 'bg-white animate-pulse', text: 'text-txt' },
+  scheduled: { label: 'Programmé', dot: 'bg-accent/70', text: 'text-ice' },
+  publishing: { label: 'Publication…', dot: 'bg-accent animate-pulse', text: 'text-ice' },
   published: { label: 'Publié', dot: 'bg-transparent ring-1 ring-white/70', text: 'text-muted' },
   rejected: { label: 'Rejeté', dot: 'bg-transparent ring-1 ring-white/25', text: 'text-muted' },
   failed: { label: 'Échec', dot: 'bg-white ring-2 ring-white/25', text: 'text-txt' },
