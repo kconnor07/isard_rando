@@ -26,7 +26,7 @@ services:
       - '80:80'
       - '443:443'
     environment:
-      DOMAIN: ${DOMAIN:?définir DOMAIN dans .env (ex: engine.odileai.com)}
+      DOMAIN: '${DOMAIN:?définir DOMAIN dans .env (ex. engine.odileai.com)}'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
