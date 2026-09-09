@@ -3,6 +3,9 @@
 
 # ---------- Étape 1 : build (dashboard web + dépendances) --------------------
 FROM node:22-bookworm-slim AS build
+# Outils de compilation des modules natifs (better-sqlite3 sans prebuild ARM)
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
@@ -17,6 +20,8 @@ RUN npm run build --workspace @odile/web
 
 # ---------- Étape 2 : dépendances de production uniquement -------------------
 FROM node:22-bookworm-slim AS proddeps
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY shared/package.json shared/
