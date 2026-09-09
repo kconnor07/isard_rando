@@ -43,7 +43,7 @@ export default function Approvals() {
               </span>
               {post.reviewSummary && (
                 <span
-                  className={`text-xs font-semibold ${post.reviewSummary.passed ? 'text-emerald-300' : 'text-amber-300'}`}
+                  className={`text-xs font-semibold ${post.reviewSummary.passed ? 'text-txt' : 'text-muted'}`}
                 >
                   studio : {post.reviewSummary.iterations} itér. ·{' '}
                   {Object.values(post.reviewSummary.finalScores).join(' / ')}
@@ -51,7 +51,7 @@ export default function Approvals() {
               )}
               <span className="ml-auto text-xs text-muted">{fmtDate(post.createdAt)}</span>
             </div>
-            <Link to={`/posts/${post.id}`} className="text-lg font-bold hover:text-accent">
+            <Link to={`/posts/${post.id}`} className="text-lg font-bold hover:text-ice">
               {post.hook || '(sans titre)'}
             </Link>
             {post.newsTitle && (

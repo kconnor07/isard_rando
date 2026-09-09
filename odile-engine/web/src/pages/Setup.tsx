@@ -20,7 +20,7 @@ interface HealthDto {
 }
 
 function Dot({ ok }: { ok: boolean }) {
-  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-emerald-400' : 'bg-red-400'}`} />;
+  return <span className={`inline-block h-2.5 w-2.5 rounded-full ${ok ? 'bg-white' : 'bg-transparent ring-1 ring-white/35'}`} />;
 }
 
 export default function Setup() {
@@ -102,7 +102,7 @@ export default function Setup() {
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
           <div className="flex items-center gap-2"><Dot ok={health.smtp.ok} /> SMTP <span className="text-xs text-muted">— {health.smtp.detail}</span></div>
           <div className="flex items-center gap-2"><Dot ok={health.chromium.ok} /> Chromium (rendu/captures)</div>
-          <div className="flex items-center gap-2"><Dot ok={health.llm.anthropic} /> Claude API {health.llmMode === 'mock' && <span className="text-xs text-amber-300">(mode mock)</span>}</div>
+          <div className="flex items-center gap-2"><Dot ok={health.llm.anthropic} /> Claude API {health.llmMode === 'mock' && <span className="text-xs text-muted">(mode mock)</span>}</div>
           <div className="flex items-center gap-2"><Dot ok={health.llm.gemini} /> Gemini API</div>
           <div className="flex items-center gap-2"><Dot ok={health.publishMode === 'live'} /> Publication : <b>{health.publishMode === 'live' ? 'réelle' : 'dry-run (simulation)'}</b></div>
           <div className="flex items-center gap-2"><Dot ok={Boolean(health.lastWebhookCommentAt)} /> Webhook Meta

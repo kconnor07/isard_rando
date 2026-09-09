@@ -21,6 +21,8 @@ export interface DesignReviewSummary {
   iterations: number;
   passed: boolean;
   finalScores: Record<ReviewerId, number>;
+  /** true = aucun relecteur n'a pu répondre (le post reste valide, sans critique) */
+  unavailable: boolean;
 }
 
 /**
@@ -33,9 +35,10 @@ export async function runDesignReview(postId: number): Promise<DesignReviewSumma
   let finalScores = {} as Record<ReviewerId, number>;
   let passed = false;
   let iteration = 0;
+  let unavailable = false;
 
   if (!settings.enabled) {
-    return { postId, iterations: 0, passed: true, finalScores };
+    return { postId, iterations: 0, passed: true, finalScores, unavailable: false };
   }
 
   for (iteration = 1; iteration <= settings.maxIterations; iteration++) {
@@ -51,7 +54,7 @@ export async function runDesignReview(postId: number): Promise<DesignReviewSumma
     const slidesJson = slides.map((s) => JSON.parse(s.content) as unknown);
     const isFinalPass = iteration === settings.maxIterations;
 
-    const results = await Promise.all(
+    const settled = await Promise.allSettled(
       REVIEWER_DEFS.map(async (reviewer) => {
         const prompt = `Itération : ${iteration}/${settings.maxIterations}
 
@@ -95,6 +98,20 @@ target = champ visé, problem, fix). Aucun issue si le score passe.`;
       }),
     );
 
+    // Un relecteur indisponible (quota, modèle retiré) ne doit pas faire
+    // échouer la fabrication : on garde les critiques obtenues.
+    for (const r of settled) {
+      if (r.status === 'rejected') {
+        logger.warn({ postId, iteration, err: String(r.reason).slice(0, 200) }, 'relecteur en échec (ignoré)');
+      }
+    }
+    const results = settled.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+    if (results.length === 0) {
+      logger.error({ postId, iteration }, 'studio de design indisponible — post conservé sans critique');
+      unavailable = true;
+      break;
+    }
+
     finalScores = Object.fromEntries(
       results.map((r) => [r.reviewer, Math.round(r.score)]),
     ) as Record<ReviewerId, number>;
@@ -121,14 +138,20 @@ target = champ visé, problem, fix). Aucun issue si le score passe.`;
 
   db.update(schema.posts)
     .set({
-      reviewSummary: JSON.stringify({ iterations: iteration, finalScores, passed }),
+      reviewSummary: JSON.stringify({ iterations: iteration, finalScores, passed, unavailable }),
       status: 'reviewing',
       updatedAt: new Date().toISOString(),
     })
     .where(eq(schema.posts.id, postId))
     .run();
 
-  return { postId, iterations: Math.min(iteration, getDesignStudio().maxIterations), passed, finalScores };
+  return {
+    postId,
+    iterations: Math.min(iteration, getDesignStudio().maxIterations),
+    passed,
+    finalScores,
+    unavailable,
+  };
 }
 
 function severityRank(s: ReviewIssue['severity']): number {

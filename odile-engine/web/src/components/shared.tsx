@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react';
 
 export const STATUS_LABELS: Record<string, { label: string; dot: string; text: string }> = {
-  draft: { label: 'Brouillon', dot: 'bg-slate-400', text: 'text-slate-300' },
-  reviewing: { label: 'Studio design', dot: 'bg-sky-300', text: 'text-sky-200' },
-  awaiting_approval: { label: 'À valider', dot: 'bg-amber-300', text: 'text-amber-200' },
-  approved: { label: 'Approuvé', dot: 'bg-emerald-300', text: 'text-emerald-200' },
-  scheduled: { label: 'Programmé', dot: 'bg-accent', text: 'text-ice' },
-  publishing: { label: 'Publication…', dot: 'bg-accent animate-pulse', text: 'text-ice' },
-  published: { label: 'Publié', dot: 'bg-emerald-400', text: 'text-emerald-200' },
-  rejected: { label: 'Rejeté', dot: 'bg-red-400', text: 'text-red-300' },
-  failed: { label: 'Échec', dot: 'bg-red-500', text: 'text-red-300' },
+  draft: { label: 'Brouillon', dot: 'bg-white/25', text: 'text-muted' },
+  reviewing: { label: 'Studio design', dot: 'bg-white/45', text: 'text-muted' },
+  awaiting_approval: { label: 'À valider', dot: 'bg-white', text: 'text-txt' },
+  approved: { label: 'Approuvé', dot: 'bg-white/70', text: 'text-txt' },
+  scheduled: { label: 'Programmé', dot: 'bg-white/55', text: 'text-txt' },
+  publishing: { label: 'Publication…', dot: 'bg-white animate-pulse', text: 'text-txt' },
+  published: { label: 'Publié', dot: 'bg-transparent ring-1 ring-white/70', text: 'text-muted' },
+  rejected: { label: 'Rejeté', dot: 'bg-transparent ring-1 ring-white/25', text: 'text-muted' },
+  failed: { label: 'Échec', dot: 'bg-white ring-2 ring-white/25', text: 'text-txt' },
 };
 
 export const CHANNEL_LABELS: Record<string, string> = {
@@ -19,7 +19,7 @@ export const CHANNEL_LABELS: Record<string, string> = {
 };
 
 export function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_LABELS[status] ?? { label: status, dot: 'bg-slate-400', text: 'text-slate-300' };
+  const s = STATUS_LABELS[status] ?? { label: status, dot: 'bg-white/30', text: 'text-muted' };
   return (
     <span
       className={`mono inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[10px] uppercase tracking-wide ${s.text}`}

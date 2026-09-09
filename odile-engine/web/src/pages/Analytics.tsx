@@ -51,10 +51,10 @@ export default function Analytics() {
           {clicks?.perDay.map((d) => (
             <div key={d.day} className="group relative flex-1">
               <div
-                className="rounded-t bg-accent/70 transition-colors group-hover:bg-accent"
+                className="rounded-t bg-white/45 transition-colors group-hover:bg-white/85"
                 style={{ height: `${Math.max(4, (d.count / max) * 120)}px` }}
               />
-              <div className="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded bg-panel2 px-1.5 py-0.5 text-[10px] group-hover:block">
+              <div className="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded-md border border-line bg-panel px-1.5 py-0.5 text-[10px] group-hover:block">
                 {d.day.slice(5)} : {d.count}
               </div>
             </div>
@@ -76,7 +76,7 @@ export default function Analytics() {
                 <div key={s.name} className="flex items-center gap-2">
                   <span className={`flex-1 truncate ${s.enabled ? '' : 'line-through opacity-50'}`}>{s.name}</span>
                   <div className="h-1.5 w-28 overflow-hidden rounded-full bg-panel2">
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${((s.weight - 0.5) / 1.5) * 100}%` }} />
+                    <div className="h-full rounded-full bg-white/80" style={{ width: `${((s.weight - 0.5) / 1.5) * 100}%` }} />
                   </div>
                   <span className="w-8 text-right font-mono text-xs text-muted">{s.weight.toFixed(1)}</span>
                 </div>
@@ -94,7 +94,7 @@ export default function Analytics() {
                 <span
                   key={t.topic}
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    t.factor >= 1.05 ? 'bg-emerald-500/20 text-emerald-200' : t.factor <= 0.95 ? 'bg-red-500/15 text-red-300' : 'bg-panel2 text-muted'
+                    t.factor >= 1.05 ? 'bg-white/15 text-txt' : t.factor <= 0.95 ? 'border border-line text-muted' : 'bg-white/[0.05] text-muted'
                   }`}
                 >
                   {t.topic} ×{t.factor.toFixed(2)}
@@ -117,7 +117,7 @@ export default function Analytics() {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-lg font-extrabold text-accent">{post.clicks}</div>
+              <div className="mono text-lg text-ice">{post.clicks}</div>
               <div className="text-[10px] uppercase text-muted">clics</div>
             </div>
             <div className="text-center">
@@ -125,7 +125,7 @@ export default function Analytics() {
               <div className="text-[10px] uppercase text-muted">comm.</div>
             </div>
             {post.externalUrl && (
-              <a href={post.externalUrl} target="_blank" rel="noreferrer" className="text-xs text-accent">
+              <a href={post.externalUrl} target="_blank" rel="noreferrer" className="text-xs text-ice underline decoration-white/30">
                 voir ↗
               </a>
             )}

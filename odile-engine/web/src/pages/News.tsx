@@ -42,7 +42,7 @@ export default function News() {
         }
       />
       {generating && (
-        <div className="card mb-4 border-accent/50 p-4 text-sm">
+        <div className="card mb-4 border-white/30 p-4 text-sm">
           Pipeline lancé pour l'actu #{generating} : rédaction → captures → rendu → studio de design → email.
           Le post apparaîtra dans « À valider » dans quelques minutes.
         </div>
@@ -53,8 +53,8 @@ export default function News() {
       <div className="flex flex-col gap-3">
         {news?.map((item) => (
           <div key={item.id} className="card flex items-start gap-4 p-4">
-            <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-accent-soft">
-              <span className="text-lg font-extrabold text-accent">
+            <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-2xl border border-line bg-white/[0.04]">
+              <span className="mono text-lg text-ice">
                 {item.scoreFinal != null ? Math.round(item.scoreFinal) : (item.score ?? '–')}
               </span>
               <span className="text-[9px] uppercase text-muted">score</span>
@@ -70,12 +70,12 @@ export default function News() {
                   <span>· pertinence {item.scoreRelevance}/50 · clic {item.scoreClick}/50</span>
                 )}
                 {item.engagement != null && item.engagement > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 font-semibold text-amber-200">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 font-semibold text-txt">
                     <Flame size={11} /> engagement {item.engagement}
                   </span>
                 )}
                 {item.contentExtracted && (
-                  <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 font-semibold text-emerald-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 font-semibold text-txt">
                     <FileText size={11} /> texte extrait
                   </span>
                 )}
@@ -83,7 +83,7 @@ export default function News() {
               {item.topics.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {item.topics.map((t) => (
-                    <span key={t} className="rounded-full bg-panel2 px-2 py-0.5 text-[11px] text-muted">
+                    <span key={t} className="rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">
                       {t}
                     </span>
                   ))}

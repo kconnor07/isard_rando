@@ -325,7 +325,7 @@ export default function Settings() {
                 onChange={(e) => toggleSource.mutate({ id: source.id, enabled: e.target.checked })} />
               <span className="w-52 font-medium">{source.name}</span>
               <span className="text-xs text-muted">{source.lang.toUpperCase()} · poids {source.weight}</span>
-              {source.lastError && <span className="truncate text-xs text-red-400" title={source.lastError}>{source.lastError.slice(0, 60)}</span>}
+              {source.lastError && <span className="truncate text-xs text-muted italic" title={source.lastError}>{source.lastError.slice(0, 60)}</span>}
             </label>
           ))}
         </div>

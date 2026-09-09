@@ -31,8 +31,8 @@ export default function Calendar() {
             </h2>
             <div className="flex flex-col gap-2">
               {byDay.get(day)!.map((post) => (
-                <Link key={post.id} to={`/posts/${post.id}`} className="card flex items-center gap-4 p-4 hover:border-accent/50">
-                  <span className="w-14 font-mono text-sm text-accent">
+                <Link key={post.id} to={`/posts/${post.id}`} className="card flex items-center gap-4 p-4 hover:border-white/30">
+                  <span className="mono w-14 text-sm text-ice">
                     {fmtDate(post.scheduledAt ?? post.publishedAt).split(' ').pop()}
                   </span>
                   <StatusBadge status={post.status} />
@@ -43,7 +43,7 @@ export default function Calendar() {
                       href={post.externalUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-xs text-accent"
+                      className="text-xs text-ice underline decoration-white/30"
                       onClick={(e) => e.stopPropagation()}
                     >
                       voir ↗

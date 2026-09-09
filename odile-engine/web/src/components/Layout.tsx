@@ -42,12 +42,14 @@ const NAV_GROUPS: {
   },
 ];
 
-function CountBadge({ value, tone }: { value: number; tone: 'accent' | 'amber' }) {
+function CountBadge({ value, tone }: { value: number; tone: 'solid' | 'outline' }) {
   if (value <= 0) return null;
   return (
     <span
       className={`mono rounded-full px-2 py-0.5 text-[10px] ${
-        tone === 'accent' ? 'bg-accent text-white' : 'bg-amber-400/90 text-black'
+        tone === 'solid'
+          ? 'bg-white text-ink'
+          : 'border border-line text-txt'
       }`}
     >
       {value}
@@ -80,17 +82,17 @@ export default function Layout() {
               {({ isActive }) => (
                 <>
                   <span
-                    className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-accent transition-opacity ${
+                    className={`absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-white transition-opacity ${
                       isActive ? 'opacity-100' : 'opacity-0'
                     }`}
                   />
                   <Icon size={16} strokeWidth={2} />
                   <span className="flex-1">{label}</span>
                   {to === '/approvals' && (
-                    <CountBadge value={summary?.awaitingApproval ?? 0} tone="accent" />
+                    <CountBadge value={summary?.awaitingApproval ?? 0} tone="solid" />
                   )}
                   {to === '/comments' && (
-                    <CountBadge value={summary?.pendingComments ?? 0} tone="amber" />
+                    <CountBadge value={summary?.pendingComments ?? 0} tone="outline" />
                   )}
                 </>
               )}
@@ -147,7 +149,7 @@ export default function Layout() {
               className={({ isActive }) =>
                 `whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
                   isActive
-                    ? 'border-accent/50 bg-accent-soft text-ice'
+                    ? 'border-white/40 bg-accent-soft text-ice'
                     : 'border-line text-muted hover:text-txt'
                 }`
               }

@@ -47,7 +47,7 @@ export default function Login() {
               autoFocus
               autoComplete="current-password"
             />
-            {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+            {error && <p className="mt-2 text-sm text-txt">{error}</p>}
             <button className="btn-primary mt-5 w-full justify-center" disabled={busy || !password}>
               {busy ? 'Connexion…' : 'Entrer dans la régie'}
             </button>
@@ -61,21 +61,21 @@ export default function Login() {
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(circle closest-side at 68% 38%, rgba(0,90,205,0.5), rgba(4,10,26,0.05) 78%, transparent 100%),' +
-              'radial-gradient(circle closest-side at 30% 78%, rgba(0,60,150,0.42), transparent 100%),' +
-              'radial-gradient(80% 60% at 85% 110%, rgba(0,153,255,0.12), transparent 70%),' +
-              '#05060c',
+              'radial-gradient(circle closest-side at 68% 38%, rgba(255,255,255,0.16), rgba(10,10,12,0.04) 78%, transparent 100%),' +
+              'radial-gradient(circle closest-side at 30% 78%, rgba(255,255,255,0.09), transparent 100%),' +
+              'radial-gradient(80% 60% at 85% 110%, rgba(255,255,255,0.05), transparent 70%),' +
+              '#07070a',
           }}
         />
         <div
           className="absolute inset-0"
           style={{
             background:
-              'radial-gradient(circle closest-side at 68% 38%, transparent 96%, rgba(160,215,255,0.35) 99%, transparent 100%)',
+              'radial-gradient(circle closest-side at 68% 38%, transparent 96%, rgba(255,255,255,0.4) 99%, transparent 100%)',
           }}
         />
         <div className="absolute bottom-12 left-12 right-12">
-          <p className="accent-serif text-[26px] leading-snug text-ice/90">
+          <p className="accent-serif text-[26px] leading-snug text-white/90">
             La machine a veillé toute la nuit.
           </p>
           <p className="mt-1 text-sm text-muted">Il ne reste qu'à valider.</p>

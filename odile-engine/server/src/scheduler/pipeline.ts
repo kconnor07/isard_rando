@@ -11,7 +11,7 @@ export interface PipelineSummary {
   postId: number;
   screenshot: string;
   images: ImagesSummary;
-  review: { iterations: number; passed: boolean };
+  review: { iterations: number; passed: boolean; unavailable: boolean };
   emailed: boolean;
 }
 
@@ -30,7 +30,12 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
     return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
   });
   await renderPost(draft.postId);
-  const review = await runDesignReview(draft.postId);
+  // Le studio ne doit jamais bloquer la livraison : un post rendu vaut mieux
+  // qu'aucun post — l'humain valide de toute façon.
+  const review = await runDesignReview(draft.postId).catch((err) => {
+    logger.error({ err: String(err) }, 'studio de design en échec (non bloquant)');
+    return { postId: draft.postId, iterations: 0, passed: false, finalScores: {}, unavailable: true };
+  });
 
   let emailed = false;
   try {
@@ -50,7 +55,7 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
     postId: draft.postId,
     screenshot: capture.ok ? 'ok' : `échec: ${capture.reason.slice(0, 120)}`,
     images,
-    review: { iterations: review.iterations, passed: review.passed },
+    review: { iterations: review.iterations, passed: review.passed, unavailable: review.unavailable },
     emailed,
   };
 }

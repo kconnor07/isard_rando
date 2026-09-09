@@ -95,7 +95,7 @@ function SlideCard({
               <RefreshCw size={13} />
             </button>
             <button
-              className={`btn-ghost !px-2 !py-1 text-xs ${slide.heroAssetId ? '!border-sky-500/60' : ''}`}
+              className={`btn-ghost !px-2 !py-1 text-xs ${slide.heroAssetId ? '!border-white/45' : ''}`}
               disabled={busy}
               onClick={generateImage}
               title={slide.heroAssetId ? "Régénérer l'illustration IA" : 'Générer une illustration IA'}
@@ -266,7 +266,7 @@ export default function PostEditor() {
                     {REVIEWER_LABELS[review.reviewer] ?? review.reviewer}
                     <span className="ml-2 text-xs font-normal text-muted">itér. {review.iteration}</span>
                   </span>
-                  <span className={`text-sm font-extrabold ${review.passed ? 'text-emerald-300' : 'text-amber-300'}`}>
+                  <span className={`text-sm font-extrabold ${review.passed ? 'text-txt' : 'text-muted'}`}>
                     {review.score}/100
                   </span>
                 </div>
@@ -276,12 +276,12 @@ export default function PostEditor() {
                     {review.issues.map((issue, i) => (
                       <li key={i} className="rounded-lg bg-panel2 p-2 text-xs">
                         <span
-                          className={`mr-1 font-bold ${issue.severity === 'blocking' ? 'text-red-300' : issue.severity === 'major' ? 'text-amber-300' : 'text-muted'}`}
+                          className={`mr-1 font-bold ${issue.severity === 'blocking' ? 'text-txt underline decoration-white/40' : issue.severity === 'major' ? 'text-txt' : 'text-muted'}`}
                         >
                           [{issue.severity}
                           {issue.slideIdx !== null ? ` · slide ${issue.slideIdx + 1}` : ''}]
                         </span>
-                        {issue.problem} <span className="text-emerald-300">→ {issue.fix}</span>
+                        {issue.problem} <span className="text-ice">→ {issue.fix}</span>
                       </li>
                     ))}
                   </ul>

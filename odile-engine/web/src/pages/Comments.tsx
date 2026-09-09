@@ -5,11 +5,11 @@ import type { CommentDto } from '../api/types';
 import { Empty, fmtDate, PageTitle } from '../components/shared';
 
 const DM_LABELS: Record<string, { label: string; cls: string }> = {
-  sent: { label: 'DM envoyé', cls: 'text-emerald-300' },
-  dry: { label: 'DM simulé', cls: 'text-sky-300' },
-  pending: { label: 'En attente', cls: 'text-amber-300' },
-  failed: { label: 'Échec DM', cls: 'text-red-300' },
-  manual_suggested: { label: 'Réponse à coller', cls: 'text-amber-300' },
+  sent: { label: 'DM envoyé', cls: 'text-txt' },
+  dry: { label: 'DM simulé', cls: 'text-muted' },
+  pending: { label: 'En attente', cls: 'text-txt' },
+  failed: { label: 'Échec DM', cls: 'text-txt underline decoration-white/30' },
+  manual_suggested: { label: 'Réponse à coller', cls: 'text-txt' },
   handled: { label: 'Traité', cls: 'text-muted' },
   none: { label: '—', cls: 'text-muted' },
 };
@@ -40,7 +40,7 @@ export default function Comments() {
             <div key={comment.id} className="card p-4">
               <div className="flex items-center gap-3">
                 <span
-                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${comment.platform === 'instagram' ? 'bg-pink-600/30 text-pink-200' : 'bg-sky-700/40 text-sky-200'}`}
+                  className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${comment.platform === 'instagram' ? 'border border-line text-txt' : 'bg-white/10 text-txt'}`}
                 >
                   {comment.platform === 'instagram' ? 'Instagram' : 'LinkedIn'}
                 </span>
@@ -55,7 +55,7 @@ export default function Comments() {
               </div>
               <p className="mt-2 text-sm">{comment.text}</p>
               {comment.suggestedReply && comment.dmStatus === 'manual_suggested' && (
-                <div className="mt-3 rounded-xl bg-panel2 p-3">
+                <div className="mt-3 rounded-2xl border border-line bg-white/[0.03] p-3">
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
                     Réponse pré-rédigée (à envoyer en message privé LinkedIn)
                   </div>
