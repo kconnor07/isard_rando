@@ -20,8 +20,8 @@ const envSchema = z.object({
   REDDIT_CLIENT_SECRET: z.string().optional(),
   ANTHROPIC_MODEL_WRITER: z.string().default('claude-sonnet-5'),
   ANTHROPIC_MODEL_FAST: z.string().default('claude-haiku-4-5'),
-  GEMINI_MODEL_SCORING: z.string().default('gemini-2.5-flash-lite'),
-  GEMINI_MODEL_VISION: z.string().default('gemini-2.5-flash'),
+  GEMINI_MODEL_SCORING: z.string().default('gemini-3.5-flash-lite'),
+  GEMINI_MODEL_VISION: z.string().default('gemini-3.5-flash'),
   /** génération d'illustrations : Nano Banana Pro + variante rapide */
   GEMINI_MODEL_IMAGE: z.string().default('gemini-3-pro-image'),
   GEMINI_MODEL_IMAGE_FAST: z.string().default('gemini-3.1-flash-image'),
