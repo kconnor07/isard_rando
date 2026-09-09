@@ -260,10 +260,12 @@ body {
 .brand-handle { font-size: 26px; color: var(--muted); font-weight: 500; }
 /* Compteur de slide : pilule de verre, même famille que les badges */
 .slide-counter {
-  font-family: 'Fragment Mono', monospace;
-  font-size: 24px;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 25px;
   color: var(--muted);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.02em;
   display: inline-flex; align-items: center; gap: 14px;
   padding: 14px 30px;
   border-radius: 999px;
