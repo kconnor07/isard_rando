@@ -10,10 +10,13 @@ import { isLightHex } from '../lib/color.js';
  */
 
 export type ImageStyle = 'full' | 'objets' | 'chrome';
+/** Styles dont l'objet est détouré après génération (fond uni → PNG transparent). */
+export const CUTOUT_STYLES: ImageStyle[] = ['objets', 'chrome'];
+export const isCutoutStyle = (style: ImageStyle): boolean => CUTOUT_STYLES.includes(style);
 export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
-  { id: 'chrome', label: 'Chrome & verre', hint: 'Rendu 3D chrome / verre irisé, halo accent' },
+  { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -74,11 +77,10 @@ OBJECT: glossy 3D materials (glass, chrome, polished metal, ceramic) tinted with
 LIGHTING: soft studio key light plus a ${p.accent} rim light, ${dark ? 'deep contrast' : 'gentle contrast'}, ultra sharp, faint film grain.
 ${NO_TEXT}`;
     case 'chrome':
-      return `Premium 3D render in liquid chrome and iridescent glass, ${atmosphere}.
-OBJECT: a symbolic object made of mirror chrome and thick glass with refractions, dispersion and ${p.accent} / ${p.bg2} iridescent reflections, hyper detailed, centered in the upper 60% of the frame.
-BACKGROUND: deep ${p.bg1} with a large ${p.accent} volumetric glow behind the object and subtle light rays; the lower 35% is empty — plain ${dark ? 'dark' : 'clean'} background only, no writing.
-LIGHTING: studio lighting, strong specular highlights, high contrast, ultra sharp, faint film grain.
-EDGES: all four edges fade smoothly into ${p.bg1}.
+      return `Premium 3D render of a single symbolic object in liquid chrome and iridescent glass, made to be cut out.
+OBJECT: mirror chrome and thick glass with refractions, dispersion and ${p.accent} / ${p.bg2} iridescent reflections, hyper detailed, ultra sharp, slightly tilted, centered, entirely inside the frame with a generous margin all around, clean sharp silhouette.
+BACKGROUND (strict): perfectly uniform, flat, solid ${p.bg1} — no glow, no gradient, no floor, no cast shadow on the background, no environment, nothing else in the frame.
+LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highlights, ${dark ? 'high contrast' : 'gentle contrast'}, faint film grain.
 ${NO_TEXT}`;
   }
 }
@@ -120,6 +122,10 @@ export interface ImagePromptArgs {
   monochrome?: boolean;
   /** style d'image ; sinon déduit de l'archétype */
   style?: ImageStyle | null;
+  /** une image de référence accompagne la requête : on précise son rôle */
+  hasReference?: boolean;
+  /** consignes propres au style (réglages) */
+  styleSpecificNotes?: string;
 }
 
 /** Assemble le prompt final envoyé au générateur d'images. */
@@ -134,7 +140,11 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
     `SUBJECT: ${args.idea}`,
     archetype?.imageComposition && style === 'full' ? `COMPOSITION TEMPLATE: ${archetype.imageComposition}` : null,
     guide,
+    args.hasReference
+      ? 'REFERENCE IMAGE: match its rendering quality, lighting, contrast, depth and mood — NOT its subject, characters or text. Keep the subject described above.'
+      : null,
     args.styleNotes ? `BRAND ART DIRECTION NOTES: ${args.styleNotes}` : null,
+    args.styleSpecificNotes ? `STYLE NOTES: ${args.styleSpecificNotes}` : null,
     args.instructions ? `SPECIFIC REVISION REQUEST: ${args.instructions}` : null,
   ];
   return parts.filter(Boolean).join('\n\n');

@@ -50,6 +50,13 @@
       "when": 1789040379756,
       "tag": "0006_post-visual-overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789044770798,
+      "tag": "0007_template-image-style",
+      "breakpoints": true
     }
   ]
 }

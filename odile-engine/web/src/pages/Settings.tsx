@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api } from '../api/client';
+import LibraryPicker, { LibraryThumb } from '../components/LibraryPicker';
 import { PageTitle } from '../components/shared';
+import type { LibraryImageDto } from '../api/types';
 
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
@@ -11,7 +13,7 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome' };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined> };
   visual_agent: { enabled: boolean; autoRun: boolean; screenshots: number; images: number };
   default_theme: string;
   default_format: string;
@@ -97,6 +99,11 @@ export default function Settings() {
       ),
   });
   const [form, setForm] = useState<AllSettings | null>(null);
+  const [refPicker, setRefPicker] = useState<'full' | 'objets' | 'chrome' | null>(null);
+  const { data: library } = useQuery({
+    queryKey: ['library'],
+    queryFn: () => api.get<LibraryImageDto[]>('/api/library'),
+  });
   useEffect(() => {
     if (settings && !form) setForm(structuredClone(settings));
   }, [settings]);
@@ -119,7 +126,7 @@ export default function Settings() {
       <PageTitle title="Réglages" subtitle="Ton, marque, cadence, déclencheurs DM, studio de design, veille." />
 
       <Section title="Ton des posts" saving={save.isPending} onSave={() => save.mutate({ key: 'tone', value: form.tone })}>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Personnalité</label>
             <select className="input" value={form.tone.preset} onChange={(e) => set('tone', { ...form.tone, preset: e.target.value })}>
@@ -147,7 +154,7 @@ export default function Settings() {
             <input type="range" min={0} max={3} className="w-full accent-sky-500" value={form.tone.emojiLevel}
               onChange={(e) => set('tone', { ...form.tone, emojiLevel: Number(e.target.value) })} />
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="label">Instructions libres (facultatif)</label>
             <textarea className="input" rows={2} value={form.tone.customInstructions ?? ''}
               onChange={(e) => set('tone', { ...form.tone, customInstructions: e.target.value })} />
@@ -156,7 +163,7 @@ export default function Settings() {
       </Section>
 
       <Section title="Marque" saving={save.isPending} onSave={() => save.mutate({ key: 'brand', value: form.brand })}>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Nom</label>
             <input className="input" value={form.brand.name} onChange={(e) => set('brand', { ...form.brand, name: e.target.value })} /></div>
           <div><label className="label">Handle</label>
@@ -169,13 +176,15 @@ export default function Settings() {
                 onChange={(e) => set('brand', { ...form.brand, accentColor: e.target.value })} />
               <input className="input" value={form.brand.accentColor} onChange={(e) => set('brand', { ...form.brand, accentColor: e.target.value })} />
             </div></div>
-          <div className="col-span-2"><label className="label">Tagline</label>
+          <div className="sm:col-span-2"><label className="label">Tagline</label>
             <input className="input" value={form.brand.tagline} onChange={(e) => set('brand', { ...form.brand, tagline: e.target.value })} /></div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="label">Logo (PNG/JPG, affiché sur chaque slide)</label>
             <div className="flex items-center gap-3">
               {form.brand.logoAssetId && <img src={`/api/assets/${form.brand.logoAssetId}`} className="h-10 w-10 rounded-lg object-cover" alt="logo" />}
-              <input type="file" accept="image/*" className="text-sm text-muted"
+              <label className="btn-ghost cursor-pointer !py-1.5 text-xs">
+                {form.brand.logoAssetId ? 'Remplacer le logo' : 'Choisir un fichier'}
+              <input type="file" accept="image/*" hidden
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
@@ -185,6 +194,8 @@ export default function Settings() {
                   void qc.invalidateQueries({ queryKey: ['settings'] });
                   setForm(null);
                 }} />
+              </label>
+              <span className="text-xs text-muted">PNG transparent recommandé — remplace le nom + handle sur chaque slide.</span>
             </div>
           </div>
         </div>
@@ -192,7 +203,7 @@ export default function Settings() {
 
       <Section title="Cadence & créneaux" saving={save.isPending}
         onSave={() => { save.mutate({ key: 'cadence', value: form.cadence }); save.mutate({ key: 'publish_slots', value: form.publish_slots }); }}>
-        <div className="mb-4 grid grid-cols-2 gap-4">
+        <div className="mb-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Au moins 1 post tous les… {form.cadence.days} jour(s)</label>
             <input type="range" min={1} max={7} className="w-full accent-sky-500" value={form.cadence.days}
@@ -216,7 +227,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid gap-6 sm:grid-cols-2">
           <div><label className="label">Créneaux Instagram</label>
             <SlotsEditor slots={form.publish_slots.ig} onChange={(ig) => set('publish_slots', { ...form.publish_slots, ig })} /></div>
           <div><label className="label">Créneaux LinkedIn</label>
@@ -250,7 +261,7 @@ export default function Settings() {
             onChange={(e) => set('design_studio', { ...form.design_studio, enabled: e.target.checked })} />
           Faire critiquer chaque visuel par les 4 reviewers IA avant validation
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Itérations max : {form.design_studio.maxIterations}</label>
             <input type="range" min={1} max={5} className="w-full accent-sky-500" value={form.design_studio.maxIterations}
@@ -275,7 +286,7 @@ export default function Settings() {
             onChange={(e) => set('image_gen', { ...form.image_gen, monochrome: e.target.checked })} />
           Toutes les images en noir et blanc — illustrations, studio et bibliothèque (le modèle reçoit un guide monochrome, et le serveur désature quoi qu'il arrive)
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Illustrations max par post : {form.image_gen.imagesPerPost}</label>
             <input type="range" min={0} max={2} className="w-full accent-sky-500" value={form.image_gen.imagesPerPost}
@@ -289,7 +300,7 @@ export default function Settings() {
               <option value="fast">Rapide — Nano Banana 2 (économique)</option>
             </select>
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="label">Fournisseur d'images</label>
             <select className="input" value={form.image_gen.provider ?? 'auto'}
               onChange={(e) => set('image_gen', { ...form.image_gen, provider: e.target.value as 'auto' | 'gemini' | 'freepik' })}>
@@ -298,7 +309,7 @@ export default function Settings() {
               <option value="gemini">Gemini direct (clé GEMINI_API_KEY)</option>
             </select>
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="label">Style des illustrations</label>
             <select className="input" value={form.image_gen.style ?? 'auto'}
               onChange={(e) => set('image_gen', { ...form.image_gen, style: e.target.value as 'auto' | 'full' | 'objets' | 'chrome' })}>
@@ -308,7 +319,59 @@ export default function Settings() {
               <option value="chrome">Chrome & verre — rendu 3D irisé, halo accent</option>
             </select>
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
+            <label className="label">Références de style — l'image guide le rendu (lumière, contraste, profondeur), pas le sujet</label>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {([
+                ['full', 'Plein cadre', 'ex : la scène Superman'],
+                ['objets', 'Objets détourés', 'ex : les pièces 3D'],
+                ['chrome', 'Chrome & verre', 'ex : le token chrome'],
+              ] as const).map(([key, label, hint]) => {
+                const refId = form.image_gen.references?.[key] ?? null;
+                const img = library?.find((i) => i.id === refId) ?? null;
+                return (
+                  <div key={key} className="rounded-xl border border-line p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-sm font-semibold">{label}</span>
+                      {refId && (
+                        <button className="pill-btn" title="Retirer la référence"
+                          onClick={() => set('image_gen', { ...form.image_gen, references: { ...form.image_gen.references, [key]: null } })}>
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    {img ? (
+                      <LibraryThumb img={img} className="aspect-[4/5] w-full rounded-lg" />
+                    ) : (
+                      <div className="flex aspect-[4/5] items-center justify-center rounded-lg border border-dashed border-line px-3 text-center text-xs text-muted">
+                        {hint}
+                      </div>
+                    )}
+                    <button className="btn-ghost mt-2 w-full justify-center !py-1 text-xs" onClick={() => setRefPicker(key)}>
+                      {refId ? 'Changer' : 'Choisir dans la bibliothèque'}
+                    </button>
+                    <textarea className="input mt-2 !py-1.5 text-xs" rows={2}
+                      placeholder={`Consignes ${label.toLowerCase()} (facultatif)`}
+                      value={form.image_gen.notesByStyle?.[key] ?? ''}
+                      onChange={(e) => set('image_gen', { ...form.image_gen, notesByStyle: { ...form.image_gen.notesByStyle, [key]: e.target.value } })} />
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted">
+              Importez vos références dans <b>Images</b>. Flux et Mystic reçoivent l'image directement ; les modèles Google ont besoin d'une URL publique en https (c'est le cas en production).
+            </p>
+            <LibraryPicker
+              open={refPicker !== null}
+              title="Image de référence"
+              onClose={() => setRefPicker(null)}
+              onPick={(img) => {
+                if (refPicker) set('image_gen', { ...form.image_gen, references: { ...form.image_gen.references, [refPicker]: img.id } });
+                setRefPicker(null);
+              }}
+            />
+          </div>
+          <div className="sm:col-span-2">
             <label className="label">Modèle Freepik / Magnific par défaut (illustrations automatiques, agent visuel, studio)</label>
             <select className="input" value={form.image_gen.model ?? 'nano-banana-pro-flash'}
               onChange={(e) => set('image_gen', { ...form.image_gen, model: e.target.value })}>
@@ -317,7 +380,7 @@ export default function Settings() {
               ))}
             </select>
           </div>
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <label className="label">Notes de direction artistique (ajoutées à chaque génération)</label>
             <textarea className="input" rows={2} value={form.image_gen.styleNotes}
               placeholder="ex : privilégier les objets en verre, ambiance très minimaliste…"
@@ -331,8 +394,8 @@ export default function Settings() {
       </Section>
 
       <Section title="Email de validation" saving={save.isPending} onSave={() => save.mutate({ key: 'approval_email', value: form.approval_email })}>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-2"><label className="label">Destinataire</label>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="sm:col-span-2"><label className="label">Destinataire</label>
             <input className="input" value={form.approval_email.to}
               onChange={(e) => set('approval_email', { ...form.approval_email, to: e.target.value })} /></div>
           <div><label className="label">Relances max</label>
@@ -355,7 +418,7 @@ export default function Settings() {
             onChange={(e) => set('visual_agent', { ...form.visual_agent, autoRun: e.target.checked })} />
           Le lancer automatiquement pour chaque veille transformée en post
         </label>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Captures par passe : {form.visual_agent?.screenshots ?? 2}</label>
             <input type="range" min={0} max={5} className="w-full accent-sky-500" value={form.visual_agent?.screenshots ?? 2}
@@ -374,7 +437,7 @@ export default function Settings() {
 
       <Section title="Défauts de création" saving={save.isPending}
         onSave={() => { save.mutate({ key: 'default_theme', value: form.default_theme }); save.mutate({ key: 'default_format', value: form.default_format }); }}>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Thème par défaut</label>
             <select className="input" value={form.default_theme} onChange={(e) => set('default_theme', e.target.value)}>
               {!catalogue && <option value={form.default_theme}>{form.default_theme}</option>}

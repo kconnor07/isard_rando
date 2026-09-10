@@ -189,6 +189,8 @@ export const DEFAULTS = {
     quality: 'pro' as const,
     monochrome: false,
     style: 'auto' as const,
+    references: {},
+    notesByStyle: {},
     provider: 'auto' as const,
     model: 'nano-banana-pro-flash',
   },

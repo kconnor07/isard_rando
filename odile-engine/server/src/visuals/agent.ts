@@ -6,7 +6,8 @@ import { db, schema } from '../db/client.js';
 import { getBrand, getImageGen, getVisualAgent } from '../db/settingsRepo.js';
 import { fitCutout, removeImageBackground } from '../imagegen/cutout.js';
 import { generateImageBuffer } from '../imagegen/index.js';
-import { buildImagePrompt, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
+import { buildImagePrompt, isCutoutStyle, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
+import { notesFor, referenceFor } from '../imagegen/references.js';
 import { fetchWithRetry } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
@@ -214,7 +215,7 @@ MISSION
    - "full" : scène cinématique plein cadre (idéal accroche / CTA — sujet en haut, titre en bas) ;
    - "objets" : UN objet 3D isolé qui sera détouré et posé en périphérie ou en illustration
      (pièce, outil, appareil, symbole — idéal chiffre / preuve) ;
-   - "chrome" : objet symbolique en chrome et verre irisé, centré (idéal slide de contenu / solution).
+   - "chrome" : objet symbolique en chrome et verre irisé, détouré lui aussi (idéal slide de contenu / solution).
    Varie les styles au sein d'une même passe.
 ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à ne PAS répéter, propose autre chose) :\n${[...knownUrls].map((u) => `- page : ${u}`).join('\n')}\n${knownPrompts.map((p) => `- image : ${p}`).join('\n')}` : ''}`;
     try {
@@ -262,8 +263,12 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
   const brand = getBrand();
   for (const concept of plan.images.slice(0, counts.images)) {
     try {
+      const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
       const style: ImageStyle =
-        imageGen.style !== 'auto' ? imageGen.style : (concept.style ?? styleForArchetype(post.archetype));
+        imageGen.style !== 'auto'
+          ? imageGen.style
+          : (concept.style ?? templateStyle ?? styleForArchetype(post.archetype));
+      const reference = referenceFor(style);
       const fullPrompt = buildImagePrompt({
         idea: concept.prompt,
         archetypeId: post.archetype,
@@ -272,10 +277,12 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
         palette,
         monochrome: imageGen.monochrome,
         style,
+        hasReference: Boolean(reference),
+        styleSpecificNotes: notesFor(style),
       });
-      const generated = await generateImageBuffer(fullPrompt, { quality: imageGen.quality });
-      // « objets » : détouré et posé entier sur fond transparent
-      const cutout = style === 'objets';
+      const generated = await generateImageBuffer(fullPrompt, { quality: imageGen.quality, reference });
+      // « objets » et « chrome » : détourés et posés entiers sur fond transparent
+      const cutout = isCutoutStyle(style);
       let pipeline = cutout
         ? sharp(await fitCutout(await removeImageBackground(generated.buffer), 1080, 1350))
         : sharp(generated.buffer).resize(1080, 1350, { fit: 'cover', position: 'attention' });

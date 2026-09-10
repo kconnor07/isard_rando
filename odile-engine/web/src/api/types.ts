@@ -116,6 +116,12 @@ export interface ImageModelsDto {
   edits: { id: string; label: string; needsPrompt: boolean; needsReference: boolean; hint: string }[];
   styles: { id: 'full' | 'objets' | 'chrome'; label: string; hint: string }[];
   defaultStyle: 'auto' | 'full' | 'objets' | 'chrome';
+  /** image de référence par style (asset de la bibliothèque) */
+  references: { full?: string | null; objets?: string | null; chrome?: string | null };
+  notesByStyle: { full?: string; objets?: string; chrome?: string };
+  cutoutStyles: string[];
+  /** PUBLIC_URL en https : requis pour passer une référence aux modèles Google */
+  publicHttps: boolean;
 }
 
 /** Proposition de l'agent visuel (capture d'écran ou image générée) */

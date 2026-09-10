@@ -89,6 +89,22 @@ export const imageGenSettingsSchema = z.object({
   monochrome: z.boolean().default(false),
   /** style d'illustration : auto = selon l'archétype / la slide, sinon imposé */
   style: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
+  /** image de référence (asset de la bibliothèque) par style : guide le rendu, pas le sujet */
+  references: z
+    .object({
+      full: z.string().max(30).nullable().optional(),
+      objets: z.string().max(30).nullable().optional(),
+      chrome: z.string().max(30).nullable().optional(),
+    })
+    .default({}),
+  /** consignes libres ajoutées au prompt, par style */
+  notesByStyle: z
+    .object({
+      full: z.string().max(400).optional(),
+      objets: z.string().max(400).optional(),
+      chrome: z.string().max(400).optional(),
+    })
+    .default({}),
   /** fournisseur : auto = Freepik/Magnific si clé présente, sinon Gemini direct */
   provider: z.enum(['auto', 'gemini', 'freepik']).default('auto'),
   /** modèle Freepik/Magnific par défaut (catalogue `/api/images/models`) */

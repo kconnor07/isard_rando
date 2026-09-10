@@ -63,6 +63,7 @@ export const templateSchema = z.object({
   floatAssetId2: z.string().max(30).nullable().optional(),
   floatSize: z.number().int().min(10).max(60).default(30),
   floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes']).default('coins'),
+  imageStyle: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
 });
 type TemplateInput = z.infer<typeof templateSchema>;
 

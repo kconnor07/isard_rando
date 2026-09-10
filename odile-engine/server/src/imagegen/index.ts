@@ -11,7 +11,9 @@ import { saveAsset } from '../render/renderer.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
 import { fitCutout, removeImageBackground } from './cutout.js';
-import { buildImagePrompt, styleForArchetype, type ImageStyle } from './prompt.js';
+import { buildImagePrompt, isCutoutStyle, styleForArchetype, type ImageStyle } from './prompt.js';
+import { notesFor, referenceFor } from './references.js';
+import type { FreepikReference } from './providers/freepikCatalog.js';
 
 const OUT_WIDTH = 1080;
 const OUT_HEIGHT = 1350;
@@ -110,7 +112,7 @@ async function generateMockPlaceholder(): Promise<GeneratedImage> {
  */
 export async function generateImageBuffer(
   prompt: string,
-  opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect; model?: string } = {},
+  opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect; model?: string; reference?: FreepikReference | null } = {},
 ): Promise<GeneratedImage> {
   const settings = getImageGen();
   const quality = opts.quality ?? settings.quality;
@@ -121,10 +123,11 @@ export async function generateImageBuffer(
     // réglage « fournisseur » et les clés présentes.
     if (settings.provider !== 'gemini' && freepikAvailable()) {
       const chosen = findFreepikModel(opts.model ?? settings.model)?.id ?? findFreepikModel(config.FREEPIK_MODEL_IMAGE)?.id ?? DEFAULT_FREEPIK_MODEL;
-      attempts.push(() => generateViaFreepik(chosen, prompt, { aspect, quality }));
+      const reference = opts.reference ?? null;
+      attempts.push(() => generateViaFreepik(chosen, prompt, { aspect, quality, reference }));
       // Repli sur un modèle rapide si le modèle choisi échoue
       const fallback = findFreepikModel(config.FREEPIK_MODEL_IMAGE_FAST)?.id ?? FAST_FREEPIK_MODEL;
-      if (fallback !== chosen) attempts.push(() => generateViaFreepik(fallback, prompt, { aspect, quality: 'fast' }));
+      if (fallback !== chosen) attempts.push(() => generateViaFreepik(fallback, prompt, { aspect, quality: 'fast', reference }));
     }
     if (settings.provider !== 'freepik' && config.GEMINI_API_KEY) {
       attempts.push(
@@ -176,7 +179,11 @@ export async function generateHeroImage(
   const settings = getImageGen();
   // Template maison : l'illustration suit sa palette, pas le bleu Odile
   const custom = post ? getCustomTheme(post.theme) : null;
-  const style: ImageStyle = opts.style ?? (settings.style === 'auto' ? styleForArchetype(post?.archetype) : settings.style);
+  // Style : demandé > réglage global > style du template > archétype
+  const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
+  const style: ImageStyle =
+    opts.style ?? (settings.style !== 'auto' ? settings.style : (templateStyle ?? styleForArchetype(post?.archetype)));
+  const reference = referenceFor(style);
   const prompt = buildImagePrompt({
     idea: content.imageIdea,
     archetypeId: post?.archetype,
@@ -188,13 +195,15 @@ export async function generateHeroImage(
       : null,
     monochrome: settings.monochrome,
     style,
+    hasReference: Boolean(reference),
+    styleSpecificNotes: notesFor(style),
   });
 
   try {
-    const generated = await generateImageBuffer(prompt, { quality: opts.quality ?? settings.quality });
+    const generated = await generateImageBuffer(prompt, { quality: opts.quality ?? settings.quality, reference });
     {
-      // Style « objets » : l'objet est détouré et posé entier (PNG transparent)
-      const cutout = style === 'objets';
+      // Styles « objets » et « chrome » : l'objet est détouré et posé entier (PNG transparent)
+      const cutout = isCutoutStyle(style);
       let pipeline = cutout
         ? sharp(await fitCutout(await removeImageBackground(generated.buffer), OUT_WIDTH, OUT_HEIGHT))
         : sharp(generated.buffer).resize(OUT_WIDTH, OUT_HEIGHT, { fit: 'cover', position: 'attention' });

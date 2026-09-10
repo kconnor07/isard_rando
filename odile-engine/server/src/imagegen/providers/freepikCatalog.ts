@@ -1,12 +1,27 @@
 /**
  * Catalogue des modèles de génération disponibles via l'API Freepik / Magnific.
  * Chaque entrée sait construire le corps de requête de son endpoint à partir
- * d'un prompt, d'un format (4:5 ou carré) et d'une qualité (pro / rapide).
- * Chemins et paramètres : docs.magnific.com (OpenAPI de chaque modèle).
+ * d'un prompt, d'un format (4:5 ou carré), d'une qualité (pro / rapide) et
+ * d'une éventuelle image de référence. Chemins et paramètres : docs.magnific.com.
  */
 
 export type FreepikAspect = '4:5' | '1:1';
 export type FreepikQuality = 'pro' | 'fast';
+
+/** Image de référence : base64 pour les modèles qui l'acceptent, URL publique pour les autres. */
+export interface FreepikReference {
+  base64: string;
+  mime: string;
+  publicUrl?: string;
+}
+export interface FreepikGenOpts {
+  aspect: FreepikAspect;
+  quality: FreepikQuality;
+  reference?: FreepikReference | null;
+}
+
+/** Convention de la famille pour recevoir une référence (null : ignorée). */
+export type ReferenceKind = 'base64' | 'url' | 'style' | null;
 
 export interface FreepikModel {
   id: string;
@@ -18,7 +33,8 @@ export interface FreepikModel {
   speed: string;
   note?: string;
   recommended?: boolean;
-  body: (prompt: string, opts: { aspect: FreepikAspect; quality: FreepikQuality }) => Record<string, unknown>;
+  reference: ReferenceKind;
+  body: (prompt: string, opts: FreepikGenOpts) => Record<string, unknown>;
 }
 
 // Noms de formats selon la famille d'API
@@ -32,6 +48,25 @@ const PIXELS: Record<FreepikAspect, { width: number; height: number }> = {
 
 const T2I = '/v1/ai/text-to-image';
 
+/** Ajoute la référence au corps selon la convention du modèle. */
+function withReference(
+  body: Record<string, unknown>,
+  kind: ReferenceKind,
+  ref?: FreepikReference | null,
+): Record<string, unknown> {
+  if (!ref || !kind) return body;
+  if (kind === 'base64') return { ...body, input_image: ref.base64 };
+  if (kind === 'style') return { ...body, style_reference: ref.base64, adherence: 60 };
+  if (kind === 'url' && ref.publicUrl) {
+    return { ...body, reference_images: [{ image: ref.publicUrl, text: 'style reference', mime_type: ref.mime }] };
+  }
+  return body;
+}
+
+function google(prompt: string, o: FreepikGenOpts): Record<string, unknown> {
+  return { prompt, aspect_ratio: GOOGLE_ASPECT[o.aspect], resolution: o.quality === 'pro' ? '2K' : '1K' };
+}
+
 export const FREEPIK_MODELS: FreepikModel[] = [
   {
     id: 'nano-banana-pro-flash',
@@ -41,11 +76,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     speed: '~40 s',
     note: 'Compositions fidèles, très bon rapport qualité / vitesse',
     recommended: true,
-    body: (prompt, { aspect, quality }) => ({
-      prompt,
-      aspect_ratio: GOOGLE_ASPECT[aspect],
-      resolution: quality === 'pro' ? '2K' : '1K',
-    }),
+    reference: 'url',
+    body: (prompt, o) => withReference(google(prompt, o), 'url', o.reference),
   },
   {
     id: 'nano-banana-pro',
@@ -54,11 +86,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     path: `${T2I}/nano-banana-pro`,
     speed: '~55 s',
     note: 'Fidélité maximale (crédits)',
-    body: (prompt, { aspect, quality }) => ({
-      prompt,
-      aspect_ratio: GOOGLE_ASPECT[aspect],
-      resolution: quality === 'pro' ? '2K' : '1K',
-    }),
+    reference: 'url',
+    body: (prompt, o) => withReference(google(prompt, o), 'url', o.reference),
   },
   {
     id: 'gemini-2-5-flash-image-preview',
@@ -67,7 +96,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     path: '/v1/ai/gemini-2-5-flash-image-preview',
     speed: '~13 s',
     note: 'Rapide ; format non réglable (recadré ensuite)',
-    body: (prompt) => ({ prompt }),
+    reference: 'url',
+    body: (prompt, o) => withReference({ prompt }, 'url', o.reference),
   },
   {
     id: 'flux-2-klein',
@@ -75,14 +105,15 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/flux-2-klein`,
     speed: '~6 s',
-    note: 'Ultra rapide, idéal pour itérer',
+    note: 'Ultra rapide, idéal pour itérer ; accepte une image de référence',
     recommended: true,
-    body: (prompt, { aspect, quality }) => ({
-      prompt,
-      aspect_ratio: FLUX_ASPECT[aspect],
-      resolution: quality === 'pro' ? '2k' : '1k',
-      output_format: 'jpeg',
-    }),
+    reference: 'base64',
+    body: (prompt, o) =>
+      withReference(
+        { prompt, aspect_ratio: FLUX_ASPECT[o.aspect], resolution: o.quality === 'pro' ? '2k' : '1k', output_format: 'jpeg' },
+        'base64',
+        o.reference,
+      ),
   },
   {
     id: 'flux-2-pro',
@@ -90,7 +121,9 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/flux-2-pro`,
     speed: '~18 s',
-    body: (prompt, { aspect }) => ({ prompt, ...PIXELS[aspect] }),
+    note: 'Accepte une image de référence',
+    reference: 'base64',
+    body: (prompt, o) => withReference({ prompt, ...PIXELS[o.aspect] }, 'base64', o.reference),
   },
   {
     id: 'flux-2-flex',
@@ -98,7 +131,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/flux-2-flex`,
     speed: '~30 s',
-    body: (prompt, { aspect }) => ({ prompt, ...PIXELS[aspect], output_format: 'jpeg' }),
+    reference: 'base64',
+    body: (prompt, o) => withReference({ prompt, ...PIXELS[o.aspect], output_format: 'jpeg' }, 'base64', o.reference),
   },
   {
     id: 'flux-pro-v1-1',
@@ -106,7 +140,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/flux-pro-v1-1`,
     speed: '~5 s',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: FLUX_ASPECT[aspect], output_format: 'jpeg' }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: FLUX_ASPECT[o.aspect], output_format: 'jpeg' }),
   },
   {
     id: 'flux-kontext-pro',
@@ -114,7 +149,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/flux-kontext-pro`,
     speed: '~11 s',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: FLUX_ASPECT[aspect], output_format: 'jpeg' }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: FLUX_ASPECT[o.aspect], output_format: 'jpeg' }),
   },
   {
     id: 'flux-dev',
@@ -122,7 +158,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/flux-dev`,
     speed: '~13 s',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: FLUX_ASPECT[aspect] }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: FLUX_ASPECT[o.aspect] }),
   },
   {
     id: 'hyperflux',
@@ -130,7 +167,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'flux',
     path: `${T2I}/hyperflux`,
     speed: '~6 s',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: FLUX_ASPECT[aspect] }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: FLUX_ASPECT[o.aspect] }),
   },
   {
     id: 'seedream-v5-pro',
@@ -139,10 +177,11 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     path: `${T2I}/seedream-v5-pro`,
     speed: '~45 s',
     note: 'Photoréalisme, texte propre',
-    body: (prompt, { aspect, quality }) => ({
+    reference: null,
+    body: (prompt, o) => ({
       prompt,
-      aspect_ratio: SEEDREAM_ASPECT[aspect],
-      resolution: quality === 'pro' ? '2k' : '1.5k',
+      aspect_ratio: SEEDREAM_ASPECT[o.aspect],
+      resolution: o.quality === 'pro' ? '2k' : '1.5k',
     }),
   },
   {
@@ -151,7 +190,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'seedream',
     path: `${T2I}/seedream-v5-lite`,
     speed: '~1 min',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: SEEDREAM_ASPECT[aspect] }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: SEEDREAM_ASPECT[o.aspect] }),
   },
   {
     id: 'seedream-v4-5',
@@ -159,7 +199,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'seedream',
     path: `${T2I}/seedream-v4-5`,
     speed: '~50 s',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: SEEDREAM_ASPECT[aspect] }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: SEEDREAM_ASPECT[o.aspect] }),
   },
   {
     id: 'seedream-v4',
@@ -167,7 +208,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'seedream',
     path: `${T2I}/seedream-v4`,
     speed: '~33 s',
-    body: (prompt, { aspect }) => ({ prompt, aspect_ratio: SEEDREAM_ASPECT[aspect] }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, aspect_ratio: SEEDREAM_ASPECT[o.aspect] }),
   },
   {
     id: 'mystic',
@@ -175,13 +217,14 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'mystic',
     path: '/v1/ai/mystic',
     speed: '~35 s',
-    note: 'Le modèle maison de Magnific, ultra réaliste',
-    body: (prompt, { aspect, quality }) => ({
-      prompt,
-      aspect_ratio: FLUX_ASPECT[aspect],
-      resolution: quality === 'pro' ? '2k' : '1k',
-      model: 'realism',
-    }),
+    note: 'Le modèle maison de Magnific, ultra réaliste ; accepte une référence de style',
+    reference: 'style',
+    body: (prompt, o) =>
+      withReference(
+        { prompt, aspect_ratio: FLUX_ASPECT[o.aspect], resolution: o.quality === 'pro' ? '2k' : '1k', model: 'realism' },
+        'style',
+        o.reference,
+      ),
   },
   {
     id: 'z-image',
@@ -189,9 +232,10 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'zimage',
     path: `${T2I}/z-image`,
     speed: '~5 s',
-    body: (prompt, { aspect }) => ({
+    reference: null,
+    body: (prompt, o) => ({
       prompt,
-      image_size: aspect === '4:5' ? 'portrait_3_4' : 'square_hd',
+      image_size: o.aspect === '4:5' ? 'portrait_3_4' : 'square_hd',
       output_format: 'jpeg',
     }),
   },
@@ -202,11 +246,12 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     path: `${T2I}/gpt-image-2`,
     speed: '~1 min',
     note: 'Suit les consignes longues (crédits)',
-    body: (prompt, { aspect, quality }) => ({
+    reference: null,
+    body: (prompt, o) => ({
       prompt,
-      aspect_ratio: SEEDREAM_ASPECT[aspect],
+      aspect_ratio: SEEDREAM_ASPECT[o.aspect],
       resolution: '1k',
-      quality: quality === 'pro' ? 'high' : 'medium',
+      quality: o.quality === 'pro' ? 'high' : 'medium',
       output_format: 'jpeg',
     }),
   },
@@ -216,7 +261,8 @@ export const FREEPIK_MODELS: FreepikModel[] = [
     family: 'runway',
     path: `${T2I}/runway`,
     speed: '~24 s',
-    body: (prompt, { aspect }) => ({ prompt, ratio: aspect === '4:5' ? '1080:1440' : '1080:1080' }),
+    reference: null,
+    body: (prompt, o) => ({ prompt, ratio: o.aspect === '4:5' ? '1080:1440' : '1080:1080' }),
   },
 ];
 

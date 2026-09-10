@@ -8,7 +8,8 @@ import { getImageGen } from '../../db/settingsRepo.js';
 import { config } from '../../config.js';
 import { fitCutout, removeImageBackground } from '../../imagegen/cutout.js';
 import { generateImageBuffer, type ImageAspect } from '../../imagegen/index.js';
-import { buildImagePrompt, IMAGE_STYLES, styleForArchetype, type ImageStyle } from '../../imagegen/prompt.js';
+import { buildImagePrompt, IMAGE_STYLES, isCutoutStyle, styleForArchetype, type ImageStyle } from '../../imagegen/prompt.js';
+import { notesFor, referenceFor } from '../../imagegen/references.js';
 import { editViaFreepik, FREEPIK_EDIT_OPS, freepikAvailable, type FreepikEditOp } from '../../imagegen/providers/freepik.js';
 import { FREEPIK_MODELS } from '../../imagegen/providers/freepikCatalog.js';
 import { logger } from '../../lib/logger.js';
@@ -170,6 +171,10 @@ export function registerImageRoutes(app: FastifyInstance): void {
     if (slides.length > 0) {
       return reply.status(409).send({ error: `Image posée sur ${slides.length} slide(s) — retirez-la d'abord.` });
     }
+    const refs = getImageGen().references;
+    if (refs.full === id || refs.objets === id || refs.chrome === id) {
+      return reply.status(409).send({ error: 'Cette image sert de référence de style (Réglages › Illustrations IA).' });
+    }
     db.delete(schema.assets).where(eq(schema.assets.id, id)).run();
     return { ok: true };
   });
@@ -245,6 +250,11 @@ export function registerImageRoutes(app: FastifyInstance): void {
       edits: FREEPIK_EDIT_OPS,
       styles: IMAGE_STYLES,
       defaultStyle: settings.style,
+      references: settings.references,
+      notesByStyle: settings.notesByStyle,
+      cutoutStyles: IMAGE_STYLES.filter((s) => isCutoutStyle(s.id)).map((s) => s.id),
+      /** URL publique en https : requis pour les références des modèles Google */
+      publicHttps: config.PUBLIC_URL.startsWith('https://'),
     };
   });
 
@@ -313,19 +323,23 @@ export function registerImageRoutes(app: FastifyInstance): void {
         : settings.style !== 'auto'
           ? settings.style
           : styleForArchetype(parsed.data.composition);
-    const cutout = parsed.data.cutout || style === 'objets';
+    const cutout = parsed.data.cutout || isCutoutStyle(style);
+    const reference = referenceFor(style);
     const prompt = buildImagePrompt({
       idea: parsed.data.prompt,
       archetypeId: parsed.data.composition,
       styleNotes: settings.styleNotes,
       monochrome: settings.monochrome,
       style,
+      hasReference: Boolean(reference),
+      styleSpecificNotes: notesFor(style),
     });
     try {
       const generated = await generateImageBuffer(prompt, {
         quality: parsed.data.quality ?? settings.quality,
         aspect: parsed.data.aspect as ImageAspect,
         model: parsed.data.model,
+        reference,
       });
       const prepared = await prepareLibraryImage(generated.buffer, {
         cutout,

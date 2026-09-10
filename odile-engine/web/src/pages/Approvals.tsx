@@ -60,7 +60,7 @@ export default function Approvals() {
               </p>
             )}
             <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{post.caption}</p>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 className="btn-success"
                 disabled={approve.isPending}

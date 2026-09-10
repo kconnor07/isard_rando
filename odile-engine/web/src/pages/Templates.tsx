@@ -47,6 +47,7 @@ interface Draft {
   floatAssetId2: string | null;
   floatSize: number;
   floatLayout: 'coins' | 'haut' | 'bas' | 'cotes';
+  imageStyle: 'auto' | 'full' | 'objets' | 'chrome';
 }
 interface CustomTemplate extends Draft {
   id: string;
@@ -96,6 +97,7 @@ const BLANK: Draft = {
   floatAssetId2: null,
   floatSize: 30,
   floatLayout: 'coins',
+  imageStyle: 'auto',
 };
 
 /** Points de départ : un clic charge la recette, tout reste modifiable. */
@@ -139,6 +141,7 @@ const PRESETS: { label: string; swatch: string; draft: Partial<Draft> }[] = [
       align: 'center',
       vignette: 20,
       ctaStyle: 'verre',
+      imageStyle: 'chrome',
     },
   },
   {
@@ -157,6 +160,7 @@ const PRESETS: { label: string; swatch: string; draft: Partial<Draft> }[] = [
       ctaStyle: 'degrade',
       showAuthor: true,
       radius: 'pill',
+      imageStyle: 'objets',
     },
   },
   {
@@ -725,6 +729,24 @@ export default function Templates() {
               ]}
               onChange={(v) => set('padding', v)}
             />
+          </Section>
+
+          <Section title="Illustrations IA">
+            <Chips
+              label="Style des images générées pour les posts qui utilisent ce template"
+              value={draft.imageStyle}
+              options={[
+                { v: 'auto', l: 'Auto (selon la slide)' },
+                { v: 'full', l: 'Plein cadre' },
+                { v: 'objets', l: 'Objets détourés' },
+                { v: 'chrome', l: 'Chrome & verre' },
+              ]}
+              onChange={(v) => set('imageStyle', v)}
+            />
+            <p className="text-xs text-muted">
+              « Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré,
+              fondu à la palette du template, posé en illustration ou en objet flottant.
+            </p>
           </Section>
 
           <Section title="Objets flottants">

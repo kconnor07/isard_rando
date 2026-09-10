@@ -444,10 +444,10 @@ export default function PostEditor() {
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-2">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
           <h2 className="mb-3 text-lg font-bold">Slides</h2>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {post.slides.map((slide) => (
               <SlideCard key={slide.id} slide={slide} postId={post.id} onChanged={refresh} />
             ))}

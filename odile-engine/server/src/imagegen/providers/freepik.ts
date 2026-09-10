@@ -6,6 +6,7 @@ import {
   findFreepikModel,
   type FreepikAspect,
   type FreepikQuality,
+  type FreepikReference,
 } from './freepikCatalog.js';
 
 /**
@@ -121,10 +122,10 @@ async function firstImage(result: { urls: string[]; base64: string[] }): Promise
 export async function generateViaFreepik(
   modelId: string,
   prompt: string,
-  opts: { aspect?: FreepikAspect; quality?: FreepikQuality } = {},
+  opts: { aspect?: FreepikAspect; quality?: FreepikQuality; reference?: FreepikReference | null } = {},
 ): Promise<{ buffer: Buffer; model: string; tokens: number }> {
   const model = findFreepikModel(modelId) ?? findFreepikModel(DEFAULT_FREEPIK_MODEL)!;
-  const body = model.body(prompt, { aspect: opts.aspect ?? '4:5', quality: opts.quality ?? 'pro' });
+  const body = model.body(prompt, { aspect: opts.aspect ?? '4:5', quality: opts.quality ?? 'pro', reference: opts.reference ?? null });
   const t0 = Date.now();
   const result = await runFreepikTask(model.path, body, { what: model.label });
   const buffer = await firstImage(result);

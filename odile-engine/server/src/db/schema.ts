@@ -403,6 +403,8 @@ export const customThemes = sqliteTable('custom_themes', {
   /** taille des objets flottants, en % de la largeur */
   floatSize: integer('float_size').notNull().default(30),
   floatLayout: text('float_layout', { enum: ['coins', 'haut', 'bas', 'cotes'] }).notNull().default('coins'),
+  /** style d'illustration des posts qui utilisent ce template (auto = selon la slide) */
+  imageStyle: text('image_style', { enum: ['auto', 'full', 'objets', 'chrome'] }).notNull().default('auto'),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now),
 });

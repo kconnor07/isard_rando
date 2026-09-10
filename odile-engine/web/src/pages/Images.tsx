@@ -104,7 +104,7 @@ export default function Images() {
     invalidate();
   };
 
-  const monochrome = imageGen?.value.monochrome ?? true;
+  const monochrome = imageGen?.value.monochrome ?? false;
 
   return (
     <div>
@@ -213,11 +213,22 @@ export default function Images() {
               </button>
             ))}
           </div>
+          {(() => {
+            const effective = style === 'auto' ? null : style;
+            const refId = effective ? catalogue?.references?.[effective] : null;
+            const ref = refId ? library?.find((i) => i.id === refId) : null;
+            return ref ? (
+              <div className="mt-2 flex items-center gap-2 text-[11px] text-muted">
+                <LibraryThumb img={ref} className="h-9 w-7 rounded-md border border-line" />
+                Référence de style active pour ce style — réglable dans <Link to="/settings" className="text-accent hover:underline">Réglages</Link>.
+              </div>
+            ) : null;
+          })()}
           <p className="mt-1 text-[11px] text-muted">
             {style === 'objets'
               ? 'Objet 3D sur fond uni couleur du thème, détouré automatiquement — à poser en objet flottant ou en illustration.'
               : style === 'chrome'
-                ? 'Rendu chrome et verre irisé avec halo accent, objet centré, espace sous lui pour le titre.'
+                ? 'Objet chrome et verre irisé sur fond uni, détouré automatiquement — le halo vient du template.'
                 : style === 'full'
                   ? 'Scène cinématique plein cadre : sujet en haut, bas plus calme pour le titre.'
                   : 'Plein cadre par défaut ; « Objet 3D suspendu » → chrome ; « Gros chiffre » → objet détouré.'}

@@ -1,0 +1,1 @@
+ALTER TABLE `custom_themes` ADD `image_style` text DEFAULT 'auto' NOT NULL;
