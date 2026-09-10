@@ -87,8 +87,22 @@ export const imageGenSettingsSchema = z.object({
   quality: z.enum(['pro', 'fast']),
   /** toutes les images (illustrations, studio, bibliothèque) en noir et blanc */
   monochrome: z.boolean().default(true),
+  /** fournisseur : auto = Freepik/Magnific si clé présente, sinon Gemini direct */
+  provider: z.enum(['auto', 'gemini', 'freepik']).default('auto'),
 });
 export type ImageGenSettings = z.infer<typeof imageGenSettingsSchema>;
+
+/** Agent visuel : captures d'écran + images proposées pour chaque post */
+export const visualAgentSettingsSchema = z.object({
+  enabled: z.boolean(),
+  /** lancé automatiquement dans le pipeline de chaque veille */
+  autoRun: z.boolean(),
+  /** captures d'écran proposées par passe */
+  screenshots: z.number().int().min(0).max(5),
+  /** images générées par passe */
+  images: z.number().int().min(0).max(6),
+});
+export type VisualAgentSettings = z.infer<typeof visualAgentSettingsSchema>;
 
 export const generateImageSchema = z.object({
   instructions: z.string().max(500).optional(),

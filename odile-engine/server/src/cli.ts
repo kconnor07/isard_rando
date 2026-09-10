@@ -107,6 +107,13 @@ async function main() {
       }
       return runJob('generate-image', () => generateImagesForPost(postId));
     }
+    case 'visuals': {
+      // Agent visuel : captures + images proposées pour un post (--more pour une passe de plus)
+      const { runVisualAgent } = await import('./visuals/agent.js');
+      const postId = Number(arg('post'));
+      if (!postId) throw new Error('--post <id> requis');
+      return runJob('agent-visuel', () => runVisualAgent(postId, { more: arg('more') !== undefined }));
+    }
     case 'seed': {
       const { seedSourcesIfEmpty } = await import('./scraper/sources.js');
       return runJob('seed', async () => ({ seeded: seedSourcesIfEmpty() }));

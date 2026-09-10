@@ -15,6 +15,7 @@ import { registerNewsRoutes } from './routes/apiNews.js';
 import { registerPostRoutes } from './routes/apiPosts.js';
 import { registerSettingsRoutes } from './routes/apiSettings.js';
 import { registerTemplateRoutes } from './routes/apiTemplates.js';
+import { registerVisualRoutes } from './routes/apiVisuals.js';
 import { registerPublicRoutes } from './routes/public.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +57,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerSettingsRoutes(app);
   registerTemplateRoutes(app);
   registerImageRoutes(app);
+  registerVisualRoutes(app);
 
   // Dashboard statique (production : web/dist construit par Vite)
   if (fs.existsSync(WEB_DIST)) {

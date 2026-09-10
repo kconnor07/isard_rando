@@ -17,19 +17,24 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
 4. **Studio d'images** (onglet **Images**) : génération à la demande, toujours
    en noir et blanc (réglable), **détourage local** (modèle isnet embarqué, sans
    service externe), bibliothèque réutilisable en fond de template ou posée sur
-   une slide.
-5. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
+   une slide. Fournisseur au choix : Gemini direct ou **Freepik / Magnific**
+   (Nano Banana Pro via leur plateforme, `FREEPIK_API_KEY`).
+5. **Agent visuel** : pour chaque veille transformée en post, capture les pages
+   liées au sujet et à la source (site de l'outil, article) et génère des
+   concepts d'illustration, proposés dans l'éditeur du post — un clic pour les
+   poser sur une slide, « Encore » pour une nouvelle passe sans limite.
+6. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
    colorimétrie/lisibilité, relecture orthographique, engagement) critiquent
    chaque visuel et itèrent jusqu'à validation.
-6. **Validation humaine obligatoire** : email avec aperçus + liens signés
+7. **Validation humaine obligatoire** : email avec aperçus + liens signés
    Approuver / Modifier / Rejeter. Rien ne part sans ton accord.
-7. **Publication automatique** au créneau optimal (étude algo dans
+8. **Publication automatique** au créneau optimal (étude algo dans
    [docs/instagram-algorithme-2026.md](docs/instagram-algorithme-2026.md)) :
    LinkedIn (profil + page entreprise) et Instagram (carrousels + statiques).
-8. **Commentaire → DM** façon ManyChat : mot-clé commenté sur Instagram → message
+9. **Commentaire → DM** façon ManyChat : mot-clé commenté sur Instagram → message
    privé automatique avec lien tracké. LinkedIn (pas d'API DM) : email avec
    réponse pré-rédigée à coller en 1 clic.
-9. **Tracking de clics** intégré (`/r/<code>` + UTM) et analytics dans le dashboard.
+10. **Tracking de clics** intégré (`/r/<code>` + UTM) et analytics dans le dashboard.
 
 ## Démarrage rapide (local)
 
@@ -56,7 +61,7 @@ Les emails partent dans `server/var/outbox/emails/` si aucun SMTP n'est configur
 `npx tsx src/cli.ts <cmd>` depuis `server/` :
 `scrape` · `score` · `shortlist` · `draft` · `render --post N` · `review --post N` ·
 `pipeline` · `publish-due` · `gallery` (planche de contrôle des thèmes fournis) ·
-`fixture` · `seed` · `poll-li-comments`
+`visuals --post N [--more]` · `fixture` · `seed` · `poll-li-comments`
 
 ## Déploiement production
 

@@ -8,6 +8,7 @@ import { getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
+import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { buildImagePrompt } from './prompt.js';
 
 const OUT_WIDTH = 1080;
@@ -109,12 +110,23 @@ export async function generateImageBuffer(
   prompt: string,
   opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect } = {},
 ): Promise<GeneratedImage> {
-  const quality = opts.quality ?? getImageGen().quality;
+  const settings = getImageGen();
+  const quality = opts.quality ?? settings.quality;
   const aspect = opts.aspect ?? '4:5';
-  const isMock = config.LLM_MODE === 'mock' || !config.GEMINI_API_KEY;
-  const attempts: (() => Promise<GeneratedImage>)[] = isMock
-    ? [generateMockPlaceholder]
-    : [
+  const attempts: (() => Promise<GeneratedImage>)[] = [];
+  if (config.LLM_MODE !== 'mock') {
+    // Freepik / Magnific (Nano Banana via leur plateforme) puis Gemini direct,
+    // selon le réglage « fournisseur » et les clés présentes.
+    if (settings.provider !== 'gemini' && freepikAvailable()) {
+      const pro = config.FREEPIK_MODEL_IMAGE;
+      const fast = config.FREEPIK_MODEL_IMAGE_FAST;
+      attempts.push(() =>
+        generateViaFreepik(quality === 'pro' ? pro : fast, prompt, { aspect, resolution: quality === 'pro' ? '2K' : '1K' }),
+      );
+      if (quality === 'pro') attempts.push(() => generateViaFreepik(fast, prompt, { aspect, resolution: '1K' }));
+    }
+    if (settings.provider !== 'freepik' && config.GEMINI_API_KEY) {
+      attempts.push(
         () =>
           generateViaInteractions(
             quality === 'pro' ? config.GEMINI_MODEL_IMAGE : config.GEMINI_MODEL_IMAGE_FAST,
@@ -123,7 +135,17 @@ export async function generateImageBuffer(
           ),
         () => generateViaInteractions(config.GEMINI_MODEL_IMAGE_FAST, prompt, aspect),
         () => generateViaContent(config.GEMINI_MODEL_IMAGE_LEGACY, prompt),
-      ];
+      );
+    }
+    // Fournisseur imposé mais absent : on retombe sur l'autre plutôt que d'échouer
+    if (attempts.length === 0 && config.GEMINI_API_KEY) {
+      attempts.push(() => generateViaInteractions(config.GEMINI_MODEL_IMAGE_FAST, prompt, aspect));
+    }
+    if (attempts.length === 0 && freepikAvailable()) {
+      attempts.push(() => generateViaFreepik(config.FREEPIK_MODEL_IMAGE_FAST, prompt, { aspect, resolution: '1K' }));
+    }
+  }
+  if (attempts.length === 0) attempts.push(generateMockPlaceholder);
   let lastError = '';
   for (const attempt of attempts) {
     try {

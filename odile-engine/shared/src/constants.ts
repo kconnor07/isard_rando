@@ -188,6 +188,13 @@ export const DEFAULTS = {
     styleNotes: '',
     quality: 'pro' as const,
     monochrome: true,
+    provider: 'auto' as const,
+  },
+  visualAgent: {
+    enabled: true,
+    autoRun: true,
+    screenshots: 2,
+    images: 3,
   },
 } as const;
 

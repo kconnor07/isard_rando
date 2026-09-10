@@ -11,7 +11,8 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik' };
+  visual_agent: { enabled: boolean; autoRun: boolean; screenshots: number; images: number };
   default_theme: string;
   default_format: string;
 };
@@ -285,6 +286,15 @@ export default function Settings() {
             </select>
           </div>
           <div className="col-span-2">
+            <label className="label">Fournisseur d'images</label>
+            <select className="input" value={form.image_gen.provider ?? 'auto'}
+              onChange={(e) => set('image_gen', { ...form.image_gen, provider: e.target.value as 'auto' | 'gemini' | 'freepik' })}>
+              <option value="auto">Auto — Freepik/Magnific si sa clé est présente, sinon Gemini direct</option>
+              <option value="freepik">Freepik / Magnific (Nano Banana Pro via leur plateforme, clé FREEPIK_API_KEY)</option>
+              <option value="gemini">Gemini direct (clé GEMINI_API_KEY)</option>
+            </select>
+          </div>
+          <div className="col-span-2">
             <label className="label">Notes de direction artistique (ajoutées à chaque génération)</label>
             <textarea className="input" rows={2} value={form.image_gen.styleNotes}
               placeholder="ex : privilégier les objets en verre, ambiance très minimaliste…"
@@ -309,6 +319,34 @@ export default function Settings() {
         <button className="btn-ghost mt-3 !py-1.5 text-xs" onClick={() => void api.post('/api/settings/test-email')}>
           Envoyer un email de test
         </button>
+      </Section>
+
+      <Section title="Agent visuel" saving={save.isPending} onSave={() => save.mutate({ key: 'visual_agent', value: form.visual_agent })}>
+        <label className="mb-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.visual_agent?.enabled ?? true}
+            onChange={(e) => set('visual_agent', { ...form.visual_agent, enabled: e.target.checked })} />
+          Activer l'agent visuel (captures des pages liées au sujet et à la source + concepts d'illustration)
+        </label>
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.visual_agent?.autoRun ?? true}
+            onChange={(e) => set('visual_agent', { ...form.visual_agent, autoRun: e.target.checked })} />
+          Le lancer automatiquement pour chaque veille transformée en post
+        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Captures par passe : {form.visual_agent?.screenshots ?? 2}</label>
+            <input type="range" min={0} max={5} className="w-full accent-sky-500" value={form.visual_agent?.screenshots ?? 2}
+              onChange={(e) => set('visual_agent', { ...form.visual_agent, screenshots: Number(e.target.value) })} />
+          </div>
+          <div>
+            <label className="label">Images par passe : {form.visual_agent?.images ?? 3}</label>
+            <input type="range" min={0} max={6} className="w-full accent-sky-500" value={form.visual_agent?.images ?? 3}
+              onChange={(e) => set('visual_agent', { ...form.visual_agent, images: Number(e.target.value) })} />
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          Chaque passe coûte des crédits image ; « Encore des propositions » dans l'éditeur d'un post relance une passe sans limite.
+        </p>
       </Section>
 
       <Section title="Défauts de création" saving={save.isPending}

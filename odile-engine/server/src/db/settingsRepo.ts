@@ -12,6 +12,7 @@ import {
   llmRoutingSchema,
   publishSlotsSchema,
   toneSettingsSchema,
+  visualAgentSettingsSchema,
 } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from './client.js';
@@ -73,6 +74,8 @@ export const getApprovalEmail = () =>
     subjectPrefix: '[Odile]',
     maxReminders: 2,
   });
+export const getVisualAgent = () =>
+  getSetting('visual_agent', visualAgentSettingsSchema, { ...DEFAULTS.visualAgent });
 export const getDesignStudio = () =>
   getSetting('design_studio', designStudioSettingsSchema, { ...DEFAULTS.designStudio });
 export const getImageGen = () =>

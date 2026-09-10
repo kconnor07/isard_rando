@@ -131,7 +131,9 @@ export const slides = sqliteTable(
 
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
-  kind: text('kind', { enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library'] }).notNull(),
+  kind: text('kind', {
+    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate'],
+  }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),
   path: text('path').notNull(),

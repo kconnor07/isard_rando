@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { LibraryImageDto, PostDetailDto, SlideDto } from '../api/types';
 import LibraryPicker from '../components/LibraryPicker';
+import VisualAgentPanel from '../components/VisualAgentPanel';
 import { CHANNEL_LABELS, fmtDate, PageTitle, StatusBadge } from '../components/shared';
 
 const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'] as const;
@@ -436,6 +437,8 @@ export default function PostEditor() {
               <SlideCard key={slide.id} slide={slide} postId={post.id} onChanged={refresh} />
             ))}
           </div>
+
+          {editable && <VisualAgentPanel post={post} onChanged={refresh} />}
 
           <h2 className="mb-3 mt-8 text-lg font-bold">Caption</h2>
           <textarea

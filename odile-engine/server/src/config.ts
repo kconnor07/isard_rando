@@ -26,6 +26,11 @@ const envSchema = z.object({
   GEMINI_MODEL_IMAGE: z.string().default('gemini-3-pro-image'),
   GEMINI_MODEL_IMAGE_FAST: z.string().default('gemini-3.1-flash-image'),
   GEMINI_MODEL_IMAGE_LEGACY: z.string().default('gemini-2.5-flash-image'),
+  /** Freepik / Magnific API (optionnel) : Nano Banana Pro via leur plateforme */
+  FREEPIK_API_KEY: z.string().optional(),
+  FREEPIK_API_BASE: z.string().url().default('https://api.magnific.com'),
+  FREEPIK_MODEL_IMAGE: z.string().default('nano-banana-pro'),
+  FREEPIK_MODEL_IMAGE_FAST: z.string().default('nano-banana-pro-flash'),
 
   /** dry = les publications écrivent leur payload dans var/outbox au lieu d'appeler les APIs */
   PUBLISH_MODE: z.enum(['live', 'dry']).default('dry'),

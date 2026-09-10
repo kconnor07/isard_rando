@@ -102,3 +102,20 @@ export interface LibraryImageDto {
   cutout: boolean;
   monochrome: boolean;
 }
+
+/** Proposition de l'agent visuel (capture d'écran ou image générée) */
+export interface VisualCandidateDto {
+  id: string;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+  origin: 'screenshot' | 'image';
+  label: string;
+  why?: string;
+  url?: string;
+  prompt?: string;
+  slideIdx: number | null;
+  model?: string;
+  monochrome?: boolean;
+  batch: number;
+}

@@ -13,6 +13,7 @@ import {
   publishSlotsSchema,
   themeIdSchema,
   toneSettingsSchema,
+  visualAgentSettingsSchema,
 } from '@odile/shared';
 import { config } from '../../config.js';
 import { db, schema } from '../../db/client.js';
@@ -28,6 +29,7 @@ import {
   getLlmRouting,
   getPublishSlots,
   getTone,
+  getVisualAgent,
   setSetting,
 } from '../../db/settingsRepo.js';
 import { anthropicProvider } from '../../llm/anthropic.js';
@@ -45,6 +47,7 @@ const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> =
   approval_email: { schema: approvalEmailSettingsSchema, read: getApprovalEmail },
   design_studio: { schema: designStudioSettingsSchema, read: getDesignStudio },
   image_gen: { schema: imageGenSettingsSchema, read: getImageGen },
+  visual_agent: { schema: visualAgentSettingsSchema, read: getVisualAgent },
   llm_routing: { schema: llmRoutingSchema, read: getLlmRouting },
   default_theme: {
     schema: themeIdSchema.refine(themeExists, { message: 'Thème introuvable' }),

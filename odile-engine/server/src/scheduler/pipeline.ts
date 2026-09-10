@@ -5,6 +5,7 @@ import { runDesignReview } from '../design-studio/index.js';
 import { generateImagesForPost, type ImagesSummary } from '../imagegen/index.js';
 import { renderPost } from '../render/renderer.js';
 import { captureForPost } from '../screenshot/capture.js';
+import { runVisualAgentForPipeline, type VisualRunSummary } from '../visuals/agent.js';
 import { draftPost, type DraftOptions } from '../writer/generate.js';
 
 export interface PipelineSummary {
@@ -12,6 +13,7 @@ export interface PipelineSummary {
   screenshot: string;
   images: ImagesSummary;
   review: { iterations: number; passed: boolean; unavailable: boolean };
+  visuals: VisualRunSummary | null;
   emailed: boolean;
 }
 
@@ -29,6 +31,8 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
     logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
     return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
   });
+  // L'agent visuel propose captures et illustrations pour cette veille (non bloquant)
+  const visuals = await runVisualAgentForPipeline(draft.postId);
   await renderPost(draft.postId);
   // Le studio ne doit jamais bloquer la livraison : un post rendu vaut mieux
   // qu'aucun post — l'humain valide de toute façon.
@@ -56,6 +60,7 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
     screenshot: capture.ok ? 'ok' : `échec: ${capture.reason.slice(0, 120)}`,
     images,
     review: { iterations: review.iterations, passed: review.passed, unavailable: review.unavailable },
+    visuals,
     emailed,
   };
 }
