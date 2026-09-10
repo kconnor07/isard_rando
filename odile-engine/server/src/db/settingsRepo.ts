@@ -51,7 +51,7 @@ export function setSetting(key: string, value: unknown): void {
 
 export const getTone = () => getSetting('tone', toneSettingsSchema, { ...DEFAULTS.tone, customInstructions: '' });
 export const getBrand = () =>
-  getSetting('brand', brandSettingsSchema, { ...BRAND_DEFAULTS, logoAssetId: null });
+  getSetting('brand', brandSettingsSchema, { ...BRAND_DEFAULTS, logoAssetId: null, avatarAssetId: null, authorLine: '' });
 export const getCadence = () =>
   getSetting('cadence', cadenceSettingsSchema, {
     days: DEFAULTS.cadenceDays,

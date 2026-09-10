@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { db, schema } from '../../db/client.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { logger } from '../../lib/logger.js';
-import { parseVisualOverrides } from '../../render/renderer.js';
+import { FLOAT_KEYS, parseVisualOverrides } from '../../render/renderer.js';
 import { listCandidates, runVisualAgent } from '../../visuals/agent.js';
 
 const runSchema = z.object({
@@ -14,12 +14,17 @@ const runSchema = z.object({
 });
 const useSchema = z.object({
   slideIdx: z.number().int().min(0).default(0),
-  as: z.enum(['hero', 'screenshot', 'float1', 'float2']),
+  as: z.enum(['hero', 'screenshot', 'float1', 'float2', 'float3', 'float4']),
 });
 const floatsSchema = z.object({
   clear: z.boolean().optional(),
   floatSize: z.number().int().min(10).max(60).optional(),
-  floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes']).optional(),
+  floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes', '4-coins']).optional(),
+  floatBleed: z.boolean().optional(),
+  floatTilt: z.number().int().min(0).max(30).optional(),
+  /** placement et taille de l'illustration détourée (surcharge du template pour ce post) */
+  heroPlacement: z.enum(['centre', 'haut', 'droite', 'gauche']).nullable().optional(),
+  heroSize: z.number().int().min(60).max(140).nullable().optional(),
 });
 
 /** Passes en cours, par post (une seule à la fois). */
@@ -64,11 +69,11 @@ export function registerVisualRoutes(app: FastifyInstance): void {
         .get();
       if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
       const now = new Date().toISOString();
-      if (parsed.data.as === 'float1' || parsed.data.as === 'float2') {
+      if (parsed.data.as.startsWith('float')) {
         // Objet flottant du post : périphérie de toutes les slides
         const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get()!;
         const overrides = parseVisualOverrides(post.visualOverrides);
-        overrides[parsed.data.as] = asset.id;
+        overrides[parsed.data.as as (typeof FLOAT_KEYS)[number]] = asset.id;
         db.update(schema.posts).set({ visualOverrides: JSON.stringify(overrides), updatedAt: now }).where(eq(schema.posts.id, postId)).run();
         db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, postId)).run();
         return { ok: true };
@@ -113,7 +118,12 @@ export function registerVisualRoutes(app: FastifyInstance): void {
     const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
     if (!post) return reply.status(404).send({ error: 'Post introuvable' });
     const { clear, ...rest } = parsed.data;
-    const overrides = clear ? {} : { ...parseVisualOverrides(post.visualOverrides), ...rest };
+    const current = parseVisualOverrides(post.visualOverrides);
+    // « clear » retire les objets mais garde le placement de l'illustration
+    const base = clear ? { heroPlacement: current.heroPlacement, heroSize: current.heroSize } : current;
+    const overrides = Object.fromEntries(
+      Object.entries({ ...base, ...rest }).filter(([, v]) => v !== null && v !== undefined),
+    ) as typeof current;
     db.update(schema.posts)
       .set({ visualOverrides: Object.keys(overrides).length ? JSON.stringify(overrides) : null, updatedAt: new Date().toISOString() })
       .where(eq(schema.posts.id, postId))
@@ -142,7 +152,7 @@ export function registerVisualRoutes(app: FastifyInstance): void {
           .all().length;
       const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
       const ov = parseVisualOverrides(post?.visualOverrides ?? null);
-      if (used > 0 || ov.float1 === asset.id || ov.float2 === asset.id) {
+      if (used > 0 || FLOAT_KEYS.some((k) => ov[k] === asset.id)) {
         return reply.status(409).send({ error: 'Cette proposition est posée sur une slide ou en objet flottant.' });
       }
       db.delete(schema.assets).where(eq(schema.assets.id, asset.id)).run();

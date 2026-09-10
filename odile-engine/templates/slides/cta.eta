@@ -1,6 +1,8 @@
 <% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<% if (it.iconSvg) { %><div class="icon-badge"><%~ it.iconSvg %></div><% } %>
 <h2 class="title"><%~ it.titleHtml %></h2>
-<% if (it.content.body) { %><p class="body" style="align-self:center"><%= it.content.body %></p><% } %>
+<% if (it.subtitleHtml) { %><div class="subtitle"><%~ it.subtitleHtml %></div><% } %>
+<% if (it.content.body) { %><p class="body" style="align-self:center"><%~ it.bodyHtml %></p><% } %>
 <% if (it.keyword) { %>
 <div style="display:flex;flex-direction:column;align-items:center;gap:28px;margin-top:20px">
   <div class="keyword-chip">💬 Commente « <%= it.keyword %> »</div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildImagePrompt, STYLE_GUIDE } from '../src/imagegen/prompt.js';
+import { buildImagePrompt, CUTOUT_BACKGROUND, STYLE_GUIDE } from '../src/imagegen/prompt.js';
 
 describe('buildImagePrompt', () => {
   it('contient la palette, l’interdiction de texte et le concept', () => {
@@ -8,7 +8,8 @@ describe('buildImagePrompt', () => {
       archetypeId: 'objet_halo',
     });
     expect(prompt).toContain('#0099FF');
-    expect(prompt).toContain('#050510');
+    // objet_halo → chrome détouré : généré sur gris neutre, jamais sur le fond du thème
+    expect(prompt).toContain(CUTOUT_BACKGROUND);
     expect(prompt.toLowerCase()).toContain('forbidden');
     expect(prompt).toContain('chronomètre');
     expect(prompt).toContain('halo');
@@ -38,7 +39,7 @@ describe('buildImagePrompt', () => {
     const chrome = buildImagePrompt({ idea: 'x', palette, style: 'chrome' });
     expect(full).toContain('full-frame');
     expect(objets).toContain('made to be cut out');
-    expect(objets).toContain('solid #0b0616');
+    expect(objets).toContain(`solid neutral mid-grey ${CUTOUT_BACKGROUND}`);
     expect(chrome).toContain('liquid chrome');
     for (const p of [full, objets, chrome]) expect(p).toContain('#a78bfa');
   });

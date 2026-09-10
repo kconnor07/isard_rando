@@ -64,6 +64,13 @@ function buildMockText(req: LlmRequest): string {
             { label: 'Rouage lumineux', prompt: 'Un rouage en verre dépoli éclairé par un liseré de lumière', slideIdx: 2, style: 'chrome' },
             { label: 'Pièce de cristal', prompt: 'Une pièce de monnaie en cristal et chrome, isolée', slideIdx: 4, style: 'objets' },
           ],
+          objectSet: /"objectSet" : si le post/.test(req.prompt)
+            ? {
+                label: 'Jetons devis',
+                style: 'objets',
+                objects: ['Un jeton 3D violet frappé du symbole euro', 'Un jeton 3D violet frappé d’une coche'],
+              }
+            : null,
         });
       }
       return JSON.stringify(MOCK_GENERATED_POST);
@@ -110,6 +117,7 @@ const MOCK_GENERATED_POST = {
     {
       kind: 'hook',
       annotation: 'testé pour vous',
+      icon: 'chrono',
       title: 'Vos devis en 90 secondes chrono',
       accentWord: '90 secondes',
       body: "L'IA qui répond à vos prospects avant vos concurrents.",

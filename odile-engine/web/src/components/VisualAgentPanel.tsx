@@ -4,10 +4,16 @@ import { useState } from 'react';
 import { api } from '../api/client';
 import type { PostDetailDto, VisualCandidateDto } from '../api/types';
 
+type FloatSlot = 'float1' | 'float2' | 'float3' | 'float4';
+const FLOAT_SLOTS: FloatSlot[] = ['float1', 'float2', 'float3', 'float4'];
+const STYLE_LABELS: Record<string, string> = { full: 'plein cadre', objets: 'objet détouré', chrome: 'chrome & verre' };
+
 /**
  * Propositions de l'agent visuel pour un post : captures des pages liées au
- * sujet et à la source, images générées — chacune se pose sur une slide en un
- * clic. « Encore » relance une passe qui évite ce qui a déjà été proposé.
+ * sujet et à la source, images générées (dont des séries d'objets cohérents)
+ * — chacune se pose sur une slide ou en objet flottant en un clic. « Encore »
+ * relance une passe qui évite ce qui a déjà été proposé. La barre
+ * « Disposition » règle les objets et le placement de l'illustration détourée.
  */
 export default function VisualAgentPanel({ post, onChanged }: { post: PostDetailDto; onChanged: () => void }) {
   const qc = useQueryClient();
@@ -27,10 +33,11 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
     onError: (e) => alert(String(e)),
   });
 
-  const clearFloats = async () => {
-    setBusyId('floats');
+  /** Réglages de disposition du post (objets, placement) puis re-rendu. */
+  const layout = async (body: Record<string, unknown>) => {
+    setBusyId('layout');
     try {
-      await api.post(`/api/posts/${post.id}/visuals/floats`, { clear: true });
+      await api.post(`/api/posts/${post.id}/visuals/floats`, body);
       await api.post(`/api/posts/${post.id}/render`);
       onChanged();
     } catch (e) {
@@ -40,7 +47,7 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
     }
   };
 
-  const use = async (c: VisualCandidateDto, as: 'hero' | 'screenshot' | 'float1' | 'float2') => {
+  const use = async (c: VisualCandidateDto, as: 'hero' | 'screenshot' | FloatSlot) => {
     const slideIdx = targets[c.id] ?? c.slideIdx ?? 0;
     setBusyId(c.id);
     try {
@@ -67,13 +74,15 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
 
   const running = data?.running ?? false;
   const candidates = data?.candidates ?? [];
-  const floats = post.visualOverrides ?? {};
-  const inUse = new Set([
-    ...post.slides.flatMap((s) => [s.heroAssetId, s.screenshotAssetId]),
-    floats.float1,
-    floats.float2,
-  ].filter(Boolean));
-  const STYLE_LABELS: Record<string, string> = { full: 'plein cadre', objets: 'objet détouré', chrome: 'chrome & verre' };
+  const ov = post.visualOverrides ?? {};
+  const floatIds = FLOAT_SLOTS.map((k) => ov[k] ?? null);
+  const hasFloats = floatIds.some(Boolean);
+  const hasCutoutHero = post.slides.some((s) => {
+    const c = candidates.find((x) => x.id === s.heroAssetId);
+    return c?.cutout;
+  });
+  const inUse = new Set([...post.slides.flatMap((s) => [s.heroAssetId, s.screenshotAssetId]), ...floatIds].filter(Boolean));
+  const slotOf = (id: string) => FLOAT_SLOTS.findIndex((k) => ov[k] === id);
 
   return (
     <div>
@@ -83,11 +92,6 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
           <span className="mono ml-1 text-[11px] font-normal uppercase tracking-wider text-muted">agent visuel</span>
         </h2>
         <div className="flex items-center gap-2">
-          {(floats.float1 || floats.float2) && (
-            <button className="btn-ghost !px-3 !py-1 text-xs" disabled={busyId === 'floats'} onClick={() => void clearFloats()} title="Retirer les objets flottants de ce post">
-              <Trash2 size={12} /> Objets flottants
-            </button>
-          )}
           {running && (
             <span className="mono flex items-center gap-2 text-[11px] uppercase tracking-wider text-accent">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
@@ -113,10 +117,60 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
         </div>
       </div>
 
+      {(hasFloats || hasCutoutHero) && (
+        <div className={`card mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 p-3 text-xs ${busyId === 'layout' ? 'opacity-60' : ''}`}>
+          <span className="mono text-[10px] uppercase tracking-wider text-muted">Disposition</span>
+          {hasFloats && (
+            <>
+              <label className="flex items-center gap-1.5">
+                Objets
+                <select className="input !w-auto !py-1 text-xs" value={ov.floatLayout ?? (floatIds.filter(Boolean).length > 2 ? '4-coins' : 'coins')} onChange={(e) => void layout({ floatLayout: e.target.value })}>
+                  <option value="coins">coins opposés</option>
+                  <option value="4-coins">quatre coins</option>
+                  <option value="haut">en haut</option>
+                  <option value="bas">en bas</option>
+                  <option value="cotes">sur les côtés</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5">
+                Taille
+                <input type="range" min={10} max={60} className="w-24 accent-sky-500" defaultValue={ov.floatSize ?? 30} onMouseUp={(e) => void layout({ floatSize: Number((e.target as HTMLInputElement).value) })} onTouchEnd={(e) => void layout({ floatSize: Number((e.target as HTMLInputElement).value) })} />
+              </label>
+              <label className="flex items-center gap-1.5">
+                <input type="checkbox" className="accent-sky-500" checked={ov.floatBleed ?? true} onChange={(e) => void layout({ floatBleed: e.target.checked })} />
+                débordent du cadre
+              </label>
+              <button className="btn-ghost !px-2.5 !py-1 text-xs" onClick={() => void layout({ clear: true })} title="Retirer les objets flottants de ce post">
+                <Trash2 size={12} /> Retirer les objets
+              </button>
+            </>
+          )}
+          {hasCutoutHero && (
+            <>
+              <label className="flex items-center gap-1.5">
+                Illustration
+                <select className="input !w-auto !py-1 text-xs" value={ov.heroPlacement ?? ''} onChange={(e) => void layout({ heroPlacement: e.target.value || null })}>
+                  <option value="">placement du template</option>
+                  <option value="centre">au-dessus du titre</option>
+                  <option value="haut">ancrée en haut</option>
+                  <option value="droite">à droite</option>
+                  <option value="gauche">à gauche</option>
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5">
+                Taille
+                <input type="range" min={60} max={140} className="w-24 accent-sky-500" defaultValue={ov.heroSize ?? 100} onMouseUp={(e) => void layout({ heroSize: Number((e.target as HTMLInputElement).value) })} onTouchEnd={(e) => void layout({ heroSize: Number((e.target as HTMLInputElement).value) })} />
+              </label>
+            </>
+          )}
+        </div>
+      )}
+
       {candidates.length === 0 && !running && (
         <p className="rounded-2xl border border-dashed border-line px-6 py-8 text-center text-sm text-muted">
-          L'agent capture les pages liées au sujet et à la source (site de l'outil, article) et génère des
-          concepts d'illustration pour ce post. Chaque proposition se pose sur une slide en un clic.
+          L'agent capture les pages liées au sujet et à la source (site de l'outil, article), génère des
+          concepts d'illustration et des séries d'objets pour ce post. Chaque proposition se pose sur une slide
+          ou en objet flottant en un clic.
         </p>
       )}
 
@@ -124,6 +178,7 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
         {candidates.map((c) => {
           const busy = busyId === c.id;
           const used = inUse.has(c.id);
+          const slot = slotOf(c.id);
           return (
             <div key={c.id} className={`card overflow-hidden ${busy ? 'opacity-60' : ''}`}>
               <div className={`${c.origin === 'screenshot' ? 'aspect-[16/10]' : 'aspect-[4/5]'} overflow-hidden ${c.cutout ? 'checker' : 'bg-panel2'}`}>
@@ -135,16 +190,18 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
                 />
               </div>
               <div className="p-3">
-                <div className="mb-1 flex items-center gap-1.5">
+                <div className="mb-1 flex flex-wrap items-center gap-1.5">
                   <span className="mono inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted">
                     {c.origin === 'screenshot' ? <Camera size={10} /> : <Sparkles size={10} />}
                     {c.origin === 'screenshot' ? 'capture' : 'image'}
                   </span>
                   {c.style && <span className="mono text-[10px] text-muted">{STYLE_LABELS[c.style] ?? c.style}</span>}
+                  {c.set && <span className="mono rounded-full border border-line px-2 py-0.5 text-[10px] text-muted" title="Série d'objets cohérents">série</span>}
+                  {c.popColor && <span className="h-3 w-3 rounded-full border border-white/20" style={{ background: c.popColor }} title={`Couleur signature ${c.popColor}`} />}
                   <span className="mono text-[10px] text-muted/70">lot {c.batch}</span>
                   {used && (
                     <span className="mono ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-[10px] uppercase tracking-wider text-ice">
-                      posée
+                      {slot >= 0 ? `objet ${slot + 1}` : 'posée'}
                     </span>
                   )}
                 </div>
@@ -170,8 +227,8 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
                     </option>
                   ))}
                 </select>
-                <div className="mt-2 flex items-center gap-1.5">
-                  <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'hero')} title="Poser en illustration plein cadre">
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'hero')} title="Poser en illustration de la slide choisie">
                     Illustration
                   </button>
                   {c.origin === 'screenshot' && (
@@ -180,14 +237,22 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
                     </button>
                   )}
                   {c.cutout && (
-                    <>
-                      <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'float1')} title="Objet flottant n°1 (toutes les slides)">
-                        Objet 1
-                      </button>
-                      <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'float2')} title="Objet flottant n°2 (toutes les slides)">
-                        Objet 2
-                      </button>
-                    </>
+                    <select
+                      className="input !w-auto !py-1 text-xs"
+                      value=""
+                      disabled={busy}
+                      title="Objet flottant posé sur toutes les slides (jusqu'à 4)"
+                      onChange={(e) => {
+                        if (e.target.value) void use(c, e.target.value as FloatSlot);
+                      }}
+                    >
+                      <option value="">Objet flottant…</option>
+                      {FLOAT_SLOTS.map((k, i) => (
+                        <option key={k} value={k}>
+                          Objet {i + 1}{ov[k] ? (ov[k] === c.id ? ' (celui-ci)' : ' (remplacer)') : ''}
+                        </option>
+                      ))}
+                    </select>
                   )}
                   <span className="flex-1" />
                   <button className="pill-btn" disabled={busy || used} onClick={() => remove(c)} title="Retirer cette proposition">

@@ -8,10 +8,11 @@ import { getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
+import { extractPopColor, resolvePopColor } from './color.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
-import { fitCutout, removeImageBackground } from './cutout.js';
-import { buildImagePrompt, isCutoutStyle, styleForArchetype, type ImageStyle } from './prompt.js';
+import { cutoutStats, fitCutout, removeImageBackground } from './cutout.js';
+import { buildImagePrompt, isCutoutStyle, resolvePalette, styleForArchetype, type ImageStyle, type ThemePalette } from './prompt.js';
 import { notesFor, referenceFor } from './references.js';
 import type { FreepikReference } from './providers/freepikCatalog.js';
 
@@ -105,14 +106,28 @@ async function generateMockPlaceholder(): Promise<GeneratedImage> {
   return { buffer, model: 'mock-placeholder', tokens: 0 };
 }
 
+/** Modèle Freepik retenu : explicite > modèle du style > modèle par défaut des réglages > config. */
+export function modelForStyle(style: ImageStyle | null | undefined, explicit?: string | null): string {
+  const settings = getImageGen();
+  const byStyle = style ? settings.modelByStyle[style] : undefined;
+  const wanted = explicit || byStyle || settings.model;
+  return findFreepikModel(wanted)?.id ?? findFreepikModel(config.FREEPIK_MODEL_IMAGE)?.id ?? DEFAULT_FREEPIK_MODEL;
+}
+
 /**
- * Génère une image brute depuis un prompt (chaîne : Pro → Fast → legacy →
- * échec), ou le placeholder de marque en mode mock / sans clé. Partagé par
- * les illustrations de slides et le studio d'images du dashboard.
+ * Génère une image brute depuis un prompt (chaîne : modèle choisi → modèle
+ * rapide → Gemini → échec), ou le placeholder de marque en mode mock / sans
+ * clé. Partagé par les illustrations de slides et le studio d'images.
  */
 export async function generateImageBuffer(
   prompt: string,
-  opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect; model?: string; reference?: FreepikReference | null } = {},
+  opts: {
+    quality?: 'pro' | 'fast';
+    aspect?: ImageAspect;
+    model?: string | null;
+    reference?: FreepikReference | null;
+    style?: ImageStyle | null;
+  } = {},
 ): Promise<GeneratedImage> {
   const settings = getImageGen();
   const quality = opts.quality ?? settings.quality;
@@ -122,7 +137,7 @@ export async function generateImageBuffer(
     // Freepik / Magnific (catalogue de modèles) puis Gemini direct, selon le
     // réglage « fournisseur » et les clés présentes.
     if (settings.provider !== 'gemini' && freepikAvailable()) {
-      const chosen = findFreepikModel(opts.model ?? settings.model)?.id ?? findFreepikModel(config.FREEPIK_MODEL_IMAGE)?.id ?? DEFAULT_FREEPIK_MODEL;
+      const chosen = modelForStyle(opts.style, opts.model);
       const reference = opts.reference ?? null;
       attempts.push(() => generateViaFreepik(chosen, prompt, { aspect, quality, reference }));
       // Repli sur un modèle rapide si le modèle choisi échoue
@@ -162,9 +177,112 @@ export async function generateImageBuffer(
   throw new Error(lastError || "génération d'image impossible");
 }
 
+export interface StyledImageOpts {
+  style: ImageStyle;
+  quality?: 'pro' | 'fast';
+  aspect?: ImageAspect;
+  model?: string | null;
+  reference?: FreepikReference | null;
+  monochrome?: boolean;
+  /** teintes de la palette à ignorer lors de l'extraction de la couleur signature */
+  excludeHues?: string[];
+  /** couleur signature demandée (repli si l'extraction n'en trouve pas) */
+  requestedPop?: string | null;
+  size?: { width: number; height: number };
+}
+
+export interface StyledImage {
+  /** image finale normalisée (JPEG plein cadre, ou PNG détouré posé sur toile transparente) */
+  buffer: Buffer;
+  /** image brute renvoyée par le modèle (sert de référence aux objets d'une même série) */
+  raw: Buffer;
+  model: string;
+  tokens: number;
+  cutout: boolean;
+  popColor: string | null;
+  ext: 'png' | 'jpg';
+  mime: string;
+  width: number;
+  height: number;
+  /** porte qualité du détourage (statistiques de la meilleure tentative) */
+  gate?: { coverage: number; touchesEdge: boolean; attempts: number };
+}
+
+/**
+ * Génère et normalise une image selon son style :
+ * - plein cadre : recadrage 1080×1350, couleur signature extraite ;
+ * - objets / chrome : détourage local, porte qualité (matière suffisante, objet
+ *   entier) avec une regénération si elle échoue, objet posé entier sur toile
+ *   transparente.
+ * Partagé par les illustrations de slides, l'agent visuel et le studio.
+ */
+export async function generateStyledImage(prompt: string, opts: StyledImageOpts): Promise<StyledImage> {
+  const size = opts.size ?? { width: OUT_WIDTH, height: OUT_HEIGHT };
+  const cutout = isCutoutStyle(opts.style);
+  const generate = () =>
+    generateImageBuffer(prompt, {
+      quality: opts.quality,
+      aspect: opts.aspect,
+      model: opts.model,
+      reference: opts.reference,
+      style: opts.style,
+    });
+
+  if (!cutout) {
+    const generated = await generate();
+    let pipeline = sharp(generated.buffer).resize(size.width, size.height, { fit: 'cover', position: 'attention' });
+    if (opts.monochrome) pipeline = pipeline.grayscale();
+    const buffer = await pipeline.jpeg({ quality: 90 }).toBuffer();
+    const popColor = opts.monochrome
+      ? null
+      : ((await extractPopColor(generated.buffer, { exclude: opts.excludeHues }).catch(() => null)) ?? opts.requestedPop ?? null);
+    return { buffer, raw: generated.buffer, model: generated.model, tokens: generated.tokens, cutout: false, popColor, ext: 'jpg', mime: 'image/jpeg', ...size };
+  }
+
+  // Détourage avec porte qualité : une seconde génération si l'objet est rogné ou trop petit
+  const maxAttempts = config.LLM_MODE === 'mock' ? 1 : 2;
+  let best: { generated: GeneratedImage; png: Buffer; stats: Awaited<ReturnType<typeof cutoutStats>> } | null = null;
+  let tokens = 0;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const generated = await generate();
+    tokens += generated.tokens;
+    const png = await removeImageBackground(generated.buffer);
+    const stats = await cutoutStats(png);
+    if (!best || (stats.ok && !best.stats.ok) || (stats.ok === best.stats.ok && stats.coverage > best.stats.coverage)) {
+      best = { generated, png, stats };
+    }
+    if (stats.ok) break;
+    logger.info({ attempt, coverage: Number(stats.coverage.toFixed(3)), touchesEdge: stats.touchesEdge }, 'détourage insuffisant, nouvelle génération');
+  }
+  const chosen = best!;
+  let pipeline = sharp(await fitCutout(chosen.png, size.width, size.height));
+  if (opts.monochrome) pipeline = pipeline.grayscale();
+  const buffer = await pipeline.png().toBuffer();
+  return {
+    buffer,
+    raw: chosen.generated.buffer,
+    model: chosen.generated.model,
+    tokens,
+    cutout: true,
+    popColor: null,
+    ext: 'png',
+    mime: 'image/png',
+    ...size,
+    gate: { coverage: chosen.stats.coverage, touchesEdge: chosen.stats.touchesEdge, attempts: maxAttempts },
+  };
+}
+
+/** Palette et couleur signature d'un post (template maison ou thème intégré). */
+export function paletteForPost(post: { theme: string } | null | undefined): { palette: ThemePalette; custom: ReturnType<typeof getCustomTheme>; popColor: string | null } {
+  const custom = post ? getCustomTheme(post.theme) : null;
+  const palette = resolvePalette(post?.theme, custom ? { bg1: custom.bg1, bg2: custom.bg2, accent: custom.accent, textColor: custom.textColor } : null);
+  const popColor = getImageGen().monochrome ? null : resolvePopColor(custom?.popColor ?? 'auto', palette.accent);
+  return { palette, custom, popColor };
+}
+
 /**
  * Génère l'illustration d'une slide (chaîne : Pro → Fast → legacy → échec doux),
- * normalise en 1080×1350 JPEG, enregistre l'asset et l'attache à la slide.
+ * normalise en 1080×1350, enregistre l'asset et l'attache à la slide.
  */
 export async function generateHeroImage(
   slideId: number,
@@ -177,8 +295,8 @@ export async function generateHeroImage(
   if (!content.imageIdea) return { ok: false, reason: 'Pas de concept (imageIdea) sur cette slide' };
 
   const settings = getImageGen();
-  // Template maison : l'illustration suit sa palette, pas le bleu Odile
-  const custom = post ? getCustomTheme(post.theme) : null;
+  // Template maison : l'illustration suit sa palette (et sa couleur signature), pas le bleu Odile
+  const { palette, custom, popColor } = paletteForPost(post);
   // Style : demandé > réglage global > style du template > archétype
   const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
   const style: ImageStyle =
@@ -190,56 +308,54 @@ export async function generateHeroImage(
     styleNotes: settings.styleNotes,
     instructions: opts.instructions,
     theme: post?.theme,
-    palette: custom
-      ? { bg1: custom.bg1, bg2: custom.bg2, accent: custom.accent, textColor: custom.textColor }
-      : null,
+    palette: custom ? palette : null,
     monochrome: settings.monochrome,
     style,
     hasReference: Boolean(reference),
     styleSpecificNotes: notesFor(style),
+    popColor,
   });
 
   try {
-    const generated = await generateImageBuffer(prompt, { quality: opts.quality ?? settings.quality, reference });
-    {
-      // Styles « objets » et « chrome » : l'objet est détouré et posé entier (PNG transparent)
-      const cutout = isCutoutStyle(style);
-      let pipeline = cutout
-        ? sharp(await fitCutout(await removeImageBackground(generated.buffer), OUT_WIDTH, OUT_HEIGHT))
-        : sharp(generated.buffer).resize(OUT_WIDTH, OUT_HEIGHT, { fit: 'cover', position: 'attention' });
-      // Noir et blanc garanti côté serveur, quoi que réponde le modèle
-      if (settings.monochrome) pipeline = pipeline.grayscale();
-      const normalized = cutout ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 88 }).toBuffer();
-      const assetId = saveAsset(
-        normalized,
-        'genimage',
-        {
-          postId: slide.postId,
-          slideId: slide.id,
-          extraMeta: {
-            idea: content.imageIdea,
-            archetype: post?.archetype ?? null,
-            model: generated.model,
-            tokens: generated.tokens,
-            instructions: opts.instructions ?? null,
-            monochrome: settings.monochrome,
-            style,
-            cutout,
-          },
+    const image = await generateStyledImage(prompt, {
+      style,
+      quality: opts.quality ?? settings.quality,
+      reference,
+      monochrome: settings.monochrome,
+      excludeHues: [palette.accent, palette.bg2],
+      requestedPop: popColor,
+    });
+    const assetId = saveAsset(
+      image.buffer,
+      'genimage',
+      {
+        postId: slide.postId,
+        slideId: slide.id,
+        extraMeta: {
+          idea: content.imageIdea,
+          archetype: post?.archetype ?? null,
+          model: image.model,
+          tokens: image.tokens,
+          instructions: opts.instructions ?? null,
+          monochrome: settings.monochrome,
+          style,
+          cutout: image.cutout,
+          popColor: image.popColor,
+          gate: image.gate ?? null,
         },
-        { width: OUT_WIDTH, height: OUT_HEIGHT },
-        cutout ? { ext: 'png', mime: 'image/png' } : { ext: 'jpg', mime: 'image/jpeg' },
-      );
-      db.update(schema.slides)
-        .set({ heroAssetId: assetId, renderAssetId: null, updatedAt: new Date().toISOString() })
-        .where(eq(schema.slides.id, slide.id))
-        .run();
-      logger.info({ slideId, assetId, model: generated.model }, 'illustration générée');
-      return { ok: true, assetId, model: generated.model, tokens: generated.tokens };
-    }
+      },
+      { width: image.width, height: image.height },
+      { ext: image.ext, mime: image.mime },
+    );
+    db.update(schema.slides)
+      .set({ heroAssetId: assetId, renderAssetId: null, updatedAt: new Date().toISOString() })
+      .where(eq(schema.slides.id, slide.id))
+      .run();
+    logger.info({ slideId, assetId, model: image.model, popColor: image.popColor }, 'illustration générée');
+    return { ok: true, assetId, model: image.model, tokens: image.tokens };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
-    logger.warn({ slideId, err: reason.slice(0, 200) }, "illustration non générée");
+    logger.warn({ slideId, err: reason.slice(0, 200) }, 'illustration non générée');
     return { ok: false, reason };
   }
 }

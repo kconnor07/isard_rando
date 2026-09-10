@@ -1,17 +1,14 @@
 import { desc, and, eq } from 'drizzle-orm';
-import sharp from 'sharp';
 import { z } from 'zod';
 import type { SlideContent } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { getBrand, getImageGen, getVisualAgent } from '../db/settingsRepo.js';
-import { fitCutout, removeImageBackground } from '../imagegen/cutout.js';
-import { generateImageBuffer } from '../imagegen/index.js';
-import { buildImagePrompt, isCutoutStyle, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
+import { generateStyledImage, paletteForPost } from '../imagegen/index.js';
+import { buildImagePrompt, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
 import { notesFor, referenceFor } from '../imagegen/references.js';
 import { fetchWithRetry } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
-import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
 import { captureUrl } from '../screenshot/capture.js';
 
@@ -28,6 +25,11 @@ export interface CandidateMeta {
   /** style d'image (full / objets / chrome) et détourage (PNG transparent) */
   style?: ImageStyle;
   cutout?: boolean;
+  /** couleur signature détectée (plein cadre) */
+  popColor?: string | null;
+  /** série d'objets cohérents (même matière, même lumière) : nom + rang */
+  set?: string;
+  setIdx?: number;
   batch: number;
 }
 
@@ -62,6 +64,15 @@ const planSchema = z.object({
       }),
     )
     .max(8),
+  /** série d'objets cohérents à poser aux coins (pièces, outils, symboles) */
+  objectSet: z
+    .object({
+      label: z.string().max(60),
+      style: z.enum(['objets', 'chrome']).default('objets'),
+      objects: z.array(z.string().min(3).max(200)).min(2).max(4),
+    })
+    .nullable()
+    .optional(),
 });
 type Plan = z.infer<typeof planSchema>;
 
@@ -104,6 +115,9 @@ export function listCandidates(postId: number): VisualCandidate[] {
         monochrome: meta.monochrome,
         style: meta.style,
         cutout: Boolean(meta.cutout),
+        popColor: meta.popColor ?? null,
+        set: meta.set,
+        setIdx: meta.setIdx,
         batch: meta.batch ?? 1,
       };
     });
@@ -140,7 +154,7 @@ function fallbackPlan(
       prompt: s.content.imageIdea ?? `Une scène métaphorique sobre illustrant : ${s.content.title}`,
       slideIdx: s.idx,
     }));
-  return { screenshots, images };
+  return { screenshots, images, objectSet: null };
 }
 
 /**
@@ -189,7 +203,7 @@ export async function runVisualAgent(
   let plan: Plan;
   let planner = 'fallback';
   if (counts.screenshots + counts.images === 0) {
-    plan = { screenshots: [], images: [] };
+    plan = { screenshots: [], images: [], objectSet: null };
   } else {
     const slidesText = slides
       .map((s) => `- slide ${s.idx} (${s.kind}) : « ${s.content.title} »${s.content.imageIdea ? ` — idée d'image : ${s.content.imageIdea}` : ''}`)
@@ -217,6 +231,13 @@ MISSION
      (pièce, outil, appareil, symbole — idéal chiffre / preuve) ;
    - "chrome" : objet symbolique en chrome et verre irisé, détouré lui aussi (idéal slide de contenu / solution).
    Varie les styles au sein d'une même passe.
+3. "objectSet" : ${
+      counts.images >= 2
+        ? `si le post gagne à avoir une SÉRIE d'objets posés aux coins de toutes les slides (pièces, jetons,
+   outils, symboles du même univers), propose une série : "label", "style" ("objets" ou "chrome") et
+   2 à 4 "objects" (une courte description d'objet chacune, même matière, même famille). Sinon null.`
+        : 'null (pas de série dans cette passe).'
+    }
 ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à ne PAS répéter, propose autre chose) :\n${[...knownUrls].map((u) => `- page : ${u}`).join('\n')}\n${knownPrompts.map((p) => `- image : ${p}`).join('\n')}` : ''}`;
     try {
       const res = await completeJson(
@@ -258,58 +279,98 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
 
   // --- 3. Images -----------------------------------------------------------
   const imageGen = getImageGen();
-  const custom = getCustomTheme(post.theme);
-  const palette = custom ? { bg1: custom.bg1, bg2: custom.bg2, accent: custom.accent, textColor: custom.textColor } : null;
+  const { palette, custom, popColor } = paletteForPost(post);
   const brand = getBrand();
+  const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
+  const promptFor = (idea: string, style: ImageStyle, extra: { hasReference: boolean; seriesOf?: string }) =>
+    buildImagePrompt({
+      idea,
+      archetypeId: post.archetype,
+      styleNotes: imageGen.styleNotes,
+      theme: post.theme,
+      palette: custom ? palette : null,
+      monochrome: imageGen.monochrome,
+      style,
+      hasReference: extra.hasReference,
+      seriesOf: extra.seriesOf,
+      styleSpecificNotes: notesFor(style),
+      popColor,
+    });
+  const store = (image: Awaited<ReturnType<typeof generateStyledImage>>, meta: CandidateMeta) =>
+    saveAsset(
+      image.buffer,
+      'candidate',
+      { postId, extraMeta: { ...meta } },
+      { width: image.width, height: image.height },
+      { ext: image.ext, mime: image.mime },
+    );
+
   for (const concept of plan.images.slice(0, counts.images)) {
     try {
-      const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
       const style: ImageStyle =
         imageGen.style !== 'auto'
           ? imageGen.style
           : (concept.style ?? templateStyle ?? styleForArchetype(post.archetype));
       const reference = referenceFor(style);
-      const fullPrompt = buildImagePrompt({
-        idea: concept.prompt,
-        archetypeId: post.archetype,
-        styleNotes: imageGen.styleNotes,
-        theme: post.theme,
-        palette,
-        monochrome: imageGen.monochrome,
+      const image = await generateStyledImage(promptFor(concept.prompt, style, { hasReference: Boolean(reference) }), {
         style,
-        hasReference: Boolean(reference),
-        styleSpecificNotes: notesFor(style),
+        quality: imageGen.quality,
+        reference,
+        monochrome: imageGen.monochrome,
+        excludeHues: [palette.accent, palette.bg2],
+        requestedPop: popColor,
       });
-      const generated = await generateImageBuffer(fullPrompt, { quality: imageGen.quality, reference });
-      // « objets » et « chrome » : détourés et posés entiers sur fond transparent
-      const cutout = isCutoutStyle(style);
-      let pipeline = cutout
-        ? sharp(await fitCutout(await removeImageBackground(generated.buffer), 1080, 1350))
-        : sharp(generated.buffer).resize(1080, 1350, { fit: 'cover', position: 'attention' });
-      if (imageGen.monochrome) pipeline = pipeline.grayscale();
-      const out = cutout ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 88 }).toBuffer();
-      const meta: CandidateMeta = {
+      store(image, {
         origin: 'image',
         label: concept.label,
         prompt: concept.prompt,
         slideIdx: concept.slideIdx ?? null,
-        model: generated.model,
+        model: image.model,
         monochrome: imageGen.monochrome,
         style,
-        cutout,
+        cutout: image.cutout,
+        popColor: image.popColor,
         batch,
-      };
-      saveAsset(
-        out,
-        'candidate',
-        { postId, extraMeta: { ...meta } },
-        { width: 1080, height: 1350 },
-        cutout ? { ext: 'png', mime: 'image/png' } : { ext: 'jpg', mime: 'image/jpeg' },
-      );
+      });
       summary.images++;
     } catch (err) {
       summary.failed++;
       logger.warn({ postId, err: String(err).slice(0, 200) }, 'agent visuel : concept non généré');
+    }
+  }
+
+  // --- 4. Série d'objets cohérents (coins des slides) -----------------------
+  const set = plan.objectSet;
+  if (set && counts.images >= 2 && !imageGen.monochrome) {
+    const style: ImageStyle = imageGen.style === 'full' ? 'objets' : set.style;
+    let first: { base64: string; mime: string } | null = null;
+    for (const [i, object] of set.objects.slice(0, 4).entries()) {
+      try {
+        // Le 1er objet suit la référence de style ; les suivants prennent le 1er pour référence (même série)
+        const reference = first ?? referenceFor(style);
+        const image = await generateStyledImage(
+          promptFor(object, style, { hasReference: Boolean(reference), seriesOf: first ? set.label : undefined }),
+          { style, quality: imageGen.quality, reference, monochrome: false, requestedPop: popColor },
+        );
+        if (!first) first = { base64: image.raw.toString('base64'), mime: 'image/jpeg' };
+        store(image, {
+          origin: 'image',
+          label: `${set.label} · ${i + 1}/${Math.min(4, set.objects.length)}`,
+          prompt: object,
+          slideIdx: null,
+          model: image.model,
+          monochrome: false,
+          style,
+          cutout: image.cutout,
+          set: set.label,
+          setIdx: i,
+          batch,
+        });
+        summary.images++;
+      } catch (err) {
+        summary.failed++;
+        logger.warn({ postId, err: String(err).slice(0, 200) }, "agent visuel : objet de la série non généré");
+      }
     }
   }
 

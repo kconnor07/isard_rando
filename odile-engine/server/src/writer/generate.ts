@@ -18,6 +18,7 @@ import {
   getTone,
 } from '../db/settingsRepo.js';
 import { completeJson } from '../llm/router.js';
+import { ICON_IDS } from '../render/icons.js';
 import { nextShortlistedItem } from '../scorer/shortlist.js';
 import { createLink } from '../shortener/index.js';
 import { toneToPrompt } from './tone.js';
@@ -189,7 +190,13 @@ CONTRAINTES :
 - hashtags : 5 à 8, ciblés PME/automatisation/IA, sans doublon avec le texte.
 - hook : reprend le titre de la slide 1 (pour l'objet de l'email de validation).
 - screenshotUrl : URL réelle de l'outil/du site à capturer (celle de l'actu ou de l'outil cité), sinon null.
-- Chaque slide : title ≤ 9 mots, body ≤ 2 phrases, bullets ≤ 4 items courts.`;
+- Chaque slide : title ≤ 9 mots, body ≤ 2 phrases, bullets ≤ 4 items courts.
+- Mise en page (facultatif, quand ça sert le message) : "icon" = une icône affichée dans un badge rond
+  au-dessus du titre, parmi : ${ICON_IDS.join(', ')} ; "subtitle" = un sous-titre sur deux tons,
+  la partie voilée puis le mot plein séparés par « | » (ex. « le tueur silencieux des | conversions »),
+  idéal quand le titre est UN mot fort ; "ctaLabel" sur une slide de contenu ou de chiffre = un bouton
+  court (≤ 6 mots). Dans "body", **gras** met en valeur la fin d'une phrase (ex. « des TPE perdent des devis
+  **faute de réponse.** »).`;
 
   const { value: generated } = await completeJson<GeneratedPost>(
     { task: 'writing', tier: 'best', system: WRITER_SYSTEM, prompt, maxTokens: 16000 },

@@ -56,30 +56,43 @@ export function styleForArchetype(archetypeId?: string | null): ImageStyle {
 }
 
 const NO_TEXT =
-  'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons; any hue outside the palette. The image contains no writing of any kind.';
+  'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons; any hue outside the palette (and the signature colour, if one is given). The image contains no writing of any kind.';
 
-/** Guide de style d'un mode, dans la palette donnée. */
-export function styleGuide(style: ImageStyle, p: ThemePalette): string {
+/**
+ * Fond des objets à détourer : gris neutre 50 %, sans lien avec la palette.
+ * Le détourage local sépare mal un objet sombre d'un fond sombre ; le gris
+ * moyen contraste avec les objets clairs comme sombres et ne teinte pas les
+ * reflets (contrairement à un vert chroma).
+ */
+export const CUTOUT_BACKGROUND = '#7f7f7f';
+
+/** Guide de style d'un mode, dans la palette donnée (+ couleur signature éventuelle). */
+export function styleGuide(style: ImageStyle, p: ThemePalette, pop?: string | null): string {
   const dark = isLightHex(p.textColor); // texte clair ⇒ fond sombre
   const atmosphere = dark ? 'dark cosmic or deep studio atmosphere' : 'bright, airy high-key atmosphere';
   switch (style) {
     case 'full':
-      return `Premium social media key visual (no text, no captions anywhere), cinematic photorealistic quality, full-frame scene, ${atmosphere}.
-COLOR PALETTE (strict): background from ${p.bg1} to ${p.bg2}, ${p.accent} as the ONLY accent color — rim lights, glows, atmosphere and light trails — plus neutral white highlights.
-COMPOSITION: one hero subject in the upper two thirds of the frame, seen from behind or in three-quarter view, a vast environment around it (space, horizon, haze); the lower third is empty — plain ${dark ? 'dark' : 'light'} atmosphere only, no objects, no ground details, no writing.
+      return `Premium social media key visual (no text, no captions anywhere), cinematic photorealistic quality, full-frame scene, ${atmosphere}, vivid and punchy colours, deep blacks, crisp highlights.
+COLOR PALETTE (strict): background from ${p.bg1} to ${p.bg2}, ${p.accent} for rim lights, glows, atmosphere and light trails, plus neutral white highlights.${
+        pop
+          ? `
+SIGNATURE COLOUR: the hero subject carries ONE vivid, highly saturated signature colour, ${pop} (its garment, cape, shell, glow or material), strongly lit so it pops against the palette. Nothing else in the image uses that colour.`
+          : ''
+      }
+COMPOSITION: one hero subject in the upper two thirds of the frame, fairly small (25–40 % of the frame height), seen from behind or in three-quarter view, a vast environment around it (space, horizon glow at 55–65 % of the height, haze); the lower third is empty — plain ${dark ? 'dark' : 'light'} atmosphere only, no objects, no ground details, no writing.
 LIGHTING: strong contrast, dramatic rim light in ${p.accent}, volumetric haze, ${dark ? 'deep shadows' : 'soft shadows'}, ultra sharp subject, faint film grain.
 EDGES: all four edges of the frame fade smoothly into ${p.bg1} — no bright elements touching the borders — so the image melts into the layout.
 ${NO_TEXT}`;
     case 'objets':
       return `Premium 3D product-style render of a single object, made to be cut out.
-BACKGROUND (strict): perfectly uniform, flat, solid ${p.bg1} — no gradient, no floor, no cast shadow on the background, no environment, nothing else in the frame.
-OBJECT: glossy 3D materials (glass, chrome, polished metal, ceramic) tinted with ${p.accent} and ${p.bg2}, soft studio reflections, slightly floating and tilted, centered, entirely inside the frame with a generous margin all around, clean sharp silhouette.
+BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment, nothing else in the frame.
+OBJECT: glossy 3D materials (glass, chrome, polished metal, ceramic) tinted with ${p.accent} and ${p.bg2}${pop ? `, with a discreet ${pop} highlight` : ''}, soft studio reflections, slightly floating and tilted, centered, entirely inside the frame with a generous margin all around (nothing touches the borders), clean sharp silhouette.
 LIGHTING: soft studio key light plus a ${p.accent} rim light, ${dark ? 'deep contrast' : 'gentle contrast'}, ultra sharp, faint film grain.
 ${NO_TEXT}`;
     case 'chrome':
       return `Premium 3D render of a single symbolic object in liquid chrome and iridescent glass, made to be cut out.
-OBJECT: mirror chrome and thick glass with refractions, dispersion and ${p.accent} / ${p.bg2} iridescent reflections, hyper detailed, ultra sharp, slightly tilted, centered, entirely inside the frame with a generous margin all around, clean sharp silhouette.
-BACKGROUND (strict): perfectly uniform, flat, solid ${p.bg1} — no glow, no gradient, no floor, no cast shadow on the background, no environment, nothing else in the frame.
+OBJECT: mirror chrome and thick glass with refractions, dispersion and ${p.accent} / ${p.bg2}${pop ? ` / ${pop}` : ''} iridescent reflections, hyper detailed, ultra sharp, slightly tilted, centered, entirely inside the frame with a generous margin all around (nothing touches the borders), clean sharp silhouette.
+BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no glow, no gradient, no floor, no cast shadow on the background, no vignette, no environment, nothing else in the frame.
 LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highlights, ${dark ? 'high contrast' : 'gentle contrast'}, faint film grain.
 ${NO_TEXT}`;
   }
@@ -126,6 +139,10 @@ export interface ImagePromptArgs {
   hasReference?: boolean;
   /** consignes propres au style (réglages) */
   styleSpecificNotes?: string;
+  /** couleur signature vive portée par le sujet (plein cadre) ou en reflet (objets) */
+  popColor?: string | null;
+  /** série d'objets : même matière, même lumière que l'image de référence (le 1er objet) */
+  seriesOf?: string;
 }
 
 /** Assemble le prompt final envoyé au générateur d'images. */
@@ -135,14 +152,16 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
   const light = !isLightHex(palette.textColor);
   const mono = args.monochrome || args.theme === 'encre-blanche';
   const style = args.style ?? styleForArchetype(args.archetypeId);
-  const guide = mono ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette);
+  const guide = mono ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, args.popColor);
   const parts = [
     `SUBJECT: ${args.idea}`,
     archetype?.imageComposition && style === 'full' ? `COMPOSITION TEMPLATE: ${archetype.imageComposition}` : null,
     guide,
-    args.hasReference
-      ? 'REFERENCE IMAGE: match its rendering quality, lighting, contrast, depth and mood — NOT its subject, characters or text. Keep the subject described above.'
-      : null,
+    args.seriesOf
+      ? `SAME SERIES: this object belongs to the same set as the reference image (« ${args.seriesOf} ») — identical material, finish, lighting, camera angle and background; only the object itself changes.`
+      : args.hasReference
+        ? 'REFERENCE IMAGE: match its rendering quality, lighting, contrast, depth and mood — NOT its subject, characters or text. Keep the subject described above.'
+        : null,
     args.styleNotes ? `BRAND ART DIRECTION NOTES: ${args.styleNotes}` : null,
     args.styleSpecificNotes ? `STYLE NOTES: ${args.styleSpecificNotes}` : null,
     args.instructions ? `SPECIFIC REVISION REQUEST: ${args.instructions}` : null,

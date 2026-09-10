@@ -7,13 +7,13 @@ import type { LibraryImageDto } from '../api/types';
 
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
-  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null };
+  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined> };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined>; modelByStyle?: Record<string, string | undefined> };
   visual_agent: { enabled: boolean; autoRun: boolean; screenshots: number; images: number };
   default_theme: string;
   default_format: string;
@@ -100,6 +100,7 @@ export default function Settings() {
   });
   const [form, setForm] = useState<AllSettings | null>(null);
   const [refPicker, setRefPicker] = useState<'full' | 'objets' | 'chrome' | null>(null);
+  const [avatarPicker, setAvatarPicker] = useState(false);
   const { data: library } = useQuery({
     queryKey: ['library'],
     queryFn: () => api.get<LibraryImageDto[]>('/api/library'),
@@ -197,6 +198,33 @@ export default function Settings() {
               </label>
               <span className="text-xs text-muted">PNG transparent recommandé — remplace le nom + handle sur chaque slide.</span>
             </div>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Chip auteur (templates avec « chip auteur ») — photo et ligne sous le nom</label>
+            <div className="flex flex-wrap items-center gap-3">
+              {form.brand.avatarAssetId ? (
+                <img src={`/api/assets/${form.brand.avatarAssetId}`} className="h-10 w-10 rounded-full object-cover" alt="avatar" />
+              ) : (
+                <span className="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-line text-[10px] text-muted">logo</span>
+              )}
+              <button className="btn-ghost !py-1.5 text-xs" onClick={() => setAvatarPicker(true)}>
+                {form.brand.avatarAssetId ? 'Changer la photo' : 'Choisir une photo (bibliothèque)'}
+              </button>
+              {form.brand.avatarAssetId && (
+                <button className="pill-btn" title="Revenir au logo" onClick={() => set('brand', { ...form.brand, avatarAssetId: null })}>×</button>
+              )}
+              <input className="input !w-auto min-w-[16rem] flex-1" placeholder="IA · Automatisation · PME (sinon le handle)"
+                value={form.brand.authorLine ?? ''} onChange={(e) => set('brand', { ...form.brand, authorLine: e.target.value })} />
+            </div>
+            <LibraryPicker
+              open={avatarPicker}
+              title="Photo de la chip auteur"
+              onClose={() => setAvatarPicker(false)}
+              onPick={(img) => {
+                set('brand', { ...form.brand, avatarAssetId: img.id });
+                setAvatarPicker(false);
+              }}
+            />
           </div>
         </div>
       </Section>
@@ -372,7 +400,29 @@ export default function Settings() {
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Modèle Freepik / Magnific par défaut (illustrations automatiques, agent visuel, studio)</label>
+            <label className="label">Modèle Freepik / Magnific par style (vide = modèle par défaut ci-dessous)</label>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {([
+                ['full', 'Plein cadre', 'Nano Banana Pro : fidélité, lumière, couleur signature'],
+                ['objets', 'Objets détourés', 'Flux.2 Klein : rapide, accepte l’objet précédent en référence (séries)'],
+                ['chrome', 'Chrome & verre', 'Nano Banana Pro ou Mystic : matières'],
+              ] as const).map(([key, label, hint]) => (
+                <div key={key}>
+                  <span className="mb-1 block text-xs font-semibold">{label}</span>
+                  <select className="input !py-1.5 text-xs" value={form.image_gen.modelByStyle?.[key] ?? ''}
+                    onChange={(e) => set('image_gen', { ...form.image_gen, modelByStyle: { ...form.image_gen.modelByStyle, [key]: e.target.value || undefined } })}>
+                    <option value="">— modèle par défaut —</option>
+                    {imageModels?.models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.label} · {m.speed}{m.recommended ? ' ★' : ''}</option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block text-[11px] text-muted">{hint}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Modèle Freepik / Magnific par défaut (studio, styles sans modèle dédié)</label>
             <select className="input" value={form.image_gen.model ?? 'nano-banana-pro-flash'}
               onChange={(e) => set('image_gen', { ...form.image_gen, model: e.target.value })}>
               {imageModels?.models.map((m) => (

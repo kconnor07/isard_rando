@@ -70,3 +70,37 @@ export async function fitCutout(png: Buffer, width = 1080, height = 1350): Promi
     .png()
     .toBuffer();
 }
+
+export interface CutoutStats {
+  /** part des pixels opaques (0-1) */
+  coverage: number;
+  /** l'objet touche un bord du cadre (rogné par la génération) */
+  touchesEdge: boolean;
+  ok: boolean;
+}
+
+/**
+ * Porte qualité d'un détourage : assez de matière (4 à 70 % du cadre) et un
+ * objet entier (aucun bord touché). Sinon on regénère une fois.
+ */
+export async function cutoutStats(png: Buffer): Promise<CutoutStats> {
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const w = info.width;
+  const h = info.height;
+  let opaque = 0;
+  const edge = { top: 0, bottom: 0, left: 0, right: 0 };
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const a = data[(y * w + x) * info.channels + 3]!;
+      if (a < 128) continue;
+      opaque++;
+      if (y < 2) edge.top++;
+      if (y >= h - 2) edge.bottom++;
+      if (x < 2) edge.left++;
+      if (x >= w - 2) edge.right++;
+    }
+  }
+  const coverage = opaque / (w * h);
+  const touchesEdge = Object.values(edge).some((n) => n > 8);
+  return { coverage, touchesEdge, ok: coverage >= 0.04 && coverage <= 0.7 && !touchesEdge };
+}

@@ -6,8 +6,8 @@ import { DEFAULTS, THEMES, type SlideContent } from '@odile/shared';
 import { db, schema } from '../../db/client.js';
 import { getBrand, getDefaultTheme, getImageGen, setSetting } from '../../db/settingsRepo.js';
 import { generateMockPlaceholderBuffer } from '../../imagegen/index.js';
-import { buildCustomThemeCss, customThemeId } from '../../render/custom-theme.js';
-import { buildSlideHtml, renderHtmlToPng } from '../../render/renderer.js';
+import { buildCustomThemeCss, customThemeId, slideStyleFor } from '../../render/custom-theme.js';
+import { assetDataUri, buildSlideHtml, renderHtmlToPng } from '../../render/renderer.js';
 import { THEME_LABELS } from '../../render/themes.js';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -28,10 +28,12 @@ export const templateSchema = z.object({
   titleWeight: z.number().int().min(400).max(900).default(800),
   titleCase: z.enum(['normal', 'upper']).default('normal'),
   titleScale: z.number().int().min(60).max(140).default(100),
-  accentStyle: z.enum(['serif', 'plain', 'underline', 'highlight']).default('serif'),
+  accentStyle: z.enum(['serif', 'plain', 'underline', 'highlight', 'argent']).default('serif'),
+  accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'aucun']),
+  decor: z.enum(['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun']),
+  bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z
     .enum(['haut-droite', 'haut-gauche', 'bas-droite', 'bas-gauche', 'centre'])
@@ -56,14 +58,29 @@ export const templateSchema = z.object({
   showLogo: z.boolean().default(true),
   showCounter: z.boolean().default(true),
   // Pack premium
-  titleGradient: z.enum(['aucun', 'accent', 'argent']).default('aucun'),
-  ctaStyle: z.enum(['verre', 'plein', 'degrade']).default('verre'),
+  titleGradient: z.enum(['aucun', 'accent', 'argent', 'horizontal']).default('aucun'),
+  ctaStyle: z.enum(['verre', 'plein', 'degrade', 'chevron']).default('verre'),
+  ctaArrow: z.enum(['droite', 'haut-droite', 'aucune']).default('droite'),
+  bigNumberWeight: z.union([z.literal(300), z.literal(500), z.literal(900)]).default(900),
   showAuthor: z.boolean().default(false),
+  showVerifiedBadge: z.boolean().default(false),
+  brandPosition: z.enum(['bas', 'bas-centre', 'haut-centre']).default('bas'),
   floatAssetId1: z.string().max(30).nullable().optional(),
   floatAssetId2: z.string().max(30).nullable().optional(),
+  floatAssetId3: z.string().max(30).nullable().optional(),
+  floatAssetId4: z.string().max(30).nullable().optional(),
   floatSize: z.number().int().min(10).max(60).default(30),
-  floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes']).default('coins'),
+  floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes', '4-coins']).default('coins'),
+  floatBleed: z.boolean().default(true),
+  floatTilt: z.number().int().min(0).max(30).default(12),
+  // Illustration
   imageStyle: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
+  heroGrade: z.enum(['aucun', 'vif', 'teinte', 'doux']).default('vif'),
+  heroPlacement: z.enum(['centre', 'haut', 'droite', 'gauche']).default('centre'),
+  heroSize: z.number().int().min(60).max(140).default(100),
+  heroGlow: z.boolean().default(true),
+  popColor: z.union([z.literal('auto'), z.literal('aucune'), z.string().regex(HEX)]).default('auto'),
+  accentFromImage: z.boolean().default(true),
 });
 type TemplateInput = z.infer<typeof templateSchema>;
 
@@ -75,6 +92,9 @@ function toRow(data: TemplateInput) {
     secondary: data.secondary ?? null,
     floatAssetId1: data.floatAssetId1 ?? null,
     floatAssetId2: data.floatAssetId2 ?? null,
+    floatAssetId3: data.floatAssetId3 ?? null,
+    floatAssetId4: data.floatAssetId4 ?? null,
+    bgTop: data.bgTop ?? null,
   };
 }
 
@@ -98,20 +118,26 @@ const PREVIEW_SLIDES = {
     accentWord: '90 secondes',
     body: "L'IA qui répond à vos prospects avant vos concurrents.",
   },
+  objet: {
+    kind: 'hook',
+    title: 'Devis Express',
+    accentWord: 'Express',
+    body: 'Intégré à votre outil de gestion, **signé en 90 secondes**.',
+  },
   value_prop: {
     kind: 'value_prop',
-    badge: 'APERÇU',
-    title: 'Vos devis en 90 secondes',
-    accentWord: '90 secondes',
-    body: 'Un aperçu de votre template avec un vrai texte, pour juger des contrastes.',
-    bigNumber: '+27%',
+    title: 'des TPE perdent des devis faute de réponse.',
+    accentWord: 'perdent',
+    bigNumber: '87%',
+    ctaLabel: 'Automatisez vos devis',
   },
   content: {
     kind: 'content',
-    badge: 'LA SOLUTION',
-    title: "L'IA rédige, vous validez",
-    accentWord: 'validez',
-    bullets: ['Décrivez le besoin en 2 phrases', "L'IA génère le devis chiffré", 'Vous relisez et envoyez'],
+    icon: 'chrono',
+    title: 'Latence',
+    subtitle: 'le tueur silencieux des | conversions',
+    body: 'Des millisecondes qui décident si vous vendez… ou non.',
+    ctaLabel: "Voyez l'impact réel sur votre CA",
   },
   notifications: {
     kind: 'notifications',
@@ -133,8 +159,26 @@ const PREVIEW_SLIDES = {
 } satisfies Record<string, SlideContent>;
 type PreviewKind = keyof typeof PREVIEW_SLIDES;
 const previewSchema = templateSchema.extend({
-  kind: z.enum(['hook', 'value_prop', 'content', 'notifications', 'cta']).default('value_prop'),
+  kind: z.enum(['hook', 'objet', 'value_prop', 'content', 'notifications', 'cta']).default('value_prop'),
 });
+
+let previewObjectCache: string | null = null;
+/** Objet détouré témoin (sphère de verre dessinée par sharp) pour l'aperçu du placement. */
+async function previewObjectDataUri(accent: string): Promise<string> {
+  if (previewObjectCache) return previewObjectCache;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350">
+  <defs>
+    <radialGradient id="s" cx="0.38" cy="0.32" r="0.7"><stop offset="0" stop-color="#ffffff"/><stop offset="0.25" stop-color="${accent}"/><stop offset="0.7" stop-color="#101428"/><stop offset="1" stop-color="#05060d"/></radialGradient>
+    <radialGradient id="h" cx="0.35" cy="0.28" r="0.3"><stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="540" cy="560" r="330" fill="url(#s)"/>
+  <circle cx="540" cy="560" r="330" fill="url(#h)"/>
+  <circle cx="540" cy="560" r="326" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="3"/>
+</svg>`;
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  previewObjectCache = `data:image/png;base64,${png.toString('base64')}`;
+  return previewObjectCache;
+}
 
 let previewHeroCache: string | null = null;
 /** Illustration témoin (placeholder de marque, en N&B si le réglage l'impose). */
@@ -237,20 +281,28 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
     const slide = PREVIEW_SLIDES[kind as PreviewKind];
     const monochrome = getImageGen().monochrome;
     const withHero = kind === 'hook';
+    const withObject = kind === 'objet';
+    const brand = getBrand();
+    const style = slideStyleFor(draft);
     const html = buildSlideHtml({
       theme: 'odile-nuit',
       kind: slide.kind,
       content: slide,
       format: 'carousel',
-      brand: getBrand(),
-      slideNum: kind === 'hook' ? 1 : kind === 'cta' ? 6 : 3,
+      brand,
+      slideNum: kind === 'hook' || kind === 'objet' ? 1 : kind === 'cta' ? 6 : 3,
       slideTotal: 6,
       keyword: kind === 'cta' ? 'OUTIL' : null,
-      heroDataUri: withHero ? await previewHeroDataUri(monochrome) : null,
+      heroDataUri: withHero ? await previewHeroDataUri(monochrome) : withObject ? await previewObjectDataUri(draft.accent) : null,
+      heroContain: withObject,
       monochromeHero: monochrome,
       themeCssOverride: buildCustomThemeCss(draft),
+      slideClasses: style.classes,
+      slideStyle: style.style,
+      logoDataUri: assetDataUri(brand.logoAssetId),
+      avatarDataUri: assetDataUri(brand.avatarAssetId),
     });
-    const png = await renderHtmlToPng(html, { width: 1080, height: 1350 });
+    const png = await renderHtmlToPng(html, { width: 1080, height: 1350 }, { scale: 1 });
     const small = await sharp(png).resize(432, 540).jpeg({ quality: 82 }).toBuffer();
     return reply.type('image/jpeg').send(small);
   });

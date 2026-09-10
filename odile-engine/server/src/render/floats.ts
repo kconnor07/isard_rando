@@ -2,41 +2,74 @@
  * Objets flottants : détourages posés en périphérie des slides (pièces 3D,
  * produits…). CSS partagé entre les templates maison (objets du template) et
  * le rendu d'un post (objets choisis par l'agent visuel pour ce post).
+ * Jusqu'à 4 emplacements ; « 4-coins » les pose aux quatre angles.
  */
 
-export type FloatLayout = 'coins' | 'haut' | 'bas' | 'cotes';
+export type FloatLayout = 'coins' | 'haut' | 'bas' | 'cotes' | '4-coins';
 
-const ANCHORS: Record<FloatLayout, [string, string]> = {
-  coins: ['top: -4%; left: -9%; transform: rotate(-14deg);', 'bottom: -3%; right: -9%; transform: rotate(12deg);'],
-  haut: ['top: -5%; left: -8%; transform: rotate(-10deg);', 'top: -5%; right: -8%; transform: rotate(10deg);'],
-  bas: ['bottom: -4%; left: -8%; transform: rotate(10deg);', 'bottom: -4%; right: -8%; transform: rotate(-10deg);'],
-  cotes: ['top: 34%; left: -12%; transform: rotate(-8deg);', 'top: 34%; right: -12%; transform: rotate(8deg);'],
+interface Anchor {
+  /** côté horizontal et vertical de l'ancrage */
+  h: 'left' | 'right';
+  v: 'top' | 'bottom';
+  /** décalages (en % de la largeur) quand l'objet reste dans le cadre / déborde */
+  inset: [number, number];
+  bleed: [number, number];
+  /** sens de l'inclinaison */
+  tilt: 1 | -1;
+  /** miroir horizontal (variété quand un même objet est réutilisé) */
+  flip?: boolean;
+}
+
+const TL: Anchor = { h: 'left', v: 'top', inset: [6, 4], bleed: [-9, -5], tilt: -1 };
+const TR: Anchor = { h: 'right', v: 'top', inset: [6, 4], bleed: [-9, -5], tilt: 1, flip: true };
+const BL: Anchor = { h: 'left', v: 'bottom', inset: [6, 5], bleed: [-9, -5], tilt: 1, flip: true };
+const BR: Anchor = { h: 'right', v: 'bottom', inset: [6, 5], bleed: [-9, -5], tilt: -1 };
+const ML: Anchor = { h: 'left', v: 'top', inset: [-2, 34], bleed: [-12, 34], tilt: -1 };
+const MR: Anchor = { h: 'right', v: 'top', inset: [-2, 34], bleed: [-12, 34], tilt: 1, flip: true };
+
+const LAYOUTS: Record<FloatLayout, Anchor[]> = {
+  coins: [TL, BR, TR, BL],
+  haut: [TL, TR, BL, BR],
+  bas: [BL, BR, TL, TR],
+  cotes: [ML, MR, TL, BR],
+  '4-coins': [TL, TR, BL, BR],
 };
 /** Avec la chip auteur en haut à gauche, on libère ce coin. */
-const MIRRORED: Partial<Record<FloatLayout, [string, string]>> = {
-  coins: ['top: -4%; right: -9%; transform: rotate(14deg);', 'bottom: -3%; left: -9%; transform: rotate(-12deg);'],
-  haut: ['top: 16%; right: -10%; transform: rotate(10deg);', 'top: 16%; left: -10%; transform: rotate(-10deg); display: none;'],
+const MIRRORED: Partial<Record<FloatLayout, Anchor[]>> = {
+  coins: [TR, BL, BR, TL],
+  haut: [TR, BR, BL, TL],
+  '4-coins': [TR, BL, BR, { ...TL, inset: [6, 14], bleed: [-9, 12] }],
 };
 
-export function floatCss(opts: {
-  uris: [string | null, string | null];
+export interface FloatCssOpts {
+  uris: (string | null)[];
   size: number;
   layout: FloatLayout;
   mirrored?: boolean;
   darkTheme?: boolean;
-}): string {
-  const anchors = (opts.mirrored ? MIRRORED[opts.layout] : undefined) ?? ANCHORS[opts.layout] ?? ANCHORS.coins;
+  /** les objets débordent du cadre */
+  bleed?: boolean;
+  /** inclinaison en degrés, 0-30 */
+  tilt?: number;
+}
+
+export function floatCss(opts: FloatCssOpts): string {
+  const anchors = (opts.mirrored ? MIRRORED[opts.layout] : undefined) ?? LAYOUTS[opts.layout] ?? LAYOUTS.coins;
   const width = Math.round((1080 * Math.min(60, Math.max(10, opts.size))) / 100);
+  const tilt = Math.min(30, Math.max(0, opts.tilt ?? 12));
   const shadow = opts.darkTheme === false
     ? 'drop-shadow(0 24px 36px rgba(11, 11, 14, 0.28))'
     : 'drop-shadow(0 34px 44px rgba(0, 0, 0, 0.55))';
   return opts.uris
-    .map((uri, i) =>
-      uri
-        ? `.float-${i + 1} { display: block; ${anchors[i]} width: ${width}px; height: ${width}px;
+    .slice(0, 4)
+    .map((uri, i) => {
+      const a = anchors[i];
+      if (!uri || !a) return '';
+      const [x, y] = opts.bleed ? a.bleed : a.inset;
+      const transform = `rotate(${a.tilt * tilt}deg)${a.flip ? ' scaleX(-1)' : ''}`;
+      return `.float-${i + 1} { display: block; ${a.h}: ${x}%; ${a.v}: ${y}%; width: ${width}px; height: ${width}px; transform: ${transform};
   background-image: url(${uri}); background-size: contain; background-position: center; background-repeat: no-repeat;
-  filter: ${shadow}; }`
-        : '',
-    )
+  filter: ${shadow}; }`;
+    })
     .join('\n');
 }

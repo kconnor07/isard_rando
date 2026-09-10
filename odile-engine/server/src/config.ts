@@ -52,6 +52,8 @@ const envSchema = z.object({
 
   /** chemin explicite du binaire Chromium (sinon auto-détection) */
   CHROMIUM_PATH: z.string().optional(),
+  /** suréchantillonnage du rendu des slides (2 = rendu en 2160×2700 puis réduit : typographie et dégradés plus nets) */
+  RENDER_SCALE: z.coerce.number().min(1).max(3).default(2),
   /** désactive le lancement des crons (ex: conteneur de test) */
   DISABLE_SCHEDULER: z.coerce.boolean().default(false),
 });

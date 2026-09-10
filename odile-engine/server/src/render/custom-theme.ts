@@ -4,6 +4,7 @@ import { THEMES } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { isLightHex, rgba } from '../lib/color.js';
 import { floatCss } from './floats.js';
+import type { VisualOverrides } from './renderer.js';
 
 export type CustomTheme = typeof schema.customThemes.$inferSelect;
 
@@ -78,6 +79,23 @@ const POSITIONS: Record<CustomTheme['decorPosition'], { d1: string; d2: string; 
     angles: [180, 0],
   },
 };
+
+/** Disques nets (décor « disques ») : ancrages en px, canevas 1080×1350 ; les arcs sont concentriques. */
+const DISC_SIZE = 1180;
+const ARC_GROW = 190;
+type DiscAnchor = { top?: number; bottom?: number; left?: number; right?: number };
+const DISC_POS: Record<CustomTheme['decorPosition'], [DiscAnchor, DiscAnchor | null]> = {
+  'haut-droite': [{ top: -760, right: -560 }, { bottom: -700, left: -560 }],
+  'haut-gauche': [{ top: -760, left: -560 }, { bottom: -700, right: -560 }],
+  'bas-droite': [{ bottom: -760, right: -560 }, { top: -700, left: -560 }],
+  'bas-gauche': [{ bottom: -760, left: -560 }, { top: -700, right: -560 }],
+  centre: [{ top: -980, left: -50 }, null],
+};
+const COLUMN_X: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 60, 'haut-gauche': 40, 'bas-droite': 60, 'bas-gauche': 40, centre: 50 };
+const COLUMN_Y: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 38, 'haut-gauche': 38, 'bas-droite': 62, 'bas-gauche': 62, centre: 48 };
+function discCss(a: DiscAnchor, grow = 0): string {
+  return (Object.entries(a) as [string, number][]).map(([k, v]) => `${k}: ${v - grow}px;`).join(' ');
+}
 
 const RADII: Record<CustomTheme['radius'], { pill: string; card: string }> = {
   pill: { pill: '999px', card: '24px' },
@@ -221,7 +239,64 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 10%, transparent 80%);
   mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 10%, transparent 80%);
 }`
-                : `
+                : theme.decor === 'disques'
+                  ? `
+/* Disques nets à bord lumineux + arcs fins concentriques (référence « Latência ») */
+.decor-1, .decor-2 {
+  position: absolute; z-index: 2; width: ${DISC_SIZE}px; height: ${DISC_SIZE}px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, ${theme.bg1} 0%, ${theme.bg2} 45%, ${rgba(accent, 0.75)} 68%, ${accent} 84%, ${rgba('#ffffff', 0.75)} 94%, #ffffff 100%);
+  box-shadow: 0 0 40px 6px ${rgba(accent, 0.55)}, 0 0 160px 60px ${rgba(accent, 0.32)};
+}
+.decor-1 { ${discCss(DISC_POS[theme.decorPosition][0])} }
+.decor-2 { ${DISC_POS[theme.decorPosition][1] ? discCss(DISC_POS[theme.decorPosition][1]!) : 'display: none;'} }
+/* Arcs fins concentriques aux disques (pseudo-éléments d'un calque plein cadre) */
+.decor-3 { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.decor-3::before, .decor-3::after {
+  content: ''; position: absolute; width: ${DISC_SIZE + 2 * ARC_GROW}px; height: ${DISC_SIZE + 2 * ARC_GROW}px; border-radius: 50%;
+  border: 1.5px solid ${rgba(theme.textColor, 0.34)};
+}
+.decor-3::before { ${discCss(DISC_POS[theme.decorPosition][0], ARC_GROW)} }
+.decor-3::after { ${DISC_POS[theme.decorPosition][1] ? discCss(DISC_POS[theme.decorPosition][1]!, ARC_GROW) : 'display: none;'} }
+/* Grille de points fine, fondue vers les bords */
+.slide::before {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-image: radial-gradient(${rgba(accent, 0.6)} 1.7px, transparent 2px);
+  background-size: 21px 21px;
+  -webkit-mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 25%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 25%, transparent 100%);
+}`
+                  : theme.decor === 'colonne'
+                    ? `
+/* Colonne de lumière verticale + fines stries (référence « System Token ») */
+.decor-1 {
+  position: absolute; z-index: 2; left: 50%; top: -8%; width: 1000px; height: 116%; transform: translateX(-50%);
+  background: radial-gradient(ellipse 46% 58% at ${COLUMN_X[theme.decorPosition]}% ${COLUMN_Y[theme.decorPosition]}%,
+    ${rgba('#ffffff', 0.35)} 0%, ${accent} 22%, ${rgba(accent, 0.75)} 40%, ${rgba(secondary, 0.55)} 56%, ${rgba(theme.bg2, 0.6)} 74%, transparent 100%);
+}
+.decor-2 {
+  position: absolute; inset: 0; z-index: 2;
+  background: repeating-linear-gradient(90deg, transparent 0 52px, ${rgba(theme.textColor, 0.035)} 52px 54px);
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000 20%, transparent 90%);
+  mask-image: radial-gradient(ellipse 60% 70% at 50% 45%, #000 20%, transparent 90%);
+}
+.decor-3 { display: none; }`
+                    : theme.decor === 'anneaux-larges'
+                      ? `
+/* Grands anneaux fins centrés derrière le texte (référence « 87 % ») */
+.decor-1 {
+  position: absolute; inset: -30%; z-index: 2;
+  background: repeating-radial-gradient(circle at 50% 44%, transparent 0 168px, ${rgba(theme.textColor, 0.075)} 168px 170px);
+  -webkit-mask-image: radial-gradient(circle at 50% 44%, #000 20%, transparent 60%);
+  mask-image: radial-gradient(circle at 50% 44%, #000 20%, transparent 60%);
+}
+.decor-2 {
+  position: absolute; z-index: 2; ${pos.halo}
+  width: 900px; height: 900px; border-radius: 50%;
+  background: radial-gradient(circle closest-side, ${rgba(accent, 0.18)} 0%, transparent 70%);
+  filter: blur(40px);
+}
+.decor-3 { display: none; }`
+                      : `
 .decor-1, .decor-2, .decor-3 { display: none; }`;
 
   // --- Typographie -------------------------------------------------------
@@ -236,7 +311,12 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
           ? `.title .accent { font-family: inherit; font-style: normal; font-weight: inherit; letter-spacing: inherit;
   color: ${theme.textColor}; background: ${rgba(accent, 0.32)}; padding: 0 0.1em; border-radius: 0.12em;
   -webkit-box-decoration-break: clone; box-decoration-break: clone; }`
-          : '';
+          : theme.accentStyle === 'argent'
+            ? `.title .accent { font-family: inherit; font-style: normal; font-weight: inherit; letter-spacing: inherit;
+  background: linear-gradient(180deg, ${theme.textColor} 0%, ${rgba(theme.textColor, 0.78)} 55%, ${rgba(theme.textColor, 0.42)} 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }`
+            : '';
+  const accentLine = theme.accentLine ? `.title .accent { display: block; }` : '';
 
   const align =
     theme.align === 'left'
@@ -293,7 +373,10 @@ ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
 .title .accent { color: ${accent}; }`
       : theme.titleGradient === 'argent'
         ? `.title { background: linear-gradient(180deg, ${theme.textColor} 20%, ${rgba(theme.textColor, 0.45)} 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }`
-        : '';
+        : theme.titleGradient === 'horizontal'
+          ? `.title { background: linear-gradient(90deg, ${theme.textColor} 0%, ${theme.textColor} 28%, ${secondary} 62%, ${accent} 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.title .accent { color: ${accent}; }`
+          : '';
   const ctaInk = isLightHex(accent) ? '#0b0b0e' : '#ffffff';
   const ctaStyle =
     theme.ctaStyle === 'plein'
@@ -301,6 +384,8 @@ ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
       : theme.ctaStyle === 'degrade'
         ? `.cta-button, .keyword-chip { background: linear-gradient(90deg, #ffffff 0%, ${accent} 100%); border-color: transparent; color: #0b0b0e; backdrop-filter: none; box-shadow: 0 24px 60px -24px ${rgba(accent, 0.7)}; }`
         : '';
+  const bigWeight = [300, 500, 900].includes(theme.bigNumberWeight) ? theme.bigNumberWeight : 900;
+  const bigNumber = `:root { --big-weight: ${bigWeight}; }${bigWeight === 300 ? '\n.big-number { font-size: 320px; letter-spacing: -0.05em; }' : ''}`;
   const pad = PADDINGS[theme.padding] ?? PADDINGS.normal;
   const author = theme.showAuthor
     ? `.author-chip { display: inline-flex; }
@@ -308,11 +393,18 @@ ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
 .author-check { color: ${accent}; }`
     : '';
   const floats = floatCss({
-    uris: [assetDataUri(theme.floatAssetId1), assetDataUri(theme.floatAssetId2)],
+    uris: [
+      assetDataUri(theme.floatAssetId1),
+      assetDataUri(theme.floatAssetId2),
+      assetDataUri(theme.floatAssetId3),
+      assetDataUri(theme.floatAssetId4),
+    ],
     size: theme.floatSize,
     layout: theme.floatLayout,
     mirrored: theme.showAuthor,
     darkTheme: light,
+    bleed: theme.floatBleed,
+    tilt: theme.floatTilt,
   });
 
   return `/* Template maison « ${theme.name.replace(/\*\//g, '')} » — CSS généré */
@@ -330,7 +422,7 @@ ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
 
 .bg {
   position: absolute; inset: 0; z-index: 1;
-  background: linear-gradient(${clamp(theme.gradientAngle, 0, 360)}deg, ${theme.bg1} 0%, ${theme.bg2} 100%);
+  background: linear-gradient(${clamp(theme.gradientAngle, 0, 360)}deg, ${theme.bgTop ? `${theme.bgTop} 0%, ${theme.bg1} 15%` : `${theme.bg1} 0%`}, ${theme.bg2} 100%);
 }${bgLayer}${vignetteLayer}
 ${decor}
 .decor-1, .decor-2, .decor-3 { opacity: ${decorOpacity}; }
@@ -345,8 +437,10 @@ ${decor}
 }
 .kind-content .title, .kind-screenshot .title { font-size: ${Math.round(88 * titleScale)}px; }
 ${accentStyle}
+${accentLine}
 ${titleGradient}
 ${align}
+${bigNumber}
 .body, .bullets li { color: ${rgba(theme.textColor, 0.72)}; }
 .annotation { color: ${rgba(theme.textColor, 0.9)}; }
 .big-number { background: linear-gradient(135deg, ${theme.textColor} 10%, ${secondary} 90%); -webkit-background-clip: text; background-clip: text; }
@@ -397,4 +491,27 @@ ${
 }
 .grain { opacity: ${grain.toFixed(3)}; ${light ? '' : 'mix-blend-mode: multiply;'} }
 `;
+}
+
+
+/** Indicateurs de rendu portés par les classes de la slide (voile, CTA, placement de l'objet, marque…). */
+export interface SlideStyle {
+  classes: string[];
+  /** variables CSS inline (échelle de l'objet détouré) */
+  style: string;
+}
+
+export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverrides = {}): SlideStyle {
+  const placement = overrides.heroPlacement ?? theme?.heroPlacement ?? 'centre';
+  const size = clamp(overrides.heroSize ?? theme?.heroSize ?? 100, 60, 140) / 100;
+  const classes = [
+    theme?.ctaStyle === 'chevron' ? 'cta-chevron' : '',
+    `cta-arrow-${theme?.ctaArrow ?? 'droite'}`,
+    `grade-${theme?.heroGrade ?? 'vif'}`,
+    `hero-place-${placement}`,
+    (theme?.heroGlow ?? true) ? 'hero-glow-on' : '',
+    theme?.showVerifiedBadge ? 'verified-on' : '',
+    `brand-${theme?.brandPosition ?? 'bas'}`,
+  ].filter(Boolean);
+  return { classes, style: `--hero-scale: ${size.toFixed(2)};` };
 }

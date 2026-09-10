@@ -1,5 +1,8 @@
 <% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<% if (it.iconSvg) { %><div class="icon-badge"><%~ it.iconSvg %></div><% } %>
 <% if (it.content.bigNumber) { %><div class="big-number"><%= it.content.bigNumber %></div><% } %>
 <h2 class="title"><%~ it.titleHtml %></h2>
-<% if (it.content.body) { %><p class="body"><%= it.content.body %></p><% } %>
+<% if (it.subtitleHtml) { %><div class="subtitle"><%~ it.subtitleHtml %></div><% } %>
+<% if (it.content.body) { %><p class="body"><%~ it.bodyHtml %></p><% } %>
+<% if (it.content.ctaLabel) { %><div class="cta-button cta-inline"><%= it.content.ctaLabel %></div><% } %>
 <% if (it.content.footer) { %><p class="body" style="font-size:32px;opacity:0.75"><%= it.content.footer %></p><% } %>

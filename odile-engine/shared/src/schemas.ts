@@ -31,6 +31,10 @@ export const brandSettingsSchema = z.object({
   accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   tagline: z.string().max(200),
   logoAssetId: z.string().nullable().default(null),
+  /** photo / avatar de la chip auteur (asset de la bibliothèque) — sinon le logo */
+  avatarAssetId: z.string().nullable().default(null),
+  /** ligne sous le nom dans la chip auteur (« IA · Automatisation · PME ») — sinon le handle */
+  authorLine: z.string().max(60).default(''),
 });
 export type BrandSettings = z.infer<typeof brandSettingsSchema>;
 
@@ -109,6 +113,14 @@ export const imageGenSettingsSchema = z.object({
   provider: z.enum(['auto', 'gemini', 'freepik']).default('auto'),
   /** modèle Freepik/Magnific par défaut (catalogue `/api/images/models`) */
   model: z.string().max(60).default('nano-banana-pro-flash'),
+  /** modèle par style d'image (vide = modèle par défaut) */
+  modelByStyle: z
+    .object({
+      full: z.string().max(60).optional(),
+      objets: z.string().max(60).optional(),
+      chrome: z.string().max(60).optional(),
+    })
+    .default({}),
 });
 export type ImageGenSettings = z.infer<typeof imageGenSettingsSchema>;
 
@@ -146,7 +158,11 @@ export const slideContentSchema = z.object({
   /** petit texte au-dessus du titre (annotation manuscrite / badge) */
   annotation: z.string().max(80).optional(),
   badge: z.string().max(40).optional(),
+  /** icône (catalogue ICONS) affichée dans un badge rond au-dessus du titre */
+  icon: z.string().max(24).optional(),
   title: z.string().max(120),
+  /** sous-titre sous le titre, sur deux tons (« le tueur silencieux des | conversions ») */
+  subtitle: z.string().max(90).optional(),
   /** mot du titre à mettre en accent serif italique / couleur */
   accentWord: z.string().max(40).optional(),
   body: z.string().max(500).optional(),

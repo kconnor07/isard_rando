@@ -47,7 +47,18 @@ export interface PostDetailDto extends PostSummaryDto {
   reviews: ReviewDto[];
   clicks: number;
   /** objets flottants choisis pour ce post */
-  visualOverrides?: { float1?: string | null; float2?: string | null; floatSize?: number; floatLayout?: string };
+  visualOverrides?: {
+    float1?: string | null;
+    float2?: string | null;
+    float3?: string | null;
+    float4?: string | null;
+    floatSize?: number;
+    floatLayout?: string;
+    floatBleed?: boolean;
+    floatTilt?: number;
+    heroPlacement?: 'centre' | 'haut' | 'droite' | 'gauche' | null;
+    heroSize?: number | null;
+  };
 }
 
 export interface NewsDto {
@@ -120,6 +131,10 @@ export interface ImageModelsDto {
   references: { full?: string | null; objets?: string | null; chrome?: string | null };
   notesByStyle: { full?: string; objets?: string; chrome?: string };
   cutoutStyles: string[];
+  /** modèle par style (vide = modèle par défaut) */
+  modelByStyle: { full?: string; objets?: string; chrome?: string };
+  /** couleurs signature proposées */
+  popPresets: { id: string; hex: string; label: string }[];
   /** PUBLIC_URL en https : requis pour passer une référence aux modèles Google */
   publicHttps: boolean;
 }
@@ -140,5 +155,9 @@ export interface VisualCandidateDto {
   monochrome?: boolean;
   style?: 'full' | 'objets' | 'chrome';
   cutout?: boolean;
+  popColor?: string | null;
+  /** série d'objets cohérents */
+  set?: string;
+  setIdx?: number;
   batch: number;
 }

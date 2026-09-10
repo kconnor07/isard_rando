@@ -19,9 +19,11 @@ interface Draft {
   titleWeight: number;
   titleCase: 'normal' | 'upper';
   titleScale: number;
-  accentStyle: 'serif' | 'plain' | 'underline' | 'highlight';
+  accentStyle: 'serif' | 'plain' | 'underline' | 'highlight' | 'argent';
+  accentLine: boolean;
   align: 'auto' | 'left' | 'center';
-  decor: 'orbes' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'aucun';
+  decor: 'orbes' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges' | 'aucun';
+  bgTop: string | null;
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
   gradientAngle: number;
@@ -40,14 +42,28 @@ interface Draft {
   padding: 'serre' | 'normal' | 'aere';
   showLogo: boolean;
   showCounter: boolean;
-  titleGradient: 'aucun' | 'accent' | 'argent';
-  ctaStyle: 'verre' | 'plein' | 'degrade';
+  titleGradient: 'aucun' | 'accent' | 'argent' | 'horizontal';
+  ctaStyle: 'verre' | 'plein' | 'degrade' | 'chevron';
+  ctaArrow: 'droite' | 'haut-droite' | 'aucune';
+  bigNumberWeight: 300 | 500 | 900;
   showAuthor: boolean;
+  showVerifiedBadge: boolean;
+  brandPosition: 'bas' | 'bas-centre' | 'haut-centre';
   floatAssetId1: string | null;
   floatAssetId2: string | null;
+  floatAssetId3: string | null;
+  floatAssetId4: string | null;
   floatSize: number;
-  floatLayout: 'coins' | 'haut' | 'bas' | 'cotes';
+  floatLayout: 'coins' | 'haut' | 'bas' | 'cotes' | '4-coins';
+  floatBleed: boolean;
+  floatTilt: number;
   imageStyle: 'auto' | 'full' | 'objets' | 'chrome';
+  heroGrade: 'aucun' | 'vif' | 'teinte' | 'doux';
+  heroPlacement: 'centre' | 'haut' | 'droite' | 'gauche';
+  heroSize: number;
+  heroGlow: boolean;
+  popColor: string;
+  accentFromImage: boolean;
 }
 interface CustomTemplate extends Draft {
   id: string;
@@ -70,8 +86,10 @@ const BLANK: Draft = {
   titleCase: 'normal',
   titleScale: 100,
   accentStyle: 'serif',
+  accentLine: false,
   align: 'auto',
   decor: 'orbes',
+  bgTop: null,
   decorIntensity: 100,
   decorPosition: 'haut-droite',
   gradientAngle: 168,
@@ -92,13 +110,145 @@ const BLANK: Draft = {
   showCounter: true,
   titleGradient: 'aucun',
   ctaStyle: 'verre',
+  ctaArrow: 'droite',
+  bigNumberWeight: 900,
   showAuthor: false,
+  showVerifiedBadge: false,
+  brandPosition: 'bas',
   floatAssetId1: null,
   floatAssetId2: null,
+  floatAssetId3: null,
+  floatAssetId4: null,
   floatSize: 30,
   floatLayout: 'coins',
+  floatBleed: true,
+  floatTilt: 12,
   imageStyle: 'auto',
+  heroGrade: 'vif',
+  heroPlacement: 'centre',
+  heroSize: 100,
+  heroGlow: true,
+  popColor: 'auto',
+  accentFromImage: true,
 };
+
+/**
+ * Recettes signature : chaque recette reproduit une mise en page de référence
+ * (couche codée + style d'image), en un clic. Tout reste modifiable ensuite.
+ */
+const RECIPES: { id: string; label: string; hint: string; swatch: string; draft: Partial<Draft> }[] = [
+  {
+    id: 'signal',
+    label: 'Signal',
+    hint: 'Disques violets nets, arcs fins, badge icône, titre dégradé, bouton chevron — 100 % codé',
+    swatch: 'linear-gradient(150deg,#06050a,#4c1d95 55%,#c4b5fd)',
+    draft: {
+      accent: '#a78bfa',
+      secondary: '#7c3aed',
+      bg1: '#06050a',
+      bg2: '#0d0716',
+      decor: 'disques',
+      decorPosition: 'haut-gauche',
+      titleWeight: 700,
+      titleScale: 140,
+      titleGradient: 'horizontal',
+      accentStyle: 'plain',
+      align: 'center',
+      ctaStyle: 'chevron',
+      ctaArrow: 'aucune',
+      grainLevel: 25,
+      imageStyle: 'objets',
+      heroPlacement: 'centre',
+    },
+  },
+  {
+    id: 'pieces',
+    label: 'Pièces',
+    hint: 'Dégradé lavande → violet, anneaux, 4 objets aux coins, chiffre fin, bouton dégradé ↗, logo centré',
+    swatch: 'linear-gradient(180deg,#b9a8ec,#33195f 40%,#0f0722)',
+    draft: {
+      accent: '#a78bfa',
+      secondary: '#c4b5fd',
+      bg1: '#33195f',
+      bg2: '#0f0722',
+      bgTop: '#b9a8ec',
+      gradientAngle: 180,
+      decor: 'anneaux-larges',
+      titleWeight: 700,
+      accentStyle: 'plain',
+      align: 'center',
+      bigNumberWeight: 300,
+      ctaStyle: 'degrade',
+      ctaArrow: 'haut-droite',
+      brandPosition: 'bas-centre',
+      showCounter: false,
+      floatLayout: '4-coins',
+      floatBleed: true,
+      floatTilt: 14,
+      floatSize: 32,
+      imageStyle: 'objets',
+    },
+  },
+  {
+    id: 'chrome',
+    label: 'Chrome',
+    hint: 'Colonne de lumière bleue, objet chrome ancré en haut, titre deux lignes blanc / argent, logo en pilule',
+    swatch: 'linear-gradient(180deg,#02040f,#1a4fe8 45%,#02040f)',
+    draft: {
+      accent: '#2f83ff',
+      secondary: '#9aa3b8',
+      bg1: '#02040f',
+      bg2: '#061a4d',
+      decor: 'colonne',
+      decorPosition: 'centre',
+      titleWeight: 800,
+      titleScale: 120,
+      accentStyle: 'argent',
+      accentLine: true,
+      align: 'center',
+      ctaStyle: 'plein',
+      imageStyle: 'chrome',
+      heroPlacement: 'haut',
+      heroSize: 110,
+      heroGlow: true,
+      brandPosition: 'haut-centre',
+    },
+  },
+  {
+    id: 'horizon',
+    label: 'Horizon',
+    hint: 'Image plein cadre vive avec une couleur signature, chip auteur photo + badge vérifié, titre argent à gauche',
+    swatch: 'linear-gradient(160deg,#050510,#0a2a66 55%,#d9ee4a)',
+    draft: {
+      accent: '#0099ff',
+      secondary: '#8ecdff',
+      bg1: '#050510',
+      bg2: '#0a2a66',
+      decor: 'halo',
+      titleWeight: 500,
+      titleScale: 115,
+      titleGradient: 'argent',
+      accentStyle: 'serif',
+      align: 'left',
+      showAuthor: true,
+      showVerifiedBadge: true,
+      imageStyle: 'full',
+      heroGrade: 'vif',
+      popColor: 'auto',
+      accentFromImage: true,
+    },
+  },
+];
+
+const POP_PRESETS: { hex: string; label: string }[] = [
+  { hex: '#d9ee4a', label: 'Jaune-vert' },
+  { hex: '#ffb02e', label: 'Ambre' },
+  { hex: '#ff7a1a', label: 'Orange' },
+  { hex: '#ff6a3d', label: 'Corail' },
+  { hex: '#ff3fa4', label: 'Magenta' },
+  { hex: '#3ef2ff', label: 'Cyan' },
+  { hex: '#ff3b3b', label: 'Rouge' },
+];
 
 /** Points de départ : un clic charge la recette, tout reste modifiable. */
 const PRESETS: { label: string; swatch: string; draft: Partial<Draft> }[] = [
@@ -189,10 +339,14 @@ const DECOR_LABELS: Record<Draft['decor'], string> = {
   points: 'Halo + grille de points',
   anneaux: 'Anneaux concentriques',
   arcs: 'Arcs lumineux',
+  disques: 'Disques nets + arcs',
+  colonne: 'Colonne de lumière',
+  'anneaux-larges': 'Grands anneaux',
   aucun: 'Aucun décor',
 };
 const PREVIEW_KINDS: { id: string; label: string }[] = [
   { id: 'hook', label: 'Accroche' },
+  { id: 'objet', label: 'Objet' },
   { id: 'value_prop', label: 'Chiffre' },
   { id: 'content', label: 'Contenu' },
   { id: 'notifications', label: 'Notifs' },
@@ -482,9 +636,29 @@ export default function Templates() {
             <input className="input" value={draft.name} onChange={(e) => set('name', e.target.value)} />
           </div>
 
+          <div className="mb-3">
+            <label className="label !mb-1.5">Recettes signature — un clic règle tout, chaque paramètre reste modifiable en dessous</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {RECIPES.map((r) => (
+                <button
+                  key={r.id}
+                  className="flex items-center gap-3 rounded-xl border border-line p-2 text-left transition-colors hover:border-accent/50"
+                  onClick={() => setDraft((d) => ({ ...BLANK, name: d.name, ...r.draft }))}
+                  title={r.hint}
+                >
+                  <span className="h-10 w-10 shrink-0 rounded-lg border border-white/10" style={{ background: r.swatch }} />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold">{r.label}</span>
+                    <span className="block truncate text-[11px] text-muted">{r.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {!editingId && (
             <div className="mb-2">
-              <label className="label !mb-1.5">Partir de</label>
+              <label className="label !mb-1.5">Autres points de départ</label>
               <div className="flex flex-wrap gap-2">
                 {PRESETS.map((p) => (
                   <button
@@ -510,6 +684,44 @@ export default function Templates() {
               <ColorField label="Fond — bas" value={draft.bg2} onChange={(v) => set('bg2', v ?? draft.bg2)} />
             </div>
             <Range label="Angle du dégradé" value={draft.gradientAngle} min={0} max={360} unit="°" onChange={(v) => set('gradientAngle', v)} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ColorField label="Bande claire en haut (ex. lavande → violet)" value={draft.bgTop} onChange={(v) => set('bgTop', v)} clearable />
+            </div>
+            <div>
+              <label className="label !mb-1.5">Couleur signature des images — UNE teinte vive portée par le sujet, reprise par le mot accentué</label>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { v: 'auto', l: 'Auto (selon l’accent)' },
+                  { v: 'aucune', l: 'Aucune' },
+                ].map((o) => (
+                  <button
+                    key={o.v}
+                    onClick={() => set('popColor', o.v)}
+                    className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                      draft.popColor === o.v ? 'border-accent/50 bg-accent-soft text-ice' : 'border-line text-muted hover:text-txt'
+                    }`}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+                {POP_PRESETS.map((p) => (
+                  <button
+                    key={p.hex}
+                    title={p.label}
+                    onClick={() => set('popColor', p.hex)}
+                    className={`h-8 w-8 rounded-full border-2 ${draft.popColor === p.hex ? 'border-white' : 'border-transparent'}`}
+                    style={{ background: p.hex }}
+                  />
+                ))}
+                <input
+                  type="color"
+                  className="h-8 w-10 cursor-pointer rounded-lg border border-line bg-panel2"
+                  value={/^#[0-9a-f]{6}$/i.test(draft.popColor) ? draft.popColor : '#d9ee4a'}
+                  onChange={(e) => set('popColor', e.target.value)}
+                  title="Couleur personnalisée"
+                />
+              </div>
+            </div>
           </Section>
 
           <Section title="Typographie">
@@ -544,9 +756,11 @@ export default function Templates() {
                 { v: 'plain', l: 'Couleur seule' },
                 { v: 'underline', l: 'Souligné' },
                 { v: 'highlight', l: 'Surligné' },
+                { v: 'argent', l: 'Argent dégradé' },
               ]}
               onChange={(v) => set('accentStyle', v)}
             />
+            <Toggle label="Mot accentué sur sa propre ligne (titre en deux lignes « Devis / Express »)" checked={draft.accentLine} onChange={(v) => set('accentLine', v)} />
             <Chips
               label="Dégradé du titre"
               value={draft.titleGradient}
@@ -554,8 +768,19 @@ export default function Templates() {
                 { v: 'aucun', l: 'Aucun' },
                 { v: 'accent', l: 'Blanc → accent' },
                 { v: 'argent', l: 'Blanc → argent' },
+                { v: 'horizontal', l: 'Horizontal blanc → accent' },
               ]}
               onChange={(v) => set('titleGradient', v)}
+            />
+            <Chips
+              label="Graisse des gros chiffres (« 87 % »)"
+              value={String(draft.bigNumberWeight) as '300' | '500' | '900'}
+              options={[
+                { v: '300', l: 'Fine' },
+                { v: '500', l: 'Médium' },
+                { v: '900', l: 'Noire' },
+              ]}
+              onChange={(v) => set('bigNumberWeight', Number(v) as 300 | 500 | 900)}
             />
             <Chips
               label="Alignement"
@@ -706,8 +931,19 @@ export default function Templates() {
                 { v: 'verre', l: 'Verre' },
                 { v: 'plein', l: 'Plein accent' },
                 { v: 'degrade', l: 'Dégradé blanc → accent' },
+                { v: 'chevron', l: 'Verre + chevron ›' },
               ]}
               onChange={(v) => set('ctaStyle', v)}
+            />
+            <Chips
+              label="Flèche des boutons"
+              value={draft.ctaArrow}
+              options={[
+                { v: 'droite', l: '→' },
+                { v: 'haut-droite', l: '↗' },
+                { v: 'aucune', l: 'Aucune' },
+              ]}
+              onChange={(v) => set('ctaArrow', v)}
             />
             <Chips
               label="Cadre fin"
@@ -747,15 +983,42 @@ export default function Templates() {
               « Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré,
               fondu à la palette du template, posé en illustration ou en objet flottant.
             </p>
+            <Chips
+              label="Traitement des images plein cadre"
+              value={draft.heroGrade}
+              options={[
+                { v: 'vif', l: 'Vif (contraste + saturation)' },
+                { v: 'aucun', l: 'Aucun' },
+                { v: 'doux', l: 'Voile léger' },
+                { v: 'teinte', l: 'Voile accent (teinte)' },
+              ]}
+              onChange={(v) => set('heroGrade', v)}
+            />
+            <Toggle label="Le mot accentué du titre prend la couleur signature détectée dans l'image" checked={draft.accentFromImage} onChange={(v) => set('accentFromImage', v)} />
+            <Chips
+              label="Placement d'un objet détouré (aperçu « Objet »)"
+              value={draft.heroPlacement}
+              options={[
+                { v: 'centre', l: 'Au-dessus du titre' },
+                { v: 'haut', l: 'Ancré en haut (déborde)' },
+                { v: 'droite', l: 'À droite, texte à gauche' },
+                { v: 'gauche', l: 'À gauche, texte à droite' },
+              ]}
+              onChange={(v) => set('heroPlacement', v)}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Range label="Taille de l'objet" value={draft.heroSize} min={60} max={140} unit=" %" onChange={(v) => set('heroSize', v)} />
+              <Toggle label="Halo accent derrière l'objet" checked={draft.heroGlow} onChange={(v) => set('heroGlow', v)} />
+            </div>
           </Section>
 
           <Section title="Objets flottants">
             <p className="text-xs text-muted">
-              Deux images <b>détourées</b> de la bibliothèque (objets 3D, produits…) posées en périphérie, comme des
+              Jusqu'à quatre images <b>détourées</b> de la bibliothèque (objets 3D, produits…) posées en périphérie, comme des
               pièces qui flottent autour du texte. Générez-les dans <Link to="/images" className="text-accent hover:underline">Images</Link> avec « Supprimer l'arrière-plan ».
             </p>
-            {([1, 2] as const).map((n) => {
-              const key = n === 1 ? 'floatAssetId1' : 'floatAssetId2';
+            {([1, 2, 3, 4] as const).map((n) => {
+              const key = `floatAssetId${n}` as const;
               return (
                 <div key={n}>
                   <label className="label !mb-1.5">Objet {n}</label>
@@ -782,26 +1045,42 @@ export default function Templates() {
                 </div>
               );
             })}
-            {(draft.floatAssetId1 || draft.floatAssetId2) && (
+            {(draft.floatAssetId1 || draft.floatAssetId2 || draft.floatAssetId3 || draft.floatAssetId4) && (
               <>
-                <Range label="Taille" value={draft.floatSize} min={10} max={60} unit=" %" onChange={(v) => set('floatSize', v)} />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Range label="Taille" value={draft.floatSize} min={10} max={60} unit=" %" onChange={(v) => set('floatSize', v)} />
+                  <Range label="Inclinaison" value={draft.floatTilt} min={0} max={30} unit="°" onChange={(v) => set('floatTilt', v)} />
+                </div>
                 <Chips
                   label="Disposition"
                   value={draft.floatLayout}
                   options={[
                     { v: 'coins', l: 'Coins opposés' },
+                    { v: '4-coins', l: 'Quatre coins' },
                     { v: 'haut', l: 'En haut' },
                     { v: 'bas', l: 'En bas' },
                     { v: 'cotes', l: 'Sur les côtés' },
                   ]}
                   onChange={(v) => set('floatLayout', v)}
                 />
+                <Toggle label="Les objets débordent du cadre (coupés par les bords)" checked={draft.floatBleed} onChange={(v) => set('floatBleed', v)} />
               </>
             )}
           </Section>
 
           <Section title="Pied de page">
-            <Toggle label="Chip auteur en haut (logo, nom, handle, coche)" checked={draft.showAuthor} onChange={(v) => set('showAuthor', v)} />
+            <Toggle label="Chip auteur en haut (photo ou logo, nom, ligne, coche)" checked={draft.showAuthor} onChange={(v) => set('showAuthor', v)} />
+            <Toggle label="Badge « vérifié » en haut à droite" checked={draft.showVerifiedBadge} onChange={(v) => set('showVerifiedBadge', v)} />
+            <Chips
+              label="Position du logo"
+              value={draft.brandPosition}
+              options={[
+                { v: 'bas', l: 'Pied, à gauche' },
+                { v: 'bas-centre', l: 'Pied, centré' },
+                { v: 'haut-centre', l: 'Pilule en haut au centre' },
+              ]}
+              onChange={(v) => set('brandPosition', v)}
+            />
             <Toggle label="Afficher le logo" checked={draft.showLogo} onChange={(v) => set('showLogo', v)} />
             <Toggle label="Afficher le compteur « 03/06 → swipe »" checked={draft.showCounter} onChange={(v) => set('showCounter', v)} />
           </Section>

@@ -4,10 +4,11 @@ import sharp from 'sharp';
 import { z } from 'zod';
 import { ARCHETYPES } from '@odile/shared';
 import { db, schema } from '../../db/client.js';
-import { getImageGen } from '../../db/settingsRepo.js';
+import { getBrand, getImageGen } from '../../db/settingsRepo.js';
 import { config } from '../../config.js';
 import { fitCutout, removeImageBackground } from '../../imagegen/cutout.js';
-import { generateImageBuffer, type ImageAspect } from '../../imagegen/index.js';
+import { generateStyledImage, type ImageAspect } from '../../imagegen/index.js';
+import { POP_PRESETS } from '../../imagegen/color.js';
 import { buildImagePrompt, IMAGE_STYLES, isCutoutStyle, styleForArchetype, type ImageStyle } from '../../imagegen/prompt.js';
 import { notesFor, referenceFor } from '../../imagegen/references.js';
 import { editViaFreepik, FREEPIK_EDIT_OPS, freepikAvailable, type FreepikEditOp } from '../../imagegen/providers/freepik.js';
@@ -29,6 +30,8 @@ interface LibraryMeta {
   from?: string;
   /** opération d'édition Magnific appliquée */
   op?: string;
+  /** couleur signature détectée (plein cadre) */
+  popColor?: string | null;
 }
 
 function parseMeta(raw: string | null): Partial<LibraryMeta> {
@@ -161,6 +164,8 @@ export function registerImageRoutes(app: FastifyInstance): void {
           eq(schema.customThemes.backgroundAssetId, id),
           eq(schema.customThemes.floatAssetId1, id),
           eq(schema.customThemes.floatAssetId2, id),
+          eq(schema.customThemes.floatAssetId3, id),
+          eq(schema.customThemes.floatAssetId4, id),
         ),
       )
       .all();
@@ -174,6 +179,9 @@ export function registerImageRoutes(app: FastifyInstance): void {
     const refs = getImageGen().references;
     if (refs.full === id || refs.objets === id || refs.chrome === id) {
       return reply.status(409).send({ error: 'Cette image sert de référence de style (Réglages › Illustrations IA).' });
+    }
+    if (getBrand().avatarAssetId === id) {
+      return reply.status(409).send({ error: 'Cette image est la photo de la chip auteur (Réglages › Marque).' });
     }
     db.delete(schema.assets).where(eq(schema.assets.id, id)).run();
     return { ok: true };
@@ -253,6 +261,8 @@ export function registerImageRoutes(app: FastifyInstance): void {
       references: settings.references,
       notesByStyle: settings.notesByStyle,
       cutoutStyles: IMAGE_STYLES.filter((s) => isCutoutStyle(s.id)).map((s) => s.id),
+      modelByStyle: settings.modelByStyle,
+      popPresets: POP_PRESETS,
       /** URL publique en https : requis pour les références des modèles Google */
       publicHttps: config.PUBLIC_URL.startsWith('https://'),
     };
@@ -335,17 +345,19 @@ export function registerImageRoutes(app: FastifyInstance): void {
       styleSpecificNotes: notesFor(style),
     });
     try {
-      const generated = await generateImageBuffer(prompt, {
+      const generated = await generateStyledImage(prompt, {
+        style,
         quality: parsed.data.quality ?? settings.quality,
         aspect: parsed.data.aspect as ImageAspect,
         model: parsed.data.model,
         reference,
-      });
-      const prepared = await prepareLibraryImage(generated.buffer, {
-        cutout,
         monochrome: settings.monochrome,
         size: OUT[parsed.data.aspect],
       });
+      // Détourage demandé explicitement sur un style plein cadre : passe locale
+      const prepared = cutout && !generated.cutout
+        ? await prepareLibraryImage(generated.raw, { cutout: true, monochrome: settings.monochrome, size: OUT[parsed.data.aspect] })
+        : { buffer: generated.buffer, cutout: generated.cutout, ext: generated.ext, mime: generated.mime, size: { width: generated.width, height: generated.height } };
       const id = storeLibraryImage(prepared, {
         source: 'studio',
         prompt: parsed.data.prompt,
@@ -353,6 +365,7 @@ export function registerImageRoutes(app: FastifyInstance): void {
         tokens: generated.tokens,
         monochrome: settings.monochrome,
         op: style,
+        popColor: generated.popColor,
       });
       logger.info({ id, model: generated.model, cutout: prepared.cutout }, 'image studio générée');
       return { ok: true, id, model: generated.model };

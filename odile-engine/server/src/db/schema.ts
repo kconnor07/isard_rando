@@ -339,7 +339,9 @@ export const customThemes = sqliteTable('custom_themes', {
   /** couleur du texte principal */
   textColor: text('text_color').notNull().default('#fdfdfd'),
   /** décor : orbes de verre, halo, dégradé, grille de points, anneaux, arcs lumineux, ou rien */
-  decor: text('decor', { enum: ['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'aucun'] })
+  decor: text('decor', {
+    enum: ['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun'],
+  })
     .notNull()
     .default('orbes'),
   /** image de fond de la bibliothèque (asset id), appliquée à toutes les slides */
@@ -359,9 +361,11 @@ export const customThemes = sqliteTable('custom_themes', {
   /** échelle des titres en %, 60-140 */
   titleScale: integer('title_scale').notNull().default(100),
   /** traitement du mot accentué */
-  accentStyle: text('accent_style', { enum: ['serif', 'plain', 'underline', 'highlight'] })
+  accentStyle: text('accent_style', { enum: ['serif', 'plain', 'underline', 'highlight', 'argent'] })
     .notNull()
     .default('serif'),
+  /** mot accentué sur sa propre ligne (titre en deux lignes « Devis / Express ») */
+  accentLine: integer('accent_line', { mode: 'boolean' }).notNull().default(false),
   /** alignement : auto = centré sur hook/CTA, à gauche ailleurs */
   align: text('align', { enum: ['auto', 'left', 'center'] }).notNull().default('auto'),
   // --- Décor ---
@@ -392,17 +396,47 @@ export const customThemes = sqliteTable('custom_themes', {
   showCounter: integer('show_counter', { mode: 'boolean' }).notNull().default(true),
   // --- Pack premium ---
   /** titre en dégradé : aucun, blanc → accent, blanc → argent */
-  titleGradient: text('title_gradient', { enum: ['aucun', 'accent', 'argent'] }).notNull().default('aucun'),
+  titleGradient: text('title_gradient', { enum: ['aucun', 'accent', 'argent', 'horizontal'] }).notNull().default('aucun'),
   /** style des pilules d'action (CTA, mot-clé) */
-  ctaStyle: text('cta_style', { enum: ['verre', 'plein', 'degrade'] }).notNull().default('verre'),
+  ctaStyle: text('cta_style', { enum: ['verre', 'plein', 'degrade', 'chevron'] }).notNull().default('verre'),
+  /** flèche du bouton d'action */
+  ctaArrow: text('cta_arrow', { enum: ['droite', 'haut-droite', 'aucune'] }).notNull().default('droite'),
+  /** graisse des gros chiffres (300 fin, 500 médium, 900 noir) */
+  bigNumberWeight: integer('big_number_weight').notNull().default(900),
   /** chip auteur (logo/initiales + nom + handle + coche) en haut de slide */
   showAuthor: integer('show_author', { mode: 'boolean' }).notNull().default(false),
   /** objets flottants : détourages de la bibliothèque posés aux coins */
   floatAssetId1: text('float_asset_id_1'),
   floatAssetId2: text('float_asset_id_2'),
+  floatAssetId3: text('float_asset_id_3'),
+  floatAssetId4: text('float_asset_id_4'),
   /** taille des objets flottants, en % de la largeur */
   floatSize: integer('float_size').notNull().default(30),
-  floatLayout: text('float_layout', { enum: ['coins', 'haut', 'bas', 'cotes'] }).notNull().default('coins'),
+  floatLayout: text('float_layout', { enum: ['coins', 'haut', 'bas', 'cotes', '4-coins'] }).notNull().default('coins'),
+  /** les objets débordent du cadre (coupés par les bords, comme des pièces qui sortent de l'image) */
+  floatBleed: integer('float_bleed', { mode: 'boolean' }).notNull().default(true),
+  /** inclinaison des objets, 0-30° */
+  floatTilt: integer('float_tilt').notNull().default(12),
+  // --- Illustration (image générée / détourage) ---
+  /** traitement de l'illustration : aucun, vif (contraste + saturation), teinte (voile accent), doux (voile léger) */
+  heroGrade: text('hero_grade', { enum: ['aucun', 'vif', 'teinte', 'doux'] }).notNull().default('vif'),
+  /** placement d'un objet détouré : centré au-dessus du titre, ancré en haut (déborde), à droite ou à gauche */
+  heroPlacement: text('hero_placement', { enum: ['centre', 'haut', 'droite', 'gauche'] }).notNull().default('centre'),
+  /** taille de l'objet détouré, 60-140 % */
+  heroSize: integer('hero_size').notNull().default(100),
+  /** halo accent diffus derrière l'objet détouré */
+  heroGlow: integer('hero_glow', { mode: 'boolean' }).notNull().default(true),
+  /** couleur signature des images plein cadre : 'auto' (selon l'accent), 'aucune', ou un hex */
+  popColor: text('pop_color').notNull().default('auto'),
+  /** le mot accentué du titre prend la couleur signature détectée dans l'illustration */
+  accentFromImage: integer('accent_from_image', { mode: 'boolean' }).notNull().default(true),
+  /** bande claire en haut du fond (ex. lavande → violet profond) */
+  bgTop: text('bg_top'),
+  // --- Marque ---
+  /** badge « vérifié » rond en haut à droite */
+  showVerifiedBadge: integer('show_verified_badge', { mode: 'boolean' }).notNull().default(false),
+  /** position du logo : pied gauche (compteur à droite), pied centré, pilule en haut au centre */
+  brandPosition: text('brand_position', { enum: ['bas', 'bas-centre', 'haut-centre'] }).notNull().default('bas'),
   /** style d'illustration des posts qui utilisent ce template (auto = selon la slide) */
   imageStyle: text('image_style', { enum: ['auto', 'full', 'objets', 'chrome'] }).notNull().default('auto'),
   createdAt: text('created_at').notNull().$defaultFn(now),

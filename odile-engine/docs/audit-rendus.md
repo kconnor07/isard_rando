@@ -3,6 +3,13 @@
 *10 septembre 2026 — réponse à « comment obtenir mes rendus finaux à l'identique,
 même effet, même style, avec un mélange de code et d'image générée ».*
 
+> **Mise en œuvre (même jour)** — le plan ci-dessous est implémenté : P0 (couche
+> codée), P1 (couleur signature, fond gris pour les détourages, séries d'objets,
+> modèle par style, porte qualité) et les 4 recettes du P2. Restent en option :
+> « Comparer à la référence » dans l'éditeur et l'agent directeur artistique.
+> Mode d'emploi : onglet **Templates › Recettes signature** (Signal, Pièces,
+> Chrome, Horizon), puis chaque paramètre reste réglable section par section.
+
 ## 1. Verdict
 
 L'architecture est la bonne : une **couche codée** (HTML/CSS rendu par Chromium :

@@ -7,5 +7,9 @@
 </div>
 <% } %>
 <% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
+<% if (it.iconSvg) { %><div class="icon-badge"><%~ it.iconSvg %></div><% } %>
 <h1 class="title"><%~ it.titleHtml %></h1>
-<% if (it.content.body) { %><p class="body" style="align-self:center"><%= it.content.body %></p><% } %>
+<% if (it.subtitleHtml) { %><div class="subtitle"><%~ it.subtitleHtml %></div><% } %>
+<% if (it.content.body) { %><p class="body" style="align-self:center"><%~ it.bodyHtml %></p><% } %>
+<% if (it.content.ctaLabel) { %><div class="cta-button cta-inline"><%= it.content.ctaLabel %></div><% } %>
+

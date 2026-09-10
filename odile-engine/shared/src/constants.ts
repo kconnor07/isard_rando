@@ -193,6 +193,7 @@ export const DEFAULTS = {
     notesByStyle: {},
     provider: 'auto' as const,
     model: 'nano-banana-pro-flash',
+    modelByStyle: { full: 'nano-banana-pro', objets: 'flux-2-klein', chrome: 'nano-banana-pro' },
   },
   visualAgent: {
     enabled: true,

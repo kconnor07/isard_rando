@@ -1,6 +1,6 @@
 <% if (it.content.badge) { %><div class="badge"><%= it.content.badge %></div><% } %>
 <h2 class="title"><%~ it.titleHtml %></h2>
-<% if (it.content.body) { %><p class="body"><%= it.content.body %></p><% } %>
+<% if (it.content.body) { %><p class="body"><%~ it.bodyHtml %></p><% } %>
 <div class="notif-stack">
   <% (it.content.notifications || []).slice(0, 3).forEach(function (n, i) { %>
   <div class="notif-card depth-<%= i %>">

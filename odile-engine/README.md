@@ -10,10 +10,16 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
 2. **Rédaction AIDA** en français, ton humain réglable (curseurs dans le dashboard),
    au moins un post tous les 2 jours (cadence configurable).
 3. **Visuels brandés** : 6 thèmes fournis (dont deux monochromes) + vos propres
-   templates composés dans l'onglet **Templates** (couleurs, typographie, décor
-   et sa position, image de fond, matière du verre, cadre, marges, pied de page —
-   aperçu en direct par type de slide), rendu Chromium 1080×1350, captures
-   d'écran réelles des outils cités (validées par analyse pixel + vision IA).
+   templates composés dans l'onglet **Templates** — quatre **recettes signature**
+   en un clic (Signal : disques nets, arcs, badge icône, bouton chevron ;
+   Pièces : anneaux, 4 objets aux coins, chiffre fin, logo centré ; Chrome :
+   colonne de lumière, objet chrome ancré en haut, titre blanc / argent ;
+   Horizon : image plein cadre vive, chip auteur photo, badge vérifié), puis
+   chaque paramètre réglable (couleurs et couleur signature, typographie,
+   décor, image de fond, matière, illustration et placement de l'objet, objets
+   flottants, pied de page — aperçu en direct par type de slide). Rendu
+   Chromium suréchantillonné 2× en 1080×1350, captures d'écran réelles des
+   outils cités (validées par analyse pixel + vision IA).
 4. **Studio d'images** (onglet **Images**) : génération à la demande, toujours
    en noir et blanc (réglable), **détourage local** (modèle isnet embarqué, sans
    service externe), bibliothèque réutilisable en fond de template ou posée sur
@@ -22,10 +28,13 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
 5. **Agent visuel** : pour chaque veille transformée en post, capture les pages
    liées au sujet et à la source (site de l'outil, article) et génère des
    concepts d'illustration en trois styles fondus à la palette du template —
-   **plein cadre** (scène cinématique), **objets détourés** (objet 3D isolé,
-   détouré automatiquement, posable en objet flottant) et **chrome & verre** —
-   proposés dans l'éditeur du post : un clic pour les poser sur une slide ou en
-   périphérie, « Encore » pour une nouvelle passe sans limite.
+   **plein cadre** (scène cinématique vive avec **une couleur signature** que le
+   mot accentué du titre reprend automatiquement), **objets détourés** (objet 3D
+   généré sur gris neutre, détouré localement avec porte qualité, posable en
+   objet flottant) et **chrome & verre** — plus des **séries d'objets** cohérents
+   (2 à 4, même matière) pour les quatre coins ; proposés dans l'éditeur du
+   post : un clic pour les poser sur une slide ou en objet 1 à 4, « Encore »
+   pour une nouvelle passe sans limite. Modèle Magnific réglable par style.
 6. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
    colorimétrie/lisibilité, relecture orthographique, engagement) critiquent
    chaque visuel et itèrent jusqu'à validation.

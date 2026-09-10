@@ -13,4 +13,4 @@
   </div>
   <% } %>
 </div>
-<% if (it.content.body) { %><p class="body" style="font-size:36px"><%= it.content.body %></p><% } %>
+<% if (it.content.body) { %><p class="body" style="font-size:36px"><%~ it.bodyHtml %></p><% } %>
