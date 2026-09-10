@@ -54,8 +54,11 @@ export async function runDesignReview(postId: number): Promise<DesignReviewSumma
     const slidesJson = slides.map((s) => JSON.parse(s.content) as unknown);
     const isFinalPass = iteration === settings.maxIterations;
 
+    // Les 4 relecteurs partent en escalier (250 ms d'écart) : une rafale
+    // simultanée déclenche les limites « par minute » des API.
     const settled = await Promise.allSettled(
-      REVIEWER_DEFS.map(async (reviewer) => {
+      REVIEWER_DEFS.map(async (reviewer, reviewerIdx) => {
+        if (reviewerIdx > 0) await new Promise((r) => setTimeout(r, reviewerIdx * 250));
         const prompt = `Itération : ${iteration}/${settings.maxIterations}
 
 Post ${post.platform} (${post.format}, thème ${post.theme}) — les images jointes sont les slides rendues, dans l'ordre.

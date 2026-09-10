@@ -9,9 +9,3 @@
 <% } else if (it.content.ctaLabel) { %>
 <div class="cta-button" style="margin-top:20px"><%= it.content.ctaLabel %></div>
 <% } %>
-<div class="scribble" style="margin-top:14px">
-  <svg viewBox="0 0 300 24" preserveAspectRatio="none">
-    <path d="M4 14 C 60 4, 120 20, 170 10 S 270 14, 296 8" />
-    <path d="M30 20 C 90 12, 180 22, 260 15" opacity="0.55" />
-  </svg>
-</div>
