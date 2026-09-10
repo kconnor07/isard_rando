@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Image as ImageIcon, Mail, Pencil, RefreshCw, Trash2, Upload, X, Zap } from 'lucide-react';
+import { Check, Image as ImageIcon, Images as LibraryIcon, Mail, Pencil, RefreshCw, Trash2, Upload, X, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import type { PostDetailDto, SlideDto } from '../api/types';
+import type { LibraryImageDto, PostDetailDto, SlideDto } from '../api/types';
+import LibraryPicker from '../components/LibraryPicker';
 import { CHANNEL_LABELS, fmtDate, PageTitle, StatusBadge } from '../components/shared';
 
 const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'] as const;
@@ -33,9 +34,25 @@ function SlideCard({
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<string, unknown>>(slide.content);
   const [busy, setBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  /** Image de la bibliothèque posée comme illustration, puis re-rendu immédiat. */
+  const useLibraryImage = async (img: LibraryImageDto) => {
+    setPickerOpen(false);
+    setBusy(true);
+    try {
+      await api.post(`/api/library/${img.id}/use-on-slide`, { postId, slideIdx: slide.idx });
+      await api.post(`/api/posts/${postId}/render`);
+      onChanged();
+    } catch (err) {
+      alert(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
   const str = (k: string) => (typeof form[k] === 'string' ? (form[k] as string) : '');
 
   const save = async () => {
@@ -147,6 +164,15 @@ function SlideCard({
             >
               <ImageIcon size={13} />
             </button>
+            <button
+              className="pill-btn"
+              disabled={busy}
+              onClick={() => setPickerOpen(true)}
+              title="Choisir une image de la bibliothèque"
+            >
+              <LibraryIcon size={13} />
+            </button>
+            <LibraryPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={(img) => void useLibraryImage(img)} />
             <button
               className="pill-btn"
               disabled={busy}

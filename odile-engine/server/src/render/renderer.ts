@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { RENDER_SIZES, slideContentSchema, type PostFormat, type SlideContent } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getBrand } from '../db/settingsRepo.js';
+import { getBrand, getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
 import { baseCss, defaultBrandLogoDataUri, fontFaceCss, slideTemplate, themeCss } from './themes.js';
@@ -52,6 +52,10 @@ export interface SlideRenderInput {
   ambientHeroDataUri?: string | null;
   /** CSS de thème injecté directement (aperçu de template non enregistré) */
   themeCssOverride?: string;
+  /** illustration en noir et blanc : pas de voile coloré par-dessus */
+  monochromeHero?: boolean;
+  /** illustration détourée (PNG alpha) : affichée entière, pas recadrée */
+  heroContain?: boolean;
 }
 
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
@@ -90,7 +94,7 @@ ${input.themeCssOverride ?? themeCss(input.theme)}
 html, body, .slide { width: ${width}px; height: ${height}px; }
 </style></head>
 <body>
-<div class="slide theme-${input.theme} kind-${input.kind}${input.heroDataUri ? ' has-hero' : ''}">
+<div class="slide theme-${input.theme} kind-${input.kind}${input.heroDataUri ? ' has-hero' : ''}${input.monochromeHero ? ' mono-hero' : ''}${input.heroContain ? ' hero-contain' : ''}">
   <div class="bg"></div>
   ${
     !input.heroDataUri && input.ambientHeroDataUri
@@ -151,11 +155,22 @@ export async function renderHtmlToPng(
 }
 
 function assetDataUri(assetId: string | null): string | null {
+  return assetInfo(assetId)?.dataUri ?? null;
+}
+
+/** Data URI + indicateurs de rendu d'un asset (détouré → affiché entier). */
+function assetInfo(assetId: string | null): { dataUri: string; cutout: boolean } | null {
   if (!assetId) return null;
   const asset = db.select().from(schema.assets).where(eq(schema.assets.id, assetId)).get();
   if (!asset || !fs.existsSync(asset.path)) return null;
   const data = fs.readFileSync(asset.path);
-  return `data:${asset.mime};base64,${data.toString('base64')}`;
+  let cutout = false;
+  try {
+    cutout = asset.meta ? Boolean((JSON.parse(asset.meta) as { cutout?: boolean }).cutout) : false;
+  } catch {
+    cutout = false;
+  }
+  return { dataUri: `data:${asset.mime};base64,${data.toString('base64')}`, cutout };
 }
 
 export function saveAsset(
@@ -206,6 +221,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
 
   const brand = getBrand();
   const logoDataUri = assetDataUri(brand.logoAssetId);
+  const monochromeHero = getImageGen().monochrome;
   const format = post.format as PostFormat;
   const size = RENDER_SIZES[format];
   const assetIds: string[] = [];
@@ -218,7 +234,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
   for (const slide of slides) {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
     const screenshotDataUri = assetDataUri(slide.screenshotAssetId);
-    const heroDataUri = assetDataUri(slide.heroAssetId);
+    const hero = assetInfo(slide.heroAssetId);
     const html = buildSlideHtml({
       theme: post.theme,
       kind: content.kind,
@@ -229,7 +245,9 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
       slideTotal: slides.length,
       keyword: post.commentTriggerKeyword,
       screenshotDataUri,
-      heroDataUri,
+      heroDataUri: hero?.dataUri ?? null,
+      heroContain: hero?.cutout ?? false,
+      monochromeHero,
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,
       logoDataUri,
     });

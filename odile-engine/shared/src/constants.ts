@@ -187,6 +187,7 @@ export const DEFAULTS = {
     imagesPerPost: 1,
     styleNotes: '',
     quality: 'pro' as const,
+    monochrome: true,
   },
 } as const;
 

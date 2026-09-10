@@ -89,3 +89,16 @@ export interface SummaryDto {
   cadence: { due: boolean; reason: string };
   nextSlots: { instagram: string; linkedin: string };
 }
+
+/** Image de la bibliothèque (studio, upload, détourage) */
+export interface LibraryImageDto {
+  id: string;
+  width: number | null;
+  height: number | null;
+  mime: string;
+  createdAt: string;
+  source: 'studio' | 'upload' | 'cutout' | 'monochrome';
+  prompt: string | null;
+  cutout: boolean;
+  monochrome: boolean;
+}

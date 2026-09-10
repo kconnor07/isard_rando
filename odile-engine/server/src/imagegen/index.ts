@@ -25,14 +25,20 @@ export interface GeneratedImage {
   tokens: number;
 }
 
+export type ImageAspect = '4:5' | '1:1';
+
 /** Appel via la surface `interactions` (Nano Banana Pro / Nano Banana 2). */
-async function generateViaInteractions(model: string, prompt: string): Promise<GeneratedImage> {
+async function generateViaInteractions(
+  model: string,
+  prompt: string,
+  aspect: ImageAspect = '4:5',
+): Promise<GeneratedImage> {
   const interaction = await getClient().interactions.create({
     model,
     input: prompt,
     response_format: {
       type: 'image',
-      aspect_ratio: '4:5',
+      aspect_ratio: aspect,
       image_size: '2K',
       delivery: 'inline',
       mime_type: 'image/jpeg',
@@ -95,6 +101,42 @@ async function generateMockPlaceholder(): Promise<GeneratedImage> {
 }
 
 /**
+ * Génère une image brute depuis un prompt (chaîne : Pro → Fast → legacy →
+ * échec), ou le placeholder de marque en mode mock / sans clé. Partagé par
+ * les illustrations de slides et le studio d'images du dashboard.
+ */
+export async function generateImageBuffer(
+  prompt: string,
+  opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect } = {},
+): Promise<GeneratedImage> {
+  const quality = opts.quality ?? getImageGen().quality;
+  const aspect = opts.aspect ?? '4:5';
+  const isMock = config.LLM_MODE === 'mock' || !config.GEMINI_API_KEY;
+  const attempts: (() => Promise<GeneratedImage>)[] = isMock
+    ? [generateMockPlaceholder]
+    : [
+        () =>
+          generateViaInteractions(
+            quality === 'pro' ? config.GEMINI_MODEL_IMAGE : config.GEMINI_MODEL_IMAGE_FAST,
+            prompt,
+            aspect,
+          ),
+        () => generateViaInteractions(config.GEMINI_MODEL_IMAGE_FAST, prompt, aspect),
+        () => generateViaContent(config.GEMINI_MODEL_IMAGE_LEGACY, prompt),
+      ];
+  let lastError = '';
+  for (const attempt of attempts) {
+    try {
+      return await attempt();
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+      logger.warn({ err: lastError.slice(0, 200) }, "échec de génération d'image, tentative suivante");
+    }
+  }
+  throw new Error(lastError || "génération d'image impossible");
+}
+
+/**
  * Génère l'illustration d'une slide (chaîne : Pro → Fast → legacy → échec doux),
  * normalise en 1080×1350 JPEG, enregistre l'asset et l'attache à la slide.
  */
@@ -120,30 +162,16 @@ export async function generateHeroImage(
     palette: custom
       ? { bg1: custom.bg1, bg2: custom.bg2, accent: custom.accent, textColor: custom.textColor }
       : null,
+    monochrome: settings.monochrome,
   });
 
-  const quality = opts.quality ?? settings.quality;
-  const isMock = config.LLM_MODE === 'mock' || !config.GEMINI_API_KEY;
-  const attempts: (() => Promise<GeneratedImage>)[] = isMock
-    ? [generateMockPlaceholder]
-    : [
-        () =>
-          generateViaInteractions(
-            quality === 'pro' ? config.GEMINI_MODEL_IMAGE : config.GEMINI_MODEL_IMAGE_FAST,
-            prompt,
-          ),
-        () => generateViaInteractions(config.GEMINI_MODEL_IMAGE_FAST, prompt),
-        () => generateViaContent(config.GEMINI_MODEL_IMAGE_LEGACY, prompt),
-      ];
-
-  let lastError = '';
-  for (const attempt of attempts) {
-    try {
-      const generated = await attempt();
-      const normalized = await sharp(generated.buffer)
-        .resize(OUT_WIDTH, OUT_HEIGHT, { fit: 'cover', position: 'attention' })
-        .jpeg({ quality: 88 })
-        .toBuffer();
+  try {
+    const generated = await generateImageBuffer(prompt, { quality: opts.quality ?? settings.quality });
+    {
+      let pipeline = sharp(generated.buffer).resize(OUT_WIDTH, OUT_HEIGHT, { fit: 'cover', position: 'attention' });
+      // Noir et blanc garanti côté serveur, quoi que réponde le modèle
+      if (settings.monochrome) pipeline = pipeline.grayscale();
+      const normalized = await pipeline.jpeg({ quality: 88 }).toBuffer();
       const assetId = saveAsset(
         normalized,
         'genimage',
@@ -156,6 +184,7 @@ export async function generateHeroImage(
             model: generated.model,
             tokens: generated.tokens,
             instructions: opts.instructions ?? null,
+            monochrome: settings.monochrome,
           },
         },
         { width: OUT_WIDTH, height: OUT_HEIGHT },
@@ -167,12 +196,12 @@ export async function generateHeroImage(
         .run();
       logger.info({ slideId, assetId, model: generated.model }, 'illustration générée');
       return { ok: true, assetId, model: generated.model, tokens: generated.tokens };
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      logger.warn({ slideId, err: lastError.slice(0, 200) }, "échec de génération d'image, tentative suivante");
     }
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    logger.warn({ slideId, err: reason.slice(0, 200) }, "illustration non générée");
+    return { ok: false, reason };
   }
-  return { ok: false, reason: lastError };
 }
 
 export interface ImagesSummary {

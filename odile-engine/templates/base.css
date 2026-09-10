@@ -293,6 +293,14 @@ body {
   background-size: cover;
   background-position: center 30%;
 }
+/* Illustration détourée (PNG alpha) : l'objet entier, jamais recadré */
+.hero-contain .hero-image {
+  background-size: contain;
+  background-position: center 40%;
+  background-repeat: no-repeat;
+}
+/* Illustration en noir et blanc : aucun voile coloré, elle reste neutre */
+.mono-hero .hero-grade { display: none; }
 /* Fond de teint : ramène la colorimétrie de l'image vers la gamme bleue Odile */
 .hero-grade {
   position: absolute;

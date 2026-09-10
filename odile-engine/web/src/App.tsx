@@ -7,6 +7,7 @@ import Approvals from './pages/Approvals';
 import Calendar from './pages/Calendar';
 import Comments from './pages/Comments';
 import Dashboard from './pages/Dashboard';
+import Images from './pages/Images';
 import Login from './pages/Login';
 import News from './pages/News';
 import PostEditor from './pages/PostEditor';
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/news" element={<News />} />
         <Route path="/templates" element={<Templates />} />
+        <Route path="/images" element={<Images />} />
         <Route path="/comments" element={<Comments />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />

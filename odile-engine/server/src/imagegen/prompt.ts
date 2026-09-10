@@ -61,18 +61,30 @@ export interface ImagePromptArgs {
   theme?: string | null;
   /** palette d'un template maison : prime sur le thème */
   palette?: ThemePalette | null;
+  /** noir et blanc imposé (réglage « Illustrations en noir et blanc ») */
+  monochrome?: boolean;
+}
+
+/** Le fond du thème est-il clair ? (papier-blanc, ou template au texte sombre) */
+function hasLightBackground(args: ImagePromptArgs): boolean {
+  if (args.palette) return !isLightHex(args.palette.textColor);
+  return args.theme === 'papier-blanc';
 }
 
 /** Assemble le prompt final envoyé au générateur d'images. */
 export function buildImagePrompt(args: ImagePromptArgs): string {
   const archetype = ARCHETYPES.find((a) => a.id === args.archetypeId);
-  const guide = args.palette
-    ? styleGuideForPalette(args.palette)
-    : args.theme === 'encre-blanche'
-      ? STYLE_GUIDE_MONO
-      : args.theme === 'papier-blanc'
-        ? STYLE_GUIDE_MONO_LIGHT
-        : STYLE_GUIDE;
+  const guide = args.monochrome
+    ? hasLightBackground(args)
+      ? STYLE_GUIDE_MONO_LIGHT
+      : STYLE_GUIDE_MONO
+    : args.palette
+      ? styleGuideForPalette(args.palette)
+      : args.theme === 'encre-blanche'
+        ? STYLE_GUIDE_MONO
+        : args.theme === 'papier-blanc'
+          ? STYLE_GUIDE_MONO_LIGHT
+          : STYLE_GUIDE;
   const parts = [
     `SUBJECT: ${args.idea}`,
     archetype?.imageComposition ? `COMPOSITION TEMPLATE: ${archetype.imageComposition}` : null,

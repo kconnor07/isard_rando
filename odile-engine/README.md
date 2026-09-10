@@ -10,22 +10,26 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
 2. **Rédaction AIDA** en français, ton humain réglable (curseurs dans le dashboard),
    au moins un post tous les 2 jours (cadence configurable).
 3. **Visuels brandés** : 6 thèmes fournis (dont deux monochromes) + vos propres
-   templates créés dans l'onglet **Templates** (couleurs, décor, image de fond,
-   aperçu en direct — l'illustration IA et le voile du rendu suivent la palette
-   choisie), rendu Chromium 1080×1350, captures d'écran réelles des outils cités
-   (validées par analyse pixel + vision IA).
-4. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
+   templates composés dans l'onglet **Templates** (couleurs, typographie, décor
+   et sa position, image de fond, matière du verre, cadre, marges, pied de page —
+   aperçu en direct par type de slide), rendu Chromium 1080×1350, captures
+   d'écran réelles des outils cités (validées par analyse pixel + vision IA).
+4. **Studio d'images** (onglet **Images**) : génération à la demande, toujours
+   en noir et blanc (réglable), **détourage local** (modèle isnet embarqué, sans
+   service externe), bibliothèque réutilisable en fond de template ou posée sur
+   une slide.
+5. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
    colorimétrie/lisibilité, relecture orthographique, engagement) critiquent
    chaque visuel et itèrent jusqu'à validation.
-5. **Validation humaine obligatoire** : email avec aperçus + liens signés
+6. **Validation humaine obligatoire** : email avec aperçus + liens signés
    Approuver / Modifier / Rejeter. Rien ne part sans ton accord.
-6. **Publication automatique** au créneau optimal (étude algo dans
+7. **Publication automatique** au créneau optimal (étude algo dans
    [docs/instagram-algorithme-2026.md](docs/instagram-algorithme-2026.md)) :
    LinkedIn (profil + page entreprise) et Instagram (carrousels + statiques).
-7. **Commentaire → DM** façon ManyChat : mot-clé commenté sur Instagram → message
+8. **Commentaire → DM** façon ManyChat : mot-clé commenté sur Instagram → message
    privé automatique avec lien tracké. LinkedIn (pas d'API DM) : email avec
    réponse pré-rédigée à coller en 1 clic.
-8. **Tracking de clics** intégré (`/r/<code>` + UTM) et analytics dans le dashboard.
+9. **Tracking de clics** intégré (`/r/<code>` + UTM) et analytics dans le dashboard.
 
 ## Démarrage rapide (local)
 

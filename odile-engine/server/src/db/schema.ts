@@ -344,6 +344,48 @@ export const customThemes = sqliteTable('custom_themes', {
   backgroundOpacity: integer('background_opacity').notNull().default(35),
   /** grain de film */
   grain: integer('grain', { mode: 'boolean' }).notNull().default(true),
+  /** intensité du grain, 0-100 */
+  grainLevel: integer('grain_level').notNull().default(30),
+  /** couleur secondaire (fin du dégradé des gros chiffres) — null : l'accent */
+  secondary: text('secondary'),
+  // --- Typographie ---
+  titleFont: text('title_font', { enum: ['inter', 'playfair', 'fragment'] }).notNull().default('inter'),
+  titleWeight: integer('title_weight').notNull().default(800),
+  titleCase: text('title_case', { enum: ['normal', 'upper'] }).notNull().default('normal'),
+  /** échelle des titres en %, 60-140 */
+  titleScale: integer('title_scale').notNull().default(100),
+  /** traitement du mot accentué */
+  accentStyle: text('accent_style', { enum: ['serif', 'plain', 'underline', 'highlight'] })
+    .notNull()
+    .default('serif'),
+  /** alignement : auto = centré sur hook/CTA, à gauche ailleurs */
+  align: text('align', { enum: ['auto', 'left', 'center'] }).notNull().default('auto'),
+  // --- Décor ---
+  decorIntensity: integer('decor_intensity').notNull().default(100),
+  decorPosition: text('decor_position', {
+    enum: ['haut-droite', 'haut-gauche', 'bas-droite', 'bas-gauche', 'centre'],
+  })
+    .notNull()
+    .default('haut-droite'),
+  gradientAngle: integer('gradient_angle').notNull().default(168),
+  /** assombrissement des bords, 0-100 */
+  vignette: integer('vignette').notNull().default(0),
+  // --- Image de fond ---
+  bgFit: text('bg_fit', { enum: ['cover', 'contain'] }).notNull().default('cover'),
+  bgPosition: text('bg_position', { enum: ['centre', 'haut', 'bas'] }).notNull().default('centre'),
+  bgBlur: integer('bg_blur').notNull().default(0),
+  bgBlend: text('bg_blend', { enum: ['normal', 'multiply', 'screen', 'soft-light', 'luminosity'] })
+    .notNull()
+    .default('normal'),
+  // --- Matière ---
+  radius: text('radius', { enum: ['pill', 'rounded', 'sharp'] }).notNull().default('pill'),
+  /** intensité du verre (badges, pilules), 0-100 — 50 = réglage d'origine */
+  glass: integer('glass').notNull().default(50),
+  frame: text('frame', { enum: ['aucun', 'texte', 'accent'] }).notNull().default('aucun'),
+  padding: text('padding', { enum: ['serre', 'normal', 'aere'] }).notNull().default('normal'),
+  // --- Pied de page ---
+  showLogo: integer('show_logo', { mode: 'boolean' }).notNull().default(true),
+  showCounter: integer('show_counter', { mode: 'boolean' }).notNull().default(true),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now),
 });

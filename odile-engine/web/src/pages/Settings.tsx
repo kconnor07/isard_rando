@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast' };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean };
   default_theme: string;
   default_format: string;
 };
@@ -265,6 +265,11 @@ export default function Settings() {
             onChange={(e) => set('image_gen', { ...form.image_gen, enabled: e.target.checked })} />
           Générer des illustrations IA (Nano Banana Pro) quand l'archétype du post s'y prête
         </label>
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.image_gen.monochrome ?? true}
+            onChange={(e) => set('image_gen', { ...form.image_gen, monochrome: e.target.checked })} />
+          Toutes les images en noir et blanc — illustrations, studio et bibliothèque (le modèle reçoit un guide monochrome, et le serveur désature quoi qu'il arrive)
+        </label>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Illustrations max par post : {form.image_gen.imagesPerPost}</label>
@@ -288,7 +293,7 @@ export default function Settings() {
         </div>
         <p className="mt-3 text-xs text-muted">
           Le texte n'est jamais dans l'image : il reste en surimpression HTML (typographie parfaite).
-          Les reviewers colorimétrie/DA bloquent toute dérive hors palette bleue.
+          Les reviewers colorimétrie/DA bloquent toute dérive hors palette du thème.
         </p>
       </Section>
 

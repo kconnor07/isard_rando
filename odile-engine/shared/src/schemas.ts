@@ -85,6 +85,8 @@ export const imageGenSettingsSchema = z.object({
   styleNotes: z.string().max(500).default(''),
   /** pro = Nano Banana Pro (qualité max), fast = variante rapide/économique */
   quality: z.enum(['pro', 'fast']),
+  /** toutes les images (illustrations, studio, bibliothèque) en noir et blanc */
+  monochrome: z.boolean().default(true),
 });
 export type ImageGenSettings = z.infer<typeof imageGenSettingsSchema>;
 

@@ -3,6 +3,7 @@ import {
   BarChart3,
   CalendarDays,
   CheckCircle2,
+  Images as ImagesIcon,
   LayoutDashboard,
   LogOut,
   MessageCircle,
@@ -31,6 +32,7 @@ const NAV_GROUPS: {
     items: [
       { to: '/news', label: 'Veille IA', icon: Newspaper },
       { to: '/templates', label: 'Templates', icon: Palette },
+      { to: '/images', label: 'Images', icon: ImagesIcon },
       { to: '/comments', label: 'Commentaires & DM', icon: MessageCircle },
     ],
   },

@@ -316,3 +316,29 @@ body {
   font-size: 11px;
   font-weight: 600;
 }
+
+/* Damier sous les images détourées (transparence visible) */
+.checker {
+  background-color: #17171c;
+  background-image:
+    linear-gradient(45deg, #24242b 25%, transparent 25%, transparent 75%, #24242b 75%),
+    linear-gradient(45deg, #24242b 25%, transparent 25%, transparent 75%, #24242b 75%);
+  background-size: 18px 18px;
+  background-position: 0 0, 9px 9px;
+}
+
+/* Sections repliables de l'éditeur de template */
+.section-toggle > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.section-toggle > summary::-webkit-details-marker {
+  display: none;
+}
+.section-toggle > summary .chev {
+  transition: transform 0.2s ease;
+}
+.section-toggle[open] > summary .chev {
+  transform: rotate(90deg);
+}

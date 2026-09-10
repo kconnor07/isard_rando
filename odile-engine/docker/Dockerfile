@@ -28,6 +28,11 @@ COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
 RUN npm ci --omit=dev
+# Détourage local (onnxruntime) : on ne garde que les binaires Linux utiles
+RUN rm -rf node_modules/onnxruntime-node/bin/napi-v3/win32 \
+           node_modules/onnxruntime-node/bin/napi-v3/darwin \
+           node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_cuda.so \
+           node_modules/onnxruntime-node/bin/napi-v3/linux/x64/libonnxruntime_providers_tensorrt.so
 
 # ---------- Étape 3 : image finale -------------------------------------------
 FROM node:22-bookworm-slim
