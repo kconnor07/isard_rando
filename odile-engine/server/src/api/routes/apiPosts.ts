@@ -13,7 +13,7 @@ import { db, schema } from '../../db/client.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
 import { themeExists } from '../../render/custom-theme.js';
-import { renderPost } from '../../render/renderer.js';
+import { parseVisualOverrides, renderPost } from '../../render/renderer.js';
 import { regeneratePart } from '../../writer/regenerate.js';
 
 const nanoJti = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 16);
@@ -121,7 +121,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const clicks = post.linkId
       ? db.select({ id: schema.clicks.id }).from(schema.clicks).where(eq(schema.clicks.linkId, post.linkId)).all().length
       : 0;
-    return { ...postSummary(post), slides, reviews, clicks };
+    return { ...postSummary(post), slides, reviews, clicks, visualOverrides: parseVisualOverrides(post.visualOverrides) };
   });
 
   app.patch<{ Params: { id: string } }>('/api/posts/:id', async (request, reply) => {

@@ -26,9 +26,21 @@ describe('buildImagePrompt', () => {
     expect(prompt).toContain('moins de brume');
   });
 
-  it('interdit explicitement les tons chauds', () => {
-    expect(STYLE_GUIDE.toLowerCase()).toMatch(/orange/);
+  it('interdit toute teinte hors palette et tout texte', () => {
+    expect(STYLE_GUIDE.toLowerCase()).toMatch(/hue outside the palette/);
     expect(STYLE_GUIDE.toLowerCase()).toMatch(/no text|any text/);
+  });
+
+  it('chaque style produit un guide distinct dans la palette', () => {
+    const palette = { bg1: '#0b0616', bg2: '#1a0b33', accent: '#a78bfa', textColor: '#fdfdfd' };
+    const full = buildImagePrompt({ idea: 'x', palette, style: 'full' });
+    const objets = buildImagePrompt({ idea: 'x', palette, style: 'objets' });
+    const chrome = buildImagePrompt({ idea: 'x', palette, style: 'chrome' });
+    expect(full).toContain('full-frame');
+    expect(objets).toContain('made to be cut out');
+    expect(objets).toContain('solid #0b0616');
+    expect(chrome).toContain('liquid chrome');
+    for (const p of [full, objets, chrome]) expect(p).toContain('#a78bfa');
   });
 
   it('un template maison impose sa palette à la place du bleu Odile', () => {

@@ -60,9 +60,9 @@ function buildMockText(req: LlmRequest): string {
         return JSON.stringify({
           screenshots: url ? [{ url, label: 'Source', why: "L'article à l'origine du post" }] : [],
           images: [
-            { label: 'Chronomètre de verre', prompt: 'Un chronomètre en verre suspendu dans une brume légère, lumière de studio', slideIdx: 0 },
-            { label: 'Rouage lumineux', prompt: 'Un rouage en verre dépoli éclairé par un liseré de lumière', slideIdx: 2 },
-            { label: 'Sablier de cristal', prompt: 'Un sablier en cristal posé sur une surface sombre, reflets doux', slideIdx: 4 },
+            { label: 'Chronomètre de verre', prompt: 'Un chronomètre en verre suspendu dans une brume légère, lumière de studio', slideIdx: 0, style: 'full' },
+            { label: 'Rouage lumineux', prompt: 'Un rouage en verre dépoli éclairé par un liseré de lumière', slideIdx: 2, style: 'chrome' },
+            { label: 'Pièce de cristal', prompt: 'Une pièce de monnaie en cristal et chrome, isolée', slideIdx: 4, style: 'objets' },
           ],
         });
       }

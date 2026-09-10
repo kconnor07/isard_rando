@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome' };
   visual_agent: { enabled: boolean; autoRun: boolean; screenshots: number; images: number };
   default_theme: string;
   default_format: string;
@@ -296,6 +296,16 @@ export default function Settings() {
               <option value="auto">Auto — Freepik/Magnific si sa clé est présente, sinon Gemini direct</option>
               <option value="freepik">Freepik / Magnific (Nano Banana Pro via leur plateforme, clé FREEPIK_API_KEY)</option>
               <option value="gemini">Gemini direct (clé GEMINI_API_KEY)</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="label">Style des illustrations</label>
+            <select className="input" value={form.image_gen.style ?? 'auto'}
+              onChange={(e) => set('image_gen', { ...form.image_gen, style: e.target.value as 'auto' | 'full' | 'objets' | 'chrome' })}>
+              <option value="auto">Auto — l'agent choisit selon la slide et l'archétype (recommandé)</option>
+              <option value="full">Plein cadre — scène cinématique, sujet en haut, titre en bas</option>
+              <option value="objets">Objets détourés — objet 3D isolé, fondu à la palette, détouré automatiquement</option>
+              <option value="chrome">Chrome & verre — rendu 3D irisé, halo accent</option>
             </select>
           </div>
           <div className="col-span-2">

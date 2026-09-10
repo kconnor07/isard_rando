@@ -46,6 +46,8 @@ export interface PostDetailDto extends PostSummaryDto {
   slides: SlideDto[];
   reviews: ReviewDto[];
   clicks: number;
+  /** objets flottants choisis pour ce post */
+  visualOverrides?: { float1?: string | null; float2?: string | null; floatSize?: number; floatLayout?: string };
 }
 
 export interface NewsDto {
@@ -112,6 +114,8 @@ export interface ImageModelsDto {
   defaultModel: string;
   models: { id: string; label: string; family: string; speed: string; note: string | null; recommended: boolean }[];
   edits: { id: string; label: string; needsPrompt: boolean; needsReference: boolean; hint: string }[];
+  styles: { id: 'full' | 'objets' | 'chrome'; label: string; hint: string }[];
+  defaultStyle: 'auto' | 'full' | 'objets' | 'chrome';
 }
 
 /** Proposition de l'agent visuel (capture d'écran ou image générée) */
@@ -128,5 +132,7 @@ export interface VisualCandidateDto {
   slideIdx: number | null;
   model?: string;
   monochrome?: boolean;
+  style?: 'full' | 'objets' | 'chrome';
+  cutout?: boolean;
   batch: number;
 }

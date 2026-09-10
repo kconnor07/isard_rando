@@ -11,6 +11,9 @@ import { db, schema } from '../db/client.js';
 import { getBrand, getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
+import { getCustomTheme } from './custom-theme.js';
+import { floatCss, type FloatLayout } from './floats.js';
+import { isLightHex } from '../lib/color.js';
 import { baseCss, defaultBrandLogoDataUri, fontFaceCss, slideTemplate, themeCss } from './themes.js';
 
 const nanoAsset = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 21);
@@ -56,6 +59,25 @@ export interface SlideRenderInput {
   monochromeHero?: boolean;
   /** illustration détourée (PNG alpha) : affichée entière, pas recadrée */
   heroContain?: boolean;
+  /** CSS propre au post, injecté après le thème (objets flottants choisis) */
+  postCss?: string;
+}
+
+/** Objets flottants d'un post (choisis dans « Visuels proposés »). */
+export interface VisualOverrides {
+  float1?: string | null;
+  float2?: string | null;
+  floatSize?: number;
+  floatLayout?: FloatLayout;
+}
+
+export function parseVisualOverrides(raw: string | null): VisualOverrides {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as VisualOverrides;
+  } catch {
+    return {};
+  }
 }
 
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
@@ -96,6 +118,7 @@ ${baseCss()}
 /* Accent de marque avant le thème : un thème monochrome peut l'imposer */
 :root { --accent: ${input.brand.accentColor}; }
 ${input.themeCssOverride ?? themeCss(input.theme)}
+${input.postCss ?? ''}
 html, body, .slide { width: ${width}px; height: ${height}px; }
 </style></head>
 <body>
@@ -237,6 +260,18 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
   // slides sans image propre → harmonie colorimétrique sur tout le carrousel.
   const postHeroAssetId = slides.find((s) => s.heroAssetId)?.heroAssetId ?? null;
   const ambientHeroDataUri = assetDataUri(postHeroAssetId);
+  // Objets flottants propres au post (détourages choisis par l'agent visuel)
+  const overrides = parseVisualOverrides(post.visualOverrides);
+  const postCss =
+    overrides.float1 || overrides.float2
+      ? floatCss({
+          uris: [assetDataUri(overrides.float1 ?? null), assetDataUri(overrides.float2 ?? null)],
+          size: overrides.floatSize ?? 30,
+          layout: overrides.floatLayout ?? 'coins',
+          mirrored: getCustomTheme(post.theme)?.showAuthor ?? false,
+          darkTheme: !(getCustomTheme(post.theme) ? !isLightHex(getCustomTheme(post.theme)!.textColor) : post.theme === 'papier-blanc'),
+        })
+      : undefined;
 
   for (const slide of slides) {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
@@ -255,6 +290,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
       heroDataUri: hero?.dataUri ?? null,
       heroContain: hero?.cutout ?? false,
       monochromeHero,
+      postCss,
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,
       logoDataUri,
     });

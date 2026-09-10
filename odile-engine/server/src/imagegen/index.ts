@@ -10,7 +10,8 @@ import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
-import { buildImagePrompt } from './prompt.js';
+import { fitCutout, removeImageBackground } from './cutout.js';
+import { buildImagePrompt, styleForArchetype, type ImageStyle } from './prompt.js';
 
 const OUT_WIDTH = 1080;
 const OUT_HEIGHT = 1350;
@@ -164,7 +165,7 @@ export async function generateImageBuffer(
  */
 export async function generateHeroImage(
   slideId: number,
-  opts: { instructions?: string; quality?: 'pro' | 'fast' } = {},
+  opts: { instructions?: string; quality?: 'pro' | 'fast'; style?: ImageStyle } = {},
 ): Promise<{ ok: boolean; assetId?: string; model?: string; tokens?: number; reason?: string }> {
   const slide = db.select().from(schema.slides).where(eq(schema.slides.id, slideId)).get();
   if (!slide) return { ok: false, reason: `Slide ${slideId} introuvable` };
@@ -175,6 +176,7 @@ export async function generateHeroImage(
   const settings = getImageGen();
   // Template maison : l'illustration suit sa palette, pas le bleu Odile
   const custom = post ? getCustomTheme(post.theme) : null;
+  const style: ImageStyle = opts.style ?? (settings.style === 'auto' ? styleForArchetype(post?.archetype) : settings.style);
   const prompt = buildImagePrompt({
     idea: content.imageIdea,
     archetypeId: post?.archetype,
@@ -185,15 +187,20 @@ export async function generateHeroImage(
       ? { bg1: custom.bg1, bg2: custom.bg2, accent: custom.accent, textColor: custom.textColor }
       : null,
     monochrome: settings.monochrome,
+    style,
   });
 
   try {
     const generated = await generateImageBuffer(prompt, { quality: opts.quality ?? settings.quality });
     {
-      let pipeline = sharp(generated.buffer).resize(OUT_WIDTH, OUT_HEIGHT, { fit: 'cover', position: 'attention' });
+      // Style « objets » : l'objet est détouré et posé entier (PNG transparent)
+      const cutout = style === 'objets';
+      let pipeline = cutout
+        ? sharp(await fitCutout(await removeImageBackground(generated.buffer), OUT_WIDTH, OUT_HEIGHT))
+        : sharp(generated.buffer).resize(OUT_WIDTH, OUT_HEIGHT, { fit: 'cover', position: 'attention' });
       // Noir et blanc garanti côté serveur, quoi que réponde le modèle
       if (settings.monochrome) pipeline = pipeline.grayscale();
-      const normalized = await pipeline.jpeg({ quality: 88 }).toBuffer();
+      const normalized = cutout ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 88 }).toBuffer();
       const assetId = saveAsset(
         normalized,
         'genimage',
@@ -207,10 +214,12 @@ export async function generateHeroImage(
             tokens: generated.tokens,
             instructions: opts.instructions ?? null,
             monochrome: settings.monochrome,
+            style,
+            cutout,
           },
         },
         { width: OUT_WIDTH, height: OUT_HEIGHT },
-        { ext: 'jpg', mime: 'image/jpeg' },
+        cutout ? { ext: 'png', mime: 'image/png' } : { ext: 'jpg', mime: 'image/jpeg' },
       );
       db.update(schema.slides)
         .set({ heroAssetId: assetId, renderAssetId: null, updatedAt: new Date().toISOString() })

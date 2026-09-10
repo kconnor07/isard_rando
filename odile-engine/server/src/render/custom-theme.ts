@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { THEMES } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { isLightHex, rgba } from '../lib/color.js';
+import { floatCss } from './floats.js';
 
 export type CustomTheme = typeof schema.customThemes.$inferSelect;
 
@@ -90,13 +91,6 @@ const PADDINGS: Record<CustomTheme['padding'], { top: number; side: number; bott
   aere: { top: 128, side: 120, bottom: 172 },
 };
 
-/** Ancrages des objets flottants (détourages de la bibliothèque). */
-const FLOATS: Record<CustomTheme['floatLayout'], [string, string]> = {
-  coins: ['top: -4%; left: -9%; transform: rotate(-14deg);', 'bottom: -3%; right: -9%; transform: rotate(12deg);'],
-  haut: ['top: -5%; left: -8%; transform: rotate(-10deg);', 'top: -5%; right: -8%; transform: rotate(10deg);'],
-  bas: ['bottom: -4%; left: -8%; transform: rotate(10deg);', 'bottom: -4%; right: -8%; transform: rotate(-10deg);'],
-  cotes: ['top: 34%; left: -12%; transform: rotate(-8deg);', 'top: 34%; right: -12%; transform: rotate(8deg);'],
-};
 
 /**
  * CSS d'un template maison, généré à partir de ses paramètres typés (jamais
@@ -313,27 +307,13 @@ ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
 .author-avatar { background: ${accent}; }
 .author-check { color: ${accent}; }`
     : '';
-  const floatUri1 = assetDataUri(theme.floatAssetId1);
-  const floatUri2 = assetDataUri(theme.floatAssetId2);
-  // Avec la chip auteur en haut à gauche, les objets « coins » / « haut » se miroitent
-  const baseAnchors = FLOATS[theme.floatLayout] ?? FLOATS.coins;
-  const floatAnchors: [string, string] =
-    theme.showAuthor && theme.floatLayout === 'coins'
-      ? ['top: -4%; right: -9%; transform: rotate(14deg);', 'bottom: -3%; left: -9%; transform: rotate(-12deg);']
-      : theme.showAuthor && theme.floatLayout === 'haut'
-        ? ['top: 16%; right: -10%; transform: rotate(10deg);', 'top: 16%; left: -10%; transform: rotate(-10deg); display: none;']
-        : baseAnchors;
-  const floatW = Math.round((1080 * clamp(theme.floatSize, 10, 60)) / 100);
-  const floatShadow = light ? 'drop-shadow(0 34px 44px rgba(0, 0, 0, 0.55))' : 'drop-shadow(0 24px 36px rgba(11, 11, 14, 0.28))';
-  const floats = [floatUri1, floatUri2]
-    .map((uri, i) =>
-      uri
-        ? `.float-${i + 1} { display: block; ${floatAnchors[i]} width: ${floatW}px; height: ${floatW}px;
-  background-image: url(${uri}); background-size: contain; background-position: center; background-repeat: no-repeat;
-  filter: ${floatShadow}; }`
-        : '',
-    )
-    .join('\n');
+  const floats = floatCss({
+    uris: [assetDataUri(theme.floatAssetId1), assetDataUri(theme.floatAssetId2)],
+    size: theme.floatSize,
+    layout: theme.floatLayout,
+    mirrored: theme.showAuthor,
+    darkTheme: light,
+  });
 
   return `/* Template maison « ${theme.name.replace(/\*\//g, '')} » — CSS généré */
 :root {

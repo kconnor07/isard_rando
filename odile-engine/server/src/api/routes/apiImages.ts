@@ -8,7 +8,7 @@ import { getImageGen } from '../../db/settingsRepo.js';
 import { config } from '../../config.js';
 import { fitCutout, removeImageBackground } from '../../imagegen/cutout.js';
 import { generateImageBuffer, type ImageAspect } from '../../imagegen/index.js';
-import { buildImagePrompt } from '../../imagegen/prompt.js';
+import { buildImagePrompt, IMAGE_STYLES, styleForArchetype, type ImageStyle } from '../../imagegen/prompt.js';
 import { editViaFreepik, FREEPIK_EDIT_OPS, freepikAvailable, type FreepikEditOp } from '../../imagegen/providers/freepik.js';
 import { FREEPIK_MODELS } from '../../imagegen/providers/freepikCatalog.js';
 import { logger } from '../../lib/logger.js';
@@ -111,6 +111,8 @@ const generateSchema = z.object({
   cutout: z.boolean().default(false),
   /** modèle du catalogue Freepik/Magnific (sinon celui des réglages) */
   model: z.string().max(60).optional(),
+  /** style : plein cadre, objets détourés, chrome & verre (auto = selon la composition) */
+  style: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
 });
 
 const editSchema = z.object({
@@ -241,6 +243,8 @@ export function registerImageRoutes(app: FastifyInstance): void {
         recommended: Boolean(m.recommended),
       })),
       edits: FREEPIK_EDIT_OPS,
+      styles: IMAGE_STYLES,
+      defaultStyle: settings.style,
     };
   });
 
@@ -303,11 +307,19 @@ export function registerImageRoutes(app: FastifyInstance): void {
     const parsed = generateSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
     const settings = getImageGen();
+    const style: ImageStyle =
+      parsed.data.style !== 'auto'
+        ? parsed.data.style
+        : settings.style !== 'auto'
+          ? settings.style
+          : styleForArchetype(parsed.data.composition);
+    const cutout = parsed.data.cutout || style === 'objets';
     const prompt = buildImagePrompt({
       idea: parsed.data.prompt,
       archetypeId: parsed.data.composition,
       styleNotes: settings.styleNotes,
       monochrome: settings.monochrome,
+      style,
     });
     try {
       const generated = await generateImageBuffer(prompt, {
@@ -316,7 +328,7 @@ export function registerImageRoutes(app: FastifyInstance): void {
         model: parsed.data.model,
       });
       const prepared = await prepareLibraryImage(generated.buffer, {
-        cutout: parsed.data.cutout,
+        cutout,
         monochrome: settings.monochrome,
         size: OUT[parsed.data.aspect],
       });
@@ -326,6 +338,7 @@ export function registerImageRoutes(app: FastifyInstance): void {
         model: generated.model,
         tokens: generated.tokens,
         monochrome: settings.monochrome,
+        op: style,
       });
       logger.info({ id, model: generated.model, cutout: prepared.cutout }, 'image studio générée');
       return { ok: true, id, model: generated.model };

@@ -1,0 +1,1 @@
+ALTER TABLE `posts` ADD `visual_overrides` text;

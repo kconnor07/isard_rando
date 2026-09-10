@@ -21,8 +21,11 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
    (Nano Banana Pro via leur plateforme, `FREEPIK_API_KEY`).
 5. **Agent visuel** : pour chaque veille transformée en post, capture les pages
    liées au sujet et à la source (site de l'outil, article) et génère des
-   concepts d'illustration, proposés dans l'éditeur du post — un clic pour les
-   poser sur une slide, « Encore » pour une nouvelle passe sans limite.
+   concepts d'illustration en trois styles fondus à la palette du template —
+   **plein cadre** (scène cinématique), **objets détourés** (objet 3D isolé,
+   détouré automatiquement, posable en objet flottant) et **chrome & verre** —
+   proposés dans l'éditeur du post : un clic pour les poser sur une slide ou en
+   périphérie, « Encore » pour une nouvelle passe sans limite.
 6. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
    colorimétrie/lisibilité, relecture orthographique, engagement) critiquent
    chaque visuel et itèrent jusqu'à validation.

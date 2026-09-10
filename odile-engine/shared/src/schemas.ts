@@ -86,7 +86,9 @@ export const imageGenSettingsSchema = z.object({
   /** pro = Nano Banana Pro (qualité max), fast = variante rapide/économique */
   quality: z.enum(['pro', 'fast']),
   /** toutes les images (illustrations, studio, bibliothèque) en noir et blanc */
-  monochrome: z.boolean().default(true),
+  monochrome: z.boolean().default(false),
+  /** style d'illustration : auto = selon l'archétype / la slide, sinon imposé */
+  style: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
   /** fournisseur : auto = Freepik/Magnific si clé présente, sinon Gemini direct */
   provider: z.enum(['auto', 'gemini', 'freepik']).default('auto'),
   /** modèle Freepik/Magnific par défaut (catalogue `/api/images/models`) */

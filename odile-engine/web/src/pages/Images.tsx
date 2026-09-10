@@ -34,6 +34,7 @@ export default function Images() {
   const [quality, setQuality] = useState<'pro' | 'fast'>('pro');
   const [cutout, setCutout] = useState(false);
   const [model, setModel] = useState('');
+  const [style, setStyle] = useState<'auto' | 'full' | 'objets' | 'chrome'>('auto');
   const [editing, setEditing] = useState<LibraryImageDto | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -64,8 +65,9 @@ export default function Images() {
         composition: composition || undefined,
         aspect,
         quality,
-        cutout,
+        cutout: cutout || style === 'objets',
         model: model || undefined,
+        style,
       }),
     onSuccess: invalidate,
     onError: (e) => alert(String(e)),
@@ -195,9 +197,35 @@ export default function Images() {
             </div>
           </div>
         </div>
+        <div className="mt-4">
+          <label className="label !mb-1.5">Style</label>
+          <div className="flex flex-wrap gap-2">
+            {[{ id: 'auto' as const, label: 'Auto', hint: 'Selon la composition' }, ...(catalogue?.styles ?? [])].map((st) => (
+              <button
+                key={st.id}
+                onClick={() => setStyle(st.id)}
+                title={st.hint}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                  style === st.id ? 'border-accent/50 bg-accent-soft text-ice' : 'border-line text-muted hover:text-txt'
+                }`}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-muted">
+            {style === 'objets'
+              ? 'Objet 3D sur fond uni couleur du thème, détouré automatiquement — à poser en objet flottant ou en illustration.'
+              : style === 'chrome'
+                ? 'Rendu chrome et verre irisé avec halo accent, objet centré, espace sous lui pour le titre.'
+                : style === 'full'
+                  ? 'Scène cinématique plein cadre : sujet en haut, bas plus calme pour le titre.'
+                  : 'Plein cadre par défaut ; « Objet 3D suspendu » → chrome ; « Gros chiffre » → objet détouré.'}
+          </p>
+        </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} />
+            <input type="checkbox" checked={cutout || style === 'objets'} disabled={style === 'objets'} onChange={(e) => setCutout(e.target.checked)} />
             <Scissors size={14} className="text-muted" /> Supprimer l'arrière-plan (objet détouré, fond transparent)
           </label>
           <span className="mono text-[10px] uppercase tracking-wider text-muted">

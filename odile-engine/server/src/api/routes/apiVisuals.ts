@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { db, schema } from '../../db/client.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { logger } from '../../lib/logger.js';
+import { parseVisualOverrides } from '../../render/renderer.js';
 import { listCandidates, runVisualAgent } from '../../visuals/agent.js';
 
 const runSchema = z.object({
@@ -12,8 +13,13 @@ const runSchema = z.object({
   images: z.number().int().min(0).max(6).optional(),
 });
 const useSchema = z.object({
-  slideIdx: z.number().int().min(0),
-  as: z.enum(['hero', 'screenshot']),
+  slideIdx: z.number().int().min(0).default(0),
+  as: z.enum(['hero', 'screenshot', 'float1', 'float2']),
+});
+const floatsSchema = z.object({
+  clear: z.boolean().optional(),
+  floatSize: z.number().int().min(10).max(60).optional(),
+  floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes']).optional(),
 });
 
 /** Passes en cours, par post (une seule à la fois). */
@@ -58,6 +64,15 @@ export function registerVisualRoutes(app: FastifyInstance): void {
         .get();
       if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
       const now = new Date().toISOString();
+      if (parsed.data.as === 'float1' || parsed.data.as === 'float2') {
+        // Objet flottant du post : périphérie de toutes les slides
+        const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get()!;
+        const overrides = parseVisualOverrides(post.visualOverrides);
+        overrides[parsed.data.as] = asset.id;
+        db.update(schema.posts).set({ visualOverrides: JSON.stringify(overrides), updatedAt: now }).where(eq(schema.posts.id, postId)).run();
+        db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, postId)).run();
+        return { ok: true };
+      }
       if (parsed.data.as === 'hero') {
         db.update(schema.slides)
           .set({ heroAssetId: asset.id, renderAssetId: null, updatedAt: now })
@@ -90,6 +105,23 @@ export function registerVisualRoutes(app: FastifyInstance): void {
     },
   );
 
+  /** Objets flottants du post : taille, disposition, ou retrait. */
+  app.post<{ Params: { id: string } }>('/api/posts/:id/visuals/floats', async (request, reply) => {
+    const postId = Number(request.params.id);
+    const parsed = floatsSchema.safeParse(request.body ?? {});
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
+    const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
+    if (!post) return reply.status(404).send({ error: 'Post introuvable' });
+    const { clear, ...rest } = parsed.data;
+    const overrides = clear ? {} : { ...parseVisualOverrides(post.visualOverrides), ...rest };
+    db.update(schema.posts)
+      .set({ visualOverrides: Object.keys(overrides).length ? JSON.stringify(overrides) : null, updatedAt: new Date().toISOString() })
+      .where(eq(schema.posts.id, postId))
+      .run();
+    db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, postId)).run();
+    return { ok: true, overrides };
+  });
+
   app.delete<{ Params: { id: string; assetId: string } }>(
     '/api/posts/:id/visuals/:assetId',
     async (request, reply) => {
@@ -108,7 +140,11 @@ export function registerVisualRoutes(app: FastifyInstance): void {
           .from(schema.slides)
           .where(and(eq(schema.slides.postId, postId), eq(schema.slides.screenshotAssetId, asset.id)))
           .all().length;
-      if (used > 0) return reply.status(409).send({ error: 'Cette proposition est posée sur une slide.' });
+      const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
+      const ov = parseVisualOverrides(post?.visualOverrides ?? null);
+      if (used > 0 || ov.float1 === asset.id || ov.float2 === asset.id) {
+        return reply.status(409).send({ error: 'Cette proposition est posée sur une slide ou en objet flottant.' });
+      }
       db.delete(schema.assets).where(eq(schema.assets.id, asset.id)).run();
       return { ok: true };
     },

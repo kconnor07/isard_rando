@@ -4,8 +4,9 @@ import { z } from 'zod';
 import type { SlideContent } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { getBrand, getImageGen, getVisualAgent } from '../db/settingsRepo.js';
+import { fitCutout, removeImageBackground } from '../imagegen/cutout.js';
 import { generateImageBuffer } from '../imagegen/index.js';
-import { buildImagePrompt } from '../imagegen/prompt.js';
+import { buildImagePrompt, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
 import { fetchWithRetry } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
@@ -23,6 +24,9 @@ export interface CandidateMeta {
   slideIdx?: number | null;
   model?: string;
   monochrome?: boolean;
+  /** style d'image (full / objets / chrome) et détourage (PNG transparent) */
+  style?: ImageStyle;
+  cutout?: boolean;
   batch: number;
 }
 
@@ -52,6 +56,8 @@ const planSchema = z.object({
         label: z.string().max(60),
         prompt: z.string().min(10).max(400),
         slideIdx: z.number().int().min(0).nullable().optional(),
+        /** full = scène plein cadre, objets = objet 3D détouré, chrome = chrome & verre */
+        style: z.enum(['full', 'objets', 'chrome']).optional(),
       }),
     )
     .max(8),
@@ -95,6 +101,8 @@ export function listCandidates(postId: number): VisualCandidate[] {
         slideIdx: meta.slideIdx ?? null,
         model: meta.model,
         monochrome: meta.monochrome,
+        style: meta.style,
+        cutout: Boolean(meta.cutout),
         batch: meta.batch ?? 1,
       };
     });
@@ -202,7 +210,12 @@ MISSION
    (domaine officiel connu, ou URL fournie ci-dessus). Jamais d'URL inventée ou approximative.
 2. "images" : ${counts.images} concept(s) d'illustration à générer, en français, une scène précise
    et sobre chacune (objet, matière, lumière, angle), sans aucun texte dans l'image, variés entre eux,
-   et indique la slide à laquelle chacun se destine ("slideIdx").
+   et indique la slide à laquelle chacun se destine ("slideIdx") et son "style" :
+   - "full" : scène cinématique plein cadre (idéal accroche / CTA — sujet en haut, titre en bas) ;
+   - "objets" : UN objet 3D isolé qui sera détouré et posé en périphérie ou en illustration
+     (pièce, outil, appareil, symbole — idéal chiffre / preuve) ;
+   - "chrome" : objet symbolique en chrome et verre irisé, centré (idéal slide de contenu / solution).
+   Varie les styles au sein d'une même passe.
 ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à ne PAS répéter, propose autre chose) :\n${[...knownUrls].map((u) => `- page : ${u}`).join('\n')}\n${knownPrompts.map((p) => `- image : ${p}`).join('\n')}` : ''}`;
     try {
       const res = await completeJson(
@@ -249,6 +262,8 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
   const brand = getBrand();
   for (const concept of plan.images.slice(0, counts.images)) {
     try {
+      const style: ImageStyle =
+        imageGen.style !== 'auto' ? imageGen.style : (concept.style ?? styleForArchetype(post.archetype));
       const fullPrompt = buildImagePrompt({
         idea: concept.prompt,
         archetypeId: post.archetype,
@@ -256,11 +271,16 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
         theme: post.theme,
         palette,
         monochrome: imageGen.monochrome,
+        style,
       });
       const generated = await generateImageBuffer(fullPrompt, { quality: imageGen.quality });
-      let pipeline = sharp(generated.buffer).resize(1080, 1350, { fit: 'cover', position: 'attention' });
+      // « objets » : détouré et posé entier sur fond transparent
+      const cutout = style === 'objets';
+      let pipeline = cutout
+        ? sharp(await fitCutout(await removeImageBackground(generated.buffer), 1080, 1350))
+        : sharp(generated.buffer).resize(1080, 1350, { fit: 'cover', position: 'attention' });
       if (imageGen.monochrome) pipeline = pipeline.grayscale();
-      const jpg = await pipeline.jpeg({ quality: 88 }).toBuffer();
+      const out = cutout ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 88 }).toBuffer();
       const meta: CandidateMeta = {
         origin: 'image',
         label: concept.label,
@@ -268,9 +288,17 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
         slideIdx: concept.slideIdx ?? null,
         model: generated.model,
         monochrome: imageGen.monochrome,
+        style,
+        cutout,
         batch,
       };
-      saveAsset(jpg, 'candidate', { postId, extraMeta: { ...meta } }, { width: 1080, height: 1350 }, { ext: 'jpg', mime: 'image/jpeg' });
+      saveAsset(
+        out,
+        'candidate',
+        { postId, extraMeta: { ...meta } },
+        { width: 1080, height: 1350 },
+        cutout ? { ext: 'png', mime: 'image/png' } : { ext: 'jpg', mime: 'image/jpeg' },
+      );
       summary.images++;
     } catch (err) {
       summary.failed++;

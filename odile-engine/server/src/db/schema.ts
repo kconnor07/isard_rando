@@ -102,6 +102,8 @@ export const posts = sqliteTable(
     externalPostId: text('external_post_id'),
     externalUrl: text('external_url'),
     rejectReason: text('reject_reason'),
+    /** objets flottants choisis pour ce post (JSON {float1, float2, floatSize, floatLayout}) */
+    visualOverrides: text('visual_overrides'),
     error: text('error'),
     createdAt: text('created_at').notNull().$defaultFn(now),
     updatedAt: text('updated_at').notNull().$defaultFn(now),

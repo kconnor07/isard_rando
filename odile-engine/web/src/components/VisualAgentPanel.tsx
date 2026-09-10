@@ -27,7 +27,20 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
     onError: (e) => alert(String(e)),
   });
 
-  const use = async (c: VisualCandidateDto, as: 'hero' | 'screenshot') => {
+  const clearFloats = async () => {
+    setBusyId('floats');
+    try {
+      await api.post(`/api/posts/${post.id}/visuals/floats`, { clear: true });
+      await api.post(`/api/posts/${post.id}/render`);
+      onChanged();
+    } catch (e) {
+      alert(String(e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const use = async (c: VisualCandidateDto, as: 'hero' | 'screenshot' | 'float1' | 'float2') => {
     const slideIdx = targets[c.id] ?? c.slideIdx ?? 0;
     setBusyId(c.id);
     try {
@@ -54,7 +67,13 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
 
   const running = data?.running ?? false;
   const candidates = data?.candidates ?? [];
-  const inUse = new Set(post.slides.flatMap((s) => [s.heroAssetId, s.screenshotAssetId]).filter(Boolean));
+  const floats = post.visualOverrides ?? {};
+  const inUse = new Set([
+    ...post.slides.flatMap((s) => [s.heroAssetId, s.screenshotAssetId]),
+    floats.float1,
+    floats.float2,
+  ].filter(Boolean));
+  const STYLE_LABELS: Record<string, string> = { full: 'plein cadre', objets: 'objet détouré', chrome: 'chrome & verre' };
 
   return (
     <div>
@@ -64,6 +83,11 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
           <span className="mono ml-1 text-[11px] font-normal uppercase tracking-wider text-muted">agent visuel</span>
         </h2>
         <div className="flex items-center gap-2">
+          {(floats.float1 || floats.float2) && (
+            <button className="btn-ghost !px-3 !py-1 text-xs" disabled={busyId === 'floats'} onClick={() => void clearFloats()} title="Retirer les objets flottants de ce post">
+              <Trash2 size={12} /> Objets flottants
+            </button>
+          )}
           {running && (
             <span className="mono flex items-center gap-2 text-[11px] uppercase tracking-wider text-accent">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
@@ -102,11 +126,11 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
           const used = inUse.has(c.id);
           return (
             <div key={c.id} className={`card overflow-hidden ${busy ? 'opacity-60' : ''}`}>
-              <div className={`${c.origin === 'screenshot' ? 'aspect-[16/10]' : 'aspect-[4/5]'} overflow-hidden bg-panel2`}>
+              <div className={`${c.origin === 'screenshot' ? 'aspect-[16/10]' : 'aspect-[4/5]'} overflow-hidden ${c.cutout ? 'checker' : 'bg-panel2'}`}>
                 <img
                   src={`/api/assets/${c.id}`}
                   alt=""
-                  className={`h-full w-full object-cover ${c.origin === 'screenshot' ? 'object-top' : ''}`}
+                  className={`h-full w-full ${c.cutout ? 'object-contain' : 'object-cover'} ${c.origin === 'screenshot' ? 'object-top' : ''}`}
                   loading="lazy"
                 />
               </div>
@@ -116,6 +140,7 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
                     {c.origin === 'screenshot' ? <Camera size={10} /> : <Sparkles size={10} />}
                     {c.origin === 'screenshot' ? 'capture' : 'image'}
                   </span>
+                  {c.style && <span className="mono text-[10px] text-muted">{STYLE_LABELS[c.style] ?? c.style}</span>}
                   <span className="mono text-[10px] text-muted/70">lot {c.batch}</span>
                   {used && (
                     <span className="mono ml-auto rounded-full bg-accent-soft px-2 py-0.5 text-[10px] uppercase tracking-wider text-ice">
@@ -153,6 +178,16 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
                     <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'screenshot')} title="Transformer la slide en capture d'écran encadrée">
                       Capture
                     </button>
+                  )}
+                  {c.cutout && (
+                    <>
+                      <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'float1')} title="Objet flottant n°1 (toutes les slides)">
+                        Objet 1
+                      </button>
+                      <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={busy} onClick={() => use(c, 'float2')} title="Objet flottant n°2 (toutes les slides)">
+                        Objet 2
+                      </button>
+                    </>
                   )}
                   <span className="flex-1" />
                   <button className="pill-btn" disabled={busy || used} onClick={() => remove(c)} title="Retirer cette proposition">
