@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik' };
+  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string };
   visual_agent: { enabled: boolean; autoRun: boolean; screenshots: number; images: number };
   default_theme: string;
   default_format: string;
@@ -84,6 +84,10 @@ export default function Settings() {
   const { data: sources } = useQuery({
     queryKey: ['sources'],
     queryFn: () => api.get<SourceDto[]>('/api/sources'),
+  });
+  const { data: imageModels } = useQuery({
+    queryKey: ['image-models'],
+    queryFn: () => api.get<{ models: { id: string; label: string; speed: string; recommended: boolean }[] }>('/api/images/models'),
   });
   const { data: catalogue } = useQuery({
     queryKey: ['templates'],
@@ -292,6 +296,15 @@ export default function Settings() {
               <option value="auto">Auto — Freepik/Magnific si sa clé est présente, sinon Gemini direct</option>
               <option value="freepik">Freepik / Magnific (Nano Banana Pro via leur plateforme, clé FREEPIK_API_KEY)</option>
               <option value="gemini">Gemini direct (clé GEMINI_API_KEY)</option>
+            </select>
+          </div>
+          <div className="col-span-2">
+            <label className="label">Modèle Freepik / Magnific par défaut (illustrations automatiques, agent visuel, studio)</label>
+            <select className="input" value={form.image_gen.model ?? 'nano-banana-pro-flash'}
+              onChange={(e) => set('image_gen', { ...form.image_gen, model: e.target.value })}>
+              {imageModels?.models.map((m) => (
+                <option key={m.id} value={m.id}>{m.label} · {m.speed}{m.recommended ? ' ★' : ''}</option>
+              ))}
             </select>
           </div>
           <div className="col-span-2">

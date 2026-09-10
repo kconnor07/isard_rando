@@ -429,6 +429,21 @@ export default function PostEditor() {
         </div>
       )}
 
+      {post.status === 'scheduled' && (
+        <div className="card mb-6 flex flex-wrap items-center gap-3 p-4">
+          <span className="text-sm text-muted">
+            Programmé pour <b className="text-txt">{fmtDate(post.scheduledAt)}</b>.
+          </span>
+          <span className="flex-1" />
+          <button className="btn-ghost" disabled={!!busy} onClick={run('now', () => api.post(`/api/posts/${post.id}/approve`, { publishNow: true }))}>
+            <Zap size={14} /> Publier maintenant
+          </button>
+          <button className="btn-danger" disabled={!!busy} onClick={run('unschedule', () => api.post(`/api/posts/${post.id}/unschedule`))}>
+            <X size={14} /> Annuler la programmation
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
           <h2 className="mb-3 text-lg font-bold">Slides</h2>

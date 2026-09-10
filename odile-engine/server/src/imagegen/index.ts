@@ -9,6 +9,7 @@ import { logger } from '../lib/logger.js';
 import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
+import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
 import { buildImagePrompt } from './prompt.js';
 
 const OUT_WIDTH = 1080;
@@ -108,22 +109,21 @@ async function generateMockPlaceholder(): Promise<GeneratedImage> {
  */
 export async function generateImageBuffer(
   prompt: string,
-  opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect } = {},
+  opts: { quality?: 'pro' | 'fast'; aspect?: ImageAspect; model?: string } = {},
 ): Promise<GeneratedImage> {
   const settings = getImageGen();
   const quality = opts.quality ?? settings.quality;
   const aspect = opts.aspect ?? '4:5';
   const attempts: (() => Promise<GeneratedImage>)[] = [];
   if (config.LLM_MODE !== 'mock') {
-    // Freepik / Magnific (Nano Banana via leur plateforme) puis Gemini direct,
-    // selon le réglage « fournisseur » et les clés présentes.
+    // Freepik / Magnific (catalogue de modèles) puis Gemini direct, selon le
+    // réglage « fournisseur » et les clés présentes.
     if (settings.provider !== 'gemini' && freepikAvailable()) {
-      const pro = config.FREEPIK_MODEL_IMAGE;
-      const fast = config.FREEPIK_MODEL_IMAGE_FAST;
-      attempts.push(() =>
-        generateViaFreepik(quality === 'pro' ? pro : fast, prompt, { aspect, resolution: quality === 'pro' ? '2K' : '1K' }),
-      );
-      if (quality === 'pro') attempts.push(() => generateViaFreepik(fast, prompt, { aspect, resolution: '1K' }));
+      const chosen = findFreepikModel(opts.model ?? settings.model)?.id ?? findFreepikModel(config.FREEPIK_MODEL_IMAGE)?.id ?? DEFAULT_FREEPIK_MODEL;
+      attempts.push(() => generateViaFreepik(chosen, prompt, { aspect, quality }));
+      // Repli sur un modèle rapide si le modèle choisi échoue
+      const fallback = findFreepikModel(config.FREEPIK_MODEL_IMAGE_FAST)?.id ?? FAST_FREEPIK_MODEL;
+      if (fallback !== chosen) attempts.push(() => generateViaFreepik(fallback, prompt, { aspect, quality: 'fast' }));
     }
     if (settings.provider !== 'freepik' && config.GEMINI_API_KEY) {
       attempts.push(
@@ -142,7 +142,7 @@ export async function generateImageBuffer(
       attempts.push(() => generateViaInteractions(config.GEMINI_MODEL_IMAGE_FAST, prompt, aspect));
     }
     if (attempts.length === 0 && freepikAvailable()) {
-      attempts.push(() => generateViaFreepik(config.FREEPIK_MODEL_IMAGE_FAST, prompt, { aspect, resolution: '1K' }));
+      attempts.push(() => generateViaFreepik(FAST_FREEPIK_MODEL, prompt, { aspect, quality: 'fast' }));
     }
   }
   if (attempts.length === 0) attempts.push(generateMockPlaceholder);

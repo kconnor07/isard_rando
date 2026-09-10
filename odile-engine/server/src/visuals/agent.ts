@@ -216,7 +216,6 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
       plan = fallbackPlan(news, slides, counts);
     }
   }
-  if (planner === 'mock-1') plan = fallbackPlan(news, slides, counts);
 
   const summary: VisualRunSummary = { postId, batch, screenshots: 0, images: 0, failed: 0, planner };
 

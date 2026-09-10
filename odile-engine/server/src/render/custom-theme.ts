@@ -84,10 +84,18 @@ const RADII: Record<CustomTheme['radius'], { pill: string; card: string }> = {
   sharp: { pill: '6px', card: '6px' },
 };
 
-const PADDINGS: Record<CustomTheme['padding'], string> = {
-  serre: '84px 76px 140px',
-  normal: '104px 96px 150px',
-  aere: '128px 120px 172px',
+const PADDINGS: Record<CustomTheme['padding'], { top: number; side: number; bottom: number }> = {
+  serre: { top: 84, side: 76, bottom: 140 },
+  normal: { top: 104, side: 96, bottom: 150 },
+  aere: { top: 128, side: 120, bottom: 172 },
+};
+
+/** Ancrages des objets flottants (détourages de la bibliothèque). */
+const FLOATS: Record<CustomTheme['floatLayout'], [string, string]> = {
+  coins: ['top: -4%; left: -9%; transform: rotate(-14deg);', 'bottom: -3%; right: -9%; transform: rotate(12deg);'],
+  haut: ['top: -5%; left: -8%; transform: rotate(-10deg);', 'top: -5%; right: -8%; transform: rotate(10deg);'],
+  bas: ['bottom: -4%; left: -8%; transform: rotate(10deg);', 'bottom: -4%; right: -8%; transform: rotate(-10deg);'],
+  cotes: ['top: 34%; left: -12%; transform: rotate(-8deg);', 'top: 34%; right: -12%; transform: rotate(8deg);'],
 };
 
 /**
@@ -154,7 +162,72 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .decor-2 { position: absolute; inset: 0; z-index: 2;
   background: linear-gradient(${pos.angles[1]}deg, ${rgba(secondary, 0.2)} 0%, transparent 48%); }
 .decor-3 { display: none; }`
-          : `
+          : theme.decor === 'points'
+            ? `
+.decor-1 {
+  position: absolute; z-index: 2; ${pos.halo}
+  width: 1200px; height: 1200px; border-radius: 50%;
+  background: radial-gradient(circle closest-side, ${rgba(accent, 0.42)} 0%, transparent 72%);
+  filter: blur(30px);
+}
+.decor-2 {
+  position: absolute; z-index: 2; ${pos.d2}
+  width: 900px; height: 900px; border-radius: 50%;
+  background: radial-gradient(circle closest-side, ${rgba(secondary, 0.22)} 0%, transparent 70%);
+  filter: blur(36px);
+}
+/* Grille de points, fondue vers les bords */
+.decor-3 {
+  position: absolute; inset: 0; z-index: 3;
+  background-image: radial-gradient(${rgba(accent, 0.55)} 1.7px, transparent 1.9px);
+  background-size: 26px 26px;
+  opacity: 0.75;
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 20%, transparent 85%);
+  mask-image: radial-gradient(ellipse 75% 65% at 50% 45%, #000 20%, transparent 85%);
+}`
+            : theme.decor === 'anneaux'
+              ? `
+/* Anneaux concentriques, très fins, autour du centre */
+.decor-1 {
+  position: absolute; inset: -40%; z-index: 2;
+  background: repeating-radial-gradient(circle at 50% 48%, transparent 0 150px, ${rgba(theme.textColor, 0.07)} 150px 152px);
+  -webkit-mask-image: radial-gradient(circle at 50% 48%, #000 25%, transparent 62%);
+  mask-image: radial-gradient(circle at 50% 48%, #000 25%, transparent 62%);
+}
+.decor-2 {
+  position: absolute; z-index: 2; top: 50%; left: 50%; transform: translate(-50%, -54%);
+  width: 1000px; height: 1000px; border-radius: 50%;
+  background: radial-gradient(circle closest-side, ${rgba(accent, 0.3)} 0%, transparent 70%);
+  filter: blur(46px);
+}
+.decor-3 { position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(180deg, ${rgba(accent, 0.16)} 0%, transparent 38%); }`
+              : theme.decor === 'arcs'
+                ? `
+/* Grands arcs lumineux : un cercle fin dont le bord rayonne */
+.decor-1 {
+  position: absolute; z-index: 2; ${pos.d1}
+  width: 1500px; height: 1500px; border-radius: 50%;
+  border: 2px solid ${rgba(theme.textColor, 0.16)};
+  background: radial-gradient(circle at 50% 50%, transparent 58%, ${rgba(accent, 0.22)} 100%);
+  box-shadow: inset 0 0 180px ${rgba(accent, 0.45)}, 0 0 140px ${rgba(accent, 0.28)};
+}
+.decor-2 {
+  position: absolute; z-index: 2; ${pos.d2}
+  width: 1100px; height: 1100px; border-radius: 50%;
+  border: 2px solid ${rgba(theme.textColor, 0.12)};
+  background: radial-gradient(circle at 50% 50%, transparent 62%, ${rgba(secondary, 0.18)} 100%);
+  box-shadow: inset 0 0 140px ${rgba(secondary, 0.35)}, 0 0 100px ${rgba(secondary, 0.2)};
+}
+.decor-3 {
+  position: absolute; inset: 0; z-index: 3;
+  background-image: radial-gradient(${rgba(accent, 0.4)} 1.4px, transparent 1.6px);
+  background-size: 24px 24px;
+  opacity: 0.55;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 10%, transparent 80%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 50%, #000 10%, transparent 80%);
+}`
+                : `
 .decor-1, .decor-2, .decor-3 { display: none; }`;
 
   // --- Typographie -------------------------------------------------------
@@ -219,6 +292,49 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   const footer = `${theme.showLogo ? '' : '.brand-wordmark, .brand-id { display: none; } .brand-footer { justify-content: flex-end; }'}
 ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
 
+  // --- Pack premium ----------------------------------------------------------
+  const titleGradient =
+    theme.titleGradient === 'accent'
+      ? `.title { background: linear-gradient(100deg, ${theme.textColor} 15%, ${accent} 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.title .accent { color: ${accent}; }`
+      : theme.titleGradient === 'argent'
+        ? `.title { background: linear-gradient(180deg, ${theme.textColor} 20%, ${rgba(theme.textColor, 0.45)} 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }`
+        : '';
+  const ctaInk = isLightHex(accent) ? '#0b0b0e' : '#ffffff';
+  const ctaStyle =
+    theme.ctaStyle === 'plein'
+      ? `.cta-button, .keyword-chip { background: ${accent}; border-color: transparent; color: ${ctaInk}; backdrop-filter: none; box-shadow: 0 24px 60px -24px ${rgba(accent, 0.7)}; }`
+      : theme.ctaStyle === 'degrade'
+        ? `.cta-button, .keyword-chip { background: linear-gradient(90deg, #ffffff 0%, ${accent} 100%); border-color: transparent; color: #0b0b0e; backdrop-filter: none; box-shadow: 0 24px 60px -24px ${rgba(accent, 0.7)}; }`
+        : '';
+  const pad = PADDINGS[theme.padding] ?? PADDINGS.normal;
+  const author = theme.showAuthor
+    ? `.author-chip { display: inline-flex; }
+.author-avatar { background: ${accent}; }
+.author-check { color: ${accent}; }`
+    : '';
+  const floatUri1 = assetDataUri(theme.floatAssetId1);
+  const floatUri2 = assetDataUri(theme.floatAssetId2);
+  // Avec la chip auteur en haut à gauche, les objets « coins » / « haut » se miroitent
+  const baseAnchors = FLOATS[theme.floatLayout] ?? FLOATS.coins;
+  const floatAnchors: [string, string] =
+    theme.showAuthor && theme.floatLayout === 'coins'
+      ? ['top: -4%; right: -9%; transform: rotate(14deg);', 'bottom: -3%; left: -9%; transform: rotate(-12deg);']
+      : theme.showAuthor && theme.floatLayout === 'haut'
+        ? ['top: 16%; right: -10%; transform: rotate(10deg);', 'top: 16%; left: -10%; transform: rotate(-10deg); display: none;']
+        : baseAnchors;
+  const floatW = Math.round((1080 * clamp(theme.floatSize, 10, 60)) / 100);
+  const floatShadow = light ? 'drop-shadow(0 34px 44px rgba(0, 0, 0, 0.55))' : 'drop-shadow(0 24px 36px rgba(11, 11, 14, 0.28))';
+  const floats = [floatUri1, floatUri2]
+    .map((uri, i) =>
+      uri
+        ? `.float-${i + 1} { display: block; ${floatAnchors[i]} width: ${floatW}px; height: ${floatW}px;
+  background-image: url(${uri}); background-size: contain; background-position: center; background-repeat: no-repeat;
+  filter: ${floatShadow}; }`
+        : '',
+    )
+    .join('\n');
+
   return `/* Template maison « ${theme.name.replace(/\*\//g, '')} » — CSS généré */
 :root {
   --accent: ${accent};
@@ -230,7 +346,7 @@ ${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
 }
 
 .slide { background: ${theme.bg1}; color: ${theme.textColor}; }
-.safe { padding: ${PADDINGS[theme.padding] ?? PADDINGS.normal}; }
+.safe { padding: ${pad.top + (theme.showAuthor ? 96 : 0)}px ${pad.side}px ${pad.bottom}px; }
 
 .bg {
   position: absolute; inset: 0; z-index: 1;
@@ -249,6 +365,7 @@ ${decor}
 }
 .kind-content .title, .kind-screenshot .title { font-size: ${Math.round(88 * titleScale)}px; }
 ${accentStyle}
+${titleGradient}
 ${align}
 .body, .bullets li { color: ${rgba(theme.textColor, 0.72)}; }
 .annotation { color: ${rgba(theme.textColor, 0.9)}; }
@@ -258,8 +375,11 @@ ${align}
 .badge, .keyword-chip, .cta-button, .slide-counter { border-radius: ${radii.pill}; }
 .notif-card, .browser-frame { border-radius: ${radii.card}; }
 .keyword-chip { background: rgba(${veil}, ${(0.09 * glass).toFixed(3)}); border-color: rgba(${veil}, ${(0.2 * glass).toFixed(3)}); }
+${ctaStyle}
 ${frame}
 ${footer}
+${author}
+${floats}
 ${
   light
     ? ''

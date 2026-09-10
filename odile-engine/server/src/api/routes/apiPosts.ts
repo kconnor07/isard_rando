@@ -8,7 +8,7 @@ import {
   regenerateSchema,
   rejectSchema,
 } from '@odile/shared';
-import { executeApprovalAction } from '../../approvals/service.js';
+import { executeApprovalAction, unschedulePost } from '../../approvals/service.js';
 import { db, schema } from '../../db/client.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
@@ -184,12 +184,17 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (parsed.data.scope === 'all') {
       return reply.status(400).send({ error: 'Régénération complète : rejette le post et relance depuis l’actu.' });
     }
-    await regeneratePart({
-      postId: id,
-      scope: parsed.data.scope,
-      slideIdx: parsed.data.slideIdx,
-      instructions: parsed.data.instructions,
-    });
+    try {
+      await regeneratePart({
+        postId: id,
+        scope: parsed.data.scope,
+        slideIdx: parsed.data.slideIdx,
+        instructions: parsed.data.instructions,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return reply.status(422).send({ error: `Régénération impossible : ${message.slice(0, 200)}` });
+    }
     return { ok: true };
   });
 
@@ -306,6 +311,13 @@ export function registerPostRoutes(app: FastifyInstance): void {
       });
     },
   );
+
+  /** Post programmé : retour à « à valider » (job de publication annulé). */
+  app.post<{ Params: { id: string } }>('/api/posts/:id/unschedule', async (request, reply) => {
+    const outcome = unschedulePost(Number(request.params.id));
+    if (!outcome.ok) return reply.status(409).send({ error: outcome.message });
+    return outcome;
+  });
 
   app.post<{ Params: { id: string } }>('/api/posts/:id/reject', async (request, reply) => {
     const parsed = rejectSchema.safeParse(request.body ?? {});

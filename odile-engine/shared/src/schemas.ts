@@ -89,6 +89,8 @@ export const imageGenSettingsSchema = z.object({
   monochrome: z.boolean().default(true),
   /** fournisseur : auto = Freepik/Magnific si clé présente, sinon Gemini direct */
   provider: z.enum(['auto', 'gemini', 'freepik']).default('auto'),
+  /** modèle Freepik/Magnific par défaut (catalogue `/api/images/models`) */
+  model: z.string().max(60).default('nano-banana-pro-flash'),
 });
 export type ImageGenSettings = z.infer<typeof imageGenSettingsSchema>;
 

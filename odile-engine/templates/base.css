@@ -266,6 +266,37 @@ body {
 }
 .slide-counter .swipe { color: var(--text); }
 
+/* --- Pack premium (activé par les templates maison) --------------------- */
+
+/* Chip auteur : avatar + nom + coche, en haut à gauche */
+.author-chip {
+  display: none;
+  position: absolute;
+  z-index: 6;
+  top: 68px;
+  left: 96px;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 28px 12px 12px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.author-avatar {
+  width: 64px; height: 64px; border-radius: 50%;
+  object-fit: contain; padding: 12px; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 24px; color: #fff;
+}
+.author-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 28px; letter-spacing: -0.01em; }
+.author-check { flex: none; }
+.author-handle { font-family: 'Fragment Mono', monospace; font-size: 20px; letter-spacing: 0.04em; color: var(--muted); }
+
+/* Objets flottants (détourages de la bibliothèque) */
+.float-1, .float-2 { display: none; position: absolute; z-index: 4; pointer-events: none; }
+
 /* --- Décor commun ------------------------------------------------------ */
 
 .grain {

@@ -31,7 +31,7 @@ export const templateSchema = z.object({
   accentStyle: z.enum(['serif', 'plain', 'underline', 'highlight']).default('serif'),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'halo', 'degrade', 'aucun']),
+  decor: z.enum(['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'aucun']),
   decorIntensity: pct(100),
   decorPosition: z
     .enum(['haut-droite', 'haut-gauche', 'bas-droite', 'bas-gauche', 'centre'])
@@ -55,6 +55,14 @@ export const templateSchema = z.object({
   // Pied de page
   showLogo: z.boolean().default(true),
   showCounter: z.boolean().default(true),
+  // Pack premium
+  titleGradient: z.enum(['aucun', 'accent', 'argent']).default('aucun'),
+  ctaStyle: z.enum(['verre', 'plein', 'degrade']).default('verre'),
+  showAuthor: z.boolean().default(false),
+  floatAssetId1: z.string().max(30).nullable().optional(),
+  floatAssetId2: z.string().max(30).nullable().optional(),
+  floatSize: z.number().int().min(10).max(60).default(30),
+  floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes']).default('coins'),
 });
 type TemplateInput = z.infer<typeof templateSchema>;
 
@@ -64,6 +72,8 @@ function toRow(data: TemplateInput) {
     ...data,
     backgroundAssetId: data.backgroundAssetId ?? null,
     secondary: data.secondary ?? null,
+    floatAssetId1: data.floatAssetId1 ?? null,
+    floatAssetId2: data.floatAssetId2 ?? null,
   };
 }
 

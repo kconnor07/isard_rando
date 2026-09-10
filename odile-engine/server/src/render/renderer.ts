@@ -77,6 +77,11 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     : `<div class="brand-id"><div class="brand-mark">${escapeHtml(initials(input.brand.name))}</div>
       <div><div class="brand-name">${escapeHtml(input.brand.name)}</div>
       <div class="brand-handle">${escapeHtml(input.brand.handle)}</div></div></div>`;
+  // Chip auteur (masquée par défaut, activée par les templates « premium »)
+  const avatar = wordmarkUri
+    ? `<img class="author-avatar" src="${wordmarkUri}" alt="" />`
+    : `<span class="author-avatar">${escapeHtml(initials(input.brand.name))}</span>`;
+  const authorChip = `<div class="author-chip">${avatar}<div><div class="author-name">${escapeHtml(input.brand.name)}<svg class="author-check" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 2.1 3.1-.5 1 3 2.9 1.3-.6 3.1 2 2.4-2 2.4.6 3.1-2.9 1.3-1 3-3.1-.5L12 22l-2.4-2.1-3.1.5-1-3-2.9-1.3.6-3.1L1.2 12l2-2.4-.6-3.1 2.9-1.3 1-3 3.1.5z"/><path d="M10.2 15.6l-2.9-2.9 1.4-1.4 1.5 1.5 4.6-4.6 1.4 1.4z" fill="#fff"/></svg></div><div class="author-handle">${escapeHtml(input.brand.handle)}</div></div></div>`;
   const counter =
     input.slideTotal > 1
       ? input.slideNum < input.slideTotal
@@ -107,6 +112,8 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
       ? `<div class="hero-image" style="background-image:url(${input.heroDataUri})"></div><div class="hero-grade"></div><div class="hero-scrim"></div>`
       : ''
   }
+  <div class="float-1"></div><div class="float-2"></div>
+  ${authorChip}
   <div class="safe">
 ${inner}
   </div>

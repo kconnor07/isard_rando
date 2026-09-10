@@ -189,6 +189,7 @@ export const DEFAULTS = {
     quality: 'pro' as const,
     monochrome: true,
     provider: 'auto' as const,
+    model: 'nano-banana-pro-flash',
   },
   visualAgent: {
     enabled: true,

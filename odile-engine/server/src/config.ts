@@ -29,8 +29,8 @@ const envSchema = z.object({
   /** Freepik / Magnific API (optionnel) : Nano Banana Pro via leur plateforme */
   FREEPIK_API_KEY: z.string().optional(),
   FREEPIK_API_BASE: z.string().url().default('https://api.magnific.com'),
-  FREEPIK_MODEL_IMAGE: z.string().default('nano-banana-pro'),
-  FREEPIK_MODEL_IMAGE_FAST: z.string().default('nano-banana-pro-flash'),
+  FREEPIK_MODEL_IMAGE: z.string().default('nano-banana-pro-flash'),
+  FREEPIK_MODEL_IMAGE_FAST: z.string().default('flux-2-klein'),
 
   /** dry = les publications écrivent leur payload dans var/outbox au lieu d'appeler les APIs */
   PUBLISH_MODE: z.enum(['live', 'dry']).default('dry'),

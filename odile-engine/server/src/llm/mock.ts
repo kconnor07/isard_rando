@@ -36,8 +36,38 @@ function buildMockText(req: LlmRequest): string {
       }
       return JSON.stringify({ scores: ids.map(score) });
     }
-    case 'writing':
+    case 'writing': {
+      // Régénération d'une caption
+      const cap = /Caption actuelle :\n([\s\S]*?)\n\nCTA actuel : (.*)/.exec(req.prompt);
+      if (cap) {
+        return JSON.stringify({ caption: `${cap[1]!.trim()}\n\n(Mock : caption réécrite avec plus de rythme.)`, cta: cap[2]!.trim() });
+      }
+      // Régénération d'une slide : on renvoie la même, titre retouché
+      const slideJson = /Contenu actuel de la slide \(JSON\) :\n([\s\S]*?)\n\nTon :/.exec(req.prompt);
+      if (slideJson) {
+        let slide: Record<string, unknown> = {};
+        try {
+          slide = JSON.parse(slideJson[1]!) as Record<string, unknown>;
+        } catch {
+          slide = { kind: 'content', title: 'Slide réécrite' };
+        }
+        const title = typeof slide.title === 'string' ? slide.title : 'Slide réécrite';
+        return JSON.stringify({ ...slide, title: `${title.replace(/ \(mock\)$/, '')} (mock)`.slice(0, 120) });
+      }
+      // Plan de l'agent visuel : la source + trois concepts
+      if (/"screenshots"/.test(req.prompt) && /MISSION/.test(req.prompt)) {
+        const url = /URL : (https?:\S+)/.exec(req.prompt)?.[1];
+        return JSON.stringify({
+          screenshots: url ? [{ url, label: 'Source', why: "L'article à l'origine du post" }] : [],
+          images: [
+            { label: 'Chronomètre de verre', prompt: 'Un chronomètre en verre suspendu dans une brume légère, lumière de studio', slideIdx: 0 },
+            { label: 'Rouage lumineux', prompt: 'Un rouage en verre dépoli éclairé par un liseré de lumière', slideIdx: 2 },
+            { label: 'Sablier de cristal', prompt: 'Un sablier en cristal posé sur une surface sombre, reflets doux', slideIdx: 4 },
+          ],
+        });
+      }
       return JSON.stringify(MOCK_GENERATED_POST);
+    }
     case 'review': {
       // Itération 1 : échec avec correctifs → exerce la boucle d'amélioration.
       const iteration = Number(/It[ée]ration\s*:\s*(\d+)/i.exec(req.prompt)?.[1] ?? '1');

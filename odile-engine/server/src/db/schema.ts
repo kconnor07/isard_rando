@@ -336,8 +336,8 @@ export const customThemes = sqliteTable('custom_themes', {
   bg2: text('bg2').notNull().default('#0a1024'),
   /** couleur du texte principal */
   textColor: text('text_color').notNull().default('#fdfdfd'),
-  /** décor : orbes de verre, halo doux, dégradé plein ou rien */
-  decor: text('decor', { enum: ['orbes', 'halo', 'degrade', 'aucun'] })
+  /** décor : orbes de verre, halo, dégradé, grille de points, anneaux, arcs lumineux, ou rien */
+  decor: text('decor', { enum: ['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'aucun'] })
     .notNull()
     .default('orbes'),
   /** image de fond de la bibliothèque (asset id), appliquée à toutes les slides */
@@ -388,6 +388,19 @@ export const customThemes = sqliteTable('custom_themes', {
   // --- Pied de page ---
   showLogo: integer('show_logo', { mode: 'boolean' }).notNull().default(true),
   showCounter: integer('show_counter', { mode: 'boolean' }).notNull().default(true),
+  // --- Pack premium ---
+  /** titre en dégradé : aucun, blanc → accent, blanc → argent */
+  titleGradient: text('title_gradient', { enum: ['aucun', 'accent', 'argent'] }).notNull().default('aucun'),
+  /** style des pilules d'action (CTA, mot-clé) */
+  ctaStyle: text('cta_style', { enum: ['verre', 'plein', 'degrade'] }).notNull().default('verre'),
+  /** chip auteur (logo/initiales + nom + handle + coche) en haut de slide */
+  showAuthor: integer('show_author', { mode: 'boolean' }).notNull().default(false),
+  /** objets flottants : détourages de la bibliothèque posés aux coins */
+  floatAssetId1: text('float_asset_id_1'),
+  floatAssetId2: text('float_asset_id_2'),
+  /** taille des objets flottants, en % de la largeur */
+  floatSize: integer('float_size').notNull().default(30),
+  floatLayout: text('float_layout', { enum: ['coins', 'haut', 'bas', 'cotes'] }).notNull().default('coins'),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now),
 });

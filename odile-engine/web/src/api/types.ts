@@ -97,10 +97,21 @@ export interface LibraryImageDto {
   height: number | null;
   mime: string;
   createdAt: string;
-  source: 'studio' | 'upload' | 'cutout' | 'monochrome';
+  source: 'studio' | 'upload' | 'cutout' | 'monochrome' | 'edit';
   prompt: string | null;
   cutout: boolean;
   monochrome: boolean;
+  model: string | null;
+  op: string | null;
+}
+
+/** Catalogue Freepik / Magnific : modèles de génération et outils d'édition */
+export interface ImageModelsDto {
+  available: boolean;
+  provider: 'auto' | 'gemini' | 'freepik';
+  defaultModel: string;
+  models: { id: string; label: string; family: string; speed: string; note: string | null; recommended: boolean }[];
+  edits: { id: string; label: string; needsPrompt: boolean; needsReference: boolean; hint: string }[];
 }
 
 /** Proposition de l'agent visuel (capture d'écran ou image générée) */

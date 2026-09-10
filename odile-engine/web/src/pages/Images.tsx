@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Scissors, Sparkles, Trash2, Upload } from 'lucide-react';
+import { Download, Scissors, SlidersHorizontal, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { LibraryImageDto } from '../api/types';
+import type { ImageModelsDto, LibraryImageDto } from '../api/types';
+import EditImageDialog from '../components/EditImageDialog';
 import { LibraryThumb } from '../components/LibraryPicker';
 import { Empty, PageTitle } from '../components/shared';
 
@@ -12,6 +13,16 @@ const SOURCE_LABELS: Record<LibraryImageDto['source'], string> = {
   upload: 'Importée',
   cutout: 'Détourage',
   monochrome: 'Version N&B',
+  edit: 'Édition Magnific',
+};
+const FAMILY_LABELS: Record<string, string> = {
+  google: 'Google',
+  flux: 'Flux',
+  seedream: 'Seedream',
+  mystic: 'Magnific',
+  openai: 'OpenAI',
+  runway: 'Runway',
+  zimage: 'Z-Image',
 };
 
 export default function Images() {
@@ -22,6 +33,8 @@ export default function Images() {
   const [aspect, setAspect] = useState<'4:5' | '1:1'>('4:5');
   const [quality, setQuality] = useState<'pro' | 'fast'>('pro');
   const [cutout, setCutout] = useState(false);
+  const [model, setModel] = useState('');
+  const [editing, setEditing] = useState<LibraryImageDto | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const { data: library } = useQuery({
@@ -36,7 +49,13 @@ export default function Images() {
     queryKey: ['settings', 'image_gen'],
     queryFn: () => api.get<{ value: { monochrome: boolean; quality: 'pro' | 'fast' } }>('/api/settings/image_gen'),
   });
+  const { data: catalogue } = useQuery({
+    queryKey: ['image-models'],
+    queryFn: () => api.get<ImageModelsDto>('/api/images/models'),
+  });
   const invalidate = () => void qc.invalidateQueries({ queryKey: ['library'] });
+  const magnific = Boolean(catalogue?.available) && catalogue?.provider !== 'gemini';
+  const families = [...new Set(catalogue?.models.map((m) => m.family) ?? [])];
 
   const generate = useMutation({
     mutationFn: () =>
@@ -46,6 +65,7 @@ export default function Images() {
         aspect,
         quality,
         cutout,
+        model: model || undefined,
       }),
     onSuccess: invalidate,
     onError: (e) => alert(String(e)),
@@ -120,7 +140,29 @@ export default function Images() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
         />
-        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto_auto]">
+        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
+          <div>
+            <label className="label !mb-1">Modèle</label>
+            <select className="input" value={model || catalogue?.defaultModel || ''} onChange={(e) => setModel(e.target.value)} disabled={!magnific}>
+              {!magnific && <option value="">Gemini direct (ajoutez FREEPIK_API_KEY)</option>}
+              {families.map((f) => (
+                <optgroup key={f} label={FAMILY_LABELS[f] ?? f}>
+                  {catalogue?.models
+                    .filter((m) => m.family === f)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label} · {m.speed}{m.recommended ? ' ★' : ''}
+                      </option>
+                    ))}
+                </optgroup>
+              ))}
+            </select>
+            {magnific && (
+              <p className="mt-1 text-[11px] text-muted">
+                {catalogue?.models.find((m) => m.id === (model || catalogue.defaultModel))?.note ?? 'Catalogue Freepik / Magnific'}
+              </p>
+            )}
+          </div>
           <div>
             <label className="label !mb-1">Composition</label>
             <select className="input" value={composition} onChange={(e) => setComposition(e.target.value)}>
@@ -201,9 +243,19 @@ export default function Images() {
                       détouré
                     </span>
                   )}
+                  {img.op && (
+                    <span className="mono rounded-full border border-line px-2 py-0.5 text-[10px] uppercase tracking-wider text-muted">
+                      {catalogue?.edits.find((e) => e.id === img.op)?.label ?? img.op}
+                    </span>
+                  )}
                 </div>
                 {img.prompt && <p className="line-clamp-2 text-xs text-muted">{img.prompt}</p>}
-                <div className="mt-2.5 flex items-center gap-1.5">
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  {magnific && (
+                    <button className="btn-ghost !px-3 !py-1 text-xs" disabled={busy} onClick={() => setEditing(img)} title="Upscale, retouche, relight, style, extension (Magnific)">
+                      <SlidersHorizontal size={12} /> Éditer
+                    </button>
+                  )}
                   {!img.cutout && (
                     <button className="btn-ghost !px-3 !py-1 text-xs" disabled={busy} onClick={() => act(img.id, 'cutout')} title="Créer une version détourée (fond transparent)">
                       <Scissors size={12} /> {busy ? '…' : 'Détourer'}
@@ -227,6 +279,17 @@ export default function Images() {
           );
         })}
       </div>
+      {editing && catalogue && (
+        <EditImageDialog
+          image={editing}
+          edits={catalogue.edits}
+          onClose={() => setEditing(null)}
+          onDone={() => {
+            setEditing(null);
+            invalidate();
+          }}
+        />
+      )}
       <p className="mt-4 text-xs text-muted">
         Ces images se choisissent ensuite comme fond dans <Link to="/templates" className="text-accent hover:underline">Templates</Link>, ou
         se posent sur une slide depuis l'éditeur d'un post (bouton bibliothèque).

@@ -21,7 +21,7 @@ interface Draft {
   titleScale: number;
   accentStyle: 'serif' | 'plain' | 'underline' | 'highlight';
   align: 'auto' | 'left' | 'center';
-  decor: 'orbes' | 'halo' | 'degrade' | 'aucun';
+  decor: 'orbes' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'aucun';
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
   gradientAngle: number;
@@ -40,6 +40,13 @@ interface Draft {
   padding: 'serre' | 'normal' | 'aere';
   showLogo: boolean;
   showCounter: boolean;
+  titleGradient: 'aucun' | 'accent' | 'argent';
+  ctaStyle: 'verre' | 'plein' | 'degrade';
+  showAuthor: boolean;
+  floatAssetId1: string | null;
+  floatAssetId2: string | null;
+  floatSize: number;
+  floatLayout: 'coins' | 'haut' | 'bas' | 'cotes';
 }
 interface CustomTemplate extends Draft {
   id: string;
@@ -82,6 +89,13 @@ const BLANK: Draft = {
   padding: 'normal',
   showLogo: true,
   showCounter: true,
+  titleGradient: 'aucun',
+  ctaStyle: 'verre',
+  showAuthor: false,
+  floatAssetId1: null,
+  floatAssetId2: null,
+  floatSize: 30,
+  floatLayout: 'coins',
 };
 
 /** Points de départ : un clic charge la recette, tout reste modifiable. */
@@ -111,6 +125,41 @@ const PRESETS: { label: string; swatch: string; draft: Partial<Draft> }[] = [
     draft: { accent: '#ffffff', secondary: '#d8d8dc', bg1: '#050506', bg2: '#101014', glass: 60 },
   },
   {
+    label: 'Néon',
+    swatch: 'linear-gradient(150deg,#07060c,#120a2a 60%,#8b5cf6)',
+    draft: {
+      accent: '#8b5cf6',
+      secondary: '#c4b5fd',
+      bg1: '#07060c',
+      bg2: '#120a2a',
+      decor: 'arcs',
+      titleGradient: 'accent',
+      titleWeight: 700,
+      accentStyle: 'plain',
+      align: 'center',
+      vignette: 20,
+      ctaStyle: 'verre',
+    },
+  },
+  {
+    label: 'Signal',
+    swatch: 'linear-gradient(150deg,#0b0616,#1a0b33 60%,#a78bfa)',
+    draft: {
+      accent: '#a78bfa',
+      secondary: '#ffffff',
+      bg1: '#0b0616',
+      bg2: '#1a0b33',
+      decor: 'anneaux',
+      titleGradient: 'accent',
+      titleWeight: 600,
+      titleScale: 110,
+      align: 'center',
+      ctaStyle: 'degrade',
+      showAuthor: true,
+      radius: 'pill',
+    },
+  },
+  {
     label: 'Éditorial',
     swatch: 'linear-gradient(150deg,#101014,#17171c 60%,#e6c27a)',
     draft: {
@@ -133,6 +182,9 @@ const DECOR_LABELS: Record<Draft['decor'], string> = {
   orbes: 'Orbes de verre',
   halo: 'Halo diffus',
   degrade: 'Dégradé',
+  points: 'Halo + grille de points',
+  anneaux: 'Anneaux concentriques',
+  arcs: 'Arcs lumineux',
   aucun: 'Aucun décor',
 };
 const PREVIEW_KINDS: { id: string; label: string }[] = [
@@ -492,6 +544,16 @@ export default function Templates() {
               onChange={(v) => set('accentStyle', v)}
             />
             <Chips
+              label="Dégradé du titre"
+              value={draft.titleGradient}
+              options={[
+                { v: 'aucun', l: 'Aucun' },
+                { v: 'accent', l: 'Blanc → accent' },
+                { v: 'argent', l: 'Blanc → argent' },
+              ]}
+              onChange={(v) => set('titleGradient', v)}
+            />
+            <Chips
               label="Alignement"
               value={draft.align}
               options={[
@@ -634,6 +696,16 @@ export default function Templates() {
               <Range label="Grain de film" value={draft.grain ? draft.grainLevel : 0} min={0} max={100} unit=" %" onChange={(v) => setDraft((d) => ({ ...d, grain: v > 0, grainLevel: v }))} />
             </div>
             <Chips
+              label="Boutons (CTA, mot-clé)"
+              value={draft.ctaStyle}
+              options={[
+                { v: 'verre', l: 'Verre' },
+                { v: 'plein', l: 'Plein accent' },
+                { v: 'degrade', l: 'Dégradé blanc → accent' },
+              ]}
+              onChange={(v) => set('ctaStyle', v)}
+            />
+            <Chips
               label="Cadre fin"
               value={draft.frame}
               options={[
@@ -655,7 +727,59 @@ export default function Templates() {
             />
           </Section>
 
+          <Section title="Objets flottants">
+            <p className="text-xs text-muted">
+              Deux images <b>détourées</b> de la bibliothèque (objets 3D, produits…) posées en périphérie, comme des
+              pièces qui flottent autour du texte. Générez-les dans <Link to="/images" className="text-accent hover:underline">Images</Link> avec « Supprimer l'arrière-plan ».
+            </p>
+            {([1, 2] as const).map((n) => {
+              const key = n === 1 ? 'floatAssetId1' : 'floatAssetId2';
+              return (
+                <div key={n}>
+                  <label className="label !mb-1.5">Objet {n}</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => set(key, null)}
+                      className={`h-16 w-[3.2rem] rounded-lg border text-[10px] text-muted ${draft[key] === null ? 'border-accent/60 bg-accent-soft' : 'border-line'}`}
+                    >
+                      aucun
+                    </button>
+                    {library
+                      ?.filter((img) => img.cutout)
+                      .map((img) => (
+                        <button
+                          key={img.id}
+                          onClick={() => set(key, img.id)}
+                          className={`h-16 w-[3.2rem] overflow-hidden rounded-lg border ${draft[key] === img.id ? 'border-accent' : 'border-line'}`}
+                          title={img.prompt ?? ''}
+                        >
+                          <LibraryThumb img={img} className="h-full w-full" />
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              );
+            })}
+            {(draft.floatAssetId1 || draft.floatAssetId2) && (
+              <>
+                <Range label="Taille" value={draft.floatSize} min={10} max={60} unit=" %" onChange={(v) => set('floatSize', v)} />
+                <Chips
+                  label="Disposition"
+                  value={draft.floatLayout}
+                  options={[
+                    { v: 'coins', l: 'Coins opposés' },
+                    { v: 'haut', l: 'En haut' },
+                    { v: 'bas', l: 'En bas' },
+                    { v: 'cotes', l: 'Sur les côtés' },
+                  ]}
+                  onChange={(v) => set('floatLayout', v)}
+                />
+              </>
+            )}
+          </Section>
+
           <Section title="Pied de page">
+            <Toggle label="Chip auteur en haut (logo, nom, handle, coche)" checked={draft.showAuthor} onChange={(v) => set('showAuthor', v)} />
             <Toggle label="Afficher le logo" checked={draft.showLogo} onChange={(v) => set('showLogo', v)} />
             <Toggle label="Afficher le compteur « 03/06 → swipe »" checked={draft.showCounter} onChange={(v) => set('showCounter', v)} />
           </Section>
