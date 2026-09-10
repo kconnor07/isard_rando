@@ -12,6 +12,7 @@ import { executeApprovalAction } from '../../approvals/service.js';
 import { db, schema } from '../../db/client.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
+import { themeExists } from '../../render/custom-theme.js';
 import { renderPost } from '../../render/renderer.js';
 import { regeneratePart } from '../../writer/regenerate.js';
 
@@ -128,6 +129,9 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const parsed = patchPostSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
     const data = parsed.data;
+    if (data.theme && !themeExists(data.theme)) {
+      return reply.status(400).send({ error: 'Thème introuvable' });
+    }
     const update: Record<string, unknown> = { updatedAt: new Date().toISOString() };
     if (data.caption !== undefined) update.caption = data.caption;
     if (data.hook !== undefined) update.hook = data.hook;

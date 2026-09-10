@@ -131,7 +131,7 @@ export const slides = sqliteTable(
 
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
-  kind: text('kind', { enum: ['render', 'screenshot', 'logo', 'upload', 'genimage'] }).notNull(),
+  kind: text('kind', { enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library'] }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),
   path: text('path').notNull(),
@@ -319,3 +319,31 @@ export const jobRuns = sqliteTable(
   },
   (t) => [index('job_runs_name_idx').on(t.jobName, t.startedAt)],
 );
+
+/**
+ * Templates maison : thèmes visuels créés depuis le dashboard. Le CSS est
+ * généré à partir de ces paramètres — pas de CSS libre saisi par l'utilisateur.
+ */
+export const customThemes = sqliteTable('custom_themes', {
+  id: text('id').primaryKey(), // slug : « ma-signature »
+  name: text('name').notNull(),
+  /** couleur d'accent (titres accentués, badges, CTA) */
+  accent: text('accent').notNull().default('#0099ff'),
+  /** fond : dégradé entre deux teintes */
+  bg1: text('bg1').notNull().default('#050508'),
+  bg2: text('bg2').notNull().default('#0a1024'),
+  /** couleur du texte principal */
+  textColor: text('text_color').notNull().default('#fdfdfd'),
+  /** décor : orbes de verre, halo doux, dégradé plein ou rien */
+  decor: text('decor', { enum: ['orbes', 'halo', 'degrade', 'aucun'] })
+    .notNull()
+    .default('orbes'),
+  /** image de fond de la bibliothèque (asset id), appliquée à toutes les slides */
+  backgroundAssetId: text('background_asset_id'),
+  /** opacité de cette image de fond, 0-100 */
+  backgroundOpacity: integer('background_opacity').notNull().default(35),
+  /** grain de film */
+  grain: integer('grain', { mode: 'boolean' }).notNull().default(true),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+  updatedAt: text('updated_at').notNull().$defaultFn(now),
+});

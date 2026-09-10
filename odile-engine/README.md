@@ -9,9 +9,11 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
    dédoublonnage, scoring IA « pertinence PME/TPE + potentiel de clic », shortlist quotidienne.
 2. **Rédaction AIDA** en français, ton humain réglable (curseurs dans le dashboard),
    au moins un post tous les 2 jours (cadence configurable).
-3. **Visuels brandés** : 3 thèmes (Odile Nuit, Violet Glow, Cyan Tech), rendu
-   Chromium 1080×1350, captures d'écran réelles des outils cités (validées par
-   analyse pixel + vision IA).
+3. **Visuels brandés** : 6 thèmes fournis (dont deux monochromes) + vos propres
+   templates créés dans l'onglet **Templates** (couleurs, décor, image de fond,
+   aperçu en direct — l'illustration IA et le voile du rendu suivent la palette
+   choisie), rendu Chromium 1080×1350, captures d'écran réelles des outils cités
+   (validées par analyse pixel + vision IA).
 4. **Studio de design multi-agents** : 4 reviewers IA (direction artistique,
    colorimétrie/lisibilité, relecture orthographique, engagement) critiquent
    chaque visuel et itèrent jusqu'à validation.
@@ -49,7 +51,7 @@ Les emails partent dans `server/var/outbox/emails/` si aucun SMTP n'est configur
 
 `npx tsx src/cli.ts <cmd>` depuis `server/` :
 `scrape` · `score` · `shortlist` · `draft` · `render --post N` · `review --post N` ·
-`pipeline` · `publish-due` · `gallery` (planche de contrôle des 3 thèmes) ·
+`pipeline` · `publish-due` · `gallery` (planche de contrôle des thèmes fournis) ·
 `fixture` · `seed` · `poll-li-comments`
 
 ## Déploiement production

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { THEMES, type ThemeId } from '@odile/shared';
+import { buildCustomThemeCss, getCustomTheme, isCustomThemeId } from './custom-theme.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** Racine templates/ du projet (odile-engine/templates). */
@@ -21,6 +22,11 @@ export function isTheme(id: string): id is ThemeId {
 }
 
 export function themeCss(theme: string): string {
+  // Template maison : le CSS est généré à partir de ses paramètres
+  if (isCustomThemeId(theme)) {
+    const custom = getCustomTheme(theme);
+    if (custom) return buildCustomThemeCss(custom);
+  }
   const id = isTheme(theme) ? theme : 'odile-nuit';
   return fs.readFileSync(path.join(TEMPLATES_DIR, 'themes', `${id}.css`), 'utf8');
 }

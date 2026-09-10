@@ -11,7 +11,7 @@ import {
   imageGenSettingsSchema,
   llmRoutingSchema,
   publishSlotsSchema,
-  THEMES,
+  themeIdSchema,
   toneSettingsSchema,
 } from '@odile/shared';
 import { config } from '../../config.js';
@@ -33,6 +33,7 @@ import {
 import { anthropicProvider } from '../../llm/anthropic.js';
 import { geminiProvider } from '../../llm/gemini.js';
 import { sendMail, verifySmtp } from '../../mailer/smtp.js';
+import { themeExists } from '../../render/custom-theme.js';
 import { saveAsset } from '../../render/renderer.js';
 
 const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> = {
@@ -45,7 +46,10 @@ const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> =
   design_studio: { schema: designStudioSettingsSchema, read: getDesignStudio },
   image_gen: { schema: imageGenSettingsSchema, read: getImageGen },
   llm_routing: { schema: llmRoutingSchema, read: getLlmRouting },
-  default_theme: { schema: z.enum(THEMES), read: getDefaultTheme },
+  default_theme: {
+    schema: themeIdSchema.refine(themeExists, { message: 'Thème introuvable' }),
+    read: getDefaultTheme,
+  },
   default_format: { schema: z.enum(['carousel', 'static', 'li_image']), read: getDefaultFormat },
 };
 

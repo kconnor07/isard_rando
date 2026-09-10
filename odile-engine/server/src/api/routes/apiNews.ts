@@ -2,6 +2,7 @@ import { desc, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { generateFromNewsSchema } from '@odile/shared';
 import { db, schema } from '../../db/client.js';
+import { themeExists } from '../../render/custom-theme.js';
 import { logger } from '../../lib/logger.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { runScrape } from '../../scraper/index.js';
@@ -54,6 +55,9 @@ export function registerNewsRoutes(app: FastifyInstance): void {
     const newsId = Number(request.params.id);
     const news = db.select().from(schema.newsItems).where(eq(schema.newsItems.id, newsId)).get();
     if (!news) return reply.status(404).send({ error: 'Actualité introuvable' });
+    if (parsed.data.theme && !themeExists(parsed.data.theme)) {
+      return reply.status(400).send({ error: 'Thème introuvable' });
+    }
     // Pipeline long (LLM + rendus + reviews) : lancé en tâche de fond,
     // le dashboard suit l'avancement via la liste des posts.
     void runJob('pipeline-manuel', () =>

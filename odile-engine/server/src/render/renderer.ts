@@ -50,6 +50,8 @@ export interface SlideRenderInput {
   heroDataUri?: string | null;
   /** illustration du post, diffusée en écho flouté sur les slides sans hero */
   ambientHeroDataUri?: string | null;
+  /** CSS de thème injecté directement (aperçu de template non enregistré) */
+  themeCssOverride?: string;
 }
 
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
@@ -84,7 +86,7 @@ ${fontFaceCss()}
 ${baseCss()}
 /* Accent de marque avant le thème : un thème monochrome peut l'imposer */
 :root { --accent: ${input.brand.accentColor}; }
-${themeCss(input.theme)}
+${input.themeCssOverride ?? themeCss(input.theme)}
 html, body, .slide { width: ${width}px; height: ${height}px; }
 </style></head>
 <body>
@@ -158,7 +160,7 @@ function assetDataUri(assetId: string | null): string | null {
 
 export function saveAsset(
   data: Buffer,
-  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage',
+  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage' | 'library',
   meta: { postId?: number | null; slideId?: number | null; extraMeta?: Record<string, unknown> },
   size?: { width?: number; height?: number },
   format: { ext: 'png' | 'jpg'; mime: string } = { ext: 'png', mime: 'image/png' },

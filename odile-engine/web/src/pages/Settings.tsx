@@ -84,6 +84,13 @@ export default function Settings() {
     queryKey: ['sources'],
     queryFn: () => api.get<SourceDto[]>('/api/sources'),
   });
+  const { data: catalogue } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () =>
+      api.get<{ builtin: { id: string; label: string }[]; custom: { themeId: string; name: string }[] }>(
+        '/api/templates',
+      ),
+  });
   const [form, setForm] = useState<AllSettings | null>(null);
   useEffect(() => {
     if (settings && !form) setForm(structuredClone(settings));
@@ -304,10 +311,17 @@ export default function Settings() {
         <div className="grid grid-cols-2 gap-4">
           <div><label className="label">Thème par défaut</label>
             <select className="input" value={form.default_theme} onChange={(e) => set('default_theme', e.target.value)}>
-              <option value="odile-nuit">Odile Nuit (bleu horizon)</option>
-              <option value="violet-glow">Halo Bleu (orbes lumineux)</option>
-              <option value="cyan-tech">Bleu Tech (dégradés électriques)</option>
-              <option value="verre-bleu">Verre Bleu (courbes de verre)</option>
+              {!catalogue && <option value={form.default_theme}>{form.default_theme}</option>}
+              {catalogue && catalogue.custom.length > 0 && (
+                <optgroup label="Mes templates">
+                  {catalogue.custom.map((t) => <option key={t.themeId} value={t.themeId}>{t.name}</option>)}
+                </optgroup>
+              )}
+              {catalogue && (
+                <optgroup label="Thèmes fournis">
+                  {catalogue.builtin.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </optgroup>
+              )}
             </select></div>
           <div><label className="label">Format Instagram par défaut</label>
             <select className="input" value={form.default_format} onChange={(e) => set('default_format', e.target.value)}>

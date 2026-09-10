@@ -7,6 +7,7 @@ import {
   LogOut,
   MessageCircle,
   Newspaper,
+  Palette,
   Settings as SettingsIcon,
   Wrench,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ const NAV_GROUPS: {
     label: 'Matière',
     items: [
       { to: '/news', label: 'Veille IA', icon: Newspaper },
+      { to: '/templates', label: 'Templates', icon: Palette },
       { to: '/comments', label: 'Commentaires & DM', icon: MessageCircle },
     ],
   },

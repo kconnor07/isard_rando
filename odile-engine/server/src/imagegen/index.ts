@@ -6,6 +6,7 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
+import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
 import { buildImagePrompt } from './prompt.js';
 
@@ -108,12 +109,17 @@ export async function generateHeroImage(
   if (!content.imageIdea) return { ok: false, reason: 'Pas de concept (imageIdea) sur cette slide' };
 
   const settings = getImageGen();
+  // Template maison : l'illustration suit sa palette, pas le bleu Odile
+  const custom = post ? getCustomTheme(post.theme) : null;
   const prompt = buildImagePrompt({
     idea: content.imageIdea,
     archetypeId: post?.archetype,
     styleNotes: settings.styleNotes,
     instructions: opts.instructions,
     theme: post?.theme,
+    palette: custom
+      ? { bg1: custom.bg1, bg2: custom.bg2, accent: custom.accent, textColor: custom.textColor }
+      : null,
   });
 
   const quality = opts.quality ?? settings.quality;

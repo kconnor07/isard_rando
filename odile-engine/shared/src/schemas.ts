@@ -178,6 +178,12 @@ export const newsScoreBatchSchema = z.object({ scores: z.array(newsScoreSchema) 
 
 export const loginSchema = z.object({ password: z.string().min(1) });
 
+/** Thème intégré, ou template maison (« custom:<slug> ») créé depuis le dashboard */
+export const themeIdSchema = z.union([
+  z.enum(THEMES),
+  z.string().regex(/^custom:[a-z0-9][a-z0-9-]{0,40}$/),
+]);
+
 export const patchPostSchema = z.object({
   caption: z.string().max(2900).optional(),
   hook: z.string().max(220).optional(),
@@ -185,7 +191,7 @@ export const patchPostSchema = z.object({
   hashtags: z.array(z.string()).max(12).optional(),
   channel: z.enum(CHANNELS).optional(),
   format: z.enum(POST_FORMATS).optional(),
-  theme: z.enum(THEMES).optional(),
+  theme: themeIdSchema.optional(),
   scheduledAt: z.string().datetime().nullable().optional(),
 });
 
@@ -202,7 +208,7 @@ export const rejectSchema = z.object({ reason: z.string().max(500).optional() })
 export const generateFromNewsSchema = z.object({
   channel: z.enum(CHANNELS).optional(),
   format: z.enum(POST_FORMATS).optional(),
-  theme: z.enum(THEMES).optional(),
+  theme: themeIdSchema.optional(),
 });
 
 export type PostSummary = {
@@ -210,7 +216,7 @@ export type PostSummary = {
   platform: string;
   channel: (typeof CHANNELS)[number];
   format: (typeof POST_FORMATS)[number];
-  theme: (typeof THEMES)[number];
+  theme: string;
   status: (typeof POST_STATUSES)[number];
   hook: string;
   caption: string;

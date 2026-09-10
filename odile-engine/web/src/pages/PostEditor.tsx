@@ -8,14 +8,11 @@ import { CHANNEL_LABELS, fmtDate, PageTitle, StatusBadge } from '../components/s
 
 const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'] as const;
 
-const THEME_CHOICES: { id: string; label: string }[] = [
-  { id: 'odile-nuit', label: 'Odile Nuit — bleu nuit horizon' },
-  { id: 'violet-glow', label: 'Halo Bleu — orbes lumineux' },
-  { id: 'cyan-tech', label: 'Bleu Tech — dégradés électriques' },
-  { id: 'verre-bleu', label: 'Verre Bleu — courbes de verre' },
-  { id: 'encre-blanche', label: 'Encre Blanche — monochrome sombre' },
-  { id: 'papier-blanc', label: 'Papier Blanc — monochrome clair' },
-];
+/** Catalogue des thèmes : intégrés + templates maison (onglet Templates) */
+interface ThemeCatalogue {
+  builtin: { id: string; label: string }[];
+  custom: { themeId: string; name: string }[];
+}
 
 const REVIEWER_LABELS: Record<string, string> = {
   art_director: 'Direction artistique',
@@ -269,6 +266,10 @@ export default function PostEditor() {
     queryKey: ['post', id],
     queryFn: () => api.get<PostDetailDto>(`/api/posts/${id}`),
   });
+  const { data: catalogue } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => api.get<ThemeCatalogue>('/api/templates'),
+  });
   const [caption, setCaption] = useState('');
   const [busy, setBusy] = useState('');
 
@@ -315,9 +316,21 @@ export default function PostEditor() {
                 })()
               }
             >
-              {THEME_CHOICES.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
+              {!catalogue && <option value={post.theme}>{post.theme}</option>}
+              {catalogue && catalogue.custom.length > 0 && (
+                <optgroup label="Mes templates">
+                  {catalogue.custom.map((t) => (
+                    <option key={t.themeId} value={t.themeId}>{t.name}</option>
+                  ))}
+                </optgroup>
+              )}
+              {catalogue && (
+                <optgroup label="Thèmes fournis">
+                  {catalogue.builtin.map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
           <div className="min-w-[11rem]">

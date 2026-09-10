@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import News from './pages/News';
 import PostEditor from './pages/PostEditor';
 import Settings from './pages/Settings';
+import Templates from './pages/Templates';
 import Setup from './pages/Setup';
 
 export default function App() {
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/posts/:id" element={<PostEditor />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/news" element={<News />} />
+        <Route path="/templates" element={<Templates />} />
         <Route path="/comments" element={<Comments />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />
