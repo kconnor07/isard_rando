@@ -226,7 +226,8 @@ MISSION
 1. "screenshots" : ${counts.screenshots} page(s) web à capturer pour ce post, dans l'ordre d'intérêt.
    Priorités : le site officiel de l'outil ou du produit dont parle le post (page d'accueil, tarifs,
    démo), puis l'article source lui-même. Uniquement des URL dont tu es CERTAIN qu'elles existent
-   (domaine officiel connu, ou URL fournie ci-dessus). Jamais d'URL inventée ou approximative.
+   (domaine officiel connu, ou URL fournie ci-dessus). Jamais d'URL inventée ou approximative ;
+   en cas de doute sur le domaine officiel d'un produit, prends l'URL citée dans l'article ou aucune.
 2. "images" : ${counts.images} concept(s) d'illustration à générer, en français, une scène précise
    et sobre chacune (objet, matière, lumière, angle), sans aucun texte dans l'image, variés entre eux,
    et indique la slide à laquelle chacun se destine ("slideIdx") et son "style" :

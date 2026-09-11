@@ -380,17 +380,37 @@ export interface RenderSummary {
   assetIds: string[];
 }
 
-/** Rend toutes les slides d'un post en PNG et met à jour slides.render_asset_id. */
-export async function renderPost(postId: number): Promise<RenderSummary> {
+/** Exécute des tâches asynchrones avec au plus `limit` en parallèle, en conservant l'ordre des résultats. */
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]!, i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+/**
+ * Rend les slides d'un post en PNG (3 en parallèle) et met à jour
+ * slides.render_asset_id. `onlyIdx` : une seule slide (action ciblée de
+ * l'éditeur : illustration posée, slide régénérée) — les autres gardent leur rendu.
+ */
+export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}): Promise<RenderSummary> {
   const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (!post) throw new Error(`Post ${postId} introuvable`);
-  const slides = db
+  const allSlides = db
     .select()
     .from(schema.slides)
     .where(eq(schema.slides.postId, postId))
     .orderBy(schema.slides.idx)
     .all();
-  if (slides.length === 0) throw new Error(`Post ${postId} sans slides`);
+  if (allSlides.length === 0) throw new Error(`Post ${postId} sans slides`);
+  const slides = opts.onlyIdx === undefined ? allSlides : allSlides.filter((s) => s.idx === opts.onlyIdx);
+  if (slides.length === 0) throw new Error(`Slide ${opts.onlyIdx} introuvable`);
 
   const brand = getBrand();
   const logoDataUri = assetDataUri(brand.logoAssetId);
@@ -404,7 +424,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
 
   // L'illustration du post (celle du hook) diffuse un écho flouté sur les
   // slides sans image propre → harmonie colorimétrique sur tout le carrousel.
-  const postHeroAssetId = slides.find((s) => s.heroAssetId)?.heroAssetId ?? null;
+  const postHeroAssetId = allSlides.find((s) => s.heroAssetId)?.heroAssetId ?? null;
   const ambientHeroDataUri = assetDataUri(postHeroAssetId);
   // Objets flottants et placement propres au post (choisis dans « Visuels proposés »)
   const overrides = parseVisualOverrides(post.visualOverrides);
@@ -424,7 +444,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
   const accentFromImage = custom ? custom.accentFromImage : true;
   const floatSlides: FloatSlides = overrides.floatSlides ?? custom?.floatSlides ?? 'centrees';
 
-  for (const slide of slides) {
+  const rendered = await mapLimit(slides, 3, async (slide) => {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
     const screenshotDataUri = assetDataUri(slide.screenshotAssetId);
     const hero = assetInfo(slide.heroAssetId);
@@ -439,7 +459,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
       format,
       brand,
       slideNum: slide.idx + 1,
-      slideTotal: slides.length,
+      slideTotal: allSlides.length,
       keyword: post.commentTriggerKeyword,
       screenshotDataUri,
       heroDataUri: hero?.dataUri ?? null,
@@ -460,6 +480,9 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
     if (info.width !== size.width || info.height !== size.height) {
       throw new Error(`Rendu inattendu ${info.width}×${info.height} (slide ${slide.idx})`);
     }
+    return { slide, png };
+  });
+  for (const { slide, png } of rendered) {
     const assetId = saveAsset(png, 'render', { postId, slideId: slide.id }, size);
     db.update(schema.slides)
       .set({ renderAssetId: assetId, updatedAt: new Date().toISOString() })

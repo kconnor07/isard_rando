@@ -199,8 +199,9 @@ export function registerPostRoutes(app: FastifyInstance): void {
     return { ok: true };
   });
 
-  app.post<{ Params: { id: string } }>('/api/posts/:id/render', async (request) => {
-    return renderPost(Number(request.params.id));
+  app.post<{ Params: { id: string }; Querystring: { slide?: string } }>('/api/posts/:id/render', async (request) => {
+    const slide = request.query.slide !== undefined ? Number(request.query.slide) : undefined;
+    return renderPost(Number(request.params.id), Number.isInteger(slide) ? { onlyIdx: slide } : {});
   });
 
   // Génération / régénération de l'illustration IA d'une slide

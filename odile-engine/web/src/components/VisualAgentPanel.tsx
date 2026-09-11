@@ -52,7 +52,8 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
     setBusyId(c.id);
     try {
       await api.post(`/api/posts/${post.id}/visuals/${c.id}/use`, { slideIdx, as });
-      await api.post(`/api/posts/${post.id}/render`);
+      // Illustration ou capture : seule la slide visée est re-rendue (objets flottants : toutes)
+      await api.post(as === 'hero' || as === 'screenshot' ? `/api/posts/${post.id}/render?slide=${slideIdx}` : `/api/posts/${post.id}/render`);
       onChanged();
     } catch (e) {
       alert(String(e));

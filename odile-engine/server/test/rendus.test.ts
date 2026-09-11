@@ -80,11 +80,13 @@ describe('objets flottants', () => {
     const uris: (string | null)[] = ['data:a', 'data:b', 'data:c', 'data:d'];
     const bleed = floatCss({ uris, size: 30, layout: '4-coins', bleed: true, tilt: 14 });
     expect(bleed).toContain('.floats-on .float-4 {');
-    expect(bleed).toContain('left: -9%');
+    // débordement proportionnel à l'objet (324 px de large → 78 px dehors), pas au canevas
+    expect(bleed).toContain('left: -78px');
+    expect(bleed).toContain('top: -65px');
     expect(bleed).toContain('rotate(-14deg)');
     const inside = floatCss({ uris, size: 30, layout: '4-coins', bleed: false, tilt: 0 });
     expect(inside).toContain('left: 6%');
-    expect(inside).not.toContain('-9%');
+    expect(inside).not.toContain('-78px');
     expect(floatCss({ uris: ['data:a', null], size: 30, layout: 'coins' })).not.toContain('.float-2');
   });
   it('les objets vont sur les slides centrées par défaut, pas sur le contenu aligné à gauche', () => {

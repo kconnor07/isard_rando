@@ -77,9 +77,12 @@ export function floatCss(opts: FloatCssOpts): string {
     .map((uri, i) => {
       const a = anchors[i];
       if (!uri || !a) return '';
-      const [x, y] = opts.bleed ? a.bleed : a.inset;
+      // Débordement : proportionnel à l'objet (≈ un quart sort du cadre), pas au canevas
+      const pos = opts.bleed
+        ? `${a.h}: ${a.bleed[0] < 0 ? -Math.round(width * 0.24) : Math.round((a.bleed[0] * 1080) / 100)}px; ${a.v}: ${a.bleed[1] < 0 ? -Math.round(width * 0.2) : Math.round((a.bleed[1] * 1350) / 100)}px;`
+        : `${a.h}: ${a.inset[0]}%; ${a.v}: ${a.inset[1]}%;`;
       const transform = `rotate(${a.tilt * tilt}deg)${a.flip ? ' scaleX(-1)' : ''}`;
-      return `.floats-on .float-${i + 1} { display: block; ${a.h}: ${x}%; ${a.v}: ${y}%; width: ${width}px; height: ${width}px; transform: ${transform};
+      return `.floats-on .float-${i + 1} { display: block; ${pos} width: ${width}px; height: ${width}px; transform: ${transform};
   background-image: url(${uri}); background-size: contain; background-position: center; background-repeat: no-repeat;
   filter: ${shadow}; }`;
     })]
