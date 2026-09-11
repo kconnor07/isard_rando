@@ -10,6 +10,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        # Renseigné par docker/deploy.sh : visible dans /healthz et Connexions & santé
+        GIT_SHA: ${GIT_SHA:-unknown}
     env_file: ../.env
     environment:
       DATA_DIR: /data

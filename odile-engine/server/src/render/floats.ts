@@ -60,7 +60,19 @@ export function floatCss(opts: FloatCssOpts): string {
   const shadow = opts.darkTheme === false
     ? 'drop-shadow(0 24px 36px rgba(11, 11, 14, 0.28))'
     : 'drop-shadow(0 34px 44px rgba(0, 0, 0, 0.55))';
-  return opts.uris
+  const used = opts.uris.slice(0, 4).map((uri, i) => (uri ? anchors[i] : undefined)).filter((a): a is Anchor => Boolean(a));
+  const bottomRight = used.some((a) => a.v === 'bottom' && a.h === 'right');
+  const bottomLeft = used.some((a) => a.v === 'bottom' && a.h === 'left');
+  // Un objet dans un coin bas : le logo et le compteur se regroupent de l'autre côté (ou au centre)
+  const footer =
+    bottomRight && bottomLeft
+      ? '.floats-on .brand-footer { justify-content: center; gap: 28px; }'
+      : bottomRight
+        ? '.floats-on .brand-footer { justify-content: flex-start; gap: 28px; }'
+        : bottomLeft
+          ? '.floats-on .brand-footer { justify-content: flex-end; gap: 28px; }'
+          : '';
+  return [footer, ...opts.uris
     .slice(0, 4)
     .map((uri, i) => {
       const a = anchors[i];
@@ -70,7 +82,8 @@ export function floatCss(opts: FloatCssOpts): string {
       return `.floats-on .float-${i + 1} { display: block; ${a.h}: ${x}%; ${a.v}: ${y}%; width: ${width}px; height: ${width}px; transform: ${transform};
   background-image: url(${uri}); background-size: contain; background-position: center; background-repeat: no-repeat;
   filter: ${shadow}; }`;
-    })
+    })]
+    .filter(Boolean)
     .join('\n');
 }
 

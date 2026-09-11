@@ -16,7 +16,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 export function registerPublicRoutes(app: FastifyInstance): void {
-  app.get('/healthz', async () => ({ ok: true, ts: new Date().toISOString() }));
+  app.get('/healthz', async () => ({ ok: true, ts: new Date().toISOString(), version: process.env.GIT_SHA ?? 'dev' }));
 
   // ----- Raccourcisseur de liens tracké -------------------------------------
   app.get<{ Params: { code: string } }>('/r/:code', async (request, reply) => {

@@ -6,6 +6,7 @@ import { fmtDate, PageTitle } from '../components/shared';
 interface HealthDto {
   publicUrl: string;
   publishMode: string;
+  version?: string;
   llmMode: string;
   llm: { anthropic: boolean; gemini: boolean };
   smtp: { ok: boolean; detail: string };
@@ -108,7 +109,7 @@ export default function Setup() {
           <div className="flex items-center gap-2"><Dot ok={Boolean(health.lastWebhookCommentAt)} /> Webhook Meta
             <span className="text-xs text-muted">{health.lastWebhookCommentAt ? `dernier commentaire ${fmtDate(health.lastWebhookCommentAt)}` : 'aucun événement reçu'}</span></div>
         </div>
-        <p className="mt-3 text-xs text-muted">URL publique : {health.publicUrl}</p>
+        <p className="mt-3 text-xs text-muted">URL publique : {health.publicUrl} · version déployée : <b className="mono">{health.version ?? 'dev'}</b></p>
       </div>
 
       <div className="card p-5">

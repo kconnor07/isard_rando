@@ -42,11 +42,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates dumb-init \
     && rm -rf /var/lib/apt/lists/*
 
+ARG GIT_SHA=unknown
 ENV NODE_ENV=production \
     TZ=Europe/Paris \
     CHROMIUM_PATH=/usr/bin/chromium \
     DATA_DIR=/data \
-    PORT=3080
+    PORT=3080 \
+    GIT_SHA=$GIT_SHA
 
 WORKDIR /app
 COPY --from=proddeps /app/node_modules ./node_modules

@@ -109,10 +109,11 @@ body {
 }
 .icon-badge svg { width: 46px; height: 46px; }
 .kind-hook .icon-badge, .kind-cta .icon-badge { align-self: center; }
-/* Sous une illustration, le badge icône ferait doublon ; l'objet ancré en haut prend la place de l'annotation */
-.has-hero .icon-badge, .hero-contain.hero-place-haut .annotation { display: none; }
+/* Sous une illustration, le badge icône ferait doublon ; sous un objet détouré, l'annotation aussi */
+.has-hero .icon-badge, .hero-contain .annotation { display: none; }
 
 .big-number {
+  white-space: nowrap;
   font-weight: var(--big-weight, 900);
   font-size: 300px;
   line-height: 0.95;
@@ -416,16 +417,23 @@ body {
    Placement : centré au-dessus du titre, ancré en haut (déborde), à droite, à gauche.
    Taille : --hero-scale (0.6 → 1.4). */
 .hero-contain .hero-image {
-  background-size: auto calc(66% * var(--hero-scale, 1));
-  background-position: center 12%;
+  background-size: auto calc(56% * var(--hero-scale, 1));
+  background-position: center 8%;
   background-repeat: no-repeat;
 }
+/* Zone réservée à l'objet : le texte vit sous lui, réduit au besoin par l'ajustement automatique */
+.hero-contain.hero-place-centre .safe { padding-top: 700px; }
 .hero-contain.hero-place-haut .hero-image { background-size: auto calc(66% * var(--hero-scale, 1)); background-position: center -12%; }
-.hero-contain.hero-place-droite .hero-image { background-size: auto calc(74% * var(--hero-scale, 1)); background-position: 118% 46%; }
-.hero-contain.hero-place-gauche .hero-image { background-size: auto calc(74% * var(--hero-scale, 1)); background-position: -18% 46%; }
+.hero-contain.hero-place-haut .safe { padding-top: 790px; }
+/* À droite / à gauche : l'objet est contenu dans sa colonne, le texte garde la sienne */
+.hero-contain.hero-place-droite .hero-image { inset: 8% -6% 14% 58%; background-size: calc(100% * var(--hero-scale, 1)) auto; background-position: center; }
+.hero-contain.hero-place-gauche .hero-image { inset: 8% 58% 14% -6%; background-size: calc(100% * var(--hero-scale, 1)) auto; background-position: center; }
 .hero-contain.hero-place-droite .safe, .hero-contain.hero-place-gauche .safe { justify-content: center; padding-bottom: 150px; }
-.hero-contain.hero-place-droite .safe { align-items: flex-start; text-align: left; padding-right: 380px; }
-.hero-contain.hero-place-gauche .safe { align-items: flex-start; text-align: left; padding-left: 380px; }
+.hero-contain.hero-place-droite .safe { align-items: flex-start; text-align: left; padding-right: 440px; }
+.hero-contain.hero-place-gauche .safe { align-items: flex-start; text-align: left; padding-left: 440px; }
+.hero-contain.hero-place-droite .safe .title, .hero-contain.hero-place-gauche .safe .title { font-size: 76px; }
+.hero-contain.hero-place-droite .safe .body, .hero-contain.hero-place-gauche .safe .body { font-size: 36px; }
+.hero-contain.hero-place-droite .safe .bullets li, .hero-contain.hero-place-gauche .safe .bullets li { font-size: 36px; }
 /* Halo accent diffus derrière l'objet détouré */
 .hero-glow {
   display: none;

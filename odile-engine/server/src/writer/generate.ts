@@ -1,4 +1,5 @@
 import { desc, eq, isNotNull } from 'drizzle-orm';
+import { z } from 'zod';
 import {
   ARCHETYPES,
   DEFAULTS,
@@ -96,6 +97,41 @@ const BANNED_CLICHES = [
   'un cadenas numérique générique',
 ];
 
+const ARCHETYPE_IDS = ARCHETYPES.map((a) => a.id) as [string, ...string[]];
+const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/** « Objet 3D suspendu + halo », « OBJET_HALO », « objet halo » → « objet_halo » ; sinon la valeur brute. */
+export function normalizeArchetype(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const raw = fold(value);
+  const compact = raw.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const hit = ARCHETYPES.find((a) => a.id === compact || fold(a.label) === raw || a.id.replace(/_/g, ' ') === raw);
+  return hit ? hit.id : value;
+}
+
+/**
+ * Schéma de réponse du rédacteur, plus strict que le schéma partagé : archétype
+ * obligatoire (id exact) et, quand les illustrations sont activées, une idée
+ * d'image sur l'accroche. Une réponse non conforme est renvoyée au modèle avec
+ * l'erreur exacte (boucle de correction de completeJson).
+ */
+export function writerResponseSchema(imagesAllowed: number) {
+  const base = generatedPostSchema.extend({
+    archetype: z.preprocess(normalizeArchetype, z.enum(ARCHETYPE_IDS)),
+  });
+  if (imagesAllowed <= 0) return base;
+  return base.superRefine((post, ctx) => {
+    const hook = post.slides[0];
+    if (!hook?.imageIdea || hook.imageIdea.trim().length < 12) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['slides', 0, 'imageIdea'],
+        message: "obligatoire : décris en français la scène de l'illustration de l'accroche (sujet, matière, ambiance)",
+      });
+    }
+  });
+}
+
 function buildArchetypeSpec(isCarousel: boolean, imagesAllowed: number): string {
   const recent = recentArchetypes();
   const catalog = ARCHETYPES.map(
@@ -106,13 +142,14 @@ function buildArchetypeSpec(isCarousel: boolean, imagesAllowed: number): string 
   ).join('\n');
   const imageSpec =
     imagesAllowed > 0
-      ? `Si l'archétype nécessite une illustration, renseigne "imageIdea" sur ${
-          imagesAllowed === 1 ? 'la slide hook UNIQUEMENT' : `au maximum ${imagesAllowed} slides (hook en priorité)`
+      ? `"imageIdea" est OBLIGATOIRE sur la slide hook (slide 1)${
+          imagesAllowed > 1 ? ` et possible sur au maximum ${imagesAllowed - 1} autre(s) slide(s)` : ''
         } : décris UNE scène précise et originale en français (sujet, matière, ambiance) — l'image sera générée
 sans aucun texte dedans, le titre restant en surimpression. Idées bannies (déjà trop vues) : ${BANNED_CLICHES.join(' ; ')}.`
       : `La génération d'images est désactivée : ne renseigne aucun "imageIdea" et choisis un archétype sans image.`;
 
-  return `DIRECTION ARTISTIQUE — choisis UN archétype de composition dans ce catalogue et renseigne son id dans "archetype".
+  return `DIRECTION ARTISTIQUE — choisis UN archétype de composition dans ce catalogue et renseigne son id EXACT
+(l'un de : ${ARCHETYPE_IDS.join(', ')}) dans "archetype" (OBLIGATOIRE).
 Sois créatif : varie les archétypes d'un post à l'autre (ceux marqués ⛔ sont interdits aujourd'hui).
 ${catalog}
 
@@ -200,7 +237,7 @@ CONTRAINTES :
 
   const { value: generated } = await completeJson<GeneratedPost>(
     { task: 'writing', tier: 'best', system: WRITER_SYSTEM, prompt, maxTokens: 16000 },
-    generatedPostSchema,
+    writerResponseSchema(imagesAllowed),
   );
 
   return persistDraft({ news, channel, platform, format, theme, tone, generated });

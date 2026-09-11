@@ -131,6 +131,7 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
       .get();
     return {
       publicUrl: config.PUBLIC_URL,
+      version: process.env.GIT_SHA ?? 'dev',
       publishMode: config.PUBLISH_MODE,
       llmMode: config.LLM_MODE,
       llm: {

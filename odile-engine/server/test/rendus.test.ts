@@ -120,3 +120,23 @@ describe('primitives de rendu', () => {
     expect(iconSvg('licorne')).toBeNull();
   });
 });
+
+describe('rédacteur : archétype et image d’accroche', async () => {
+  const { normalizeArchetype, writerResponseSchema } = await import('../src/writer/generate.js');
+  const post = {
+    hook: 'x', caption: 'x', hashtags: ['#ia'], cta: 'x', screenshotUrl: null,
+    slides: [{ kind: 'hook', title: 'Titre', imageIdea: 'Un chronomètre en verre suspendu dans une brume légère' }],
+  };
+  it('normalise le libellé ou la casse vers l’id exact', () => {
+    expect(normalizeArchetype('Objet 3D suspendu + halo')).toBe('objet_halo');
+    expect(normalizeArchetype('OBJET_HALO')).toBe('objet_halo');
+    expect(normalizeArchetype('scene epique')).toBe('scene_epique');
+    expect(normalizeArchetype('inconnu')).toBe('inconnu');
+  });
+  it('refuse une réponse sans archétype ou sans idée d’image sur l’accroche quand les images sont activées', () => {
+    expect(writerResponseSchema(1).safeParse({ ...post, archetype: 'objet_halo' }).success).toBe(true);
+    expect(writerResponseSchema(1).safeParse({ ...post }).success).toBe(false);
+    expect(writerResponseSchema(1).safeParse({ ...post, archetype: 'objet_halo', slides: [{ kind: 'hook', title: 'Titre' }] }).success).toBe(false);
+    expect(writerResponseSchema(0).safeParse({ ...post, archetype: 'typo_stickers', slides: [{ kind: 'hook', title: 'Titre' }] }).success).toBe(true);
+  });
+});

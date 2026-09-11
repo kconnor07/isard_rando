@@ -237,6 +237,55 @@ function pad(n: number): string {
 }
 
 /**
+ * Ajustement automatique : si le bloc de texte déborde du cadre (gros chiffre +
+ * titre + corps), il est réduit d'un facteur unique (jamais sous 55 %) en
+ * gardant son ancrage (centré, ou en bas sous une illustration). Exécuté dans
+ * la page avant la capture — aucune slide ne sort avec un texte coupé.
+ */
+const FIT_SCRIPT = `(() => {
+  const safe = document.querySelector('.safe');
+  if (!safe) return 1;
+  const cs = getComputedStyle(safe);
+  const px = (v) => parseFloat(v) || 0;
+  const kids = Array.from(safe.children);
+  const gap = px(cs.rowGap) || px(cs.gap);
+  const needed = kids.reduce((h, el) => {
+    const m = getComputedStyle(el);
+    return h + el.getBoundingClientRect().height + px(m.marginTop) + px(m.marginBottom);
+  }, 0) + gap * Math.max(0, kids.length - 1) + px(cs.paddingTop) + px(cs.paddingBottom);
+  const innerW = safe.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
+  const contentWidth = (el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return Math.max(el.getBoundingClientRect().width, range.getBoundingClientRect().width);
+  };
+  // 1. Un gros chiffre trop large est réduit seul (jusqu'à 50 %) avant toute réduction globale
+  for (const el of kids) {
+    if (!el.classList.contains('big-number')) continue;
+    const base = px(getComputedStyle(el).fontSize);
+    let f = 1;
+    while (contentWidth(el) > innerW && f > 0.5) {
+      f -= 0.04;
+      el.style.fontSize = Math.round(base * f) + 'px';
+    }
+  }
+  const needed2 = kids.reduce((h, el) => {
+    const m = getComputedStyle(el);
+    return h + el.getBoundingClientRect().height + px(m.marginTop) + px(m.marginBottom);
+  }, 0) + gap * Math.max(0, kids.length - 1) + px(cs.paddingTop) + px(cs.paddingBottom);
+  const widest = kids.reduce((w, el) => Math.max(w, contentWidth(el)), 0);
+  let scale = Math.min(1, safe.clientHeight / Math.max(needed, needed2), widest > innerW ? innerW / widest : 1);
+  scale = Math.max(0.55, Math.floor(scale * 100) / 100);
+  if (scale < 1) {
+    const ox = cs.alignItems === 'flex-start' ? '0%' : '50%';
+    const oy = cs.justifyContent === 'flex-end' ? '100%' : cs.justifyContent === 'flex-start' ? '0%' : '50%';
+    safe.style.transformOrigin = ox + ' ' + oy;
+    safe.style.transform = 'scale(' + scale + ')';
+  }
+  return scale;
+})()`;
+
+/**
  * Rend un HTML 1080×H en PNG via Chromium (réseau totalement bloqué).
  * Par défaut suréchantillonné (RENDER_SCALE = 2 : rendu en 2160×2700 puis
  * réduit) — typographie, dégradés et bords des détourages plus nets.
@@ -258,6 +307,8 @@ export async function renderHtmlToPng(
     await page.setContent(html, { waitUntil: 'load', timeout: 30_000 });
     // Attendre le chargement des polices (contexte navigateur, pas Node)
     await page.evaluate('document.fonts.ready');
+    const fit = (await page.evaluate(FIT_SCRIPT)) as number;
+    if (fit < 1) logger.debug({ fit }, 'texte réduit pour tenir dans la slide');
     await page.waitForTimeout(120);
     const png = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, ...size } });
     if (scale === 1) return png;
@@ -377,6 +428,10 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
     const screenshotDataUri = assetDataUri(slide.screenshotAssetId);
     const hero = assetInfo(slide.heroAssetId);
+    // Slide dense (titre à gauche, puces, cartes) + objet détouré : l'objet passe à droite
+    // du texte plutôt qu'au-dessus, sauf placement choisi pour ce post.
+    const heavy = ['content', 'notifications', 'screenshot'].includes(content.kind);
+    const perSlide = hero?.cutout && heavy && !overrides.heroPlacement ? slideStyleFor(custom, { ...overrides, heroPlacement: 'droite' }) : slideStyle;
     const html = buildSlideHtml({
       theme: post.theme,
       kind: content.kind,
@@ -391,8 +446,8 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
       heroContain: hero?.cutout ?? false,
       monochromeHero,
       postCss,
-      slideClasses: slideStyle.classes,
-      slideStyle: slideStyle.style,
+      slideClasses: perSlide.classes,
+      slideStyle: perSlide.style,
       popColor: accentFromImage && !monochromeHero && hero && !hero.cutout ? hero.popColor : null,
       floatsOn: floatsOnSlide(content.kind, floatSlides),
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,

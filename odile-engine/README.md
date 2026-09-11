@@ -82,8 +82,14 @@ gratuite Oracle ARM), puis [docs/setup-meta.md](docs/setup-meta.md),
 [docs/setup-linkedin.md](docs/setup-linkedin.md), [docs/setup-smtp.md](docs/setup-smtp.md).
 
 ```bash
-docker compose --env-file .env -f docker/docker-compose.yml up -d --build
+# Mise à jour + reconstruction + vérification de la version servie (/healthz)
+./docker/deploy.sh
 ```
+
+Le script met la branche courante à jour, construit l'image avec le numéro de
+commit, redémarre et affiche la version en ligne (aussi visible dans
+**Connexions & santé**). Si la version affichée n'est pas celle attendue, le
+build a échoué : lire la sortie au-dessus.
 
 ## Architecture
 
