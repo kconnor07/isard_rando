@@ -488,8 +488,8 @@ body {
     linear-gradient(180deg,
     rgba(4, 6, 15, 0.18) 0%,
     rgba(4, 6, 15, 0.05) 30%,
-    rgba(4, 6, 15, 0.55) 62%,
-    rgba(4, 6, 15, 0.92) 100%);
+    rgba(4, 6, 15, 0.66) 62%,
+    rgba(4, 6, 15, 0.96) 100%);
 }
 
 /* Écho ambiant : sur les slides sans illustration propre, la même image
@@ -510,6 +510,9 @@ body {
 .has-hero .bg { opacity: 0.4; }
 .has-hero .safe { justify-content: flex-end; padding-bottom: 190px; }
 .has-hero .title { text-shadow: 0 8px 50px rgba(2, 6, 20, 0.9); }
+/* Sur une image, le corps de texte passe en blanc plein avec une ombre : lisible quel que soit le fond */
+.has-hero .body, .has-hero .bullets li, .has-hero .subtitle .tone-2 { color: var(--text); text-shadow: 0 2px 22px rgba(2, 6, 20, 0.75); }
+.has-hero .annotation { text-shadow: 0 2px 18px rgba(2, 6, 20, 0.8); }
 
 /* --- Pile de notifications (archétype A2) ------------------------------- */
 

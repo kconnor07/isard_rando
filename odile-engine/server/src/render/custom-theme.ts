@@ -476,8 +476,8 @@ ${
     linear-gradient(180deg,
       ${rgba(theme.bg1, 0.18)} 0%,
       ${rgba(theme.bg1, 0.05)} 30%,
-      ${rgba(theme.bg1, 0.55)} 62%,
-      ${rgba(theme.bg1, 0.92)} 100%);
+      ${rgba(theme.bg1, 0.66)} 62%,
+      ${rgba(theme.bg1, 0.96)} 100%);
 }
 ${
   light
