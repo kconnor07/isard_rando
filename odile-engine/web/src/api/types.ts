@@ -28,6 +28,8 @@ export interface SlideDto {
   renderAssetId: string | null;
   screenshotAssetId: string | null;
   heroAssetId: string | null;
+  /** illustration détourée (PNG alpha) : placement réglable */
+  heroCutout?: boolean;
 }
 
 export interface ReviewDto {
@@ -56,6 +58,7 @@ export interface PostDetailDto extends PostSummaryDto {
     floatLayout?: string;
     floatBleed?: boolean;
     floatTilt?: number;
+    floatSlides?: 'centrees' | 'accroche' | 'toutes';
     heroPlacement?: 'centre' | 'haut' | 'droite' | 'gauche' | null;
     heroSize?: number | null;
   };

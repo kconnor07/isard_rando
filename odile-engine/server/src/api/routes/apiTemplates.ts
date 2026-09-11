@@ -8,6 +8,7 @@ import { getBrand, getDefaultTheme, getImageGen, setSetting } from '../../db/set
 import { generateMockPlaceholderBuffer } from '../../imagegen/index.js';
 import { buildCustomThemeCss, customThemeId, slideStyleFor } from '../../render/custom-theme.js';
 import { assetDataUri, buildSlideHtml, renderHtmlToPng } from '../../render/renderer.js';
+import { floatsOnSlide } from '../../render/floats.js';
 import { THEME_LABELS } from '../../render/themes.js';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -73,6 +74,7 @@ export const templateSchema = z.object({
   floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes', '4-coins']).default('coins'),
   floatBleed: z.boolean().default(true),
   floatTilt: z.number().int().min(0).max(30).default(12),
+  floatSlides: z.enum(['centrees', 'accroche', 'toutes']).default('centrees'),
   // Illustration
   imageStyle: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
   heroGrade: z.enum(['aucun', 'vif', 'teinte', 'doux']).default('vif'),
@@ -299,6 +301,7 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
       themeCssOverride: buildCustomThemeCss(draft),
       slideClasses: style.classes,
       slideStyle: style.style,
+      floatsOn: floatsOnSlide(slide.kind, draft.floatSlides),
       logoDataUri: assetDataUri(brand.logoAssetId),
       avatarDataUri: assetDataUri(brand.avatarAssetId),
     });

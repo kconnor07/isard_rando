@@ -315,27 +315,10 @@ export default function Settings() {
           Toutes les images en noir et blanc — illustrations, studio et bibliothèque (le modèle reçoit un guide monochrome, et le serveur désature quoi qu'il arrive)
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div className="sm:col-span-2">
             <label className="label">Illustrations max par post : {form.image_gen.imagesPerPost}</label>
             <input type="range" min={0} max={2} className="w-full accent-sky-500" value={form.image_gen.imagesPerPost}
               onChange={(e) => set('image_gen', { ...form.image_gen, imagesPerPost: Number(e.target.value) })} />
-          </div>
-          <div>
-            <label className="label">Qualité</label>
-            <select className="input" value={form.image_gen.quality}
-              onChange={(e) => set('image_gen', { ...form.image_gen, quality: e.target.value as 'pro' | 'fast' })}>
-              <option value="pro">Pro — Nano Banana Pro (qualité max)</option>
-              <option value="fast">Rapide — Nano Banana 2 (économique)</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label className="label">Fournisseur d'images</label>
-            <select className="input" value={form.image_gen.provider ?? 'auto'}
-              onChange={(e) => set('image_gen', { ...form.image_gen, provider: e.target.value as 'auto' | 'gemini' | 'freepik' })}>
-              <option value="auto">Auto — Freepik/Magnific si sa clé est présente, sinon Gemini direct</option>
-              <option value="freepik">Freepik / Magnific (Nano Banana Pro via leur plateforme, clé FREEPIK_API_KEY)</option>
-              <option value="gemini">Gemini direct (clé GEMINI_API_KEY)</option>
-            </select>
           </div>
           <div className="sm:col-span-2">
             <label className="label">Style des illustrations</label>
@@ -399,6 +382,26 @@ export default function Settings() {
               }}
             />
           </div>
+          <details className="section-toggle sm:col-span-2 rounded-xl border border-line p-3">
+            <summary className="cursor-pointer text-sm font-semibold">Réglages avancés — qualité, fournisseur, modèles, notes de direction artistique</summary>
+            <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Qualité</label>
+            <select className="input" value={form.image_gen.quality}
+              onChange={(e) => set('image_gen', { ...form.image_gen, quality: e.target.value as 'pro' | 'fast' })}>
+              <option value="pro">Pro — Nano Banana Pro (qualité max)</option>
+              <option value="fast">Rapide — Nano Banana 2 (économique)</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Fournisseur d'images</label>
+            <select className="input" value={form.image_gen.provider ?? 'auto'}
+              onChange={(e) => set('image_gen', { ...form.image_gen, provider: e.target.value as 'auto' | 'gemini' | 'freepik' })}>
+              <option value="auto">Auto — Freepik/Magnific si sa clé est présente, sinon Gemini direct</option>
+              <option value="freepik">Freepik / Magnific (Nano Banana Pro via leur plateforme, clé FREEPIK_API_KEY)</option>
+              <option value="gemini">Gemini direct (clé GEMINI_API_KEY)</option>
+            </select>
+          </div>
           <div className="sm:col-span-2">
             <label className="label">Modèle Freepik / Magnific par style (vide = modèle par défaut ci-dessous)</label>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -436,6 +439,8 @@ export default function Settings() {
               placeholder="ex : privilégier les objets en verre, ambiance très minimaliste…"
               onChange={(e) => set('image_gen', { ...form.image_gen, styleNotes: e.target.value })} />
           </div>
+            </div>
+          </details>
         </div>
         <p className="mt-3 text-xs text-muted">
           Le texte n'est jamais dans l'image : il reste en surimpression HTML (typographie parfaite).

@@ -109,6 +109,8 @@ body {
 }
 .icon-badge svg { width: 46px; height: 46px; }
 .kind-hook .icon-badge, .kind-cta .icon-badge { align-self: center; }
+/* Sous une illustration, le badge icône ferait doublon ; l'objet ancré en haut prend la place de l'annotation */
+.has-hero .icon-badge, .hero-contain.hero-place-haut .annotation { display: none; }
 
 .big-number {
   font-weight: var(--big-weight, 900);

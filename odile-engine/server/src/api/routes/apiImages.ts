@@ -7,10 +7,10 @@ import { db, schema } from '../../db/client.js';
 import { getBrand, getImageGen } from '../../db/settingsRepo.js';
 import { config } from '../../config.js';
 import { fitCutout, removeImageBackground } from '../../imagegen/cutout.js';
-import { generateStyledImage, type ImageAspect } from '../../imagegen/index.js';
+import { generateStyledImage, usableReference, type ImageAspect } from '../../imagegen/index.js';
 import { POP_PRESETS } from '../../imagegen/color.js';
 import { buildImagePrompt, IMAGE_STYLES, isCutoutStyle, styleForArchetype, type ImageStyle } from '../../imagegen/prompt.js';
-import { notesFor, referenceFor } from '../../imagegen/references.js';
+import { notesFor } from '../../imagegen/references.js';
 import { editViaFreepik, FREEPIK_EDIT_OPS, freepikAvailable, type FreepikEditOp } from '../../imagegen/providers/freepik.js';
 import { FREEPIK_MODELS } from '../../imagegen/providers/freepikCatalog.js';
 import { logger } from '../../lib/logger.js';
@@ -334,7 +334,7 @@ export function registerImageRoutes(app: FastifyInstance): void {
           ? settings.style
           : styleForArchetype(parsed.data.composition);
     const cutout = parsed.data.cutout || isCutoutStyle(style);
-    const reference = referenceFor(style);
+    const reference = usableReference(style, parsed.data.model);
     const prompt = buildImagePrompt({
       idea: parsed.data.prompt,
       archetypeId: parsed.data.composition,

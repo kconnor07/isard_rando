@@ -64,6 +64,13 @@
       "when": 1789053483620,
       "tag": "0008_templates-v3",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789117028498,
+      "tag": "0009_float-slides",
+      "breakpoints": true
     }
   ]
 }

@@ -3,12 +3,13 @@ import { z } from 'zod';
 import type { SlideContent } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { getBrand, getImageGen, getVisualAgent } from '../db/settingsRepo.js';
-import { generateStyledImage, paletteForPost } from '../imagegen/index.js';
+import { generateStyledImage, paletteForPost, usableReference } from '../imagegen/index.js';
 import { buildImagePrompt, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
-import { notesFor, referenceFor } from '../imagegen/references.js';
+import { notesFor } from '../imagegen/references.js';
 import { fetchWithRetry } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
+import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
 import { captureUrl } from '../screenshot/capture.js';
 
@@ -196,6 +197,9 @@ export async function runVisualAgent(
     : null;
   const existing = listCandidates(postId);
   const batch = existing.reduce((m, c) => Math.max(m, c.batch), 0) + 1;
+  // Série d'objets (2 à 4, même matière) : seulement quand le template les pose aux coins
+  const themeForSeries = getCustomTheme(post.theme);
+  const wantsSeries = counts.images >= 2 && Boolean(themeForSeries && (themeForSeries.floatLayout === '4-coins' || themeForSeries.imageStyle === 'objets'));
   const knownUrls = new Set(existing.map((c) => c.url).filter(Boolean) as string[]);
   const knownPrompts = existing.map((c) => c.prompt).filter(Boolean) as string[];
 
@@ -232,7 +236,7 @@ MISSION
    - "chrome" : objet symbolique en chrome et verre irisé, détouré lui aussi (idéal slide de contenu / solution).
    Varie les styles au sein d'une même passe.
 3. "objectSet" : ${
-      counts.images >= 2
+      wantsSeries
         ? `si le post gagne à avoir une SÉRIE d'objets posés aux coins de toutes les slides (pièces, jetons,
    outils, symboles du même univers), propose une série : "label", "style" ("objets" ou "chrome") et
    2 à 4 "objects" (une courte description d'objet chacune, même matière, même famille). Sinon null.`
@@ -311,7 +315,7 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
         imageGen.style !== 'auto'
           ? imageGen.style
           : (concept.style ?? templateStyle ?? styleForArchetype(post.archetype));
-      const reference = referenceFor(style);
+      const reference = usableReference(style);
       const image = await generateStyledImage(promptFor(concept.prompt, style, { hasReference: Boolean(reference) }), {
         style,
         quality: imageGen.quality,
@@ -341,13 +345,13 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
 
   // --- 4. Série d'objets cohérents (coins des slides) -----------------------
   const set = plan.objectSet;
-  if (set && counts.images >= 2 && !imageGen.monochrome) {
+  if (set && wantsSeries && !imageGen.monochrome) {
     const style: ImageStyle = imageGen.style === 'full' ? 'objets' : set.style;
     let first: { base64: string; mime: string } | null = null;
     for (const [i, object] of set.objects.slice(0, 4).entries()) {
       try {
         // Le 1er objet suit la référence de style ; les suivants prennent le 1er pour référence (même série)
-        const reference = first ?? referenceFor(style);
+        const reference = first ?? usableReference(style);
         const image = await generateStyledImage(
           promptFor(object, style, { hasReference: Boolean(reference), seriesOf: first ? set.label : undefined }),
           { style, quality: imageGen.quality, reference, monochrome: false, requestedPop: popColor },

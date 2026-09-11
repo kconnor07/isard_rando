@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { autoPopColor, extractPopColor, resolvePopColor } from '../src/imagegen/color.js';
+import { acceptPopColor, autoPopColor, extractPopColor, resolvePopColor } from '../src/imagegen/color.js';
 import { cutoutStats } from '../src/imagegen/cutout.js';
 import { buildImagePrompt, CUTOUT_BACKGROUND, styleGuide } from '../src/imagegen/prompt.js';
-import { floatCss } from '../src/render/floats.js';
+import { floatCss, floatsOnSlide } from '../src/render/floats.js';
 import { iconSvg, ICON_IDS } from '../src/render/icons.js';
 import { buildBodyHtml, buildSubtitleHtml } from '../src/render/renderer.js';
 
@@ -79,13 +79,29 @@ describe('objets flottants', () => {
   it('pose jusqu’à quatre objets, qui débordent ou restent dans le cadre', () => {
     const uris: (string | null)[] = ['data:a', 'data:b', 'data:c', 'data:d'];
     const bleed = floatCss({ uris, size: 30, layout: '4-coins', bleed: true, tilt: 14 });
-    expect(bleed).toContain('.float-4 {');
+    expect(bleed).toContain('.floats-on .float-4 {');
     expect(bleed).toContain('left: -9%');
     expect(bleed).toContain('rotate(-14deg)');
     const inside = floatCss({ uris, size: 30, layout: '4-coins', bleed: false, tilt: 0 });
     expect(inside).toContain('left: 6%');
     expect(inside).not.toContain('-9%');
     expect(floatCss({ uris: ['data:a', null], size: 30, layout: 'coins' })).not.toContain('.float-2');
+  });
+  it('les objets vont sur les slides centrées par défaut, pas sur le contenu aligné à gauche', () => {
+    expect(floatsOnSlide('hook')).toBe(true);
+    expect(floatsOnSlide('value_prop')).toBe(true);
+    expect(floatsOnSlide('content')).toBe(false);
+    expect(floatsOnSlide('content', 'toutes')).toBe(true);
+    expect(floatsOnSlide('cta', 'accroche')).toBe(false);
+  });
+});
+
+describe('couleur signature retenue', () => {
+  it('garde la couleur détectée si elle est de la même famille, sinon la demandée', () => {
+    expect(acceptPopColor('#c4d900', '#d9ee4a')).toBe('#c4d900');
+    expect(acceptPopColor('#ff7a1a', '#d9ee4a')).toBe('#d9ee4a');
+    expect(acceptPopColor('#ff7a1a', null)).toBeNull();
+    expect(acceptPopColor(null, '#d9ee4a')).toBe('#d9ee4a');
   });
 });
 

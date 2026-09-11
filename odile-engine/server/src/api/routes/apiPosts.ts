@@ -13,7 +13,7 @@ import { db, schema } from '../../db/client.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
 import { themeExists } from '../../render/custom-theme.js';
-import { parseVisualOverrides, renderPost } from '../../render/renderer.js';
+import { assetIsCutout, parseVisualOverrides, renderPost } from '../../render/renderer.js';
 import { regeneratePart } from '../../writer/regenerate.js';
 
 const nanoJti = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 16);
@@ -100,6 +100,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
         renderAssetId: s.renderAssetId,
         screenshotAssetId: s.screenshotAssetId,
         heroAssetId: s.heroAssetId,
+        heroCutout: assetIsCutout(s.heroAssetId),
       }));
     const reviews = db
       .select()

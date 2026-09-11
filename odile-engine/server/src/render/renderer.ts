@@ -12,7 +12,7 @@ import { getBrand, getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
 import { getCustomTheme, slideStyleFor } from './custom-theme.js';
-import { floatCss, type FloatLayout } from './floats.js';
+import { floatCss, floatsOnSlide, type FloatLayout, type FloatSlides } from './floats.js';
 import { iconSvg } from './icons.js';
 import { isLightHex } from '../lib/color.js';
 import { baseCss, defaultBrandLogoDataUri, fontFaceCss, slideTemplate, themeCss } from './themes.js';
@@ -97,6 +97,8 @@ export interface SlideRenderInput {
   slideStyle?: string;
   /** couleur signature détectée dans l'illustration : le mot accentué la reprend */
   popColor?: string | null;
+  /** cette slide reçoit les objets flottants (template ou post) */
+  floatsOn?: boolean;
 }
 
 /** Objets flottants et placement d'illustration propres à un post (« Visuels proposés »). */
@@ -109,6 +111,7 @@ export interface VisualOverrides {
   floatLayout?: FloatLayout;
   floatBleed?: boolean;
   floatTilt?: number;
+  floatSlides?: FloatSlides;
   heroPlacement?: 'centre' | 'haut' | 'droite' | 'gauche';
   heroSize?: number;
 }
@@ -173,6 +176,7 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     input.monochromeHero ? 'mono-hero' : '',
     input.heroContain ? 'hero-contain' : '',
     input.popColor ? 'pop' : '',
+    (input.floatsOn ?? floatsOnSlide(input.kind)) ? 'floats-on' : '',
     ...(input.slideClasses ?? slideStyleFor(null).classes),
   ]
     .filter(Boolean)
@@ -266,6 +270,11 @@ export async function renderHtmlToPng(
 /** Data URI d'un asset (null s'il est absent). */
 export function assetDataUri(assetId: string | null): string | null {
   return assetInfo(assetId)?.dataUri ?? null;
+}
+
+/** Un asset est-il un détourage (PNG alpha posé entier) ? */
+export function assetIsCutout(assetId: string | null): boolean {
+  return assetInfo(assetId)?.cutout ?? false;
 }
 
 /** Data URI + indicateurs de rendu d'un asset (détouré → affiché entier ; couleur signature). */
@@ -362,6 +371,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
     : undefined;
   const slideStyle = slideStyleFor(custom, overrides);
   const accentFromImage = custom ? custom.accentFromImage : true;
+  const floatSlides: FloatSlides = overrides.floatSlides ?? custom?.floatSlides ?? 'centrees';
 
   for (const slide of slides) {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
@@ -384,6 +394,7 @@ export async function renderPost(postId: number): Promise<RenderSummary> {
       slideClasses: slideStyle.classes,
       slideStyle: slideStyle.style,
       popColor: accentFromImage && !monochromeHero && hero && !hero.cutout ? hero.popColor : null,
+      floatsOn: floatsOnSlide(content.kind, floatSlides),
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,
       logoDataUri,
       avatarDataUri,

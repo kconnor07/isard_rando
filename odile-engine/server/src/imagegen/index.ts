@@ -8,7 +8,7 @@ import { getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getCustomTheme } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
-import { extractPopColor, resolvePopColor } from './color.js';
+import { acceptPopColor, extractPopColor, resolvePopColor } from './color.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
 import { cutoutStats, fitCutout, removeImageBackground } from './cutout.js';
@@ -235,7 +235,7 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
     const buffer = await pipeline.jpeg({ quality: 90 }).toBuffer();
     const popColor = opts.monochrome
       ? null
-      : ((await extractPopColor(generated.buffer, { exclude: opts.excludeHues }).catch(() => null)) ?? opts.requestedPop ?? null);
+      : acceptPopColor(await extractPopColor(generated.buffer, { exclude: opts.excludeHues }).catch(() => null), opts.requestedPop ?? null);
     return { buffer, raw: generated.buffer, model: generated.model, tokens: generated.tokens, cutout: false, popColor, ext: 'jpg', mime: 'image/jpeg', ...size };
   }
 
@@ -272,6 +272,19 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
   };
 }
 
+/**
+ * Référence de style utilisable pour un style et un modèle : pour les objets à
+ * détourer, seuls les modèles qui reçoivent une référence « de style » (Mystic)
+ * la prennent — passée en image d'entrée à Flux ou Google, elle imposerait son
+ * fond (violet, bleu…) à la place du gris neutre, et le détourage échouerait.
+ */
+export function usableReference(style: ImageStyle, explicitModel?: string | null): FreepikReference | null {
+  const reference = referenceFor(style);
+  if (!reference || !isCutoutStyle(style)) return reference;
+  const model = findFreepikModel(modelForStyle(style, explicitModel));
+  return model?.reference === 'style' ? reference : null;
+}
+
 /** Palette et couleur signature d'un post (template maison ou thème intégré). */
 export function paletteForPost(post: { theme: string } | null | undefined): { palette: ThemePalette; custom: ReturnType<typeof getCustomTheme>; popColor: string | null } {
   const custom = post ? getCustomTheme(post.theme) : null;
@@ -301,7 +314,7 @@ export async function generateHeroImage(
   const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
   const style: ImageStyle =
     opts.style ?? (settings.style !== 'auto' ? settings.style : (templateStyle ?? styleForArchetype(post?.archetype)));
-  const reference = referenceFor(style);
+  const reference = usableReference(style);
   const prompt = buildImagePrompt({
     idea: content.imageIdea,
     archetypeId: post?.archetype,

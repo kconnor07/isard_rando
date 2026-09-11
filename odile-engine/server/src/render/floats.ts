@@ -67,9 +67,20 @@ export function floatCss(opts: FloatCssOpts): string {
       if (!uri || !a) return '';
       const [x, y] = opts.bleed ? a.bleed : a.inset;
       const transform = `rotate(${a.tilt * tilt}deg)${a.flip ? ' scaleX(-1)' : ''}`;
-      return `.float-${i + 1} { display: block; ${a.h}: ${x}%; ${a.v}: ${y}%; width: ${width}px; height: ${width}px; transform: ${transform};
+      return `.floats-on .float-${i + 1} { display: block; ${a.h}: ${x}%; ${a.v}: ${y}%; width: ${width}px; height: ${width}px; transform: ${transform};
   background-image: url(${uri}); background-size: contain; background-position: center; background-repeat: no-repeat;
   filter: ${shadow}; }`;
     })
     .join('\n');
+}
+
+export type FloatSlides = 'centrees' | 'accroche' | 'toutes';
+/** Kinds de slides dont la mise en page est centrée : les objets aux coins n'y gênent pas le texte. */
+const CENTERED_KINDS = new Set(['hook', 'value_prop', 'cta', 'echo']);
+
+/** Cette slide reçoit-elle les objets flottants ? */
+export function floatsOnSlide(kind: string, mode: FloatSlides = 'centrees'): boolean {
+  if (mode === 'toutes') return true;
+  if (mode === 'accroche') return kind === 'hook';
+  return CENTERED_KINDS.has(kind);
 }

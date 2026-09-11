@@ -417,6 +417,8 @@ export const customThemes = sqliteTable('custom_themes', {
   floatBleed: integer('float_bleed', { mode: 'boolean' }).notNull().default(true),
   /** inclinaison des objets, 0-30° */
   floatTilt: integer('float_tilt').notNull().default(12),
+  /** slides qui reçoivent les objets : centrées (accroche, chiffre, CTA), accroche seule, ou toutes */
+  floatSlides: text('float_slides', { enum: ['centrees', 'accroche', 'toutes'] }).notNull().default('centrees'),
   // --- Illustration (image générée / détourage) ---
   /** traitement de l'illustration : aucun, vif (contraste + saturation), teinte (voile accent), doux (voile léger) */
   heroGrade: text('hero_grade', { enum: ['aucun', 'vif', 'teinte', 'doux'] }).notNull().default('vif'),

@@ -142,3 +142,23 @@ function hsvToHex(h: number, s: number, v: number): string {
   else [r, g, b] = [c, 0, x];
   return toHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
+
+/** Écart de teinte (0-180°) entre deux couleurs ; 180 si l'une est neutre. */
+export function hueDistance(a: string, b: string): number {
+  const ha = hueOf(a);
+  const hb = hueOf(b);
+  if (!ha || !hb || ha.s < 0.2 || hb.s < 0.2) return 180;
+  const d = Math.abs(ha.h - hb.h);
+  return Math.min(d, 360 - d);
+}
+
+/**
+ * Couleur signature retenue pour le titre : la couleur détectée si elle est
+ * bien celle demandée (même famille de teinte), sinon la couleur demandée —
+ * jamais une teinte accidentelle (peau, bois, feu) sur le mot accentué.
+ */
+export function acceptPopColor(detected: string | null, requested: string | null, tolerance = 40): string | null {
+  if (!requested) return null;
+  if (detected && hueDistance(detected, requested) <= tolerance) return detected;
+  return requested;
+}

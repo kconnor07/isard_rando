@@ -57,6 +57,7 @@ interface Draft {
   floatLayout: 'coins' | 'haut' | 'bas' | 'cotes' | '4-coins';
   floatBleed: boolean;
   floatTilt: number;
+  floatSlides: 'centrees' | 'accroche' | 'toutes';
   imageStyle: 'auto' | 'full' | 'objets' | 'chrome';
   heroGrade: 'aucun' | 'vif' | 'teinte' | 'doux';
   heroPlacement: 'centre' | 'haut' | 'droite' | 'gauche';
@@ -123,6 +124,7 @@ const BLANK: Draft = {
   floatLayout: 'coins',
   floatBleed: true,
   floatTilt: 12,
+  floatSlides: 'centrees',
   imageStyle: 'auto',
   heroGrade: 'vif',
   heroPlacement: 'centre',
@@ -532,6 +534,24 @@ export default function Templates() {
   const [draft, setDraft] = useState<Draft>(BLANK);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [previewKind, setPreviewKind] = useState('value_prop');
+  // Mode simple par défaut : recettes, couleurs, illustration, pied de page. Le reste est replié.
+  const [advanced, setAdvanced] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('odile.templates.advanced') === '1';
+    } catch {
+      return false;
+    }
+  });
+  const toggleAdvanced = () => {
+    setAdvanced((v) => {
+      try {
+        localStorage.setItem('odile.templates.advanced', v ? '0' : '1');
+      } catch {
+        /* stockage indisponible */
+      }
+      return !v;
+    });
+  };
   const fileInput = useRef<HTMLInputElement>(null);
 
   const { data: catalogue } = useQuery({
@@ -618,7 +638,7 @@ export default function Templates() {
       <PageTitle
         title="Templates"
         accent="Templates"
-        subtitle="Composez vos modèles de slides : couleurs, typographie, décor, image de fond, matière. L'aperçu se met à jour en direct."
+        subtitle="Choisissez une recette, ajustez les couleurs, c’est prêt. Les réglages avancés (typographie, décor, matière, objets) sont là si vous en voulez plus. L’aperçu se met à jour en direct."
         actions={
           editingId ? (
             <button className="btn-ghost" onClick={reset}>
@@ -674,19 +694,29 @@ export default function Templates() {
             </div>
           )}
 
+          <div className="mb-1 flex items-center justify-between border-t border-line pt-3">
+            <span className="text-xs text-muted">
+              {advanced ? 'Tous les réglages sont affichés.' : 'Mode simple : l’essentiel. Le reste garde les valeurs de la recette.'}
+            </span>
+            <button className="btn-ghost !px-3 !py-1 text-xs" onClick={toggleAdvanced}>
+              {advanced ? 'Masquer les réglages avancés' : 'Réglages avancés'}
+            </button>
+          </div>
+
           <Section title="Couleurs" open>
             <div className="grid gap-3 sm:grid-cols-2">
               <ColorField label="Accent" value={draft.accent} onChange={(v) => set('accent', v ?? draft.accent)} />
-              <ColorField label="Secondaire (gros chiffres)" value={draft.secondary} onChange={(v) => set('secondary', v)} clearable />
               <ColorField label="Texte" value={draft.textColor} onChange={(v) => set('textColor', v ?? draft.textColor)} />
-              <div />
               <ColorField label="Fond — haut" value={draft.bg1} onChange={(v) => set('bg1', v ?? draft.bg1)} />
               <ColorField label="Fond — bas" value={draft.bg2} onChange={(v) => set('bg2', v ?? draft.bg2)} />
+              {advanced && (
+                <>
+                  <ColorField label="Secondaire (gros chiffres)" value={draft.secondary} onChange={(v) => set('secondary', v)} clearable />
+                  <ColorField label="Bande claire en haut (ex. lavande → violet)" value={draft.bgTop} onChange={(v) => set('bgTop', v)} clearable />
+                </>
+              )}
             </div>
-            <Range label="Angle du dégradé" value={draft.gradientAngle} min={0} max={360} unit="°" onChange={(v) => set('gradientAngle', v)} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ColorField label="Bande claire en haut (ex. lavande → violet)" value={draft.bgTop} onChange={(v) => set('bgTop', v)} clearable />
-            </div>
+            {advanced && <Range label="Angle du dégradé" value={draft.gradientAngle} min={0} max={360} unit="°" onChange={(v) => set('gradientAngle', v)} />}
             <div>
               <label className="label !mb-1.5">Couleur signature des images — UNE teinte vive portée par le sujet, reprise par le mot accentué</label>
               <div className="flex flex-wrap items-center gap-2">
@@ -724,6 +754,7 @@ export default function Templates() {
             </div>
           </Section>
 
+          {advanced && (
           <Section title="Typographie">
             <Chips
               label="Police des titres"
@@ -793,7 +824,9 @@ export default function Templates() {
               onChange={(v) => set('align', v)}
             />
           </Section>
+          )}
 
+          {advanced && (
           <Section title="Décor">
             <Chips
               label="Décor"
@@ -820,7 +853,9 @@ export default function Templates() {
             )}
             <Range label="Vignettage des bords" value={draft.vignette} min={0} max={100} unit=" %" onChange={(v) => set('vignette', v)} />
           </Section>
+          )}
 
+          {advanced && (
           <Section title="Image de fond">
             <div>
               <div className="mb-1.5 flex items-center justify-between">
@@ -908,7 +943,9 @@ export default function Templates() {
               </>
             )}
           </Section>
+          )}
 
+          {advanced && (
           <Section title="Matière">
             <Chips
               label="Angles des pilules et cartes"
@@ -966,6 +1003,7 @@ export default function Templates() {
               onChange={(v) => set('padding', v)}
             />
           </Section>
+          )}
 
           <Section title="Illustrations IA">
             <Chips
@@ -983,6 +1021,7 @@ export default function Templates() {
               « Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré,
               fondu à la palette du template, posé en illustration ou en objet flottant.
             </p>
+            {advanced && (<>
             <Chips
               label="Traitement des images plein cadre"
               value={draft.heroGrade}
@@ -995,6 +1034,7 @@ export default function Templates() {
               onChange={(v) => set('heroGrade', v)}
             />
             <Toggle label="Le mot accentué du titre prend la couleur signature détectée dans l'image" checked={draft.accentFromImage} onChange={(v) => set('accentFromImage', v)} />
+            </>)}
             <Chips
               label="Placement d'un objet détouré (aperçu « Objet »)"
               value={draft.heroPlacement}
@@ -1006,12 +1046,15 @@ export default function Templates() {
               ]}
               onChange={(v) => set('heroPlacement', v)}
             />
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Range label="Taille de l'objet" value={draft.heroSize} min={60} max={140} unit=" %" onChange={(v) => set('heroSize', v)} />
-              <Toggle label="Halo accent derrière l'objet" checked={draft.heroGlow} onChange={(v) => set('heroGlow', v)} />
-            </div>
+            {advanced && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Range label="Taille de l'objet" value={draft.heroSize} min={60} max={140} unit=" %" onChange={(v) => set('heroSize', v)} />
+                <Toggle label="Halo accent derrière l'objet" checked={draft.heroGlow} onChange={(v) => set('heroGlow', v)} />
+              </div>
+            )}
           </Section>
 
+          {advanced && (
           <Section title="Objets flottants">
             <p className="text-xs text-muted">
               Jusqu'à quatre images <b>détourées</b> de la bibliothèque (objets 3D, produits…) posées en périphérie, comme des
@@ -1064,9 +1107,20 @@ export default function Templates() {
                   onChange={(v) => set('floatLayout', v)}
                 />
                 <Toggle label="Les objets débordent du cadre (coupés par les bords)" checked={draft.floatBleed} onChange={(v) => set('floatBleed', v)} />
+                <Chips
+                  label="Sur quelles slides"
+                  value={draft.floatSlides}
+                  options={[
+                    { v: 'centrees', l: 'Slides centrées (accroche, chiffre, CTA)' },
+                    { v: 'accroche', l: "L'accroche seulement" },
+                    { v: 'toutes', l: 'Toutes' },
+                  ]}
+                  onChange={(v) => set('floatSlides', v)}
+                />
               </>
             )}
           </Section>
+          )}
 
           <Section title="Pied de page">
             <Toggle label="Chip auteur en haut (photo ou logo, nom, ligne, coche)" checked={draft.showAuthor} onChange={(v) => set('showAuthor', v)} />

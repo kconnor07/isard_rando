@@ -77,10 +77,7 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
   const ov = post.visualOverrides ?? {};
   const floatIds = FLOAT_SLOTS.map((k) => ov[k] ?? null);
   const hasFloats = floatIds.some(Boolean);
-  const hasCutoutHero = post.slides.some((s) => {
-    const c = candidates.find((x) => x.id === s.heroAssetId);
-    return c?.cutout;
-  });
+  const hasCutoutHero = post.slides.some((s) => s.heroCutout || candidates.find((x) => x.id === s.heroAssetId)?.cutout);
   const inUse = new Set([...post.slides.flatMap((s) => [s.heroAssetId, s.screenshotAssetId]), ...floatIds].filter(Boolean));
   const slotOf = (id: string) => FLOAT_SLOTS.findIndex((k) => ov[k] === id);
 
@@ -139,6 +136,14 @@ export default function VisualAgentPanel({ post, onChanged }: { post: PostDetail
               <label className="flex items-center gap-1.5">
                 <input type="checkbox" className="accent-sky-500" checked={ov.floatBleed ?? true} onChange={(e) => void layout({ floatBleed: e.target.checked })} />
                 débordent du cadre
+              </label>
+              <label className="flex items-center gap-1.5">
+                Sur
+                <select className="input !w-auto !py-1 text-xs" value={ov.floatSlides ?? 'centrees'} onChange={(e) => void layout({ floatSlides: e.target.value })}>
+                  <option value="centrees">slides centrées (accroche, chiffre, CTA)</option>
+                  <option value="accroche">l'accroche seulement</option>
+                  <option value="toutes">toutes les slides</option>
+                </select>
               </label>
               <button className="btn-ghost !px-2.5 !py-1 text-xs" onClick={() => void layout({ clear: true })} title="Retirer les objets flottants de ce post">
                 <Trash2 size={12} /> Retirer les objets

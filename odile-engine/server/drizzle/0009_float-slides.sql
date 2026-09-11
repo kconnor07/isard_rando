@@ -1,0 +1,1 @@
+ALTER TABLE `custom_themes` ADD `float_slides` text DEFAULT 'centrees' NOT NULL;

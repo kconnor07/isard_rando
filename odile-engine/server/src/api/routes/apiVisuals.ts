@@ -22,6 +22,7 @@ const floatsSchema = z.object({
   floatLayout: z.enum(['coins', 'haut', 'bas', 'cotes', '4-coins']).optional(),
   floatBleed: z.boolean().optional(),
   floatTilt: z.number().int().min(0).max(30).optional(),
+  floatSlides: z.enum(['centrees', 'accroche', 'toutes']).optional(),
   /** placement et taille de l'illustration détourée (surcharge du template pour ce post) */
   heroPlacement: z.enum(['centre', 'haut', 'droite', 'gauche']).nullable().optional(),
   heroSize: z.number().int().min(60).max(140).nullable().optional(),
