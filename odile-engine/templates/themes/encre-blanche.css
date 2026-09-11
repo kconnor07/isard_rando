@@ -58,7 +58,7 @@
 /* Textes : blanc franc, gris pour le corps */
 .title { color: #fbfbfc; }
 .title .accent { color: #ffffff; }
-.body, .bullets li { color: rgba(255, 255, 255, 0.72); }
+.body, .bullets li { color: rgba(255, 255, 255, 0.88); }
 .badge { border-color: rgba(255, 255, 255, 0.22); color: rgba(255, 255, 255, 0.9); }
 .annotation { color: rgba(255, 255, 255, 0.88); }
 .big-number { color: #ffffff; }

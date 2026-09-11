@@ -13,7 +13,7 @@ type AllSettings = Record<string, unknown> & {
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
-  image_gen: { enabled: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined>; modelByStyle?: Record<string, string | undefined> };
+  image_gen: { enabled: boolean; autoPlace?: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined>; modelByStyle?: Record<string, string | undefined> };
   visual_agent: { enabled: boolean; autoRun: boolean; screenshots: number; images: number };
   default_theme: string;
   default_format: string;
@@ -308,6 +308,11 @@ export default function Settings() {
           <input type="checkbox" className="accent-sky-500" checked={form.image_gen.enabled}
             onChange={(e) => set('image_gen', { ...form.image_gen, enabled: e.target.checked })} />
           Générer des illustrations IA (Nano Banana Pro) quand l'archétype du post s'y prête
+        </label>
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.image_gen.autoPlace ?? false}
+            onChange={(e) => set('image_gen', { ...form.image_gen, autoPlace: e.target.checked })} />
+          Poser automatiquement l'illustration sur l'accroche — décoché : l'agent visuel la propose et vous la posez si elle vous plaît
         </label>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.image_gen.monochrome ?? true}

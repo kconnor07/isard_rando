@@ -83,6 +83,8 @@ export type DesignStudioSettings = z.infer<typeof designStudioSettingsSchema>;
 
 export const imageGenSettingsSchema = z.object({
   enabled: z.boolean(),
+  /** poser automatiquement l'illustration de l'accroche (sinon elle est seulement proposée par l'agent visuel) */
+  autoPlace: z.boolean().default(false),
   /** nombre max d'illustrations générées par post */
   imagesPerPost: z.number().int().min(0).max(2),
   /** notes de style libres ajoutées au prompt (ex: « plus minimaliste ») */

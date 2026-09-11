@@ -6,7 +6,7 @@
   --accent: #111114;
   --secondary: #6b6b75;
   --text: #0b0b0e;
-  --muted: rgba(11, 11, 14, 0.62);
+  --muted: rgba(11, 11, 14, 0.74);
   --glass: rgba(11, 11, 14, 0.04);
   --glass-border: rgba(11, 11, 14, 0.14);
 }
@@ -58,7 +58,7 @@
 /* Typographie : encre franche */
 .title { color: #0b0b0e; text-shadow: none; }
 .title .accent { color: #26262c; }
-.body, .bullets li { color: rgba(11, 11, 14, 0.7); }
+.body, .bullets li { color: rgba(11, 11, 14, 0.86); }
 .bullets li::before { color: #0b0b0e; }
 .big-number { color: #0b0b0e; -webkit-text-fill-color: #0b0b0e; background: none; }
 .annotation { color: rgba(11, 11, 14, 0.8); }

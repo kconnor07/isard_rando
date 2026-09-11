@@ -12,7 +12,7 @@
   --bg: #050508;
   --bg2: #0d0d14;
   --text: #fdfdfd;
-  --muted: rgba(255, 255, 255, 0.62);
+  --muted: rgba(255, 255, 255, 0.78);
   --glass: rgba(255, 255, 255, 0.06);
   --glass-border: rgba(255, 255, 255, 0.14);
   /* Secondaire propre au thème (défaut : accent) */
@@ -76,7 +76,7 @@ body {
   font-size: 42px;
   line-height: 1.4;
   font-weight: 500;
-  color: var(--muted);
+  color: color-mix(in srgb, var(--text) 88%, transparent);
   max-width: 820px;
   text-wrap: pretty;
 }

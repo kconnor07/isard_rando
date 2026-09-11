@@ -52,7 +52,7 @@
 }
 .kind-hook .title { letter-spacing: -0.03em; }
 
-.body { color: rgba(210, 232, 252, 0.8); }
+.body { color: rgba(210, 232, 252, 0.92); }
 .badge { color: #8ecdff; border-color: rgba(0, 153, 255, 0.4); }
 .badge::before { background: #33adff; box-shadow: 0 0 18px #33adff; }
 .big-number {

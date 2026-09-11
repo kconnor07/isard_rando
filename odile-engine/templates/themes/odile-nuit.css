@@ -58,7 +58,7 @@
   -webkit-text-fill-color: #d9ecff; color: #d9ecff;
 }
 
-.body { color: rgba(226, 238, 255, 0.82); }
+.body { color: rgba(226, 238, 255, 0.92); }
 .badge { border-color: rgba(180, 210, 255, 0.3); color: #bcd9ff; }
 .badge::before { background: #9cc6ff; box-shadow: 0 0 18px #9cc6ff; }
 .big-number {

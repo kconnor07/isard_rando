@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import { runDesignReview } from '../design-studio/index.js';
+import { getImageGen } from '../db/settingsRepo.js';
 import { generateImagesForPost, type ImagesSummary } from '../imagegen/index.js';
 import { renderPost } from '../render/renderer.js';
 import { captureForPost } from '../screenshot/capture.js';
@@ -27,10 +28,14 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
   logger.info({ postId: draft.postId }, 'brouillon généré');
 
   const capture = await captureForPost(draft.postId, draft.screenshotUrl);
-  const images = await generateImagesForPost(draft.postId).catch((err) => {
-    logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
-    return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
-  });
+  // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose
+  // (idée d'image de l'accroche comprise) et l'humain la pose s'il la veut.
+  const images: ImagesSummary = getImageGen().autoPlace
+    ? await generateImagesForPost(draft.postId).catch((err) => {
+        logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
+        return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
+      })
+    : { generated: 0, skipped: 0, failed: 0, tokens: 0 };
   // L'agent visuel propose captures et illustrations pour cette veille (non bloquant)
   const visuals = await runVisualAgentForPipeline(draft.postId);
   await renderPost(draft.postId);

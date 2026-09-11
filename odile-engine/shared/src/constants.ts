@@ -184,6 +184,7 @@ export const DEFAULTS = {
   },
   imageGen: {
     enabled: true,
+    autoPlace: false,
     imagesPerPost: 1,
     styleNotes: '',
     quality: 'pro' as const,

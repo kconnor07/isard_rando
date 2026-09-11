@@ -256,6 +256,16 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
     }
   }
 
+  // L'idée d'image écrite par le rédacteur pour l'accroche est proposée en premier
+  // (jamais posée toute seule), sauf si elle l'a déjà été.
+  const hook = slides.find((s) => s.idx === 0);
+  if (counts.images > 0 && hook?.content.imageIdea && !knownPrompts.includes(hook.content.imageIdea)) {
+    plan.images = [
+      { label: hook.content.title.slice(0, 60), prompt: hook.content.imageIdea, slideIdx: 0, style: 'full' },
+      ...plan.images.filter((i) => i.prompt !== hook.content.imageIdea),
+    ];
+  }
+
   const summary: VisualRunSummary = { postId, batch, screenshots: 0, images: 0, failed: 0, planner };
 
   // --- 2. Captures ---------------------------------------------------------

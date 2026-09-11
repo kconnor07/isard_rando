@@ -441,7 +441,7 @@ ${accentLine}
 ${titleGradient}
 ${align}
 ${bigNumber}
-.body, .bullets li { color: ${rgba(theme.textColor, 0.72)}; }
+.body, .bullets li { color: ${rgba(theme.textColor, 0.88)}; }
 .annotation { color: ${rgba(theme.textColor, 0.9)}; }
 .big-number { background: linear-gradient(135deg, ${theme.textColor} 10%, ${secondary} 90%); -webkit-background-clip: text; background-clip: text; }
 
