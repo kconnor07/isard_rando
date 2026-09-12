@@ -108,6 +108,58 @@ const LIQUID_POS: Record<CustomTheme['decorPosition'], { d1: string; d2: string;
   'bas-gauche': { d1: 'bottom: -18%; left: -26%;', d2: 'top: -14%; right: -22%;', d3: 'top: 14%; left: -8%; transform: rotate(26deg);' },
   centre: { d1: 'top: 50%; left: 50%; transform: translate(-50%, -52%);', d2: 'display: none;', d3: 'bottom: -6%; right: -10%; transform: rotate(-22deg);' },
 };
+/** Centre (px, canevas 1080×1350) du disque des décors « éclipse » / « rayons » selon la position. */
+const DISC_CENTER: Record<CustomTheme['decorPosition'], { x: number; y: number }> = {
+  'haut-droite': { x: 1090, y: -110 },
+  'haut-gauche': { x: -10, y: -110 },
+  'bas-droite': { x: 1090, y: 1460 },
+  'bas-gauche': { x: -10, y: 1460 },
+  centre: { x: 540, y: 1720 },
+};
+/** Cœur du soleil « rayons » : sur le bord du cadre, entre la marque et le compteur, jamais sous le texte. */
+const SUN_CENTER: Record<CustomTheme['decorPosition'], { x: number; y: number }> = {
+  'haut-droite': { x: 700, y: -60 },
+  'haut-gauche': { x: 380, y: -60 },
+  'bas-droite': { x: 700, y: 1400 },
+  'bas-gauche': { x: 380, y: 1400 },
+  centre: { x: 540, y: 1400 },
+};
+/** Centre de la sphère du décor « orbite » (dans le cadre, hors de la zone de texte centrale). */
+const SPHERE_CENTER: Record<CustomTheme['decorPosition'], { x: number; y: number }> = {
+  'haut-droite': { x: 880, y: 230 },
+  'haut-gauche': { x: 200, y: 230 },
+  'bas-droite': { x: 880, y: 1070 },
+  'bas-gauche': { x: 200, y: 1070 },
+  centre: { x: 540, y: 250 },
+};
+/** Origine (%) des courbes de niveau du décor « vagues ». */
+const WAVE_ORIGIN: Record<CustomTheme['decorPosition'], { x: number; y: number }> = {
+  'haut-droite': { x: 92, y: -8 },
+  'haut-gauche': { x: 8, y: -8 },
+  'bas-droite': { x: 92, y: 108 },
+  'bas-gauche': { x: 8, y: 108 },
+  centre: { x: 50, y: 112 },
+};
+/** Inclinaison et décalage vertical du faisceau « prisme ». */
+const BEAM: Record<CustomTheme['decorPosition'], { angle: number; dy: number }> = {
+  'haut-droite': { angle: -32, dy: -280 },
+  'haut-gauche': { angle: 32, dy: -280 },
+  'bas-droite': { angle: 32, dy: 300 },
+  'bas-gauche': { angle: -32, dy: 300 },
+  centre: { angle: -22, dy: 0 },
+};
+/** Bloc « position + taille » d'un élément centré en (x, y). */
+function centered(c: { x: number; y: number }, size: number): string {
+  return `left: ${c.x - size / 2}px; top: ${c.y - size / 2}px; width: ${size}px; height: ${size}px;`;
+}
+/** Points sur une orbite elliptique inclinée (rayon a, aplatissement k, rotation θ), en px. */
+function orbitPoints(c: { x: number; y: number }, a: number, k: number, theta: number, ts: number[]): { x: number; y: number }[] {
+  const th = (theta * Math.PI) / 180;
+  return ts.map((t) => {
+    const ex = a * Math.cos(t), ey = a * k * Math.sin(t);
+    return { x: Math.round(c.x + ex * Math.cos(th) - ey * Math.sin(th)), y: Math.round(c.y + ex * Math.sin(th) + ey * Math.cos(th)) };
+  });
+}
 const COLUMN_X: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 60, 'haut-gauche': 40, 'bas-droite': 60, 'bas-gauche': 40, centre: 50 };
 const COLUMN_Y: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 38, 'haut-gauche': 38, 'bas-droite': 62, 'bas-gauche': 62, centre: 48 };
 /** Mélange linéaire de deux hex (t = part de b). */
@@ -248,6 +300,191 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 }
 .decor-3::before { left: 8%; top: 12%; width: 40%; height: 34%; }
 .has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.35; }`
+      : theme.decor === 'eclipse'
+        ? (() => {
+            const c = DISC_CENTER[theme.decorPosition];
+            return `
+/* Éclipse : disque net à bord incandescent, double anneau, rayons fins, arcs concentriques, grille de points (famille « Signal ») */
+.decor-1 {
+  position: absolute; z-index: 2; border-radius: 50%; ${centered(c, 1100)}
+  background: radial-gradient(circle at 50% 50%, ${theme.bg1} 0%, ${theme.bg2} 46%, ${rgba(accent, 0.7)} 70%, ${accent} 86%, ${rgba('#ffffff', 0.8)} 95%, #ffffff 100%);
+  box-shadow: 0 0 50px 8px ${rgba(accent, 0.6)}, 0 0 220px 90px ${rgba(accent, 0.28)};
+}
+.decor-1::before, .decor-1::after { content: ''; position: absolute; border-radius: 50%; border: 1.5px solid ${rgba(theme.textColor, 0.34)}; inset: -74px; }
+.decor-1::after { inset: -178px; border-width: 1px; border-color: ${rgba(theme.textColor, 0.18)}; }
+.decor-2 {
+  position: absolute; inset: 0; z-index: 2;
+  background: repeating-conic-gradient(from 0deg at ${c.x}px ${c.y}px, ${rgba(accent, 0.18)} 0deg 2.4deg, transparent 2.4deg 11deg);
+  -webkit-mask-image: radial-gradient(circle at ${c.x}px ${c.y}px, transparent 560px, #000 640px, transparent 1500px);
+  mask-image: radial-gradient(circle at ${c.x}px ${c.y}px, transparent 560px, #000 640px, transparent 1500px);
+}
+.decor-3 {
+  position: absolute; inset: 0; z-index: 3;
+  background: repeating-radial-gradient(circle at ${c.x}px ${c.y}px, transparent 0 200px, ${rgba(theme.textColor, 0.09)} 200px 201.5px);
+  -webkit-mask-image: radial-gradient(circle at ${c.x}px ${c.y}px, transparent 640px, #000 760px, transparent 1600px);
+  mask-image: radial-gradient(circle at ${c.x}px ${c.y}px, transparent 640px, #000 760px, transparent 1600px);
+}
+.slide::before {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-image: radial-gradient(${rgba(accent, 0.55)} 1.6px, transparent 1.9px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 20%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 78% at 50% 50%, #000 20%, transparent 100%);
+}`;
+          })()
+        : theme.decor === 'prisme'
+          ? (() => {
+              const b = BEAM[theme.decorPosition];
+              return `
+/* Prisme : faisceau diagonal diffus, arête de lumière nette, second faisceau, grille fine, anneau au coin opposé */
+.decor-1 {
+  position: absolute; z-index: 2; width: 2600px; height: 320px; left: 50%; top: 50%;
+  transform: translate(-50%, calc(-50% + ${b.dy}px)) rotate(${b.angle}deg);
+  background: linear-gradient(90deg, transparent 0%, ${rgba(accent, 0.42)} 22%, ${rgba(secondary, 0.7)} 47%, ${rgba('#ffffff', 0.55)} 52%, ${rgba(accent, 0.48)} 78%, transparent 100%);
+  filter: blur(30px);
+}
+.decor-2 {
+  position: absolute; z-index: 3; width: 2400px; height: 2px; left: 50%; top: 50%;
+  transform: translate(-50%, calc(-50% + ${b.dy}px)) rotate(${b.angle}deg);
+  background: linear-gradient(90deg, transparent 0%, ${rgba('#ffffff', 0.85)} 30%, #ffffff 50%, ${rgba('#ffffff', 0.85)} 70%, transparent 100%);
+  box-shadow: 0 0 16px ${rgba('#ffffff', 0.9)}, 0 0 70px ${rgba(secondary, 0.9)}, 0 0 140px ${rgba(accent, 0.7)};
+}
+.decor-2::before {
+  content: ''; position: absolute; left: 10%; right: 10%; top: ${b.dy >= 0 ? '-190px' : '150px'}; height: 90px;
+  background: linear-gradient(90deg, transparent 0%, ${rgba(secondary, 0.35)} 40%, ${rgba(accent, 0.45)} 60%, transparent 100%);
+  filter: blur(22px);
+}
+.decor-3 {
+  position: absolute; inset: 0; z-index: 2;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 79px, ${rgba(theme.textColor, 0.07)} 79px 80px),
+    repeating-linear-gradient(90deg, transparent 0 79px, ${rgba(theme.textColor, 0.07)} 79px 80px);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 10%, transparent 80%);
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, #000 10%, transparent 80%);
+}
+.decor-3::after {
+  content: ''; position: absolute; width: 560px; height: 560px; border-radius: 50%;
+  ${b.angle < 0 ? (b.dy < 0 ? 'left: -200px; bottom: -160px;' : 'right: -200px; top: -160px;') : b.dy < 0 ? 'right: -200px; bottom: -160px;' : 'left: -200px; top: -160px;'}
+  border: 1.5px solid ${rgba(accent, 0.5)};
+  box-shadow: inset 0 0 90px ${rgba(accent, 0.28)}, 0 0 60px ${rgba(accent, 0.2)};
+}`;
+            })()
+          : theme.decor === 'orbite'
+            ? (() => {
+                const c = SPHERE_CENTER[theme.decorPosition];
+                const sats = orbitPoints(c, 700, 0.3, -18, [0.9, 2.6, 4.4]);
+                const satsCss = sats
+                  .map((p, i) => `radial-gradient(circle at ${p.x}px ${p.y}px, #ffffff 0 ${i === 1 ? 7 : 5}px, ${rgba(accent, 0.9)} ${i === 1 ? 8 : 6}px, transparent ${i === 1 ? 26 : 20}px)`)
+                  .join(',\n    ');
+                return `
+/* Orbite : sphère lumineuse, trois orbites elliptiques inclinées et leurs satellites, ciel étoilé */
+.decor-1 {
+  position: absolute; z-index: 3; border-radius: 50%; ${centered(c, 380)}
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, ${rgba('#ffffff', 0.9)} 5%, ${secondary} 20%, ${accent} 46%, ${mix(accent, theme.bg1, 0.7)} 78%, ${theme.bg1} 100%);
+  box-shadow: 0 0 60px ${rgba(accent, 0.55)}, 0 0 180px ${rgba(accent, 0.3)}, inset -40px -50px 90px ${rgba(theme.bg1, 0.75)};
+}
+.decor-2 {
+  position: absolute; z-index: 2; border-radius: 50%; ${centered(c, 1400)}
+  border: 1.5px solid ${rgba(theme.textColor, 0.3)};
+  transform: rotate(-18deg) rotateX(72.5deg);
+}
+.decor-2::before, .decor-2::after { content: ''; position: absolute; border-radius: 50%; border: 1px solid ${rgba(theme.textColor, 0.2)}; }
+.decor-2::before { inset: -190px; }
+.decor-2::after { inset: -400px; border-color: ${rgba(accent, 0.34)}; }
+.decor-3 {
+  position: absolute; inset: 0; z-index: 3;
+  background:
+    ${satsCss},
+    radial-gradient(${rgba('#ffffff', 0.55)} 1.2px, transparent 1.6px),
+    radial-gradient(${rgba('#ffffff', 0.35)} 0.9px, transparent 1.3px);
+  background-size: auto, auto, auto, 190px 230px, 130px 170px;
+  background-position: 0 0, 0 0, 0 0, 40px 70px, 90px 20px;
+}`;
+              })()
+            : theme.decor === 'grille'
+              ? (() => {
+                  const ceiling = theme.decorPosition === 'haut-droite' || theme.decorPosition === 'haut-gauche';
+                  return `
+/* Grille : sol (ou plafond) quadrillé en perspective, horizon lumineux, repères aux coins, points fins */
+.decor-1 {
+  position: absolute; z-index: 2; left: -30%; right: -30%; ${ceiling ? 'top: -6%;' : 'bottom: -6%;'} height: 70%;
+  transform-origin: 50% ${ceiling ? '0%' : '100%'};
+  transform: perspective(900px) rotateX(${ceiling ? '-60deg' : '60deg'});
+  background:
+    repeating-linear-gradient(90deg, ${rgba(accent, 0.55)} 0 2px, transparent 2px 72px),
+    repeating-linear-gradient(0deg, ${rgba(accent, 0.55)} 0 2px, transparent 2px 72px);
+  -webkit-mask-image: linear-gradient(${ceiling ? '0deg' : '180deg'}, transparent 0%, #000 55%);
+  mask-image: linear-gradient(${ceiling ? '0deg' : '180deg'}, transparent 0%, #000 55%);
+}
+.decor-2 {
+  position: absolute; z-index: 2; left: -20%; right: -20%; ${ceiling ? 'top: 0;' : 'bottom: 0;'} height: 58%;
+  background: radial-gradient(ellipse 70% 62% at 50% ${ceiling ? '0%' : '100%'}, ${rgba(accent, 0.5)} 0%, ${rgba(secondary, 0.18)} 40%, transparent 70%);
+  filter: blur(26px);
+}
+.decor-3 { position: absolute; inset: 0; z-index: 3; }
+.decor-3::before, .decor-3::after {
+  content: ''; position: absolute; width: 76px; height: 76px;
+  border: 0 solid ${rgba(theme.textColor, 0.5)};
+}
+.decor-3::before { left: 56px; top: 56px; border-left-width: 2px; border-top-width: 2px; }
+.decor-3::after { right: 56px; bottom: 56px; border-right-width: 2px; border-bottom-width: 2px; }
+.slide::before {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background-image: radial-gradient(${rgba(theme.textColor, 0.35)} 1.2px, transparent 1.5px);
+  background-size: 36px 36px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 10%, transparent 85%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 45%, #000 10%, transparent 85%);
+}`;
+                })()
+              : theme.decor === 'rayons'
+                ? (() => {
+                    const core = SUN_CENTER[theme.decorPosition];
+                    return `
+/* Rayons : soleil art déco — cœur incandescent, larges rayons alternés, arcs concentriques */
+.decor-1 {
+  position: absolute; z-index: 3; border-radius: 50%; ${centered(core, 240)}
+  background: radial-gradient(circle at 50% 50%, #ffffff 0%, ${rgba('#ffffff', 0.95)} 18%, ${secondary} 40%, ${accent} 70%, ${rgba(accent, 0)} 100%);
+  box-shadow: 0 0 80px 20px ${rgba(accent, 0.7)}, 0 0 260px 120px ${rgba(accent, 0.3)};
+}
+.decor-2 {
+  position: absolute; inset: 0; z-index: 2;
+  background:
+    repeating-conic-gradient(from 0deg at ${core.x}px ${core.y}px, ${rgba(accent, 0.2)} 0deg 7deg, transparent 7deg 15deg),
+    repeating-conic-gradient(from 4deg at ${core.x}px ${core.y}px, ${rgba('#ffffff', 0.05)} 0deg 2deg, transparent 2deg 15deg);
+  -webkit-mask-image: radial-gradient(circle at ${core.x}px ${core.y}px, #000 0, #000 300px, transparent 1500px);
+  mask-image: radial-gradient(circle at ${core.x}px ${core.y}px, #000 0, #000 300px, transparent 1500px);
+}
+.decor-3 {
+  position: absolute; inset: 0; z-index: 2;
+  background: repeating-radial-gradient(circle at ${core.x}px ${core.y}px, transparent 0 170px, ${rgba(theme.textColor, 0.1)} 170px 171.5px);
+  -webkit-mask-image: radial-gradient(circle at ${core.x}px ${core.y}px, transparent 300px, #000 400px, transparent 1500px);
+  mask-image: radial-gradient(circle at ${core.x}px ${core.y}px, transparent 300px, #000 400px, transparent 1500px);
+}`;
+                  })()
+                : theme.decor === 'vagues'
+                  ? (() => {
+                      const o = WAVE_ORIGIN[theme.decorPosition];
+                      const o2 = { x: 100 - o.x, y: 100 - o.y };
+                      return `
+/* Vagues : courbes de niveau elliptiques en deux teintes (carte topographique), halo à l'origine */
+.decor-1 {
+  position: absolute; inset: 0; z-index: 2;
+  background: repeating-radial-gradient(ellipse 980px 620px at ${o.x}% ${o.y}%, transparent 0 44px, ${rgba(accent, 0.4)} 44px 46px);
+  -webkit-mask-image: radial-gradient(ellipse 85% 85% at ${o.x}% ${o.y}%, #000 15%, transparent 75%);
+  mask-image: radial-gradient(ellipse 85% 85% at ${o.x}% ${o.y}%, #000 15%, transparent 75%);
+}
+.decor-2 {
+  position: absolute; inset: 0; z-index: 2;
+  background: repeating-radial-gradient(ellipse 760px 480px at ${o2.x}% ${o2.y}%, transparent 0 38px, ${rgba(secondary, 0.24)} 38px 39.5px);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at ${o2.x}% ${o2.y}%, #000 10%, transparent 70%);
+  mask-image: radial-gradient(ellipse 70% 70% at ${o2.x}% ${o2.y}%, #000 10%, transparent 70%);
+}
+.decor-3 {
+  position: absolute; z-index: 2; width: 1000px; height: 1000px; border-radius: 50%; left: calc(${o.x}% - 500px); top: calc(${o.y}% - 500px);
+  background: radial-gradient(circle closest-side, ${rgba(accent, 0.42)} 0%, transparent 70%);
+  filter: blur(40px);
+}`;
+                    })()
       : theme.decor === 'halo'
         ? `
 .decor-1 {
@@ -444,15 +681,31 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
     : '';
 
   // --- Cadre, pied -------------------------------------------------------
+  const cornerInk = rgba(theme.textColor, 0.5);
   const frame =
-    theme.frame !== 'aucun'
+    theme.frame === 'coins'
       ? `
+/* Repères aux quatre coins (marques de coupe) */
+.slide::after {
+  content: ''; position: absolute; inset: 44px; z-index: 8; pointer-events: none;
+  background:
+    linear-gradient(${cornerInk}, ${cornerInk}) left top / 64px 2px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) left top / 2px 64px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) right top / 64px 2px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) right top / 2px 64px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) left bottom / 64px 2px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) left bottom / 2px 64px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) right bottom / 64px 2px no-repeat,
+    linear-gradient(${cornerInk}, ${cornerInk}) right bottom / 2px 64px no-repeat;
+}`
+      : theme.frame !== 'aucun'
+        ? `
 .slide::after {
   content: ''; position: absolute; inset: 44px; z-index: 8; pointer-events: none;
   border: 2px solid ${rgba(theme.frame === 'accent' ? accent : theme.textColor, 0.42)};
   border-radius: ${theme.radius === 'sharp' ? '4px' : '30px'};
 }`
-      : '';
+        : '';
   const footer = theme.showCounter ? '' : '.slide-counter { display: none; }';
 
   // --- Pack premium ----------------------------------------------------------

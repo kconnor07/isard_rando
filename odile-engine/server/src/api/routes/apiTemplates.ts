@@ -33,7 +33,7 @@ export const templateSchema = z.object({
   accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'verre', 'liquide', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun']),
+  decor: z.enum(['orbes', 'verre', 'liquide', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun']),
   bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z
@@ -53,7 +53,7 @@ export const templateSchema = z.object({
   glass: pct(50),
   grain: z.boolean(),
   grainLevel: pct(30),
-  frame: z.enum(['aucun', 'texte', 'accent']).default('aucun'),
+  frame: z.enum(['aucun', 'texte', 'accent', 'coins']).default('aucun'),
   panel: z.enum(['aucun', 'verre', 'liquide']).default('aucun'),
   padding: z.enum(['serre', 'normal', 'aere']).default('normal'),
   // Pied de page

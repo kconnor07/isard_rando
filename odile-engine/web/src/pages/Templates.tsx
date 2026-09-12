@@ -24,7 +24,9 @@ interface Draft {
   accentStyle: 'serif' | 'plain' | 'underline' | 'highlight' | 'argent';
   accentLine: boolean;
   align: 'auto' | 'left' | 'center';
-  decor: 'orbes' | 'verre' | 'liquide' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges' | 'aucun';
+  decor:
+    | 'orbes' | 'verre' | 'liquide' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges'
+    | 'eclipse' | 'prisme' | 'orbite' | 'grille' | 'rayons' | 'vagues' | 'aucun';
   bgTop: string | null;
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
@@ -40,7 +42,7 @@ interface Draft {
   glass: number;
   grain: boolean;
   grainLevel: number;
-  frame: 'aucun' | 'texte' | 'accent';
+  frame: 'aucun' | 'texte' | 'accent' | 'coins';
   /** panneau de verre derrière le bloc de texte */
   panel: 'aucun' | 'verre' | 'liquide';
   padding: 'serre' | 'normal' | 'aere';
@@ -419,6 +421,146 @@ const RECIPES: StartPoint[] = [
     },
   },
   {
+    id: 'eclipse',
+    label: 'Éclipse',
+    hint: 'Disque incandescent qui se lève en bas, double anneau, rayons fins, arcs et grille de points — titre argent, bouton chevron',
+    swatch: 'linear-gradient(180deg,#05040c,#120a2a 50%,#8b5cf6 85%,#fff)',
+    draft: {
+      accent: '#8b5cf6',
+      secondary: '#c4b5fd',
+      bg1: '#05040c',
+      bg2: '#120a2a',
+      decor: 'eclipse',
+      decorPosition: 'centre',
+      titleWeight: 700,
+      titleScale: 118,
+      titleGradient: 'argent',
+      accentStyle: 'plain',
+      accentWordColor: '#c4b5fd',
+      align: 'center',
+      ctaStyle: 'chevron',
+      ctaArrow: 'aucune',
+      badgeStyle: 'contour',
+      grainLevel: 20,
+      imageStyle: 'objets',
+    },
+  },
+  {
+    id: 'prisme',
+    label: 'Prisme',
+    hint: 'Faisceau de lumière diagonal à arête nette, grille fine, anneau au coin, repères — titre dégradé horizontal, bouton dégradé',
+    swatch: 'linear-gradient(150deg,#040611,#0b1230 50%,#3ef2ff 80%,#ff3fa4)',
+    draft: {
+      accent: '#3ef2ff',
+      secondary: '#ff3fa4',
+      bg1: '#040611',
+      bg2: '#0b1230',
+      decor: 'prisme',
+      decorPosition: 'haut-droite',
+      titleWeight: 800,
+      titleGradient: 'horizontal',
+      accentStyle: 'plain',
+      ctaStyle: 'degrade',
+      badgeStyle: 'contour',
+      frame: 'coins',
+      grainLevel: 18,
+      counterStyle: 'mono',
+    },
+  },
+  {
+    id: 'orbite',
+    label: 'Orbite',
+    hint: 'Sphère lumineuse au coin, trois orbites elliptiques et leurs satellites, ciel étoilé — accent serif, bouton chevron',
+    swatch: 'linear-gradient(150deg,#030712,#0c1a3a 55%,#60a5fa)',
+    draft: {
+      accent: '#60a5fa',
+      secondary: '#bfdbfe',
+      bg1: '#030712',
+      bg2: '#0c1a3a',
+      decor: 'orbite',
+      decorPosition: 'haut-droite',
+      accentStyle: 'serif',
+      accentWordColor: '#bfdbfe',
+      ctaStyle: 'chevron',
+      counterStyle: 'pilule',
+      badgeStyle: 'point',
+      vignette: 20,
+      verticalAlign: 'bas',
+      imageStyle: 'objets',
+    },
+  },
+  {
+    id: 'blueprint',
+    label: 'Blueprint',
+    hint: 'Sol quadrillé en perspective, horizon lumineux, repères aux coins — titres mono en capitales, listes numérotées',
+    swatch: 'linear-gradient(180deg,#02101c,#06243a 60%,#22d3ee)',
+    draft: {
+      accent: '#22d3ee',
+      secondary: '#67e8f9',
+      bg1: '#02101c',
+      bg2: '#06243a',
+      gradientAngle: 180,
+      decor: 'grille',
+      decorPosition: 'bas-droite',
+      titleFont: 'fragment',
+      titleCase: 'upper',
+      titleScale: 82,
+      titleWeight: 700,
+      titleTracking: 0,
+      accentStyle: 'plain',
+      accentWordColor: '#22d3ee',
+      ctaStyle: 'plein',
+      badgeStyle: 'contour',
+      bulletGlyph: 'numero',
+      frame: 'coins',
+      radius: 'rounded',
+      counterStyle: 'mono',
+      verticalAlign: 'haut',
+    },
+  },
+  {
+    id: 'solaire',
+    label: 'Solaire',
+    hint: 'Rayons art déco depuis un cœur incandescent, arcs, ambre sur noir — titre dégradé accent, bouton plein',
+    swatch: 'linear-gradient(150deg,#0b0602,#2a1204 55%,#ff8a00)',
+    draft: {
+      accent: '#ff8a00',
+      secondary: '#ffd58a',
+      bg1: '#0b0602',
+      bg2: '#2a1204',
+      decor: 'rayons',
+      decorPosition: 'bas-gauche',
+      titleGradient: 'accent',
+      titleWeight: 800,
+      accentStyle: 'plain',
+      ctaStyle: 'plein',
+      badgeStyle: 'plein',
+      grainLevel: 30,
+    },
+  },
+  {
+    id: 'topo',
+    label: 'Topo',
+    hint: 'Courbes de niveau en deux teintes, halo, repères aux coins — titres Playfair, boutons de verre, compteur pilule',
+    swatch: 'linear-gradient(150deg,#03120d,#0a2e22 55%,#34d399)',
+    draft: {
+      accent: '#34d399',
+      secondary: '#a7f3d0',
+      bg1: '#03120d',
+      bg2: '#0a2e22',
+      decor: 'vagues',
+      decorPosition: 'bas-gauche',
+      titleFont: 'playfair',
+      titleWeight: 700,
+      accentStyle: 'plain',
+      accentWordColor: '#a7f3d0',
+      ctaStyle: 'verre',
+      frame: 'coins',
+      badgeStyle: 'contour',
+      counterStyle: 'pilule',
+    },
+  },
+  {
     id: 'pieces',
     label: 'Pièces',
     hint: 'Dégradé lavande → violet, anneaux, 4 objets aux coins, chiffre fin, bouton dégradé ↗, logo centré',
@@ -680,6 +822,12 @@ const DECOR_LABELS: Record<Draft['decor'], string> = {
   disques: 'Disques nets + arcs',
   colonne: 'Colonne de lumière',
   'anneaux-larges': 'Grands anneaux',
+  eclipse: 'Éclipse : disque net, double anneau, rayons fins, arcs',
+  prisme: 'Prisme : faisceau diagonal, arête de lumière, grille fine',
+  orbite: 'Orbite : sphère, orbites elliptiques, satellites, étoiles',
+  grille: 'Grille : sol quadrillé en perspective, horizon lumineux',
+  rayons: 'Rayons : soleil art déco, cœur incandescent, arcs',
+  vagues: 'Vagues : courbes de niveau en deux teintes',
   aucun: 'Aucun décor',
 };
 const PREVIEW_KINDS: { id: string; label: string }[] = [
@@ -1509,6 +1657,7 @@ export default function Templates() {
                 { v: 'aucun', l: 'Aucun' },
                 { v: 'texte', l: 'Couleur du texte' },
                 { v: 'accent', l: 'Accent' },
+                { v: 'coins', l: 'Repères aux coins' },
               ]}
               onChange={(v) => set('frame', v)}
             />
