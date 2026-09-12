@@ -11,7 +11,7 @@ import { db, schema } from '../db/client.js';
 import { getBrand, getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
-import { getCustomTheme, slideStyleFor } from './custom-theme.js';
+import { buildCustomThemeCss, getCustomTheme, slideStyleFor } from './custom-theme.js';
 import { floatCss, floatsOnSlide, type FloatLayout, type FloatSlides } from './floats.js';
 import { iconSvg } from './icons.js';
 import { isLightHex } from '../lib/color.js';
@@ -29,11 +29,19 @@ export function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/**
+ * Typographie française : espace fine insécable devant « : ; ! ? » » et après « « »,
+ * pour qu'un signe de ponctuation ne se retrouve jamais seul en début de ligne.
+ */
+export function frTypo(s: string): string {
+  return s.replace(/ ([:;!?»])/g, '\u202F$1').replace(/« /g, '«\u202F');
+}
+
 /** Enveloppe le mot accentué du titre dans un span serif italique. */
 export function buildTitleHtml(title: string, accentWord?: string): string {
-  const safe = escapeHtml(title);
+  const safe = escapeHtml(frTypo(title));
   if (!accentWord) return safe;
-  const safeAccent = escapeHtml(accentWord);
+  const safeAccent = escapeHtml(frTypo(accentWord));
   const idx = safe.toLowerCase().indexOf(safeAccent.toLowerCase());
   if (idx === -1) return safe;
   return `${safe.slice(0, idx)}<span class="accent">${safe.slice(idx, idx + safeAccent.length)}</span>${safe.slice(idx + safeAccent.length)}`;
@@ -42,7 +50,7 @@ export function buildTitleHtml(title: string, accentWord?: string): string {
 /** Corps de texte : échappé, avec `**gras**` → <strong> (deux tons). */
 export function buildBodyHtml(body?: string | null): string {
   if (!body) return '';
-  return escapeHtml(body).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return escapeHtml(frTypo(body)).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 
 /**
@@ -51,7 +59,7 @@ export function buildBodyHtml(body?: string | null): string {
  */
 export function buildSubtitleHtml(subtitle?: string | null): string {
   if (!subtitle || !subtitle.trim()) return '';
-  const raw = subtitle.trim();
+  const raw = frTypo(subtitle.trim());
   let tone1: string;
   let tone2: string;
   if (raw.includes('|')) {
@@ -137,8 +145,15 @@ const VERIFIED_SVG = (size: number) =>
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
 export function buildSlideHtml(input: SlideRenderInput): string {
   const { width, height } = RENDER_SIZES[input.format];
+  const content: SlideContent = {
+    ...input.content,
+    bullets: input.content.bullets?.map(frTypo),
+    notifications: input.content.notifications?.map((n) => ({ title: frTypo(n.title), body: frTypo(n.body) })),
+    ctaLabel: input.content.ctaLabel ? frTypo(input.content.ctaLabel) : input.content.ctaLabel,
+    footer: input.content.footer ? frTypo(input.content.footer) : input.content.footer,
+  };
   const inner = eta.renderString(slideTemplate(input.kind), {
-    content: input.content,
+    content,
     titleHtml: buildTitleHtml(input.content.title, input.content.accentWord),
     subtitleHtml: buildSubtitleHtml(input.content.subtitle),
     bodyHtml: buildBodyHtml(input.content.body),
@@ -186,6 +201,11 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     .filter(Boolean)
     .join(' ');
   const style = [input.slideStyle ?? '', input.popColor ? `--pop: ${input.popColor};` : ''].filter(Boolean).join(' ');
+  // Slide écho : le mot répété tapisse le fond, hors de la pile de texte (jamais réduit avec elle)
+  const echoWord = input.kind === 'echo' ? escapeHtml((input.content.echoWord || input.content.title).toUpperCase()) : '';
+  const echoStack = echoWord
+    ? `<div class="echo-stack" aria-hidden="true">${[0, 1, 2, 3, 4].map((i) => `<div class="echo-line echo-${i}">${echoWord}</div>`).join('')}</div>`
+    : '';
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -216,6 +236,7 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
   ${authorChip}
   <div class="verified-badge">${VERIFIED_SVG(40)}</div>
   <div class="brand-top">${brandBlock}</div>
+  ${echoStack}
   <div class="safe"><div class="stack">
 ${inner}
   </div></div>
@@ -245,7 +266,8 @@ const FIT_SCRIPT = `(() => {
   if (!slide || !safe || !stack) return 1;
   const cs = getComputedStyle(safe);
   const px = (v) => parseFloat(v) || 0;
-  const kids = Array.from(stack.children);
+  // Les calques absolus (fond répété de l'écho…) ne comptent pas dans la pile
+  const kids = Array.from(stack.children).filter((el) => getComputedStyle(el).position !== 'absolute');
   const avail = slide.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
   const innerW = safe.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
   const contentWidth = (el) => {
@@ -253,10 +275,8 @@ const FIT_SCRIPT = `(() => {
     range.selectNodeContents(el);
     return Math.max(el.getBoundingClientRect().width, range.getBoundingClientRect().width);
   };
-  // 1. Les éléments d'une ligne (gros chiffre, boutons, badge) sont réduits seuls s'ils dépassent en largeur
-  for (const el of kids) {
-    const single = el.matches('.big-number, .cta-button, .keyword-chip, .badge');
-    if (!single) continue;
+  // 1. Les éléments d'une ligne (gros chiffre, boutons, mot-clé, badge) sont réduits seuls s'ils dépassent en largeur
+  for (const el of stack.querySelectorAll('.big-number, .cta-button, .keyword-chip, .badge')) {
     const base = px(getComputedStyle(el).fontSize);
     let f = 1;
     while (contentWidth(el) > innerW && f > 0.5) {
@@ -264,11 +284,19 @@ const FIT_SCRIPT = `(() => {
       el.style.fontSize = Math.round(base * f) + 'px';
     }
   }
-  // 2. Puis la pile entière si elle dépasse en hauteur ou en largeur (jamais sous 55 %)
-  const needed = stack.getBoundingClientRect().height;
-  const widest = kids.reduce((w, el) => Math.max(w, contentWidth(el)), 0);
-  let scale = Math.min(1, avail / needed, widest > innerW ? innerW / widest : 1);
-  scale = Math.max(0.55, Math.floor(scale * 100) / 100);
+  const measure = () => {
+    const needed = stack.getBoundingClientRect().height;
+    const widest = kids.reduce((w, el) => Math.max(w, contentWidth(el)), 0);
+    return Math.min(1, avail / needed, widest > innerW ? innerW / widest : 1);
+  };
+  // 2. Avant de réduire fortement : version compacte (liste resserrée, badge icône retiré, titre réduit sous un objet)
+  let scale = measure();
+  if (scale < 0.72) {
+    slide.classList.add('fit-compact');
+    scale = measure();
+  }
+  // 3. Puis la pile entière si elle dépasse encore (jamais sous 60 %)
+  scale = Math.max(0.6, Math.floor(scale * 100) / 100);
   if (scale < 1) {
     const centered = slide.classList.contains('align-center') || cs.alignItems === 'center';
     const ox = centered ? '50%' : '0%';
@@ -276,6 +304,8 @@ const FIT_SCRIPT = `(() => {
     stack.style.transformOrigin = ox + ' ' + oy;
     stack.style.transform = 'scale(' + scale + ')';
   }
+  // Haut du bloc de texte (après réduction) : le voile de lisibilité des images s'y accroche
+  slide.style.setProperty('--text-top', Math.round(stack.getBoundingClientRect().top) + 'px');
   return scale;
 })()`;
 
@@ -317,9 +347,23 @@ export function assetDataUri(assetId: string | null): string | null {
   return assetInfo(assetId)?.dataUri ?? null;
 }
 
-/** Un asset est-il un détourage (PNG alpha posé entier) ? */
+/** Un asset est-il un détourage (PNG alpha posé entier) ? — lit la meta seule, jamais le fichier. */
 export function assetIsCutout(assetId: string | null): boolean {
-  return assetInfo(assetId)?.cutout ?? false;
+  if (!assetId) return false;
+  const row = db.select({ meta: schema.assets.meta }).from(schema.assets).where(eq(schema.assets.id, assetId)).get();
+  return parseAssetMeta(row?.meta ?? null).cutout;
+}
+
+function parseAssetMeta(raw: string | null): { cutout: boolean; popColor: string | null } {
+  try {
+    const meta = raw ? (JSON.parse(raw) as { cutout?: boolean; popColor?: string | null }) : {};
+    return {
+      cutout: Boolean(meta.cutout),
+      popColor: typeof meta.popColor === 'string' && /^#[0-9a-f]{6}$/i.test(meta.popColor) ? meta.popColor : null,
+    };
+  } catch {
+    return { cutout: false, popColor: null };
+  }
 }
 
 /** Data URI + indicateurs de rendu d'un asset (détouré → affiché entier ; couleur signature). */
@@ -328,15 +372,7 @@ function assetInfo(assetId: string | null): { dataUri: string; cutout: boolean; 
   const asset = db.select().from(schema.assets).where(eq(schema.assets.id, assetId)).get();
   if (!asset || !fs.existsSync(asset.path)) return null;
   const data = fs.readFileSync(asset.path);
-  let cutout = false;
-  let popColor: string | null = null;
-  try {
-    const meta = asset.meta ? (JSON.parse(asset.meta) as { cutout?: boolean; popColor?: string | null }) : {};
-    cutout = Boolean(meta.cutout);
-    popColor = typeof meta.popColor === 'string' && /^#[0-9a-f]{6}$/i.test(meta.popColor) ? meta.popColor : null;
-  } catch {
-    cutout = false;
-  }
+  const { cutout, popColor } = parseAssetMeta(asset.meta);
   return { dataUri: `data:${asset.mime};base64,${data.toString('base64')}`, cutout, popColor };
 }
 
@@ -403,8 +439,12 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
     .orderBy(schema.slides.idx)
     .all();
   if (allSlides.length === 0) throw new Error(`Post ${postId} sans slides`);
-  const slides = opts.onlyIdx === undefined ? allSlides : allSlides.filter((s) => s.idx === opts.onlyIdx);
-  if (slides.length === 0) throw new Error(`Slide ${opts.onlyIdx} introuvable`);
+  // Rendu partiel : la slide visée, plus celles dont le rendu a été invalidé entre-temps
+  const slides =
+    opts.onlyIdx === undefined ? allSlides : allSlides.filter((s) => s.idx === opts.onlyIdx || !s.renderAssetId);
+  if (opts.onlyIdx !== undefined && !allSlides.some((s) => s.idx === opts.onlyIdx)) {
+    throw new Error(`Slide ${opts.onlyIdx} introuvable`);
+  }
 
   const brand = getBrand();
   const logoDataUri = assetDataUri(brand.logoAssetId);
@@ -415,11 +455,8 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
   const assetIds: string[] = [];
   const custom = getCustomTheme(post.theme);
   const darkTheme = custom ? isLightHex(custom.textColor) : post.theme !== 'papier-blanc';
-
-  // L'illustration du post (celle du hook) diffuse un écho flouté sur les
-  // slides sans image propre → harmonie colorimétrique sur tout le carrousel.
-  const postHeroAssetId = allSlides.find((s) => s.heroAssetId)?.heroAssetId ?? null;
-  const ambientHeroDataUri = assetDataUri(postHeroAssetId);
+  // CSS du template maison (image de fond + objets en base64) construit une seule fois pour tout le post
+  const themeCssOverride = custom ? buildCustomThemeCss(custom) : undefined;
   // Objets flottants et placement propres au post (choisis dans « Visuels proposés »)
   const overrides = parseVisualOverrides(post.visualOverrides);
   const floatUris = FLOAT_KEYS.map((k) => assetDataUri(overrides[k] ?? null));
@@ -441,14 +478,17 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
     const content = slideContentSchema.parse(JSON.parse(slide.content));
     const screenshotDataUri = assetDataUri(slide.screenshotAssetId);
     const hero = assetInfo(slide.heroAssetId);
-    // Slide dense (titre à gauche, puces, cartes) + objet détouré : l'objet passe à droite
-    // du texte plutôt qu'au-dessus, sauf placement choisi pour ce post.
-    const heavy = ['content', 'notifications', 'screenshot'].includes(content.kind);
-    const perSlide = slideStyleFor(
-      custom,
-      hero?.cutout && heavy && !overrides.heroPlacement ? { ...overrides, heroPlacement: 'droite' } : overrides,
-      content.kind,
-    );
+    // Objet détouré sans placement choisi pour ce post : à droite du texte sur une slide
+    // de contenu (titre + puces), petit et ancré en haut sur les cartes / captures (qui ont
+    // besoin de toute la largeur), au-dessus du titre ailleurs.
+    let autoPlacement = overrides;
+    if (hero?.cutout && !overrides.heroPlacement) {
+      if (content.kind === 'content') autoPlacement = { ...overrides, heroPlacement: 'droite' };
+      else if (content.kind === 'notifications' || content.kind === 'screenshot') {
+        autoPlacement = { ...overrides, heroPlacement: 'haut', heroSize: Math.min(overrides.heroSize ?? custom?.heroSize ?? 100, 70) };
+      }
+    }
+    const perSlide = slideStyleFor(custom, autoPlacement, content.kind);
     const html = buildSlideHtml({
       theme: post.theme,
       kind: content.kind,
@@ -467,9 +507,10 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
       slideStyle: perSlide.style,
       popColor: accentFromImage && !monochromeHero && hero && !hero.cutout ? hero.popColor : null,
       floatsOn: floatsOnSlide(content.kind, floatSlides),
-      toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,
+      toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname.replace(/^www\./, '').slice(0, 40) : null,
       logoDataUri,
       avatarDataUri,
+      themeCssOverride,
       brandStyle: perSlide.brandStyle,
       authorOn: perSlide.authorOn,
     });

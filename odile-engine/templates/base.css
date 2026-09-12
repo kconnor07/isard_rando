@@ -50,7 +50,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 104px 96px 150px;
+  padding: 104px 96px 176px;
 }
 /* La pile de contenu : c'est elle que l'ajustement automatique réduit (jamais les marges) */
 .stack {
@@ -74,6 +74,13 @@ body {
 .align-left .notif-card.depth-2 { width: 84%; margin-left: 8%; }
 .keyword-block { display: flex; flex-direction: column; align-items: center; gap: 28px; margin-top: 20px; }
 .align-left .keyword-block { align-items: flex-start; }
+
+/* Version compacte (auto-ajustement, avant de réduire la pile sous 72 %) */
+.fit-compact .stack { gap: 24px; }
+.fit-compact .icon-badge { display: none; }
+.fit-compact .bullets { gap: 18px; }
+.fit-compact .bullets li { line-height: 1.22; }
+.fit-compact.hero-contain .title { font-size: 84px; }
 
 /* --- Typographie ------------------------------------------------------- */
 
@@ -207,7 +214,7 @@ body {
   padding: 34px 64px;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #003a66));
-  color: #fff;
+  color: var(--on-accent, #fff);
   font-size: 46px;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -265,6 +272,9 @@ body {
     0 24px 60px -24px rgba(0, 0, 0, 0.75);
 }
 
+/* Le mot-clé à recopier ne se coupe jamais : la pilule ne plie qu'avant lui */
+.keyword-chip .kw { white-space: nowrap; }
+
 /* Cadre navigateur pour les captures d'écran d'outils */
 .browser-frame {
   width: 100%;
@@ -297,11 +307,13 @@ body {
   background: rgba(0, 0, 0, 0.45);
   font-family: 'Fragment Mono', monospace;
   font-size: 24px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.72);
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
-.browser-frame img { display: block; width: 100%; height: auto; }
+/* Une capture très haute est recadrée par le haut, le cadre garde sa largeur */
+.browser-frame img { display: block; width: 100%; height: auto; max-height: 620px; object-fit: cover; object-position: top; }
 
 /* --- Pied de marque ---------------------------------------------------- */
 
@@ -329,7 +341,7 @@ body {
   width: 64px; height: 64px; border-radius: 16px; flex: none;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #002244));
-  color: #fff; font-weight: 900; font-size: 30px; letter-spacing: -0.02em;
+  color: var(--on-accent, #fff); font-weight: 900; font-size: 30px; letter-spacing: -0.02em;
   box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
 .brand-text { display: flex; flex-direction: column; gap: 2px; line-height: 1.1; }
@@ -386,9 +398,11 @@ body {
   font-weight: 800; font-size: 24px; color: #fff;
 }
 .author-avatar.photo { object-fit: cover; padding: 0; background: #fff; }
-.author-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 28px; letter-spacing: -0.01em; }
+.author-chip { max-width: 46%; }
+.author-chip > div { min-width: 0; }
+.author-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 28px; letter-spacing: -0.01em; white-space: nowrap; }
 .author-check { flex: none; color: var(--accent); }
-.author-handle { font-size: 21px; font-weight: 500; letter-spacing: 0.01em; color: var(--muted); }
+.author-handle { font-size: 21px; font-weight: 500; letter-spacing: 0.01em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Badge « vérifié » rond en verre, en haut à droite */
 .verified-badge {
@@ -468,17 +482,23 @@ body {
   background-position: center 8%;
   background-repeat: no-repeat;
 }
-/* Zone réservée à l'objet : le texte vit sous lui, réduit au besoin par l'ajustement automatique */
-.hero-contain.hero-place-centre .safe { padding-top: 700px; }
+/* Zone réservée à l'objet, liée à sa taille (--hero-scale) : le texte vit sous lui, jamais dessus */
+.hero-contain.hero-place-centre .safe { padding-top: calc(120px + 640px * var(--hero-scale, 1)); }
 .hero-contain.hero-place-haut .hero-image { background-size: auto calc(62% * var(--hero-scale, 1)); background-position: center -12%; }
-.hero-contain.hero-place-haut .safe { padding-top: 700px; padding-bottom: 150px; }
+.hero-contain.hero-place-haut .safe { padding-top: max(420px, calc(880px * var(--hero-scale, 1) - 150px)); padding-bottom: 150px; }
 .hero-contain.hero-place-haut .title { font-size: 96px; }
-/* À droite / à gauche : l'objet est contenu dans sa colonne, le texte garde la sienne */
-.hero-contain.hero-place-droite .hero-image { inset: 8% -6% 14% 58%; background-size: calc(100% * var(--hero-scale, 1)) auto; background-position: center; }
-.hero-contain.hero-place-gauche .hero-image { inset: 8% 58% 14% -6%; background-size: calc(100% * var(--hero-scale, 1)) auto; background-position: center; }
+/* À droite / à gauche : la colonne de l'objet s'élargit avec lui (il ne déborde qu'hors du canevas, jamais rogné net) */
+.hero-contain.hero-place-droite .hero-image { inset: 8% calc(-6% - 24% * (var(--hero-scale, 1) - 1)) 14% calc(58% - 24% * (var(--hero-scale, 1) - 1)); background-size: 100% auto; background-position: center; }
+.hero-contain.hero-place-gauche .hero-image { inset: 8% calc(58% - 24% * (var(--hero-scale, 1) - 1)) 14% calc(-6% - 24% * (var(--hero-scale, 1) - 1)); background-size: 100% auto; background-position: center; }
 .hero-contain.hero-place-droite .safe, .hero-contain.hero-place-gauche .safe { justify-content: center; padding-bottom: 150px; }
-.hero-contain.hero-place-droite .safe { align-items: flex-start; text-align: left; padding-right: 440px; }
-.hero-contain.hero-place-gauche .safe { align-items: flex-start; text-align: left; padding-left: 440px; }
+.hero-contain.hero-place-droite .safe { align-items: flex-start; text-align: left; padding-right: calc(440px + 120px * (var(--hero-scale, 1) - 1)); }
+.hero-contain.hero-place-gauche .safe { align-items: flex-start; text-align: left; padding-left: calc(440px + 120px * (var(--hero-scale, 1) - 1)); }
+/* Cartes et capture à côté d'un objet : version resserrée pour garder la lisibilité */
+.hero-contain.hero-place-droite .notif-time, .hero-contain.hero-place-gauche .notif-time { display: none; }
+.hero-contain.hero-place-droite .notif-card, .hero-contain.hero-place-gauche .notif-card { width: 100%; padding: 22px 24px; gap: 16px; }
+.hero-contain.hero-place-droite .notif-icon, .hero-contain.hero-place-gauche .notif-icon { width: 48px; height: 48px; font-size: 26px; }
+.hero-contain.hero-place-droite.kind-screenshot .safe { padding-right: 360px; }
+.hero-contain.hero-place-gauche.kind-screenshot .safe { padding-left: 360px; }
 .hero-contain.hero-place-droite .badge, .hero-contain.hero-place-droite .icon-badge, .hero-contain.hero-place-droite .cta-inline, .hero-contain.hero-place-droite .body, .hero-contain.hero-place-droite .subtitle,
 .hero-contain.hero-place-gauche .badge, .hero-contain.hero-place-gauche .icon-badge, .hero-contain.hero-place-gauche .cta-inline, .hero-contain.hero-place-gauche .body, .hero-contain.hero-place-gauche .subtitle { align-self: flex-start; }
 .hero-contain.hero-place-droite .safe .title, .hero-contain.hero-place-gauche .safe .title { font-size: 76px; }
@@ -536,11 +556,10 @@ body {
   background:
     radial-gradient(115% 100% at 50% 36%, rgba(5, 5, 16, 0) 58%, rgba(5, 5, 16, 0.9) 100%),
     linear-gradient(180deg,
-    rgba(4, 6, 15, 0.15) 0%,
-    rgba(4, 6, 15, 0.05) 28%,
-    rgba(4, 6, 15, 0.30) 50%,
-    rgba(4, 6, 15, 0.62) 68%,
-    rgba(4, 6, 15, 0.86) 84%,
+    rgba(4, 6, 15, 0.12) 0%,
+    rgba(4, 6, 15, 0.04) calc(var(--text-top, 760px) - 300px),
+    rgba(4, 6, 15, 0.52) calc(var(--text-top, 760px) - 90px),
+    rgba(4, 6, 15, 0.84) calc(var(--text-top, 760px) + 140px),
     rgba(4, 6, 15, 0.96) 100%);
 }
 
@@ -566,7 +585,11 @@ body {
 .has-hero .title { text-shadow: 0 8px 50px rgba(2, 6, 20, 0.9); }
 /* Sur une image, le corps de texte passe en blanc plein avec une ombre : lisible quel que soit le fond */
 .has-hero .body, .has-hero .bullets li, .has-hero .subtitle .tone-2 { color: var(--text); text-shadow: 0 2px 22px rgba(2, 6, 20, 0.75); }
-.has-hero .annotation { text-shadow: 0 2px 18px rgba(2, 6, 20, 0.8); }
+.has-hero .annotation {
+  align-self: flex-start; text-shadow: none;
+  background: rgba(4, 6, 15, 0.55); padding: 4px 22px 8px; border-radius: 999px; backdrop-filter: blur(8px);
+}
+.align-center.has-hero .annotation { align-self: center; }
 
 /* --- Pile de notifications (archétype A2) ------------------------------- */
 
@@ -613,7 +636,7 @@ body {
 .echo-stack {
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 4;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -621,6 +644,7 @@ body {
   pointer-events: none;
 }
 .echo-line {
+  display: flex; justify-content: center;
   font-weight: 900;
   font-size: 190px;
   line-height: 0.96;
@@ -644,7 +668,7 @@ body {
   padding: 22px 46px;
   border-radius: 10px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
   font-family: 'Fragment Mono', monospace;
   font-size: 40px;
   font-weight: 700;
@@ -654,7 +678,7 @@ body {
   outline: 3px dashed rgba(255, 255, 255, 0.55);
   outline-offset: -12px;
 }
-.stamp .accent { font-family: inherit; font-style: normal; color: #eaf6ff; }
+.stamp .accent { font-family: inherit; font-style: normal; color: var(--on-accent, #eaf6ff); }
 .kind-echo .body {
   position: relative;
   z-index: 6;

@@ -192,7 +192,7 @@ describe('personnalisation fine des templates', async () => {
     const css = buildCustomThemeCss(theme({}));
     expect(css).toContain('.stack { gap: 36px; }');
     expect(css).toContain('.safe { justify-content: center; }');
-    expect(css).toContain('.safe { padding: 104px 96px 150px; }');
+    expect(css).toContain('.safe { padding: 104px 96px 176px; }');
     expect(css).toContain('.body { font-family: \'Inter\', system-ui, sans-serif; font-size: 42px; font-weight: 500; line-height: 1.4;');
     expect(css).toContain(".bullets li::before { content: '→'; color: #0099ff; }");
     expect(css).not.toContain('scale:');
@@ -221,5 +221,27 @@ describe('personnalisation fine des templates', async () => {
     expect(templateSchema.safeParse({ ...base, blockGap: 500 }).success).toBe(false);
     expect(templateSchema.safeParse({ ...base, bodyColor: 'rouge' }).success).toBe(false);
     expect(templateSchema.safeParse({ ...base, padTop: 10 }).success).toBe(false);
+  });
+});
+
+describe('typographie française et écho', async () => {
+  const { frTypo, buildTitleHtml, buildSlideHtml } = await import('../src/render/renderer.js');
+  const { getBrand } = await import('../src/db/settingsRepo.js');
+  it('espace fine insécable devant la ponctuation haute et après le guillemet ouvrant', () => {
+    expect(frTypo('Devis Express : signé ?')).toBe('Devis Express : signé ?');
+    expect(frTypo('« mot » !')).toBe('« mot » !');
+    expect(buildTitleHtml('Devis Express : signé', 'Express')).toContain('<span class="accent">Express</span> :');
+  });
+  it('le fond répété de la slide écho vit hors de la pile de texte', () => {
+    const html = buildSlideHtml({
+      theme: 'odile-nuit', kind: 'echo', format: 'static', brand: getBrand(), slideNum: 1, slideTotal: 1,
+      content: { kind: 'echo', title: 'Répondre vite', echoWord: 'vitesse' },
+    });
+    const stackAt = html.indexOf('<div class="safe"><div class="stack">');
+    const echoAt = html.indexOf('<div class="echo-stack"');
+    expect(echoAt).toBeGreaterThan(0);
+    expect(echoAt).toBeLessThan(stackAt);
+    expect(html.match(/echo-line echo-\d/g)).toHaveLength(5);
+    expect(html).toContain('>VITESSE<');
   });
 });

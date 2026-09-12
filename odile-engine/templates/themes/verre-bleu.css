@@ -95,3 +95,6 @@
 
 /* Avec illustration générée : les orbes s'effacent davantage */
 .has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.15; }
+
+/* Sur une image plein cadre, le titre d'accroche reste en blanc plein (le dégradé le voilerait) */
+.has-hero.kind-hook .title { background: none; -webkit-background-clip: initial; background-clip: initial; color: var(--text); -webkit-text-fill-color: var(--text); }

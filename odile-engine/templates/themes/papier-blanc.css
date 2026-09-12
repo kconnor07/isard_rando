@@ -97,9 +97,11 @@
 .hero-scrim {
   background:
     radial-gradient(115% 100% at 50% 36%, rgba(245, 243, 239, 0) 46%, rgba(245, 243, 239, 0.94) 100%),
-    linear-gradient(180deg, rgba(245, 243, 239, 0.1) 0%, rgba(245, 243, 239, 0.5) 55%, rgba(245, 243, 239, 0.96) 100%);
+    linear-gradient(180deg, rgba(245, 243, 239, 0.1) 0%, rgba(245, 243, 239, 0.06) calc(var(--text-top, 760px) - 300px), rgba(245, 243, 239, 0.6) calc(var(--text-top, 760px) - 90px), rgba(245, 243, 239, 0.9) calc(var(--text-top, 760px) + 140px), rgba(245, 243, 239, 0.96) 100%);
 }
 .hero-ambient { opacity: 0.16; filter: blur(72px) grayscale(1) brightness(1.5); }
+.has-hero .annotation { background: rgba(245, 243, 239, 0.72); color: #0b0b0e; }
+.has-hero .body, .has-hero .bullets li { text-shadow: 0 1px 12px rgba(245, 243, 239, 0.8); }
 .kind-echo .body { background: rgba(255, 255, 255, 0.72); color: rgba(11, 11, 14, 0.75); }
 .echo-line { color: rgba(11, 11, 14, 0.14); }
 

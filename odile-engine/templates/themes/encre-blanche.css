@@ -2,7 +2,7 @@
    verre en niveaux de gris, arêtes blanches. Même grammaire visuelle que
    Verre Bleu, sans aucune teinte : pour les posts sobres et éditoriaux. */
 
-:root { --secondary: #d8d8dc; --accent: #ffffff; }
+:root { --secondary: #d8d8dc; --accent: #ffffff; --on-accent: #0b0b0e; }
 
 .slide { background: #050506; }
 
@@ -54,6 +54,14 @@
   position: absolute; inset: 0; z-index: 3;
   background: linear-gradient(172deg, rgba(255, 255, 255, 0.055) 0%, transparent 34%);
 }
+
+/* Sur l'accent blanc, l'encre est sombre : boutons, tampon, icône de notification, carré de marque */
+.cta-button, .stamp, .notif-icon { background: #ffffff; color: #0b0b0e; box-shadow: 0 18px 60px rgba(255, 255, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+.stamp { outline-color: rgba(11, 11, 14, 0.35); }
+.stamp .accent { color: #0b0b0e; }
+.brand-mark { background: #ffffff; color: #0b0b0e; }
+.cta-chevron .cta-button { background: rgba(255, 255, 255, 0.1); color: #fbfbfc; }
+.keyword-chip { border-color: rgba(255, 255, 255, 0.35); background: rgba(255, 255, 255, 0.08); color: #fbfbfc; }
 
 /* Textes : blanc franc, gris pour le corps */
 .title { color: #fbfbfc; }

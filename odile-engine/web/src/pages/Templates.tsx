@@ -205,9 +205,9 @@ const BLANK: Draft = {
 
 /** Marges des trois réglages « serrées / normales / aérées » (miroir du serveur). */
 const PADDINGS: Record<Draft['padding'], { top: number; side: number; bottom: number }> = {
-  serre: { top: 84, side: 76, bottom: 140 },
-  normal: { top: 104, side: 96, bottom: 150 },
-  aere: { top: 128, side: 120, bottom: 172 },
+  serre: { top: 84, side: 76, bottom: 164 },
+  normal: { top: 104, side: 96, bottom: 176 },
+  aere: { top: 128, side: 120, bottom: 196 },
 };
 
 interface StartPoint {

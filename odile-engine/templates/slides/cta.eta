@@ -5,7 +5,7 @@
 <% if (it.content.body) { %><p class="body"><%~ it.bodyHtml %></p><% } %>
 <% if (it.keyword) { %>
 <div class="keyword-block">
-  <div class="keyword-chip">💬 Commente « <%= it.keyword %> »</div>
+  <div class="keyword-chip">💬 Commente <span class="kw">« <%= it.keyword %> »</span></div>
   <p class="body" style="font-size:33px;opacity:0.85">et reçois le lien direct en message privé</p>
 </div>
 <% } else if (it.content.ctaLabel) { %>

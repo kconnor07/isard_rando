@@ -74,3 +74,6 @@
   box-shadow: 0 18px 70px rgba(0, 153, 255, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .browser-frame { box-shadow: 0 50px 120px rgba(0,0,0,0.7), 0 0 90px rgba(0, 153, 255, 0.25); }
+
+/* Sur une image plein cadre, le titre d'accroche reste en blanc plein (le dégradé le voilerait) */
+.has-hero.kind-hook .title { background: none; -webkit-background-clip: initial; background-clip: initial; color: var(--text); -webkit-text-fill-color: var(--text); }

@@ -117,9 +117,9 @@ const ANNOTATION_FONTS: Record<CustomTheme['annotationFont'], string> = {
 };
 
 const PADDINGS: Record<CustomTheme['padding'], { top: number; side: number; bottom: number }> = {
-  serre: { top: 84, side: 76, bottom: 140 },
-  normal: { top: 104, side: 96, bottom: 150 },
-  aere: { top: 128, side: 120, bottom: 172 },
+  serre: { top: 84, side: 76, bottom: 164 },
+  normal: { top: 104, side: 96, bottom: 176 },
+  aere: { top: 128, side: 120, bottom: 196 },
 };
 
 
@@ -390,10 +390,14 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   const bigWeight = [300, 500, 900].includes(theme.bigNumberWeight) ? theme.bigNumberWeight : 900;
   const bigNumber = `:root { --big-weight: ${bigWeight}; }${bigWeight === 300 ? '\n.big-number { font-size: 320px; letter-spacing: -0.05em; }' : ''}`;
   const pad = PADDINGS[theme.padding] ?? PADDINGS.normal;
+  const inset = clamp(theme.footerInset, 40, 160);
   const author = theme.showAuthor
     ? `.author-chip { display: inline-flex; }
 .author-avatar { background: ${accent}; }
-.author-check { color: ${accent}; }`
+.author-check { color: ${accent}; }
+/* La pilule de marque « haut-centre » cède la place à la chip auteur : elle passe à droite */
+.brand-haut-centre .brand-top { left: auto; right: ${inset}px; transform: none; }
+.brand-haut-centre.verified-on .brand-top { right: ${inset + 108}px; }`
     : '';
   // --- Personnalisation fine ------------------------------------------------
   const bodyScale = clamp(theme.bodyScale, 60, 140) / 100;
@@ -481,6 +485,7 @@ ${clamp(theme.heroScrim, 0, 100) !== 100 ? `.hero-scrim { opacity: ${(clamp(them
   --muted: ${rgba(theme.textColor, 0.66)};
   --glass: rgba(${veil}, ${((light ? 0.05 : 0.07) * glass).toFixed(3)});
   --glass-border: rgba(${veil}, ${((light ? 0.14 : 0.16) * glass).toFixed(3)});
+  --on-accent: ${ctaInk};
 }
 
 .slide { background: ${theme.bg1}; color: ${theme.textColor}; }
@@ -541,11 +546,10 @@ ${
   background:
     radial-gradient(115% 100% at 50% 36%, ${rgba(theme.bg1, 0)} ${light ? '58%' : '56%'}, ${rgba(theme.bg1, light ? 0.9 : 0.94)} 100%),
     linear-gradient(180deg,
-      ${rgba(theme.bg1, 0.15)} 0%,
-      ${rgba(theme.bg1, 0.05)} 28%,
-      ${rgba(theme.bg1, 0.30)} 50%,
-      ${rgba(theme.bg1, 0.62)} 68%,
-      ${rgba(theme.bg1, 0.86)} 84%,
+      ${rgba(theme.bg1, 0.12)} 0%,
+      ${rgba(theme.bg1, 0.04)} calc(var(--text-top, 760px) - 300px),
+      ${rgba(theme.bg1, 0.52)} calc(var(--text-top, 760px) - 90px),
+      ${rgba(theme.bg1, 0.84)} calc(var(--text-top, 760px) + 140px),
       ${rgba(theme.bg1, 0.96)} 100%);
 }
 ${
