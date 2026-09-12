@@ -58,6 +58,8 @@ export const templateSchema = z.object({
   // Pied de page
   showLogo: z.boolean().default(true),
   showCounter: z.boolean().default(true),
+  brandStyle: z.enum(['auto', 'logo', 'initiales', 'logo-nom', 'aucun']).default('auto'),
+  counterStyle: z.enum(['pilule', 'mono']).default('pilule'),
   // Pack premium
   titleGradient: z.enum(['aucun', 'accent', 'argent', 'horizontal']).default('aucun'),
   ctaStyle: z.enum(['verre', 'plein', 'degrade', 'chevron']).default('verre'),
@@ -304,6 +306,8 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
       floatsOn: floatsOnSlide(slide.kind, draft.floatSlides),
       logoDataUri: assetDataUri(brand.logoAssetId),
       avatarDataUri: assetDataUri(brand.avatarAssetId),
+      brandStyle: style.brandStyle,
+      authorOn: style.authorOn,
     });
     const png = await renderHtmlToPng(html, { width: 1080, height: 1350 }, { scale: 1 });
     const small = await sharp(png).resize(432, 540).jpeg({ quality: 82 }).toBuffer();

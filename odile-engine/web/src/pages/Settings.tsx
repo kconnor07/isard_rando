@@ -7,7 +7,7 @@ import type { LibraryImageDto } from '../api/types';
 
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
-  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string };
+  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
@@ -18,6 +18,13 @@ type AllSettings = Record<string, unknown> & {
   default_theme: string;
   default_format: string;
 };
+
+/** Initiales du carré de marque : celles saisies, sinon déduites du nom (« Odile AI » → OA). */
+function initialsOf(brand: { name: string; initials?: string }): string {
+  const forced = (brand.initials ?? '').trim();
+  if (forced) return forced.slice(0, 3).toUpperCase();
+  return brand.name.split(/\s+/).map((w) => w[0] ?? '').join('').slice(0, 2).toUpperCase();
+}
 
 interface SourceDto {
   id: number;
@@ -196,7 +203,35 @@ export default function Settings() {
                   setForm(null);
                 }} />
               </label>
-              <span className="text-xs text-muted">PNG transparent recommandé — remplace le nom + handle sur chaque slide.</span>
+              <span className="text-xs text-muted">PNG transparent recommandé.</span>
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Pied de marque sur les slides (les templates peuvent le surcharger)</label>
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { v: 'initiales', l: `${initialsOf(form.brand)} · ${form.brand.name} · ${form.brand.handle}` },
+                { v: 'logo', l: 'Logo seul' },
+                { v: 'logo-nom', l: 'Logo réduit + nom + handle' },
+              ] as const).map((o) => (
+                <button
+                  key={o.v}
+                  onClick={() => set('brand', { ...form.brand, footerStyle: o.v })}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                    (form.brand.footerStyle ?? 'initiales') === o.v ? 'border-accent/50 bg-accent-soft text-ice' : 'border-line text-muted hover:text-txt'
+                  }`}
+                >
+                  {o.l}
+                </button>
+              ))}
+              <input
+                className="input !w-24"
+                maxLength={3}
+                placeholder={initialsOf({ ...form.brand, initials: '' })}
+                title="Initiales du carré de marque (sinon déduites du nom)"
+                value={form.brand.initials ?? ''}
+                onChange={(e) => set('brand', { ...form.brand, initials: e.target.value.toUpperCase() })}
+              />
             </div>
           </div>
           <div className="sm:col-span-2">

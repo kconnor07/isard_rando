@@ -210,4 +210,6 @@ export const BRAND_DEFAULTS = {
   siteUrl: 'https://odileai.com',
   accentColor: '#0099FF',
   tagline: 'Automatisez ce qui vous ralentit. Concentrez-vous sur ce qui vous fait grandir.',
+  footerStyle: 'initiales',
+  initials: '',
 } as const;

@@ -316,20 +316,27 @@ body {
   justify-content: space-between;
 }
 .brand-id { display: flex; align-items: center; gap: 20px; }
-/* Logo officiel (wordmark) — remplace le bloc nom + handle */
+/* Logo officiel (wordmark) — seul en pied */
 .brand-wordmark { height: 74px; width: auto; display: block; }
+/* Logo réduit en carré (style « logo + nom ») */
 .brand-logo {
-  width: 56px; height: 56px; border-radius: 14px; object-fit: cover;
-  background: var(--glass);
+  width: 64px; height: 64px; border-radius: 16px; object-fit: contain;
+  padding: 9px; box-sizing: border-box; flex: none;
+  background: var(--glass); border: 1px solid var(--glass-border);
 }
+/* Carré aux initiales (style « initiales » : OA · Odile AI · @odileai) */
 .brand-mark {
-  width: 56px; height: 56px; border-radius: 14px;
+  width: 64px; height: 64px; border-radius: 16px; flex: none;
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #002244));
-  color: #fff; font-weight: 900; font-size: 30px;
+  color: #fff; font-weight: 900; font-size: 30px; letter-spacing: -0.02em;
+  box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--accent) 70%, transparent);
 }
+.brand-text { display: flex; flex-direction: column; gap: 2px; line-height: 1.1; }
 .brand-name { font-size: 30px; font-weight: 700; letter-spacing: -0.01em; }
-.brand-handle { font-size: 26px; color: var(--muted); font-weight: 500; }
+.brand-handle { font-size: 24px; color: var(--muted); font-weight: 500; }
+/* Sans bloc de marque : le compteur seul, à droite */
+.brand-style-aucun .brand-footer { justify-content: flex-end; }
 /* Compteur de slide : pilule de verre, même famille que les badges */
 .slide-counter {
   font-family: 'Inter', system-ui, sans-serif;
@@ -346,6 +353,13 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .slide-counter .swipe { color: var(--text); }
+/* Compteur « mono » : texte discret sans pilule (01/07 → swipe) */
+.counter-mono .slide-counter {
+  padding: 0; background: none; border: 0; box-shadow: none;
+  font-family: 'Fragment Mono', monospace; font-weight: 500; font-size: 26px;
+  letter-spacing: 0.06em; color: var(--muted);
+}
+.counter-mono .slide-counter .swipe { color: var(--muted); }
 
 /* --- Pack premium (activé par les templates maison) --------------------- */
 
@@ -390,9 +404,13 @@ body {
 }
 .verified-on .verified-badge { display: flex; }
 
-/* Logo : pied centré (compteur discret à droite) ou pilule de verre en haut au centre */
+/* Marque : pied centré (compteur discret à droite) ou pilule de verre en haut au centre */
 .brand-bas-centre .brand-footer { justify-content: center; }
 .brand-bas-centre .brand-wordmark { height: 46px; }
+.brand-bas-centre .brand-id { gap: 14px; }
+.brand-bas-centre .brand-mark, .brand-bas-centre .brand-logo { width: 46px; height: 46px; border-radius: 12px; font-size: 22px; padding: 6px; }
+.brand-bas-centre .brand-name { font-size: 26px; }
+.brand-bas-centre .brand-handle { display: none; }
 .brand-bas-centre .slide-counter { position: absolute; right: 0; bottom: 0; }
 .brand-top { display: none; }
 .brand-top:empty { display: none !important; }
@@ -405,6 +423,10 @@ body {
   backdrop-filter: blur(24px) saturate(1.2);
 }
 .brand-haut-centre .brand-top .brand-wordmark { height: 40px; }
+.brand-haut-centre .brand-top .brand-id { gap: 14px; }
+.brand-haut-centre .brand-top .brand-mark, .brand-haut-centre .brand-top .brand-logo { width: 44px; height: 44px; border-radius: 11px; font-size: 21px; padding: 6px; }
+.brand-haut-centre .brand-top .brand-name { font-size: 26px; }
+.brand-haut-centre .brand-top .brand-handle { display: none; }
 .brand-haut-centre .brand-footer .brand-wordmark, .brand-haut-centre .brand-footer .brand-id { display: none; }
 .brand-haut-centre .brand-footer { justify-content: flex-end; }
 

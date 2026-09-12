@@ -16,6 +16,7 @@ import { floatCss, floatsOnSlide, type FloatLayout, type FloatSlides } from './f
 import { iconSvg } from './icons.js';
 import { isLightHex } from '../lib/color.js';
 import { baseCss, defaultBrandLogoDataUri, fontFaceCss, slideTemplate, themeCss } from './themes.js';
+import { brandBlockHtml, brandInitials, resolveBrandStyle, type TemplateBrandStyle } from './brand.js';
 
 const nanoAsset = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', 21);
 const eta = new Eta({ useWith: false, autoEscape: true });
@@ -99,6 +100,10 @@ export interface SlideRenderInput {
   popColor?: string | null;
   /** cette slide reçoit les objets flottants (template ou post) */
   floatsOn?: boolean;
+  /** pied de marque demandé par le template (auto = réglage de la marque) */
+  brandStyle?: TemplateBrandStyle;
+  /** la chip auteur est affichée (le pied évite alors le doublon nom + handle) */
+  authorOn?: boolean;
 }
 
 /** Objets flottants et placement d'illustration propres à un post (« Visuels proposés »). */
@@ -143,22 +148,20 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     toolUrlDisplay: input.toolUrlDisplay ?? null,
   });
 
-  // Pied de marque : le logo officiel (uploadé via le dashboard, sinon celui
-  // embarqué dans templates/brand) remplace intégralement le texte « nom + handle ».
+  // Pied de marque : logo officiel (uploadé, sinon celui embarqué dans
+  // templates/brand), carré aux initiales + nom + handle, ou rien — selon le
+  // template puis le réglage de la marque (même règle que l'aperçu).
   const wordmarkUri = input.logoDataUri ?? defaultBrandLogoDataUri();
-  const wordmark = wordmarkUri ? `<img class="brand-wordmark" src="${wordmarkUri}" alt="${escapeHtml(input.brand.name)}" />` : '';
-  const brandBlock = wordmarkUri
-    ? wordmark
-    : `<div class="brand-id"><div class="brand-mark">${escapeHtml(initials(input.brand.name))}</div>
-      <div><div class="brand-name">${escapeHtml(input.brand.name)}</div>
-      <div class="brand-handle">${escapeHtml(input.brand.handle)}</div></div></div>`;
+  const authorOn = input.authorOn ?? false;
+  const brandStyle = resolveBrandStyle(input.brandStyle, input.brand, { hasLogo: Boolean(wordmarkUri), authorOn });
+  const brandBlock = brandBlockHtml(brandStyle, input.brand, wordmarkUri);
   // Chip auteur (masquée par défaut, activée par les templates « premium ») :
-  // photo si elle est définie dans la marque, sinon le logo / les initiales.
+  // photo si elle est définie dans la marque, sinon le logo ou les initiales.
   const avatar = input.avatarDataUri
     ? `<img class="author-avatar photo" src="${input.avatarDataUri}" alt="" />`
-    : wordmarkUri
+    : wordmarkUri && (brandStyle === 'logo' || brandStyle === 'logo-nom' || input.brand.footerStyle === 'logo')
       ? `<img class="author-avatar" src="${wordmarkUri}" alt="" />`
-      : `<span class="author-avatar">${escapeHtml(initials(input.brand.name))}</span>`;
+      : `<span class="author-avatar">${escapeHtml(brandInitials(input.brand))}</span>`;
   const authorLine = input.brand.authorLine?.trim() || input.brand.handle;
   const authorChip = `<div class="author-chip">${avatar}<div><div class="author-name">${escapeHtml(input.brand.name)}<span class="author-check">${VERIFIED_SVG(26)}</span></div><div class="author-handle">${escapeHtml(authorLine)}</div></div></div>`;
   const counter =
@@ -177,6 +180,7 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     input.heroContain ? 'hero-contain' : '',
     input.popColor ? 'pop' : '',
     (input.floatsOn ?? floatsOnSlide(input.kind)) ? 'floats-on' : '',
+    `brand-style-${brandStyle}`,
     ...(input.slideClasses ?? slideStyleFor(null, {}, input.kind).classes),
   ]
     .filter(Boolean)
@@ -211,7 +215,7 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
   <div class="float-1"></div><div class="float-2"></div><div class="float-3"></div><div class="float-4"></div>
   ${authorChip}
   <div class="verified-badge">${VERIFIED_SVG(40)}</div>
-  <div class="brand-top">${wordmark}</div>
+  <div class="brand-top">${brandBlock}</div>
   <div class="safe"><div class="stack">
 ${inner}
   </div></div>
@@ -224,14 +228,6 @@ ${inner}
 </body></html>`;
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((w) => w[0] ?? '')
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-}
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -474,6 +470,8 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname : null,
       logoDataUri,
       avatarDataUri,
+      brandStyle: perSlide.brandStyle,
+      authorOn: perSlide.authorOn,
     });
     const png = await renderHtmlToPng(html, size);
     // Sanity : dimensions exactes

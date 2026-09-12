@@ -394,6 +394,10 @@ export const customThemes = sqliteTable('custom_themes', {
   // --- Pied de page ---
   showLogo: integer('show_logo', { mode: 'boolean' }).notNull().default(true),
   showCounter: integer('show_counter', { mode: 'boolean' }).notNull().default(true),
+  /** marque en pied : auto (réglage de la marque), logo seul, carré aux initiales + nom + handle, logo réduit + nom + handle, aucune */
+  brandStyle: text('brand_style', { enum: ['auto', 'logo', 'initiales', 'logo-nom', 'aucun'] }).notNull().default('auto'),
+  /** compteur « 03/06 → swipe » : pilule de verre ou texte mono discret */
+  counterStyle: text('counter_style', { enum: ['pilule', 'mono'] }).notNull().default('pilule'),
   // --- Pack premium ---
   /** titre en dégradé : aucun, blanc → accent, blanc → argent */
   titleGradient: text('title_gradient', { enum: ['aucun', 'accent', 'argent', 'horizontal'] }).notNull().default('aucun'),

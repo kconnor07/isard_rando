@@ -35,6 +35,10 @@ export const brandSettingsSchema = z.object({
   avatarAssetId: z.string().nullable().default(null),
   /** ligne sous le nom dans la chip auteur (« IA · Automatisation · PME ») — sinon le handle */
   authorLine: z.string().max(60).default(''),
+  /** pied de marque par défaut : logo seul, carré aux initiales + nom + handle, ou logo réduit + nom + handle */
+  footerStyle: z.enum(['logo', 'initiales', 'logo-nom']).default('initiales'),
+  /** initiales du carré de marque (sinon déduites du nom : « Odile AI » → OA) */
+  initials: z.string().max(3).default(''),
 });
 export type BrandSettings = z.infer<typeof brandSettingsSchema>;
 

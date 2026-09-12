@@ -87,7 +87,7 @@
 .notif-icon { background: #0b0b0e; color: #fff; }
 
 /* Pied de page : le logo blanc doit s'inverser pour rester lisible */
-.brand-wordmark { filter: invert(1); }
+.brand-wordmark, .brand-logo { filter: invert(1); }
 .brand-footer { border-top-color: rgba(11, 11, 14, 0.1); }
 .brand-name { color: #0b0b0e; }
 .brand-handle { color: rgba(11, 11, 14, 0.55); }

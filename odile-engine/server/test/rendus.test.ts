@@ -142,3 +142,33 @@ describe('rédacteur : archétype et image d’accroche', async () => {
     expect(writerResponseSchema(0).safeParse({ ...post, archetype: 'typo_stickers', slides: [{ kind: 'hook', title: 'Titre' }] }).success).toBe(true);
   });
 });
+
+describe('pied de marque', async () => {
+  const { brandBlockHtml, brandInitials, resolveBrandStyle } = await import('../src/render/brand.js');
+  it('déduit les initiales du nom, ou prend celles du réglage', () => {
+    expect(brandInitials({ name: 'Odile AI' })).toBe('OA');
+    expect(brandInitials({ name: 'Odile AI', initials: 'od' })).toBe('OD');
+    expect(brandInitials({ name: 'Menuiserie Dupont Fils', initials: '' })).toBe('MD');
+  });
+  it('auto suit le réglage de la marque ; sans logo on retombe sur les initiales', () => {
+    expect(resolveBrandStyle('auto', { footerStyle: 'initiales' }, { hasLogo: true, authorOn: false })).toBe('initiales');
+    expect(resolveBrandStyle('auto', { footerStyle: 'logo' }, { hasLogo: true, authorOn: false })).toBe('logo');
+    expect(resolveBrandStyle('logo', { footerStyle: 'initiales' }, { hasLogo: false, authorOn: false })).toBe('initiales');
+    expect(resolveBrandStyle('aucun', { footerStyle: 'logo' }, { hasLogo: true, authorOn: false })).toBe('aucun');
+  });
+  it('évite le doublon nom + handle quand la chip auteur est affichée', () => {
+    expect(resolveBrandStyle('initiales', {}, { hasLogo: true, authorOn: true })).toBe('logo');
+    expect(resolveBrandStyle('initiales', {}, { hasLogo: false, authorOn: true })).toBe('marque');
+    expect(resolveBrandStyle('logo-nom', {}, { hasLogo: true, authorOn: true })).toBe('logo');
+  });
+  it('produit le bloc « OA · Odile AI · @odileai » ou le logo seul', () => {
+    const brand = { name: 'Odile AI', handle: '@odileai' };
+    const initiales = brandBlockHtml('initiales', brand, 'data:image/png;base64,x');
+    expect(initiales).toContain('class="brand-mark">OA<');
+    expect(initiales).toContain('class="brand-handle">@odileai<');
+    expect(brandBlockHtml('logo', brand, 'data:image/png;base64,x')).toMatch(/^<img class="brand-wordmark"/);
+    expect(brandBlockHtml('logo-nom', brand, 'data:image/png;base64,x')).toContain('class="brand-logo"');
+    expect(brandBlockHtml('aucun', brand, 'data:image/png;base64,x')).toBe('');
+    expect(brandBlockHtml('initiales', { name: 'A <b>', handle: '"q"' }, null)).not.toContain('<b>');
+  });
+});

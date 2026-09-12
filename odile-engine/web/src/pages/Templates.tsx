@@ -42,6 +42,8 @@ interface Draft {
   padding: 'serre' | 'normal' | 'aere';
   showLogo: boolean;
   showCounter: boolean;
+  brandStyle: 'auto' | 'logo' | 'initiales' | 'logo-nom' | 'aucun';
+  counterStyle: 'pilule' | 'mono';
   titleGradient: 'aucun' | 'accent' | 'argent' | 'horizontal';
   ctaStyle: 'verre' | 'plein' | 'degrade' | 'chevron';
   ctaArrow: 'droite' | 'haut-droite' | 'aucune';
@@ -109,6 +111,8 @@ const BLANK: Draft = {
   padding: 'normal',
   showLogo: true,
   showCounter: true,
+  brandStyle: 'auto',
+  counterStyle: 'pilule',
   titleGradient: 'aucun',
   ctaStyle: 'verre',
   ctaArrow: 'droite',
@@ -574,6 +578,7 @@ export default function Templates() {
   const isDefault = (themeId: string) => defaultTheme?.value === themeId;
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setDraft((d) => ({ ...d, [k]: v }));
+  const setMany = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const reset = () => {
     setDraft(BLANK);
     setEditingId(null);
@@ -1135,8 +1140,28 @@ export default function Templates() {
               ]}
               onChange={(v) => set('brandPosition', v)}
             />
-            <Toggle label="Afficher le logo" checked={draft.showLogo} onChange={(v) => set('showLogo', v)} />
-            <Toggle label="Afficher le compteur « 03/06 → swipe »" checked={draft.showCounter} onChange={(v) => set('showCounter', v)} />
+            <Chips
+              label="Marque en pied"
+              value={draft.showLogo ? draft.brandStyle : 'aucun'}
+              options={[
+                { v: 'auto', l: 'Réglage de la marque' },
+                { v: 'initiales', l: 'OA · Odile AI · @odileai' },
+                { v: 'logo', l: 'Logo seul' },
+                { v: 'logo-nom', l: 'Logo réduit + nom + handle' },
+                { v: 'aucun', l: 'Aucune' },
+              ]}
+              onChange={(v) => setMany({ brandStyle: v, showLogo: v !== 'aucun' })}
+            />
+            <Chips
+              label="Compteur « 03/06 → swipe »"
+              value={draft.showCounter ? draft.counterStyle : 'aucun'}
+              options={[
+                { v: 'pilule', l: 'Pilule de verre' },
+                { v: 'mono', l: 'Texte mono discret' },
+                { v: 'aucun', l: 'Masqué' },
+              ]}
+              onChange={(v) => setMany(v === 'aucun' ? { showCounter: false } : { counterStyle: v, showCounter: true })}
+            />
           </Section>
 
           <button

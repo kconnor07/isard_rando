@@ -5,6 +5,7 @@ import { db, schema } from '../db/client.js';
 import { isLightHex, rgba } from '../lib/color.js';
 import { CENTERED_KINDS, floatCss } from './floats.js';
 import type { VisualOverrides } from './renderer.js';
+import type { TemplateBrandStyle } from './brand.js';
 
 export type CustomTheme = typeof schema.customThemes.$inferSelect;
 
@@ -354,8 +355,7 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   border-radius: ${theme.radius === 'sharp' ? '4px' : '30px'};
 }`
       : '';
-  const footer = `${theme.showLogo ? '' : '.brand-wordmark, .brand-id { display: none; } .brand-footer { justify-content: flex-end; }'}
-${theme.showCounter ? '' : '.slide-counter { display: none; }'}`;
+  const footer = theme.showCounter ? '' : '.slide-counter { display: none; }';
 
   // --- Pack premium ----------------------------------------------------------
   const titleGradient =
@@ -450,7 +450,7 @@ ${
     ? ''
     : `
 /* Texte sombre : le verre et le logo s'inversent pour rester lisibles */
-.brand-wordmark { filter: invert(1); }
+.brand-wordmark, .brand-logo { filter: invert(1); }
 .keyword-chip { box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.5), 0 24px 60px -28px rgba(11, 11, 14, 0.3); }
 .notif-card { background: rgba(255, 255, 255, 0.85); border-color: rgba(11, 11, 14, 0.1); }
 .notif-title { color: #0b0b0e; }
@@ -492,6 +492,10 @@ export interface SlideStyle {
   classes: string[];
   /** variables CSS inline (échelle de l'objet détouré) */
   style: string;
+  /** pied de marque demandé (auto = réglage de la marque) */
+  brandStyle: TemplateBrandStyle;
+  /** chip auteur affichée */
+  authorOn: boolean;
 }
 
 export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverrides = {}, kind = 'content'): SlideStyle {
@@ -508,6 +512,12 @@ export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverri
     (theme?.heroGlow ?? true) ? 'hero-glow-on' : '',
     theme?.showVerifiedBadge ? 'verified-on' : '',
     `brand-${theme?.brandPosition ?? 'bas'}`,
+    `counter-${theme?.counterStyle ?? 'pilule'}`,
   ].filter(Boolean);
-  return { classes, style: `--hero-scale: ${size.toFixed(2)};` };
+  return {
+    classes,
+    style: `--hero-scale: ${size.toFixed(2)};`,
+    brandStyle: theme ? (theme.showLogo ? theme.brandStyle : 'aucun') : 'auto',
+    authorOn: theme?.showAuthor ?? false,
+  };
 }
