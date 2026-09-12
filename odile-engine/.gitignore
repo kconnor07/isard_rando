@@ -6,3 +6,6 @@ var/
 !.env.example
 *.log
 .DS_Store
+
+# scripts temporaires de vérification
+*.tmp.mts
