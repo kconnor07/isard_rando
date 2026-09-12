@@ -104,6 +104,18 @@ const RADII: Record<CustomTheme['radius'], { pill: string; card: string }> = {
   sharp: { pill: '6px', card: '6px' },
 };
 
+const LINE_HEIGHTS: Record<CustomTheme['lineHeight'], { title: string; body: string; bullets: string }> = {
+  serre: { title: '0.96', body: '1.26', bullets: '1.2' },
+  normal: { title: '1.04', body: '1.4', bullets: '1.32' },
+  aere: { title: '1.14', body: '1.56', bullets: '1.46' },
+};
+const BULLET_GLYPHS: Record<CustomTheme['bulletGlyph'], string> = { fleche: '→', point: '•', coche: '✓', numero: '', tiret: '—' };
+const ANNOTATION_FONTS: Record<CustomTheme['annotationFont'], string> = {
+  caveat: "'Caveat', cursive",
+  inter: "'Inter', system-ui, sans-serif",
+  fragment: "'Fragment Mono', monospace",
+};
+
 const PADDINGS: Record<CustomTheme['padding'], { top: number; side: number; bottom: number }> = {
   serre: { top: 84, side: 76, bottom: 140 },
   normal: { top: 104, side: 96, bottom: 150 },
@@ -383,6 +395,69 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .author-avatar { background: ${accent}; }
 .author-check { color: ${accent}; }`
     : '';
+  // --- Personnalisation fine ------------------------------------------------
+  const bodyScale = clamp(theme.bodyScale, 60, 140) / 100;
+  const bodyColor = rgba(theme.bodyColor ?? theme.textColor, clamp(theme.bodyOpacity, 40, 100) / 100);
+  const lh = LINE_HEIGHTS[theme.lineHeight] ?? LINE_HEIGHTS.normal;
+  const subtitleScale = clamp(theme.subtitleScale, 60, 140) / 100;
+  const badgeColor = theme.badgeColor ?? accent;
+  const bulletColor = theme.bulletColor ?? accent;
+  const iconSize = clamp(theme.iconBadgeSize, 60, 140) / 100;
+  const annotationScale = clamp(theme.annotationScale, 60, 140) / 100;
+  const ctaSize = clamp(theme.ctaSize, 60, 130) / 100;
+  const logoSize = clamp(theme.logoSize, 50, 160) / 100;
+  const counterSize = clamp(theme.counterSize, 60, 140) / 100;
+  const decorScale = clamp(theme.decorScale, 60, 140) / 100;
+  const badge =
+    theme.badgeStyle === 'plein'
+      ? `.badge { background: ${badgeColor}; border-color: transparent; color: ${isLightHex(badgeColor) ? '#0b0b0e' : '#ffffff'}; backdrop-filter: none; }
+.badge::before { background: ${isLightHex(badgeColor) ? '#0b0b0e' : '#ffffff'}; box-shadow: none; }`
+      : theme.badgeStyle === 'contour'
+        ? `.badge { background: transparent; border-color: ${rgba(badgeColor, 0.7)}; color: ${theme.textColor}; }
+.badge::before { background: ${badgeColor}; box-shadow: 0 0 18px ${badgeColor}; }`
+        : theme.badgeStyle === 'texte'
+          ? `.badge { background: transparent; border-color: transparent; padding-left: 0; padding-right: 0; color: ${badgeColor}; backdrop-filter: none; }
+.badge::before { display: none; }`
+          : `.badge { border-color: ${rgba(badgeColor, 0.45)}; }
+.badge::before { background: ${badgeColor}; box-shadow: 0 0 18px ${badgeColor}; }`;
+  const bullets =
+    theme.bulletGlyph === 'numero'
+      ? `.bullets { counter-reset: puce; }
+.bullets li::before { counter-increment: puce; content: counter(puce, decimal-leading-zero); font-family: 'Fragment Mono', monospace; font-size: 0.72em; padding-top: 0.22em; color: ${bulletColor}; }`
+      : `.bullets li::before { content: '${BULLET_GLYPHS[theme.bulletGlyph] ?? '→'}'; color: ${bulletColor}; }`;
+  const fine = `
+/* Personnalisation fine */
+.stack { gap: ${clamp(theme.blockGap, 8, 80)}px; }
+.safe { justify-content: ${{ centre: 'center', haut: 'flex-start', bas: 'flex-end' }[theme.verticalAlign] ?? 'center'}; }
+.title { line-height: ${lh.title}; letter-spacing: ${(clamp(theme.titleTracking, -60, 40) / 1000).toFixed(3)}em;${theme.titleColor ? ` color: ${theme.titleColor};` : ''} }
+.body { font-family: ${FONTS[theme.bodyFont] ?? FONTS.inter}; font-size: ${Math.round(42 * bodyScale)}px; font-weight: ${clamp(theme.bodyWeight, 400, 700)}; line-height: ${lh.body}; color: ${bodyColor}; }
+.bullets li { font-size: ${Math.round(44 * bodyScale)}px; font-weight: ${Math.max(500, clamp(theme.bodyWeight, 400, 700))}; line-height: ${lh.bullets}; color: ${bodyColor}; }
+.body strong { color: ${theme.bodyColor ?? theme.textColor}; }
+.subtitle { font-size: ${Math.round(60 * subtitleScale)}px; }
+${theme.subtitleTone === 'plein' ? `.subtitle .tone-1 { background: none; -webkit-background-clip: initial; background-clip: initial; color: ${theme.textColor}; }` : ''}
+${badge}
+${bullets}
+.icon-badge { width: ${Math.round(96 * iconSize)}px; height: ${Math.round(96 * iconSize)}px; }
+.icon-badge svg { width: ${Math.round(46 * iconSize)}px; height: ${Math.round(46 * iconSize)}px; }
+.annotation { font-family: ${ANNOTATION_FONTS[theme.annotationFont] ?? ANNOTATION_FONTS.caveat}; font-size: ${Math.round(52 * annotationScale)}px; transform: rotate(${clamp(theme.annotationTilt, -12, 12)}deg);${theme.annotationColor ? ` color: ${theme.annotationColor}; opacity: 1;` : ''}${theme.annotationFont !== 'caveat' ? ' font-weight: 600; letter-spacing: 0.02em;' : ''} }
+.cta-button { font-size: ${Math.round(46 * ctaSize)}px; padding: ${Math.round(34 * ctaSize)}px ${Math.round(64 * ctaSize)}px; }
+.cta-chevron .cta-button { font-size: ${Math.round(34 * ctaSize)}px; padding: ${Math.round(14 * ctaSize)}px ${Math.round(40 * ctaSize)}px ${Math.round(14 * ctaSize)}px ${Math.round(14 * ctaSize)}px; }
+.keyword-chip { font-size: ${Math.round(40 * ctaSize)}px; padding: ${Math.round(26 * ctaSize)}px ${Math.round(54 * ctaSize)}px; }
+.brand-wordmark { height: ${Math.round(74 * logoSize)}px; }
+.brand-bas-centre .brand-wordmark { height: ${Math.round(46 * logoSize)}px; }
+.brand-haut-centre .brand-top .brand-wordmark { height: ${Math.round(40 * logoSize)}px; }
+.brand-mark, .brand-logo { width: ${Math.round(64 * logoSize)}px; height: ${Math.round(64 * logoSize)}px; font-size: ${Math.round(30 * logoSize)}px; }
+.brand-name { font-size: ${Math.round(30 * logoSize)}px; }
+.brand-handle { font-size: ${Math.round(24 * logoSize)}px; }
+.brand-footer { left: ${clamp(theme.footerInset, 40, 160)}px; right: ${clamp(theme.footerInset, 40, 160)}px; bottom: ${clamp(theme.footerBottom, 24, 120)}px; }
+.author-chip { left: ${clamp(theme.footerInset, 40, 160)}px; }
+.verified-badge { right: ${clamp(theme.footerInset, 40, 160)}px; }
+.slide-counter { font-size: ${Math.round(25 * counterSize)}px; padding: ${Math.round(14 * counterSize)}px ${Math.round(30 * counterSize)}px; }
+.counter-mono .slide-counter { font-size: ${Math.round(26 * counterSize)}px; padding: 0; }
+${decorScale !== 1 ? `.decor-1, .decor-2 { scale: ${decorScale.toFixed(2)}; }` : ''}
+${clamp(theme.heroScrim, 0, 100) !== 100 ? `.hero-scrim { opacity: ${(clamp(theme.heroScrim, 0, 100) / 100).toFixed(2)}; }` : ''}
+`;
+
   const floats = floatCss({
     uris: [
       assetDataUri(theme.floatAssetId1),
@@ -409,11 +484,11 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 }
 
 .slide { background: ${theme.bg1}; color: ${theme.textColor}; }
-.safe { padding: ${pad.top + (theme.showAuthor ? 96 : 0)}px ${pad.side}px ${pad.bottom}px; }
+.safe { padding: ${(theme.padTop ?? pad.top) + (theme.showAuthor ? 96 : 0)}px ${theme.padSide ?? pad.side}px ${theme.padBottom ?? pad.bottom}px; }
 
 .bg {
   position: absolute; inset: 0; z-index: 1;
-  background: linear-gradient(${clamp(theme.gradientAngle, 0, 360)}deg, ${theme.bgTop ? `${theme.bgTop} 0%, ${theme.bg1} 15%` : `${theme.bg1} 0%`}, ${theme.bg2} 100%);
+  background: linear-gradient(${clamp(theme.gradientAngle, 0, 360)}deg, ${theme.bgTop ? `${theme.bgTop} 0%, ${theme.bg1} ${clamp(theme.bgTopSpread, 5, 45)}%` : `${theme.bg1} 0%`}, ${theme.bg2} 100%);
 }${bgLayer}${vignetteLayer}
 ${decor}
 .decor-1, .decor-2, .decor-3 { opacity: ${decorOpacity}; }
@@ -444,6 +519,7 @@ ${ctaStyle}
 ${frame}
 ${footer}
 ${author}
+${fine}
 ${floats}
 ${
   light

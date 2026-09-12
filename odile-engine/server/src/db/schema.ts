@@ -445,6 +445,54 @@ export const customThemes = sqliteTable('custom_themes', {
   brandPosition: text('brand_position', { enum: ['bas', 'bas-centre', 'haut-centre'] }).notNull().default('bas'),
   /** style d'illustration des posts qui utilisent ce template (auto = selon la slide) */
   imageStyle: text('image_style', { enum: ['auto', 'full', 'objets', 'chrome'] }).notNull().default('auto'),
+  // --- Personnalisation fine (v4) ---
+  /** corps de texte : police, taille (%), graisse, opacité (%), couleur (null = texte) */
+  bodyFont: text('body_font', { enum: ['inter', 'playfair', 'fragment'] }).notNull().default('inter'),
+  bodyScale: integer('body_scale').notNull().default(100),
+  bodyWeight: integer('body_weight').notNull().default(500),
+  bodyOpacity: integer('body_opacity').notNull().default(88),
+  bodyColor: text('body_color'),
+  /** interlignage global (titres et corps) */
+  lineHeight: text('line_height', { enum: ['serre', 'normal', 'aere'] }).notNull().default('normal'),
+  /** approche des titres, en millièmes d'em (-25 = -0.025em) */
+  titleTracking: integer('title_tracking').notNull().default(-25),
+  /** couleur des titres (null = couleur du texte) */
+  titleColor: text('title_color'),
+  /** espace entre les blocs de la slide, px */
+  blockGap: integer('block_gap').notNull().default(36),
+  /** sous-titre : taille (%) et ton (voilé sur deux tons, ou plein) */
+  subtitleScale: integer('subtitle_scale').notNull().default(100),
+  subtitleTone: text('subtitle_tone', { enum: ['voile', 'plein'] }).notNull().default('voile'),
+  /** placement vertical du bloc de texte */
+  verticalAlign: text('vertical_align', { enum: ['centre', 'haut', 'bas'] }).notNull().default('centre'),
+  /** marges précises en px (null = selon le réglage « marges ») */
+  padTop: integer('pad_top'),
+  padSide: integer('pad_side'),
+  padBottom: integer('pad_bottom'),
+  /** badge (« PME · AUTOMATISATION ») : style et couleur (null = accent) */
+  badgeStyle: text('badge_style', { enum: ['point', 'plein', 'contour', 'texte'] }).notNull().default('point'),
+  badgeColor: text('badge_color'),
+  /** puces des listes : glyphe et couleur (null = accent) */
+  bulletGlyph: text('bullet_glyph', { enum: ['fleche', 'point', 'coche', 'numero', 'tiret'] }).notNull().default('fleche'),
+  bulletColor: text('bullet_color'),
+  /** taille du badge icône, % */
+  iconBadgeSize: integer('icon_badge_size').notNull().default(100),
+  /** annotation manuscrite : police, taille (%), couleur (null = texte), inclinaison (°) */
+  annotationFont: text('annotation_font', { enum: ['caveat', 'inter', 'fragment'] }).notNull().default('caveat'),
+  annotationScale: integer('annotation_scale').notNull().default(100),
+  annotationColor: text('annotation_color'),
+  annotationTilt: integer('annotation_tilt').notNull().default(-4),
+  /** taille des boutons d'action, % */
+  ctaSize: integer('cta_size').notNull().default(100),
+  /** pied : taille du logo (%), marges latérale et basse (px), taille du compteur (%) */
+  logoSize: integer('logo_size').notNull().default(100),
+  footerInset: integer('footer_inset').notNull().default(96),
+  footerBottom: integer('footer_bottom').notNull().default(56),
+  counterSize: integer('counter_size').notNull().default(100),
+  /** échelle du décor (%), étalement de la bande claire du haut (%), voile de lisibilité des images (%) */
+  decorScale: integer('decor_scale').notNull().default(100),
+  bgTopSpread: integer('bg_top_spread').notNull().default(15),
+  heroScrim: integer('hero_scrim').notNull().default(100),
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now),
 });

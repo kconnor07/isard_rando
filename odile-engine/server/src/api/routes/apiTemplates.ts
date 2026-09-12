@@ -85,6 +85,39 @@ export const templateSchema = z.object({
   heroGlow: z.boolean().default(true),
   popColor: z.union([z.literal('auto'), z.literal('aucune'), z.string().regex(HEX)]).default('auto'),
   accentFromImage: z.boolean().default(true),
+  // Personnalisation fine
+  bodyFont: z.enum(['inter', 'playfair', 'fragment']).default('inter'),
+  bodyScale: z.number().int().min(60).max(140).default(100),
+  bodyWeight: z.number().int().min(400).max(700).default(500),
+  bodyOpacity: z.number().int().min(40).max(100).default(88),
+  bodyColor: z.string().regex(HEX).nullable().optional(),
+  lineHeight: z.enum(['serre', 'normal', 'aere']).default('normal'),
+  titleTracking: z.number().int().min(-60).max(40).default(-25),
+  titleColor: z.string().regex(HEX).nullable().optional(),
+  blockGap: z.number().int().min(8).max(80).default(36),
+  subtitleScale: z.number().int().min(60).max(140).default(100),
+  subtitleTone: z.enum(['voile', 'plein']).default('voile'),
+  verticalAlign: z.enum(['centre', 'haut', 'bas']).default('centre'),
+  padTop: z.number().int().min(40).max(320).nullable().optional(),
+  padSide: z.number().int().min(40).max(220).nullable().optional(),
+  padBottom: z.number().int().min(80).max(360).nullable().optional(),
+  badgeStyle: z.enum(['point', 'plein', 'contour', 'texte']).default('point'),
+  badgeColor: z.string().regex(HEX).nullable().optional(),
+  bulletGlyph: z.enum(['fleche', 'point', 'coche', 'numero', 'tiret']).default('fleche'),
+  bulletColor: z.string().regex(HEX).nullable().optional(),
+  iconBadgeSize: z.number().int().min(60).max(140).default(100),
+  annotationFont: z.enum(['caveat', 'inter', 'fragment']).default('caveat'),
+  annotationScale: z.number().int().min(60).max(140).default(100),
+  annotationColor: z.string().regex(HEX).nullable().optional(),
+  annotationTilt: z.number().int().min(-12).max(12).default(-4),
+  ctaSize: z.number().int().min(60).max(130).default(100),
+  logoSize: z.number().int().min(50).max(160).default(100),
+  footerInset: z.number().int().min(40).max(160).default(96),
+  footerBottom: z.number().int().min(24).max(120).default(56),
+  counterSize: z.number().int().min(60).max(140).default(100),
+  decorScale: z.number().int().min(60).max(140).default(100),
+  bgTopSpread: z.number().int().min(5).max(45).default(15),
+  heroScrim: z.number().int().min(0).max(100).default(100),
 });
 type TemplateInput = z.infer<typeof templateSchema>;
 
@@ -99,6 +132,14 @@ function toRow(data: TemplateInput) {
     floatAssetId3: data.floatAssetId3 ?? null,
     floatAssetId4: data.floatAssetId4 ?? null,
     bgTop: data.bgTop ?? null,
+    bodyColor: data.bodyColor ?? null,
+    titleColor: data.titleColor ?? null,
+    padTop: data.padTop ?? null,
+    padSide: data.padSide ?? null,
+    padBottom: data.padBottom ?? null,
+    badgeColor: data.badgeColor ?? null,
+    bulletColor: data.bulletColor ?? null,
+    annotationColor: data.annotationColor ?? null,
   };
 }
 
@@ -160,10 +201,45 @@ const PREVIEW_SLIDES = {
     accentWord: 'guide',
     body: 'Méthode pas à pas + 3 outils comparés pour automatiser vos devis.',
   },
+  liste: {
+    kind: 'content',
+    badge: 'Étape 2',
+    annotation: 'concrètement',
+    title: "Ce que l'agent fait à votre place",
+    accentWord: 'à votre place',
+    bullets: [
+      'Lit chaque demande entrante et la classe par urgence',
+      'Rédige un devis conforme à votre grille tarifaire',
+      'Relance automatiquement à J+2, J+5 et J+10',
+      'Met à jour votre CRM sans double saisie',
+    ],
+    ctaLabel: 'Voir la démo complète',
+  },
+  capture: {
+    kind: 'screenshot',
+    title: "L'outil en action",
+    toolName: 'Odile Studio',
+    body: 'Un tableau de bord, zéro saisie.',
+  },
+  echo: {
+    kind: 'echo',
+    title: 'Répondre vite, c’est vendre.',
+    echoWord: 'VITESSE',
+    body: 'Chaque heure d’attente coûte 7 % de chances de signer.',
+    ctaLabel: 'Réagir en 5 minutes',
+  },
+  bouton: {
+    kind: 'cta',
+    title: 'On en parle ?',
+    body: 'Un appel de 20 minutes suffit pour cadrer votre premier agent.',
+    ctaLabel: 'Réserver un créneau',
+  },
 } satisfies Record<string, SlideContent>;
 type PreviewKind = keyof typeof PREVIEW_SLIDES;
 const previewSchema = templateSchema.extend({
-  kind: z.enum(['hook', 'objet', 'value_prop', 'content', 'notifications', 'cta']).default('value_prop'),
+  kind: z.enum(['hook', 'objet', 'value_prop', 'content', 'liste', 'notifications', 'capture', 'echo', 'cta', 'bouton']).default('value_prop'),
+  /** true : image pleine taille (1080×1350) pour la loupe ; sinon 540×675 */
+  full: z.boolean().default(false),
 });
 
 let previewObjectCache: string | null = null;
@@ -182,6 +258,29 @@ async function previewObjectDataUri(accent: string): Promise<string> {
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
   previewObjectCache = `data:image/png;base64,${png.toString('base64')}`;
   return previewObjectCache;
+}
+
+let previewShotCache: string | null = null;
+/** Capture témoin (maquette d'interface dessinée par sharp) pour l'aperçu de la slide capture. */
+async function previewScreenshotDataUri(): Promise<string> {
+  if (previewShotCache) return previewShotCache;
+  const rows = [0, 1, 2, 3, 4]
+    .map((i) => `<rect x="60" y="${170 + i * 96}" width="${640 - (i % 3) * 120}" height="30" rx="8" fill="#ffffff" fill-opacity="0.16"/>
+  <rect x="60" y="${212 + i * 96}" width="380" height="18" rx="6" fill="#ffffff" fill-opacity="0.08"/>`)
+    .join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700">
+  <rect width="1200" height="700" fill="#141a2e"/>
+  <rect x="0" y="0" width="260" height="700" fill="#0e1325"/>
+  ${[0, 1, 2, 3, 4, 5].map((i) => `<rect x="28" y="${60 + i * 62}" width="${i === 1 ? 204 : 150}" height="22" rx="7" fill="#ffffff" fill-opacity="${i === 1 ? 0.5 : 0.14}"/>`).join('')}
+  <rect x="320" y="60" width="820" height="74" rx="14" fill="#1c2440"/>
+  <rect x="340" y="86" width="260" height="22" rx="7" fill="#ffffff" fill-opacity="0.5"/>
+  <rect x="320" y="160" width="820" height="480" rx="14" fill="#1c2440"/>
+  <g transform="translate(300 0)">${rows}</g>
+  <rect x="930" y="560" width="180" height="52" rx="26" fill="#3b82f6"/>
+</svg>`;
+  const png = await sharp(Buffer.from(svg)).png().toBuffer();
+  previewShotCache = `data:image/png;base64,${png.toString('base64')}`;
+  return previewShotCache;
 }
 
 let previewHeroCache: string | null = null;
@@ -280,7 +379,7 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
   app.post('/api/templates/preview', async (request, reply) => {
     const parsed = previewSchema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
-    const { kind, ...data } = parsed.data;
+    const { kind, full, ...data } = parsed.data;
     const draft = { id: '__preview__', ...toRow(data), createdAt: '', updatedAt: '' };
     const slide = PREVIEW_SLIDES[kind as PreviewKind];
     const monochrome = getImageGen().monochrome;
@@ -294,9 +393,11 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
       content: slide,
       format: 'carousel',
       brand,
-      slideNum: kind === 'hook' || kind === 'objet' ? 1 : kind === 'cta' ? 6 : 3,
+      slideNum: kind === 'hook' || kind === 'objet' ? 1 : kind === 'cta' || kind === 'bouton' ? 6 : 3,
       slideTotal: 6,
       keyword: kind === 'cta' ? 'OUTIL' : null,
+      screenshotDataUri: kind === 'capture' ? await previewScreenshotDataUri() : null,
+      toolUrlDisplay: kind === 'capture' ? 'app.odile.ai' : null,
       heroDataUri: withHero ? await previewHeroDataUri(monochrome) : withObject ? await previewObjectDataUri(draft.accent) : null,
       heroContain: withObject,
       monochromeHero: monochrome,
@@ -309,8 +410,10 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
       brandStyle: style.brandStyle,
       authorOn: style.authorOn,
     });
-    const png = await renderHtmlToPng(html, { width: 1080, height: 1350 }, { scale: 1 });
-    const small = await sharp(png).resize(432, 540).jpeg({ quality: 82 }).toBuffer();
-    return reply.type('image/jpeg').send(small);
+    const png = await renderHtmlToPng(html, { width: 1080, height: 1350 }, { scale: full ? 2 : 1 });
+    const out = full
+      ? await sharp(png).jpeg({ quality: 88 }).toBuffer()
+      : await sharp(png).resize(540, 675).jpeg({ quality: 84 }).toBuffer();
+    return reply.type('image/jpeg').send(out);
   });
 }

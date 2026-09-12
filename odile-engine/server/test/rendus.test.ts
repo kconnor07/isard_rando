@@ -172,3 +172,54 @@ describe('pied de marque', async () => {
     expect(brandBlockHtml('initiales', { name: 'A <b>', handle: '"q"' }, null)).not.toContain('<b>');
   });
 });
+
+describe('personnalisation fine des templates', async () => {
+  const { templateSchema } = await import('../src/api/routes/apiTemplates.js');
+  const { buildCustomThemeCss } = await import('../src/render/custom-theme.js');
+  const base = { name: 'test', accent: '#0099ff', bg1: '#050508', bg2: '#0a1024', textColor: '#fdfdfd', decor: 'orbes', backgroundOpacity: 35, grain: true };
+  const theme = (extra: Record<string, unknown>) => {
+    const parsed = templateSchema.parse({ ...base, ...extra });
+    return {
+      ...parsed, id: 't', createdAt: '', updatedAt: '',
+      backgroundAssetId: null, secondary: parsed.secondary ?? null, bgTop: parsed.bgTop ?? null,
+      floatAssetId1: null, floatAssetId2: null, floatAssetId3: null, floatAssetId4: null,
+      bodyColor: parsed.bodyColor ?? null, titleColor: parsed.titleColor ?? null,
+      padTop: parsed.padTop ?? null, padSide: parsed.padSide ?? null, padBottom: parsed.padBottom ?? null,
+      badgeColor: parsed.badgeColor ?? null, bulletColor: parsed.bulletColor ?? null, annotationColor: parsed.annotationColor ?? null,
+    } as Parameters<typeof buildCustomThemeCss>[0];
+  };
+  it('les valeurs par défaut reproduisent le rendu d’origine', () => {
+    const css = buildCustomThemeCss(theme({}));
+    expect(css).toContain('.stack { gap: 36px; }');
+    expect(css).toContain('.safe { justify-content: center; }');
+    expect(css).toContain('.safe { padding: 104px 96px 150px; }');
+    expect(css).toContain('.body { font-family: \'Inter\', system-ui, sans-serif; font-size: 42px; font-weight: 500; line-height: 1.4;');
+    expect(css).toContain(".bullets li::before { content: '→'; color: #0099ff; }");
+    expect(css).not.toContain('scale:');
+  });
+  it('traduit chaque réglage en CSS borné', () => {
+    const css = buildCustomThemeCss(theme({
+      bodyScale: 120, bodyWeight: 700, bodyOpacity: 60, bodyColor: '#ffcc00', lineHeight: 'aere', titleTracking: 10, titleColor: '#ff00ff',
+      blockGap: 12, verticalAlign: 'bas', padTop: 200, padSide: 60, padBottom: 300, badgeStyle: 'plein', badgeColor: '#ffffff',
+      bulletGlyph: 'numero', ctaSize: 80, logoSize: 150, footerInset: 120, footerBottom: 40, decorScale: 120, bgTop: '#b9a8ec', bgTopSpread: 30, heroScrim: 40,
+    }));
+    expect(css).toContain('.stack { gap: 12px; }');
+    expect(css).toContain('.safe { justify-content: flex-end; }');
+    expect(css).toContain('.safe { padding: 200px 60px 300px; }');
+    expect(css).toContain('letter-spacing: 0.010em; color: #ff00ff;');
+    expect(css).toContain('font-size: 50px; font-weight: 700; line-height: 1.56; color: rgba(255, 204, 0, 0.6)');
+    expect(css).toContain('.badge { background: #ffffff; border-color: transparent; color: #0b0b0e;');
+    expect(css).toContain('counter(puce, decimal-leading-zero)');
+    expect(css).toContain('.cta-button { font-size: 37px; padding: 27px 51px; }');
+    expect(css).toContain('.brand-wordmark { height: 111px; }');
+    expect(css).toContain('.brand-footer { left: 120px; right: 120px; bottom: 40px; }');
+    expect(css).toContain('.decor-1, .decor-2 { scale: 1.20; }');
+    expect(css).toContain('#b9a8ec 0%, #050508 30%');
+    expect(css).toContain('.hero-scrim { opacity: 0.40; }');
+  });
+  it('refuse les valeurs hors bornes', () => {
+    expect(templateSchema.safeParse({ ...base, blockGap: 500 }).success).toBe(false);
+    expect(templateSchema.safeParse({ ...base, bodyColor: 'rouge' }).success).toBe(false);
+    expect(templateSchema.safeParse({ ...base, padTop: 10 }).success).toBe(false);
+  });
+});
