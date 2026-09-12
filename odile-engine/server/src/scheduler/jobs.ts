@@ -68,6 +68,22 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'poll-li-comments en échec'));
   }, { timezone: TZ });
 
+  // Renouvellement des jetons (LinkedIn refresh_token, jeton utilisateur Meta) avant expiration
+  cron.schedule('30 4 * * *', () => {
+    void (async () => {
+      const { refreshTokens } = await import('../publishers/refresh.js');
+      await runJob('refresh-tokens', refreshTokens);
+    })().catch((err) => logger.error({ err: String(err) }, 'refresh-tokens en échec'));
+  }, { timezone: TZ });
+
+  // Relevé quotidien des statistiques des posts publiés (portée, réactions, enregistrements…)
+  cron.schedule('10 9 * * *', () => {
+    void (async () => {
+      const { runMetricsJob } = await import('../publishers/metrics.js');
+      await runJob('metrics', () => runMetricsJob());
+    })().catch((err) => logger.error({ err: String(err) }, 'metrics en échec'));
+  }, { timezone: TZ });
+
   // Relances d'approbation (24 h sans réponse, max configurable)
   cron.schedule('0 8 * * *', () => {
     void runJob('approval-reminders', sendApprovalReminders);
@@ -122,7 +138,8 @@ async function runMaintenance(): Promise<Record<string, number>> {
   // 0. Items shortlistés jamais utilisés depuis 72 h → retour au pool
   const { recycleStaleShortlist } = await import('../scorer/shortlist.js');
   const recycled = recycleStaleShortlist();
-  // 1. Alerte tokens OAuth qui expirent sous 7 jours
+  // 1. Alerte tokens OAuth qui expirent sous 7 jours (les jetons de Page Meta n'expirent pas ;
+  //    ceux renouvelés automatiquement n'arrivent ici que si le renouvellement a échoué)
   let expiryWarnings = 0;
   const tokens = db.select().from(schema.oauthTokens).all();
   for (const token of tokens) {
@@ -176,25 +193,40 @@ async function sendWeeklyRecap(): Promise<{ sent: boolean }> {
   const clicks = db
     .select({ id: schema.clicks.id })
     .from(schema.clicks)
-    .where(gte(schema.clicks.ts, since))
+    .where(and(gte(schema.clicks.ts, since), eq(schema.clicks.bot, false)))
     .all().length;
+  const { latestMetricsByPost } = await import('../publishers/metrics.js');
+  const metrics = latestMetricsByPost(published.map((p) => p.id));
+  let reach = 0;
+  let likes = 0;
+  let comments = 0;
+  for (const m of metrics.values()) {
+    reach += m.reach ?? 0;
+    likes += m.likes ?? 0;
+    comments += m.comments ?? 0;
+  }
   const dms = db
     .select({ id: schema.dmEvents.id })
     .from(schema.dmEvents)
     .where(gte(schema.dmEvents.sentAt, since))
     .all().length;
   const rows = published
-    .map((p) => `<li>${p.hook} — <a href="${p.externalUrl ?? '#'}">${p.channel}</a></li>`)
+    .map((p) => {
+      const m = metrics.get(p.id);
+      const stats = m ? ` — ${m.reach ?? '?'} vus · ${m.likes ?? 0} j'aime · ${m.comments ?? 0} comm.` : '';
+      return `<li>${p.hook} — <a href="${p.externalUrl ?? '#'}">${p.channel}</a>${stats}</li>`;
+    })
     .join('');
+  const reachLine = metrics.size > 0 ? ` · <b>${reach}</b> personnes atteintes · <b>${likes}</b> j'aime · <b>${comments}</b> commentaires` : '';
   const result = await sendMail({
     kind: 'analytics',
     to: getApprovalEmail().to,
-    subject: `[Odile] Récap hebdo : ${published.length} post(s), ${clicks} clic(s), ${dms} DM(s)`,
+    subject: `[Odile] Récap hebdo : ${published.length} post(s), ${metrics.size > 0 ? `${reach} vus, ` : ''}${clicks} clic(s), ${dms} DM(s)`,
     html: `<h2>Semaine écoulée</h2>
-<p><b>${published.length}</b> post(s) publié(s) · <b>${clicks}</b> clic(s) trackés · <b>${dms}</b> DM(s) envoyés</p>
+<p><b>${published.length}</b> post(s) publié(s) · <b>${clicks}</b> clic(s) trackés · <b>${dms}</b> DM(s) envoyés${reachLine}</p>
 <ul>${rows}</ul>
 <p>Détail complet dans le dashboard → Analytics.</p>`,
-    text: `${published.length} posts publiés, ${clicks} clics, ${dms} DMs cette semaine.`,
+    text: `${published.length} posts publiés, ${reach} vus, ${clicks} clics, ${dms} DMs cette semaine.`,
   });
   return { sent: result.ok };
 }

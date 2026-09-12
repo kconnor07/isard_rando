@@ -23,6 +23,10 @@ export interface PromptOptions {
   /** vide autorisé (renvoie '') */
   optional?: boolean;
   multiline?: boolean;
+  /** champ date + heure (valeur « AAAA-MM-JJTHH:MM », heure locale du navigateur) */
+  type?: 'text' | 'datetime-local';
+  /** borne basse d'une saisie de date */
+  min?: string;
 }
 interface DialogApi {
   confirm: (opts: ConfirmOptions) => Promise<boolean>;
@@ -115,6 +119,8 @@ export function DialogProvider({ children }: { children: ReactNode }) {
                   <input
                     ref={inputRef as React.RefObject<HTMLInputElement>}
                     className="input"
+                    type={pending.opts.type ?? 'text'}
+                    min={pending.opts.min}
                     placeholder={pending.opts.placeholder}
                     value={value}
                     onChange={(e) => setValue(e.target.value)}

@@ -7,6 +7,8 @@ import { nextPublishSlot } from '../scheduler/cadence.js';
 export interface ActionContext {
   ip?: string;
   publishNow?: boolean;
+  /** date choisie (ISO) à la place du prochain créneau optimal */
+  scheduleAt?: string;
   reason?: string;
 }
 
@@ -39,9 +41,13 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     if (!['draft', 'reviewing', 'awaiting_approval', 'rejected', 'failed'].includes(post.status) && !rescheduling) {
       return { ok: false, message: `Ce post est déjà « ${post.status} » — rien à faire.`, postId: post.id };
     }
+    const chosen = ctx.scheduleAt ? new Date(ctx.scheduleAt) : null;
+    if (chosen && (Number.isNaN(chosen.getTime()) || chosen.getTime() < Date.now() + 60_000)) {
+      return { ok: false, message: 'La date choisie est passée ou invalide.', postId: post.id };
+    }
     const scheduledAt = ctx.publishNow
       ? new Date(Date.now() + 60 * 1000)
-      : nextPublishSlot(post.platform as 'linkedin' | 'instagram');
+      : (chosen ?? nextPublishSlot(post.platform as 'linkedin' | 'instagram'));
     // « Publier maintenant » sur un post déjà programmé : on avance le créneau
     if (rescheduling) {
       db.update(schema.publishJobs)
@@ -63,7 +69,7 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     logger.info({ postId: post.id, scheduledAt }, 'post approuvé');
     return {
       ok: true,
-      message: ctx.publishNow ? 'Approuvé — publication dans une minute.' : 'Approuvé et programmé.',
+      message: ctx.publishNow ? 'Approuvé — publication dans une minute.' : chosen ? 'Approuvé et programmé à la date choisie.' : 'Approuvé et programmé au prochain créneau.',
       postId: post.id,
       scheduledAt: scheduledAt.toISOString(),
     };
@@ -95,6 +101,36 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
 
   // 'edit' : ne consomme pas le jeton (le lien Approuver doit rester valide)
   return { ok: true, message: 'Ouverture de l’éditeur…', postId: post.id };
+}
+
+/**
+ * Programme (ou reprogramme) un post à une date précise : un post à valider, rejeté
+ * ou en échec est approuvé pour cette date ; un post déjà programmé change de créneau.
+ */
+export function schedulePost(postId: number, at: string): ActionOutcome {
+  const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  if (!post) return { ok: false, message: 'Post introuvable.', postId };
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) return { ok: false, message: 'Date invalide.', postId };
+  if (when.getTime() < Date.now() + 60_000) return { ok: false, message: 'La date choisie est déjà passée.', postId };
+  if (!['awaiting_approval', 'rejected', 'failed', 'scheduled', 'approved'].includes(post.status)) {
+    return { ok: false, message: `Ce post est « ${post.status} » — il ne peut pas être programmé.`, postId };
+  }
+  const now = new Date().toISOString();
+  db.update(schema.publishJobs)
+    .set({ state: 'canceled', finishedAt: now })
+    .where(and(eq(schema.publishJobs.postId, postId), eq(schema.publishJobs.state, 'pending')))
+    .run();
+  db.insert(schema.publishJobs).values({ postId, scheduledAt: when.toISOString() }).run();
+  db.update(schema.posts)
+    .set({ status: 'scheduled', approvedAt: post.approvedAt ?? now, scheduledAt: when.toISOString(), rejectReason: null, error: null, updatedAt: now })
+    .where(eq(schema.posts.id, postId))
+    .run();
+  if (post.status === 'rejected' && post.newsItemId) {
+    db.update(schema.newsItems).set({ status: 'used' }).where(eq(schema.newsItems.id, post.newsItemId)).run();
+  }
+  logger.info({ postId, scheduledAt: when }, post.status === 'scheduled' ? 'post reprogrammé' : 'post programmé');
+  return { ok: true, message: post.status === 'scheduled' ? 'Créneau modifié.' : 'Post programmé.', postId, scheduledAt: when.toISOString() };
 }
 
 /** Annule la programmation d'un post : il revient dans la file de validation. */

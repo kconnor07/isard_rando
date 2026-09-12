@@ -7,8 +7,11 @@ import {
   putSlideSchema,
   regenerateSchema,
   rejectSchema,
+  schedulePostSchema,
 } from '@odile/shared';
-import { executeApprovalAction, unschedulePost } from '../../approvals/service.js';
+import { executeApprovalAction, schedulePost, unschedulePost } from '../../approvals/service.js';
+import { getPublishSlots } from '../../db/settingsRepo.js';
+import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
@@ -316,6 +319,15 @@ export function registerPostRoutes(app: FastifyInstance): void {
     },
   );
 
+  /** Programme (ou déplace) un post à une date précise, choisie dans le calendrier ou l'éditeur. */
+  app.post<{ Params: { id: string } }>('/api/posts/:id/schedule', async (request, reply) => {
+    const parsed = schedulePostSchema.safeParse(request.body ?? {});
+    if (!parsed.success) return reply.status(400).send({ error: 'Date invalide : format ISO 8601 attendu (ex. 2026-09-18T16:30:00Z)' });
+    const outcome = schedulePost(Number(request.params.id), parsed.data.at);
+    if (!outcome.ok) return reply.status(409).send({ error: outcome.message });
+    return outcome;
+  });
+
   /** Post programmé : retour à « à valider » (job de publication annulé). */
   app.post<{ Params: { id: string } }>('/api/posts/:id/unschedule', async (request, reply) => {
     const outcome = unschedulePost(Number(request.params.id));
@@ -338,6 +350,50 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const result = await sendApprovalEmail(Number(request.params.id));
     if (!result.ok) return reply.status(409).send({ error: "L'email n'a pas pu être envoyé (SMTP) — vérifiez Réglages → Email" });
     return result;
+  });
+
+  /**
+   * Créneaux de publication configurés sur une période (heure de Paris), avec le post qui
+   * occupe chacun d'eux : la grille du calendrier propose les créneaux libres à un clic.
+   */
+  app.get<{ Querystring: { from?: string; to?: string } }>('/api/schedule/slots', async (request) => {
+    const now = Date.now();
+    const fromRaw = request.query.from ? new Date(request.query.from) : new Date(now);
+    const from = Number.isNaN(fromRaw.getTime()) ? new Date(now) : fromRaw;
+    const toRaw = request.query.to ? new Date(request.query.to) : new Date(from.getTime() + 28 * 86400000);
+    const to = Number.isNaN(toRaw.getTime()) ? new Date(from.getTime() + 28 * 86400000) : toRaw;
+    if (to.getTime() - from.getTime() > 70 * 86400000) to.setTime(from.getTime() + 70 * 86400000);
+    const slots = getPublishSlots();
+    const occupied = db
+      .select({ id: schema.posts.id, hook: schema.posts.hook, platform: schema.posts.platform, scheduledAt: schema.posts.scheduledAt, status: schema.posts.status })
+      .from(schema.posts)
+      .where(
+        and(
+          inArray(schema.posts.status, ['scheduled', 'publishing', 'published']),
+          gte(schema.posts.scheduledAt, new Date(from.getTime() - 30 * 60000).toISOString()),
+          lte(schema.posts.scheduledAt, new Date(to.getTime() + 30 * 60000).toISOString()),
+        ),
+      )
+      .all();
+    const out: { at: string; platform: 'instagram' | 'linkedin'; past: boolean; postId: number | null; postHook: string | null }[] = [];
+    for (const platform of ['instagram', 'linkedin'] as const) {
+      for (const slot of platform === 'instagram' ? slots.ig : slots.li) {
+        for (const at of slotOccurrencesBetween(slot, from, to)) {
+          const taken = occupied.find(
+            (p) => p.platform === platform && p.scheduledAt && Math.abs(new Date(p.scheduledAt).getTime() - at.getTime()) < 30 * 60000,
+          );
+          out.push({
+            at: at.toISOString(),
+            platform,
+            // délai minimal de 2 h avant publication (rendu, vérification)
+            past: at.getTime() < now + 2 * 3600000,
+            postId: taken?.id ?? null,
+            postHook: taken?.hook ?? null,
+          });
+        }
+      }
+    }
+    return out.sort((a, b) => a.at.localeCompare(b.at));
   });
 
   app.get<{ Querystring: { from?: string; to?: string } }>('/api/calendar', async (request) => {

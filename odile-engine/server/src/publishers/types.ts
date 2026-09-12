@@ -39,7 +39,8 @@ export function collectPublishImages(postId: number): PublishInput['images'] {
       idx: slide.idx,
       assetId: asset.id,
       path: asset.path,
-      publicUrl: `${config.PUBLIC_URL}/public-assets/${asset.id}.png`,
+      // Instagram n'accepte que le JPEG : le serveur convertit le rendu PNG à la volée (voir /public-assets)
+      publicUrl: `${config.PUBLIC_URL}/public-assets/${asset.id}.jpg`,
     });
   }
   return images;

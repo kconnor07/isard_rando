@@ -29,8 +29,12 @@ première fois. Tout est gratuit.
 ## 3. Connecter le compte depuis le dashboard
 
 Dashboard → **Connexions & santé** → **Connecter** (Instagram). La fenêtre Meta
-demande : gestion des Pages, contenu Instagram, commentaires, messages.
-Accepte tout : le moteur détecte la Page liée et enregistre le compte.
+demande : gestion des Pages, contenu Instagram, commentaires, messages,
+statistiques (`instagram_manage_insights`, pour la portée et les enregistrements
+dans Analytics). Accepte tout : le moteur détecte la Page liée, enregistre le
+compte et **installe l'app sur la Page** (abonnement webhooks). Si plusieurs
+Pages ont un compte Instagram pro, choisis celui à publier dans le sélecteur
+« Compte publié ».
 
 ℹ️ **Mode développement Meta** : tant que l'app est en mode dev, seuls ses
 utilisateurs de rôle (toi = admin) peuvent l'utiliser — c'est exactement notre
@@ -47,6 +51,9 @@ ton compte dans *App roles* si besoin.
 3. Abonne le champ **comments**.
 4. Produit **Instagram** → active la réception des webhooks pour le compte
    connecté (bouton *Subscribe*).
+5. L'app doit aussi être **installée sur la Page** : le moteur le fait à la
+   connexion (`POST /{page}/subscribed_apps`). Connexions & santé affiche
+   « Webhook commentaires : app installée » ; sinon, bouton **Installer**.
 
 Test : commente « OUTIL » sous un de tes posts publiés par le moteur → le
 commentaire apparaît dans le dashboard (Commentaires & DM) et la private reply
@@ -57,5 +64,15 @@ part automatiquement (ou en simulation si `PUBLISH_MODE=dry`).
 - 1 seule réponse privée par commentaire, envoyée dans les 7 jours.
 - Maximum ~200 DM/heure (garde-fou à 190).
 - 50 publications API / 24 h (très au-dessus de notre cadence).
-- Jeton long-lived ~60 jours : le moteur t'alerte par email 7 jours avant
-  l'expiration — un clic sur « Reconnecter » suffit.
+- **Images en JPEG uniquement** : Instagram refuse le PNG. Le moteur sert ses
+  rendus convertis en JPEG (`/public-assets/<id>.jpg`) — rien à faire.
+- **Jetons** : le jeton utilisateur long dure ~60 jours ; le moteur le
+  ré-échange chaque nuit quand il reste moins de 20 jours (job
+  `refresh-tokens`). Les jetons de Page (ceux qui publient) dérivent d'un jeton
+  long et **n'expirent pas**. Une reconnexion manuelle n'est nécessaire que si
+  le mot de passe Facebook change, si les droits de l'app sont révoqués, ou si
+  le renouvellement échoue (le dashboard et un email préviennent).
+- **Statistiques** : portée, enregistrements, partages et interactions des
+  posts sont relevés chaque matin à 9 h 10 (`instagram_manage_insights`), les
+  impressions ayant été remplacées par « vues » par Meta. Bouton « Relever
+  maintenant » dans Analytics.

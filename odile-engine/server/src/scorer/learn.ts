@@ -2,6 +2,7 @@ import { and, eq, gte, inArray } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { getTopicAffinity, setTopicAffinity } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
+import { latestMetricsByPost, performanceScore } from '../publishers/metrics.js';
 
 const WINDOW_DAYS = 28;
 const MIN_POSTS_PER_SOURCE = 2;
@@ -13,6 +14,7 @@ export interface LearnSummary {
 }
 
 interface PostPerf {
+  /** clics humains + interactions pondérées (j'aime, commentaires, enregistrements, partages) */
   clicks: number;
   sourceId: number | null;
   topics: string[];
@@ -20,9 +22,10 @@ interface PostPerf {
 }
 
 /**
- * Boucle d'apprentissage hebdomadaire : les clics des posts publiés (et les
- * rejets) ajustent le poids des sources et les affinités de sujets utilisés
- * par le score mélangé de la shortlist.
+ * Boucle d'apprentissage hebdomadaire : la performance des posts publiés (clics
+ * trackés et, quand la plateforme les fournit, les interactions) et les rejets
+ * ajustent le poids des sources et les affinités de sujets utilisés par le score
+ * mélangé de la shortlist.
  */
 export async function runLearn(now = new Date()): Promise<LearnSummary> {
   const since = new Date(now.getTime() - WINDOW_DAYS * 86400000).toISOString();
@@ -37,21 +40,22 @@ export async function runLearn(now = new Date()): Promise<LearnSummary> {
     )
     .all();
 
+  const metrics = latestMetricsByPost(posts.map((p) => p.id));
   const perfs: PostPerf[] = [];
   for (const post of posts) {
     if (!post.newsItemId) continue;
     const news = db.select().from(schema.newsItems).where(eq(schema.newsItems.id, post.newsItemId)).get();
     if (!news) continue;
-    const clicks =
+    const humanClicks =
       post.status === 'published' && post.linkId
         ? db
             .select({ id: schema.clicks.id })
             .from(schema.clicks)
-            .where(eq(schema.clicks.linkId, post.linkId))
+            .where(and(eq(schema.clicks.linkId, post.linkId), eq(schema.clicks.bot, false)))
             .all().length
         : 0;
     perfs.push({
-      clicks,
+      clicks: post.status === 'published' ? performanceScore(humanClicks, metrics.get(post.id)) : 0,
       sourceId: news.sourceId,
       topics: news.topics ? (JSON.parse(news.topics) as string[]) : [],
       rejected: post.status === 'rejected',

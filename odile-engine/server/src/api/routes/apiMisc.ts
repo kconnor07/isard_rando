@@ -1,8 +1,9 @@
-import { and, desc, eq, gte, inArray, like } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { loginSchema } from '@odile/shared';
 import { db, schema } from '../../db/client.js';
-import { getTopicAffinity } from '../../db/settingsRepo.js';
+import { latestMetricsByPost } from '../../publishers/metrics.js';
+import { connectionWarnings } from '../../publishers/refresh.js';
 import { nextPublishSlot, shouldDraftToday } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
 
@@ -36,8 +37,20 @@ export function registerMiscRoutes(app: FastifyInstance): void {
     const clicks7d = db
       .select({ id: schema.clicks.id })
       .from(schema.clicks)
-      .where(gte(schema.clicks.ts, since7d))
+      .where(and(gte(schema.clicks.ts, since7d), eq(schema.clicks.bot, false)))
       .all().length;
+    // Portée et interactions des posts publiés sur 7 jours (dernier relevé de chaque post)
+    const published7d = db
+      .select({ id: schema.posts.id })
+      .from(schema.posts)
+      .where(and(eq(schema.posts.status, 'published'), gte(schema.posts.publishedAt, since7d)))
+      .all();
+    let reach7d = 0;
+    let engagement7d = 0;
+    for (const m of latestMetricsByPost(published7d.map((p) => p.id)).values()) {
+      reach7d += m.reach ?? 0;
+      engagement7d += m.engagement ?? 0;
+    }
     const pendingComments = db
       .select({ id: schema.comments.id })
       .from(schema.comments)
@@ -49,8 +62,11 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       scheduled: count(['scheduled', 'publishing']),
       published: count(['published']),
       clicks7d,
+      reach7d,
+      engagement7d,
       pendingComments,
       cadence,
+      warnings: connectionWarnings(),
       nextSlots: {
         instagram: nextPublishSlot('instagram').toISOString(),
         linkedin: nextPublishSlot('linkedin').toISOString(),
@@ -91,94 +107,5 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       .where(eq(schema.comments.id, Number(request.params.id)))
       .run();
     return { ok: true };
-  });
-
-  // ----- Analytics ----------------------------------------------------------
-  app.get<{ Querystring: { days?: string } }>('/api/analytics/clicks', async (request) => {
-    const days = Number(request.query.days ?? 30);
-    const since = new Date(Date.now() - days * 86400000).toISOString();
-    const clicks = db
-      .select()
-      .from(schema.clicks)
-      .where(gte(schema.clicks.ts, since))
-      .all();
-    const links = new Map(db.select().from(schema.links).all().map((l) => [l.id, l]));
-    const perDay = new Map<string, number>();
-    const perLink = new Map<number, number>();
-    for (const c of clicks) {
-      const day = c.ts.slice(0, 10);
-      perDay.set(day, (perDay.get(day) ?? 0) + 1);
-      perLink.set(c.linkId, (perLink.get(c.linkId) ?? 0) + 1);
-    }
-    return {
-      total: clicks.length,
-      perDay: [...perDay.entries()].sort().map(([day, count]) => ({ day, count })),
-      perLink: [...perLink.entries()].map(([linkId, count]) => ({
-        linkId,
-        postId: links.get(linkId)?.postId ?? null,
-        label: links.get(linkId)?.label ?? '',
-        target: links.get(linkId)?.targetUrl ?? '',
-        count,
-      })),
-    };
-  });
-
-  // Ce que la boucle d'apprentissage a retenu (poids sources + affinités sujets)
-  app.get('/api/analytics/learning', async () => {
-    const sources = db
-      .select({
-        name: schema.newsSources.name,
-        weight: schema.newsSources.weight,
-        enabled: schema.newsSources.enabled,
-      })
-      .from(schema.newsSources)
-      .orderBy(desc(schema.newsSources.weight))
-      .all();
-    const affinity = getTopicAffinity();
-    const topics = Object.entries(affinity)
-      .map(([topic, factor]) => ({ topic, factor }))
-      .sort((a, b) => b.factor - a.factor);
-    const lastLearn = db
-      .select()
-      .from(schema.jobRuns)
-      .where(and(eq(schema.jobRuns.jobName, 'learn'), like(schema.jobRuns.summary, '%postsAnalyzed%')))
-      .orderBy(desc(schema.jobRuns.id))
-      .limit(1)
-      .get();
-    return {
-      sources,
-      topics,
-      lastLearnAt: lastLearn?.finishedAt ?? null,
-      lastLearn: lastLearn?.summary ? JSON.parse(lastLearn.summary) : null,
-    };
-  });
-
-  app.get('/api/analytics/posts', async () => {
-    const posts = db
-      .select()
-      .from(schema.posts)
-      .where(eq(schema.posts.status, 'published'))
-      .orderBy(desc(schema.posts.publishedAt))
-      .limit(50)
-      .all();
-    return posts.map((p) => {
-      const clicks = p.linkId
-        ? db.select({ id: schema.clicks.id }).from(schema.clicks).where(eq(schema.clicks.linkId, p.linkId)).all().length
-        : 0;
-      const comments = db
-        .select({ id: schema.comments.id })
-        .from(schema.comments)
-        .where(eq(schema.comments.postId, p.id))
-        .all().length;
-      return {
-        id: p.id,
-        hook: p.hook,
-        channel: p.channel,
-        publishedAt: p.publishedAt,
-        externalUrl: p.externalUrl,
-        clicks,
-        comments,
-      };
-    });
   });
 }

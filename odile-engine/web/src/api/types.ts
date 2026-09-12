@@ -96,14 +96,113 @@ export interface CommentDto {
   createdTime: string;
 }
 
+export interface ConnectionWarningDto {
+  provider: string;
+  subject: string;
+  level: 'warn' | 'error';
+  message: string;
+}
+
 export interface SummaryDto {
   awaitingApproval: number;
   scheduled: number;
   published: number;
   clicks7d: number;
+  /** personnes atteintes et interactions des posts publiés sur 7 jours (dernier relevé) */
+  reach7d: number;
+  engagement7d: number;
   pendingComments: number;
   cadence: { due: boolean; reason: string };
   nextSlots: { instagram: string; linkedin: string };
+  warnings: ConnectionWarningDto[];
+}
+
+/** Résultat d'une action sur un post (approbation, programmation…) */
+export interface ActionOutcomeDto {
+  ok: boolean;
+  message: string;
+  postId: number;
+  scheduledAt?: string | null;
+}
+
+/** Créneau de publication configuré, avec le post qui l'occupe */
+export interface SlotDto {
+  at: string;
+  platform: 'instagram' | 'linkedin';
+  past: boolean;
+  postId: number | null;
+  postHook: string | null;
+}
+
+export interface PostMetricsDto {
+  fetchedAt: string;
+  reach: number | null;
+  impressions: number | null;
+  likes: number | null;
+  comments: number | null;
+  shares: number | null;
+  saves: number | null;
+  engagement: number | null;
+  partial: string | null;
+}
+
+export interface PostStatDto {
+  id: number;
+  hook: string;
+  channel: string;
+  format: string;
+  publishedAt: string | null;
+  externalUrl: string | null;
+  simulated: boolean;
+  clicks: number;
+  comments: number;
+  score: number;
+  metrics: PostMetricsDto | null;
+}
+
+export interface ChannelStatsDto {
+  channel: string;
+  posts: number;
+  withMetrics: number;
+  reach: number;
+  impressions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  engagement: number;
+  clicks: number;
+}
+
+export interface AnalyticsOverviewDto {
+  days: number;
+  totals: { posts: number; reach: number; engagement: number; clicks: number; withMetrics: number; followers: number | null };
+  channels: ChannelStatsDto[];
+  perDay: { day: string; reach: number; clicks: number; posts: number }[];
+  bestSlots: { dow: number; hour: number; posts: number; total: number; label: string; avg: number }[];
+  lastFetchAt: string | null;
+  warnings: ConnectionWarningDto[];
+  connected: { linkedin: boolean; instagram: boolean };
+}
+
+export interface OauthTokenDto {
+  provider: string;
+  subject: string;
+  externalId: string;
+  expiresAt: string | null;
+  scopes: string;
+  updatedAt: string;
+  refreshable: boolean;
+  meta: Record<string, unknown> | null;
+}
+
+export interface ConnectionCheckDto {
+  provider: string;
+  subject: string;
+  label: string;
+  ok: boolean;
+  detail: string;
+  checkedAt: string;
 }
 
 /** Image de la bibliothèque (studio, upload, détourage) */

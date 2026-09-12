@@ -9,3 +9,6 @@ var/
 
 # scripts temporaires de vérification
 *.tmp.mts
+
+# Base de données du serveur mock de QA
+server/var-qa/

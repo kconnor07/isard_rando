@@ -277,8 +277,34 @@ export const clicks = sqliteTable(
     ipHash: text('ip_hash').notNull(),
     ua: text('ua'),
     referer: text('referer'),
+    /** clic d'un robot (aperçu de lien LinkedIn / Meta, crawler) : exclu des statistiques */
+    bot: integer('bot', { mode: 'boolean' }).notNull().default(false),
   },
   (t) => [index('clicks_link_idx').on(t.linkId, t.ts)],
+);
+
+/** Statistiques d'un post publié, relevées chaque jour sur la plateforme (historique conservé). */
+export const postMetrics = sqliteTable(
+  'post_metrics',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    postId: integer('post_id')
+      .notNull()
+      .references(() => posts.id, { onDelete: 'cascade' }),
+    fetchedAt: text('fetched_at').notNull().$defaultFn(now),
+    reach: integer('reach'),
+    impressions: integer('impressions'),
+    likes: integer('likes'),
+    comments: integer('comments'),
+    shares: integer('shares'),
+    saves: integer('saves'),
+    /** interactions totales (likes + commentaires + partages + enregistrements, selon la plateforme) */
+    engagement: integer('engagement'),
+    /** ce que la plateforme n'a pas pu fournir (permissions, métrique indisponible) */
+    partial: text('partial'),
+    raw: text('raw'),
+  },
+  (t) => [index('post_metrics_post_idx').on(t.postId, t.fetchedAt)],
 );
 
 export const oauthTokens = sqliteTable(
@@ -286,7 +312,7 @@ export const oauthTokens = sqliteTable(
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     provider: text('provider', { enum: ['linkedin', 'meta'] }).notNull(),
-    subject: text('subject', { enum: ['li_person', 'li_org', 'fb_page', 'ig_user'] }).notNull(),
+    subject: text('subject', { enum: ['li_person', 'li_org', 'fb_user', 'fb_page', 'ig_user'] }).notNull(),
     externalId: text('external_id').notNull().default(''),
     accessTokenEnc: text('access_token_enc').notNull(),
     refreshTokenEnc: text('refresh_token_enc'),

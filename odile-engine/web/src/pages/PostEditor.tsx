@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Image as ImageIcon, Images as LibraryIcon, Mail, Pencil, RefreshCw, Trash2, Upload, X, Zap } from 'lucide-react';
+import { Check, Image as ImageIcon, Images as LibraryIcon, Mail, Pencil, RefreshCw, Trash2, Upload, X, Zap, CalendarClock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, humanizeError, upload } from '../api/client';
@@ -361,6 +361,25 @@ export default function PostEditor() {
       done: 'Publication programmée dans une minute — « Annuler la programmation » reste disponible.',
     })();
   };
+  const toLocalInput = (iso: string) => {
+    const d = new Date(iso);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const scheduleAt = async () => {
+    const value = await dialog.prompt({
+      title: post.status === 'scheduled' ? 'Déplacer la publication' : 'Programmer à une date',
+      message: 'Date et heure de publication (heure de Paris). Le post est approuvé pour ce créneau.',
+      type: 'datetime-local',
+      initial: toLocalInput(post.scheduledAt ?? new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000).toISOString()),
+      min: toLocalInput(new Date().toISOString()),
+      confirmLabel: post.status === 'scheduled' ? 'Déplacer' : 'Programmer',
+    });
+    if (!value) return;
+    await run('schedule', () => api.post(`/api/posts/${post.id}/schedule`, { at: new Date(value).toISOString() }), {
+      done: outcomeMessage('Post programmé'),
+    })();
+  };
   const reject = async () => {
     const reason = await dialog.prompt({
       title: 'Rejeter ce post ?',
@@ -464,6 +483,9 @@ export default function PostEditor() {
           <button className="btn-ghost" disabled={!!busy} onClick={() => void publishNow()}>
             <Zap size={14} /> Publier maintenant
           </button>
+          <button className="btn-ghost" disabled={!!busy} onClick={() => void scheduleAt()} title="Choisir la date et l’heure de publication">
+            <CalendarClock size={14} /> Programmer à…
+          </button>
           <button className="btn-ghost" disabled={!!busy} onClick={run('render', () => api.post(`/api/posts/${post.id}/render`), { done: 'Slides rendues' })}>
             {busy === 'render' ? 'Rendu…' : 'Régénérer les images des slides'}
           </button>
@@ -485,6 +507,9 @@ export default function PostEditor() {
             Programmé pour <b className="text-txt">{fmtDate(post.scheduledAt)}</b>.
           </span>
           <span className="flex-1" />
+          <button className="btn-ghost" disabled={!!busy} onClick={() => void scheduleAt()}>
+            <CalendarClock size={14} /> Déplacer
+          </button>
           <button className="btn-ghost" disabled={!!busy} onClick={() => void publishNow()}>
             <Zap size={14} /> Publier maintenant
           </button>

@@ -263,6 +263,9 @@ export const regenerateSchema = z.object({
 
 export const rejectSchema = z.object({ reason: z.string().max(500).optional() });
 
+/** Programmation à une date précise (ISO 8601 avec fuseau) */
+export const schedulePostSchema = z.object({ at: z.string().datetime({ offset: true }) });
+
 export const generateFromNewsSchema = z.object({
   channel: z.enum(CHANNELS).optional(),
   format: z.enum(POST_FORMATS).optional(),

@@ -27,7 +27,9 @@
               webhook Meta (commentaires) ──▶ mot-clé ? ──▶ private reply DM
               poller LinkedIn (30 min) ─────▶ digest email réponses à coller
                                          │
-                    /r/<code> → clics (hash IP journalier) → analytics
+                    /r/<code> → clics (hash IP journalier, robots exclus)
+                    relevé quotidien portée/réactions (Graph + REST) → analytics
+                    renouvellement nocturne des jetons (refresh_token / fb_exchange_token)
 ```
 
 ## Modules serveur (`server/src/`)
@@ -44,7 +46,9 @@
 | `approvals/` | Jetons signés HMAC à usage unique, transitions de statut, réservation de créneau |
 | `publishers/` | LinkedIn REST versionné (perso + organisation), Instagram Graph (containers/carrousel), OAuth, worker avec retries, mode dry |
 | `webhooks/` | Webhook Meta (HMAC raw-body), commentaire→DM avec garde-fous Meta, poller LinkedIn |
-| `shortener/` | Liens `/r/<code>` + UTM + clics anonymisés (RGPD) |
+| `shortener/` | Liens `/r/<code>` + UTM + clics anonymisés (RGPD), aperçus de liens et crawlers marqués `bot` |
+| `publishers/metrics.ts` | Relevé quotidien des statistiques des posts publiés (Instagram insights, LinkedIn socialActions / share statistics) → `post_metrics` |
+| `publishers/refresh.ts` | Renouvellement nocturne des jetons, test des connexions, alertes (dashboard + email) |
 | `scheduler/` | node-cron Europe/Paris + cadence + créneaux optimaux + pipeline complet |
 | `llm/` | Interface provider (Anthropic/Gemini/mock), routage par tâche, fallback, JSON validé zod avec retry |
 
@@ -65,6 +69,8 @@
 
 - **LinkedIn** : pas d'API DM (fallback email assisté) ; publication page
   entreprise soumise au programme Community Management (dossier) ; jetons ~60 j
+  (refresh_token réservé aux apps partenaires ; version d'API `LINKEDIN_VERSION`
+  à faire avancer chaque année) ; pas de portée exposée pour un profil personnel
   sans refresh self-serve → alerte email à J-7 (cron maintenance).
 - **Meta** : mode dev suffisant pour publier sur son propre compte (testeur de
   l'app) ; Advanced Access requis seulement pour opérer des comptes tiers.

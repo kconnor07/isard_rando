@@ -106,6 +106,10 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
       subject: t.subject,
       externalId: t.externalId,
       expiresAt: t.expiresAt,
+      scopes: t.scopes,
+      updatedAt: t.updatedAt,
+      /** renouvelé automatiquement (refresh_token LinkedIn, ré-échange du jeton utilisateur Meta) */
+      refreshable: t.provider === 'meta' ? t.subject === 'fb_user' : Boolean(t.refreshTokenEnc),
       meta: t.meta ? JSON.parse(t.meta) : null,
     }));
     let chromium = { ok: false, detail: '' };
@@ -154,6 +158,18 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
         summary: r.summary ? JSON.parse(r.summary) : null,
       })),
     };
+  });
+
+  /** Appelle chaque plateforme avec les jetons stockés (bouton « Tester les connexions »). */
+  app.post('/api/setup/check-connections', async () => {
+    const { checkConnections } = await import('../../publishers/refresh.js');
+    return { checks: await checkConnections() };
+  });
+
+  /** Renouvellement immédiat des jetons (sinon chaque nuit à 4 h 30). */
+  app.post('/api/setup/refresh-tokens', async () => {
+    const { refreshTokens } = await import('../../publishers/refresh.js');
+    return refreshTokens();
   });
 
   app.get<{ Params: { id: string } }>('/api/assets/:id', async (request, reply) => {

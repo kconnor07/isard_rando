@@ -1,12 +1,17 @@
 import fs from 'node:fs';
+import { config } from '../config.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { getStoredToken } from './tokens.js';
 import type { Publisher, PublishInput, PublishResult } from './types.js';
 
-const API = 'https://api.linkedin.com';
-/** Version d'API LinkedIn (format AAAAMM) — à faire évoluer ~1×/an. */
-const LINKEDIN_VERSION = '202506';
+export const API = 'https://api.linkedin.com';
+/** Version d'API LinkedIn (format AAAAMM) : chaque version vit ~1 an — `LINKEDIN_VERSION` dans .env pour avancer sans redéployer le code. */
+export const LINKEDIN_VERSION = config.LINKEDIN_VERSION;
+
+export function linkedInHeaders(token: string): Record<string, string> {
+  return headers(token);
+}
 
 function headers(token: string): Record<string, string> {
   return {
@@ -17,10 +22,13 @@ function headers(token: string): Record<string, string> {
   };
 }
 
-/** Construit le commentaire (texte du post) — LinkedIn limite à 3000 caractères. */
-function commentary(caption: string): string {
-  // Les caractères réservés Little-endian de l'API Posts : ( ) < > [ ] { } * _ ~ doivent être échappés
-  return caption.slice(0, 2990).replace(/([\\|{}@[\]()<>#*_~])/g, '\\$1');
+/**
+ * Commentaire (texte du post), format « little text » de LinkedIn — 3 000 caractères max.
+ * Les caractères réservés sont échappés ; le « # » ne l'est pas : un « #motclé » en clair
+ * devient un hashtag cliquable (l'API le convertit elle-même en {hashtag|\#|motclé}).
+ */
+export function commentary(caption: string): string {
+  return caption.slice(0, 2990).replace(/([\\|{}@[\]()<>*_~])/g, '\\$1');
 }
 
 async function uploadImage(token: string, owner: string, filePath: string): Promise<string> {

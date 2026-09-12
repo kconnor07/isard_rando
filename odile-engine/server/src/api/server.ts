@@ -9,6 +9,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { config } from '../config.js';
 import { logger } from '../lib/logger.js';
 import { requireSession } from './auth.js';
+import { registerAnalyticsRoutes } from './routes/apiAnalytics.js';
 import { registerImageRoutes } from './routes/apiImages.js';
 import { registerMiscRoutes } from './routes/apiMisc.js';
 import { registerNewsRoutes } from './routes/apiNews.js';
@@ -58,6 +59,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerTemplateRoutes(app);
   registerImageRoutes(app);
   registerVisualRoutes(app);
+  registerAnalyticsRoutes(app);
 
   // Dashboard statique (production : web/dist construit par Vite)
   if (fs.existsSync(WEB_DIST)) {

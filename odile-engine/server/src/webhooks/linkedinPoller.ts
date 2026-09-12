@@ -5,11 +5,9 @@ import { getApprovalEmail, getDmTriggers } from '../db/settingsRepo.js';
 import { fetchJson } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { sendMail } from '../mailer/smtp.js';
+import { API, LINKEDIN_VERSION } from '../publishers/linkedin.js';
 import { getStoredToken } from '../publishers/tokens.js';
 import { buildReply, matchKeyword } from './commentDm.js';
-
-const API = 'https://api.linkedin.com';
-const LINKEDIN_VERSION = '202506';
 
 interface LiComment {
   commentUrn?: string;

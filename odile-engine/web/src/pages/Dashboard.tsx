@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto, SummaryDto } from '../api/types';
@@ -59,8 +60,13 @@ function Thread({ summary }: { summary?: SummaryDto }) {
     {
       key: 'resonance',
       label: 'Résonance',
-      value: summary?.clicks7d ?? null,
-      hint: summary ? `clics sur 7 j · ${summary.pendingComments} DM en attente` : '',
+      // personnes atteintes sur 7 j quand les plateformes l'ont fourni, sinon les clics trackés
+      value: summary ? (summary.reach7d > 0 ? summary.reach7d : summary.clicks7d) : null,
+      hint: summary
+        ? summary.reach7d > 0
+          ? `atteints sur 7 j · ${summary.clicks7d} clics · ${summary.pendingComments} DM en attente`
+          : `clics sur 7 j · ${summary.pendingComments} DM en attente`
+        : '',
       to: '/analytics',
     },
   ];
@@ -121,6 +127,21 @@ export default function Dashboard() {
         <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Tableau de bord</h1>
         {summary && <p className="mt-1.5 text-sm text-muted">{summary.cadence.reason}</p>}
       </div>
+
+      {summary && summary.warnings.length > 0 && (
+        <Link
+          to="/setup"
+          className="rise mb-8 flex flex-col gap-1 rounded-xl border border-white/25 bg-white/[0.03] px-4 py-3 text-sm hover:border-white/50"
+          style={{ '--i': 0 } as React.CSSProperties}
+        >
+          {summary.warnings.map((w) => (
+            <span key={`${w.provider}-${w.subject}`} className="flex items-center gap-2">
+              <AlertTriangle size={14} className="shrink-0" /> {w.message}
+            </span>
+          ))}
+          <span className="text-xs text-muted">Ouvrir Connexions & santé →</span>
+        </Link>
+      )}
 
       <Thread summary={summary} />
 

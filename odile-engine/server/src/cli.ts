@@ -85,6 +85,19 @@ async function main() {
       const { processDuePublishJobs } = await import('./publishers/worker.js');
       return runJob('publish-due', processDuePublishJobs);
     }
+    case 'metrics': {
+      const { runMetricsJob } = await import('./publishers/metrics.js');
+      const post = arg('post');
+      return runJob('metrics', () => runMetricsJob({ force: arg('force') === 'true', postIds: post ? [Number(post)] : undefined }));
+    }
+    case 'refresh-tokens': {
+      const { refreshTokens } = await import('./publishers/refresh.js');
+      return runJob('refresh-tokens', refreshTokens);
+    }
+    case 'check-connections': {
+      const { checkConnections } = await import('./publishers/refresh.js');
+      return runJob('check-connections', checkConnections);
+    }
     case 'poll-li-comments': {
       const { pollLinkedInComments } = await import('./webhooks/linkedinPoller.js');
       return runJob('poll-li-comments', pollLinkedInComments);
@@ -149,7 +162,7 @@ async function main() {
       return { ok: true };
     }
     default:
-      console.log(`Commandes : scrape | score | shortlist | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | poll-li-comments | seed | fixture [--title ..] [--url ..]`);
+      console.log(`Commandes : scrape | score | shortlist | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | seed | fixture [--title ..] [--url ..]`);
       return { ok: false };
   }
 }

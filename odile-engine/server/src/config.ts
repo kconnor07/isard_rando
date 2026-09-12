@@ -45,6 +45,8 @@ const envSchema = z.object({
 
   LINKEDIN_CLIENT_ID: z.string().optional(),
   LINKEDIN_CLIENT_SECRET: z.string().optional(),
+  /** version de l'API LinkedIn (AAAAMM) — chaque version vit ~1 an, à avancer régulièrement */
+  LINKEDIN_VERSION: z.string().regex(/^\d{6}$/).default('202608'),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
   /** valeur arbitraire à recopier dans la config webhook Meta */

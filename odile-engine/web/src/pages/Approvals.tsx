@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Pencil, X, Zap } from 'lucide-react';
+import { CalendarClock, Check, Pencil, X, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto } from '../api/types';
@@ -48,7 +48,30 @@ export default function Approvals() {
       toast.success('Post rejeté');
     },
   });
-  const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : null;
+  const schedule = useMutation({
+    mutationFn: (vars: { id: number; at: string }) => api.post<ActionOutcome>(`/api/posts/${vars.id}/schedule`, { at: vars.at }),
+    onSuccess: (outcome) => {
+      invalidate();
+      toast.success(outcome?.scheduledAt ? `Programmé ${fmtDate(outcome.scheduledAt)}` : outcome?.message || 'Post programmé');
+    },
+  });
+  const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : schedule.isPending ? schedule.variables?.id : null;
+  const toLocalInput = (d: Date) => {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+  const scheduleAt = async (post: PostSummaryDto) => {
+    const value = await dialog.prompt({
+      title: 'Programmer à une date',
+      message: `« ${post.hook || `Post #${post.id}`} » — date et heure de publication (heure de Paris).`,
+      type: 'datetime-local',
+      initial: toLocalInput(new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000)),
+      min: toLocalInput(new Date()),
+      confirmLabel: 'Programmer',
+    });
+    if (!value) return;
+    schedule.mutate({ id: post.id, at: new Date(value).toISOString() });
+  };
 
   const publishNow = async (post: PostSummaryDto) => {
     const ok = await dialog.confirm({
@@ -109,6 +132,9 @@ export default function Approvals() {
                   </button>
                   <button className="btn-ghost" disabled={busy} onClick={() => void publishNow(post)}>
                     <Zap size={14} /> Publier maintenant
+                  </button>
+                  <button className="btn-ghost" disabled={busy} onClick={() => void scheduleAt(post)} title="Choisir la date et l’heure">
+                    <CalendarClock size={14} /> Programmer à…
                   </button>
                   <Link to={`/posts/${post.id}`} className="btn-ghost">
                     <Pencil size={13} /> Modifier
