@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Scissors, SlidersHorizontal, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, humanizeError, upload as uploadFile } from '../api/client';
+import { useDialog } from '../components/Dialog';
+import { toast } from '../components/Toaster';
 import type { ImageModelsDto, LibraryImageDto } from '../api/types';
 import EditImageDialog from '../components/EditImageDialog';
 import { LibraryThumb } from '../components/LibraryPicker';
@@ -37,6 +39,9 @@ export default function Images() {
   const [style, setStyle] = useState<'auto' | 'full' | 'objets' | 'chrome'>('auto');
   const [editing, setEditing] = useState<LibraryImageDto | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const dialog = useDialog();
 
   const { data: library } = useQuery({
     queryKey: ['library'],
@@ -69,8 +74,12 @@ export default function Images() {
         model: model || undefined,
         style,
       }),
-    onSuccess: invalidate,
-    onError: (e) => alert(String(e)),
+    onSuccess: (r) => {
+      invalidate();
+      setHighlight(r.id);
+      window.setTimeout(() => setHighlight((h) => (h === r.id ? null : h)), 4000);
+      toast.success('Image générée — en tête de la bibliothèque');
+    },
   });
 
   const act = async (id: string, path: string) => {
@@ -78,30 +87,38 @@ export default function Images() {
     try {
       await api.post(`/api/library/${id}/${path}`);
       invalidate();
+      toast.success(path === 'remove-background' ? 'Arrière-plan supprimé' : 'Image mise à jour');
     } catch (e) {
-      alert(String(e));
+      toast.error(humanizeError(e));
     } finally {
       setBusyId(null);
     }
   };
   const remove = async (img: LibraryImageDto) => {
-    if (!confirm('Supprimer cette image ?')) return;
+    if (!(await dialog.confirm({ title: 'Supprimer cette image ?', message: 'Elle disparaît de la bibliothèque (les slides qui l’utilisent gardent leur rendu).', confirmLabel: 'Supprimer', danger: true }))) return;
     setBusyId(img.id);
     try {
       await api.delete(`/api/library/${img.id}`);
       invalidate();
+      toast.success('Image supprimée');
     } catch (e) {
-      alert(String(e));
+      toast.error(humanizeError(e));
     } finally {
       setBusyId(null);
     }
   };
   const upload = async (file: File) => {
-    const body = new FormData();
-    body.append('file', file);
-    const res = await fetch('/api/library', { method: 'POST', body, credentials: 'same-origin' });
-    if (!res.ok) return alert('Téléversement impossible');
-    invalidate();
+    setUploading(true);
+    try {
+      const r = await uploadFile<{ id: string }>('/api/library', file);
+      invalidate();
+      setHighlight(r.id);
+      toast.success('Image importée');
+    } catch (e) {
+      toast.error(humanizeError(e));
+    } finally {
+      setUploading(false);
+    }
   };
 
   const monochrome = imageGen?.value.monochrome ?? false;
@@ -114,8 +131,8 @@ export default function Images() {
         subtitle="Décrivez une image, l'IA la génère ; détourez-la, puis posez-la en fond de template ou sur une slide."
         actions={
           <>
-            <button className="btn-ghost" onClick={() => fileInput.current?.click()}>
-              <Upload size={14} /> Importer
+            <button className="btn-ghost" disabled={uploading} onClick={() => fileInput.current?.click()}>
+              <Upload size={14} /> {uploading ? 'Envoi…' : 'Importer'}
             </button>
             <input
               ref={fileInput}
@@ -265,7 +282,7 @@ export default function Images() {
         {library?.map((img) => {
           const busy = busyId === img.id;
           return (
-            <div key={img.id} className={`card overflow-hidden ${busy ? 'opacity-60' : ''}`}>
+            <div key={img.id} className={`card overflow-hidden transition-shadow ${busy ? 'opacity-60' : ''} ${highlight === img.id ? 'ring-2 ring-accent' : ''}`}>
               <LibraryThumb img={img} className="aspect-[4/5] w-full" />
               <div className="p-3">
                 <div className="mb-1.5 flex flex-wrap items-center gap-1.5">

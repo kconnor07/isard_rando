@@ -18,6 +18,42 @@ export const CHANNEL_LABELS: Record<string, string> = {
   li_org: 'LinkedIn entreprise',
 };
 
+/** Formats de post (miroir de POST_FORMATS côté serveur). */
+export const FORMAT_LABELS: Record<string, string> = {
+  carousel: 'Carrousel',
+  static: 'Image unique (Instagram)',
+  li_image: 'Image LinkedIn',
+};
+
+/** Types de slide et champs, en français (les clés restent celles du schéma). */
+export const SLIDE_KIND_LABELS: Record<string, string> = {
+  hook: 'Accroche',
+  content: 'Contenu',
+  value_prop: 'Chiffre clé',
+  screenshot: 'Capture',
+  notifications: 'Notifications',
+  echo: 'Écho',
+  cta: 'Appel à l’action',
+};
+export const SLIDE_FIELD_LABELS: Record<string, string> = {
+  annotation: 'Annotation manuscrite',
+  badge: 'Badge',
+  title: 'Titre',
+  subtitle: 'Sous-titre (« partie voilée | partie pleine »)',
+  accentWord: 'Mot accentué',
+  bigNumber: 'Gros chiffre',
+  ctaLabel: 'Bouton d’action',
+  body: 'Corps de texte',
+  imageIdea: 'Idée d’illustration IA',
+  bullets: 'Puces (une par ligne)',
+  notifications: 'Notifications (une par ligne : titre | détail)',
+  toolName: 'Nom de l’outil',
+  toolUrl: 'URL de l’outil (capture)',
+  echoWord: 'Mot répété en fond',
+  icon: 'Icône',
+  kind: 'Type de slide',
+};
+
 export function StatusBadge({ status }: { status: string }) {
   const s = STATUS_LABELS[status] ?? { label: status, dot: 'bg-white/30', text: 'text-muted' };
   return (

@@ -52,13 +52,13 @@ export default function EditImageDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="card w-full max-w-2xl bg-panel p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={busy ? undefined : onClose}>
+      <div className="card w-full max-w-2xl bg-panel p-5" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-[15px] font-bold tracking-tight">
             Éditer avec Magnific <span className="mono ml-1 text-[10px] font-normal uppercase tracking-wider text-muted">nouvelle image</span>
           </h3>
-          <button className="pill-btn" onClick={onClose} title="Fermer">
+          <button className="pill-btn" onClick={onClose} disabled={busy} title={busy ? 'Traitement en cours' : 'Fermer'} aria-label="Fermer">
             <X size={14} />
           </button>
         </div>

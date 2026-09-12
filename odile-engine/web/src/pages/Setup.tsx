@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
-import { api } from '../api/client';
+import { api, humanizeError } from '../api/client';
+import { useDialog } from '../components/Dialog';
+import { toast } from '../components/Toaster';
 import { fmtDate, PageTitle } from '../components/shared';
 
 interface HealthDto {
@@ -25,6 +27,7 @@ function Dot({ ok }: { ok: boolean }) {
 }
 
 export default function Setup() {
+  const dialog = useDialog();
   const { data: health, refetch } = useQuery({
     queryKey: ['health'],
     queryFn: () => api.get<HealthDto>('/api/setup/health'),
@@ -74,8 +77,20 @@ export default function Setup() {
             </div>
             <button className="btn-ghost !py-1.5 text-xs" disabled={!liToken}
               onClick={async () => {
-                const orgId = prompt("ID de l'organisation LinkedIn (ex: 115786063) :");
-                if (orgId) { await api.post('/api/oauth/linkedin/org', { orgId }); void refetch(); }
+                const orgId = await dialog.prompt({
+                  title: 'Organisation LinkedIn',
+                  message: 'ID numérique de la page entreprise (dans l’URL admin de la page, ex. 115786063).',
+                  placeholder: '115786063',
+                  confirmLabel: 'Définir',
+                });
+                if (!orgId) return;
+                try {
+                  await api.post('/api/oauth/linkedin/org', { orgId: orgId.trim() });
+                  void refetch();
+                  toast.success('Organisation LinkedIn définie');
+                } catch (err) {
+                  toast.error(humanizeError(err));
+                }
               }}>
               Définir l'organisation
             </button>

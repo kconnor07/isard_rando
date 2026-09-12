@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
-import { api } from '../api/client';
+import { api, upload } from '../api/client';
 import LibraryPicker, { LibraryThumb } from '../components/LibraryPicker';
-import { PageTitle } from '../components/shared';
+import { FORMAT_LABELS, PageTitle } from '../components/shared';
+import { toast } from '../components/Toaster';
 import type { LibraryImageDto } from '../api/types';
 
 type AllSettings = Record<string, unknown> & {
@@ -116,13 +117,41 @@ export default function Settings() {
     if (settings && !form) setForm(structuredClone(settings));
   }, [settings]);
 
+  const SECTION_LABELS: Record<string, string> = {
+    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM',
+    design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
+    default_theme: 'Thème par défaut', default_format: 'Format par défaut',
+  };
+  /** Enregistre une ou plusieurs clés en une seule action (bouton et message par section). */
   const save = useMutation({
-    mutationFn: (vars: { key: string; value: unknown }) => api.put(`/api/settings/${vars.key}`, vars.value),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['settings'] }),
+    mutationFn: async (vars: { key: string; value: unknown } | { key: string; value: unknown }[]) => {
+      const list = Array.isArray(vars) ? vars : [vars];
+      for (const v of list) await api.put(`/api/settings/${v.key}`, v.value);
+      return list.map((v) => v.key);
+    },
+    onSuccess: (keys) => {
+      void qc.invalidateQueries({ queryKey: ['settings'] });
+      toast.success(`${keys.map((k) => SECTION_LABELS[k] ?? k).join(' + ')} : enregistré`);
+    },
+  });
+  const savingKeys = save.isPending ? (Array.isArray(save.variables) ? save.variables : [save.variables]).map((v) => v?.key) : [];
+  const savingOf = (...keys: string[]) => keys.some((k) => savingKeys.includes(k));
+  const testEmail = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; to: string }>('/api/settings/test-email'),
+    onSuccess: (r) => toast.success(`Email de test envoyé à ${r.to}`),
   });
   const toggleSource = useMutation({
     mutationFn: (vars: { id: number; enabled: boolean }) => api.patch(`/api/sources/${vars.id}`, { enabled: vars.enabled }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['sources'] }),
+    // La case bascule tout de suite ; retour arrière si le serveur refuse
+    onMutate: (vars) => {
+      const previous = qc.getQueryData<SourceDto[]>(['sources']);
+      qc.setQueryData<SourceDto[]>(['sources'], (old) => old?.map((s) => (s.id === vars.id ? { ...s, enabled: vars.enabled } : s)));
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous) qc.setQueryData(['sources'], ctx.previous);
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ['sources'] }),
   });
 
   if (!form) return <div className="text-muted">Chargement…</div>;
@@ -133,7 +162,7 @@ export default function Settings() {
     <div className="max-w-3xl">
       <PageTitle title="Réglages" subtitle="Ton, marque, cadence, déclencheurs DM, studio de design, veille." />
 
-      <Section title="Ton des posts" saving={save.isPending} onSave={() => save.mutate({ key: 'tone', value: form.tone })}>
+      <Section title="Ton des posts" saving={savingOf('tone')} onSave={() => save.mutate({ key: 'tone', value: form.tone })}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Personnalité</label>
@@ -170,7 +199,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Marque" saving={save.isPending} onSave={() => save.mutate({ key: 'brand', value: form.brand })}>
+      <Section title="Marque" saving={savingOf('brand')} onSave={() => save.mutate({ key: 'brand', value: form.brand })}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Nom</label>
             <input className="input" value={form.brand.name} onChange={(e) => set('brand', { ...form.brand, name: e.target.value })} /></div>
@@ -195,12 +224,18 @@ export default function Settings() {
               <input type="file" accept="image/*" hidden
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
+                  e.target.value = '';
                   if (!file) return;
-                  const fd = new FormData();
-                  fd.append('file', file);
-                  await fetch('/api/settings/brand/logo', { method: 'POST', body: fd });
-                  void qc.invalidateQueries({ queryKey: ['settings'] });
-                  setForm(null);
+                  try {
+                    const r = await upload<{ assetId?: string; id?: string }>('/api/settings/brand/logo', file);
+                    const assetId = r.assetId ?? r.id ?? null;
+                    // Le logo est enregistré côté serveur ; le formulaire garde les autres modifications en cours
+                    if (assetId) set('brand', { ...form.brand, logoAssetId: assetId });
+                    void qc.invalidateQueries({ queryKey: ['settings'] });
+                    toast.success('Logo enregistré');
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : String(err));
+                  }
                 }} />
               </label>
               <span className="text-xs text-muted">PNG transparent recommandé.</span>
@@ -264,8 +299,8 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Cadence & créneaux" saving={save.isPending}
-        onSave={() => { save.mutate({ key: 'cadence', value: form.cadence }); save.mutate({ key: 'publish_slots', value: form.publish_slots }); }}>
+      <Section title="Cadence & créneaux" saving={savingOf('cadence', 'publish_slots')}
+        onSave={() => save.mutate([{ key: 'cadence', value: form.cadence }, { key: 'publish_slots', value: form.publish_slots }])}>
         <div className="mb-4 grid gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Au moins 1 post tous les… {form.cadence.days} jour(s)</label>
@@ -298,7 +333,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Commentaire → DM" saving={save.isPending} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>
+      <Section title="Commentaire → DM" saving={savingOf('dm_triggers')} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.dm_triggers.enabled}
             onChange={(e) => set('dm_triggers', { ...form.dm_triggers, enabled: e.target.checked })} />
@@ -318,7 +353,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Studio de design" saving={save.isPending} onSave={() => save.mutate({ key: 'design_studio', value: form.design_studio })}>
+      <Section title="Studio de design" saving={savingOf('design_studio')} onSave={() => save.mutate({ key: 'design_studio', value: form.design_studio })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.design_studio.enabled}
             onChange={(e) => set('design_studio', { ...form.design_studio, enabled: e.target.checked })} />
@@ -338,7 +373,7 @@ export default function Settings() {
         </div>
       </Section>
 
-      <Section title="Illustrations IA" saving={save.isPending} onSave={() => save.mutate({ key: 'image_gen', value: form.image_gen })}>
+      <Section title="Illustrations IA" saving={savingOf('image_gen')} onSave={() => save.mutate({ key: 'image_gen', value: form.image_gen })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.image_gen.enabled}
             onChange={(e) => set('image_gen', { ...form.image_gen, enabled: e.target.checked })} />
@@ -488,7 +523,7 @@ export default function Settings() {
         </p>
       </Section>
 
-      <Section title="Email de validation" saving={save.isPending} onSave={() => save.mutate({ key: 'approval_email', value: form.approval_email })}>
+      <Section title="Email de validation" saving={savingOf('approval_email')} onSave={() => save.mutate({ key: 'approval_email', value: form.approval_email })}>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2"><label className="label">Destinataire</label>
             <input className="input" value={form.approval_email.to}
@@ -497,12 +532,12 @@ export default function Settings() {
             <input type="number" min={0} max={5} className="input" value={form.approval_email.maxReminders}
               onChange={(e) => set('approval_email', { ...form.approval_email, maxReminders: Number(e.target.value) })} /></div>
         </div>
-        <button className="btn-ghost mt-3 !py-1.5 text-xs" onClick={() => void api.post('/api/settings/test-email')}>
-          Envoyer un email de test
+        <button className="btn-ghost mt-3 !py-1.5 text-xs" disabled={testEmail.isPending} onClick={() => testEmail.mutate()}>
+          {testEmail.isPending ? 'Envoi…' : 'Envoyer un email de test'}
         </button>
       </Section>
 
-      <Section title="Agent visuel" saving={save.isPending} onSave={() => save.mutate({ key: 'visual_agent', value: form.visual_agent })}>
+      <Section title="Agent visuel" saving={savingOf('visual_agent')} onSave={() => save.mutate({ key: 'visual_agent', value: form.visual_agent })}>
         <label className="mb-2 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.visual_agent?.enabled ?? true}
             onChange={(e) => set('visual_agent', { ...form.visual_agent, enabled: e.target.checked })} />
@@ -530,8 +565,8 @@ export default function Settings() {
         </p>
       </Section>
 
-      <Section title="Défauts de création" saving={save.isPending}
-        onSave={() => { save.mutate({ key: 'default_theme', value: form.default_theme }); save.mutate({ key: 'default_format', value: form.default_format }); }}>
+      <Section title="Défauts de création" saving={savingOf('default_theme', 'default_format')}
+        onSave={() => save.mutate([{ key: 'default_theme', value: form.default_theme }, { key: 'default_format', value: form.default_format }])}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Thème par défaut</label>
             <select className="input" value={form.default_theme} onChange={(e) => set('default_theme', e.target.value)}>
@@ -549,8 +584,9 @@ export default function Settings() {
             </select></div>
           <div><label className="label">Format Instagram par défaut</label>
             <select className="input" value={form.default_format} onChange={(e) => set('default_format', e.target.value)}>
-              <option value="carousel">Carrousel (recommandé — meilleur engagement)</option>
-              <option value="static">Post statique</option>
+              {Object.entries(FORMAT_LABELS).map(([v, l]) => (
+                <option key={v} value={v}>{v === 'carousel' ? `${l} (recommandé — meilleur engagement)` : l}</option>
+              ))}
             </select></div>
         </div>
       </Section>

@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronRight, Copy, Maximize2, Star, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, humanizeError, upload } from '../api/client';
 import type { LibraryImageDto } from '../api/types';
+import { useDialog } from '../components/Dialog';
 import { LibraryThumb } from '../components/LibraryPicker';
 import { Empty, PageTitle } from '../components/shared';
+import { toast as notify } from '../components/Toaster';
 
 /** Paramètres d'un template — miroir du schéma serveur. */
 interface Draft {
@@ -721,7 +723,7 @@ function Toggle({ label, checked, onChange, hint }: { label: string; checked: bo
 function StartPointCard({ p, onPick }: { p: StartPoint; onPick: () => void }) {
   return (
     <button
-      className="flex items-center gap-3 rounded-xl border border-line p-2 text-left transition-colors hover:border-accent/50"
+      className="flex w-full min-w-0 items-center gap-3 overflow-hidden rounded-xl border border-line p-2 text-left transition-colors hover:border-accent/50"
       onClick={onPick}
       title={p.hint}
     >
@@ -743,6 +745,7 @@ export default function Templates() {
   const [previewKind, setPreviewKind] = useState('value_prop');
   const [toast, setToast] = useState<string | null>(null);
   const [morePoints, setMorePoints] = useState(false);
+  const dialog = useDialog();
   const fileInput = useRef<HTMLInputElement>(null);
   const invalid = useMemo(() => invalidColors(draft), [draft]);
 
@@ -766,8 +769,10 @@ export default function Templates() {
   });
   const setDefault = useMutation({
     mutationFn: (themeId: string) => api.put('/api/settings/default_theme', themeId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['settings'] }),
-    onError: (e) => alert(String(e)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['settings'] });
+      notify.success('Thème par défaut mis à jour — il habillera les prochains posts');
+    },
   });
   const isDefault = (themeId: string) => defaultTheme?.value === themeId;
 
@@ -786,38 +791,41 @@ export default function Templates() {
   const save = useMutation({
     mutationFn: () =>
       editingId
-        ? api.put<{ ok: true }>(`/api/templates/${editingId}`, draft).then(() => editingId)
-        : api.post<{ ok: true; id: string }>('/api/templates', draft).then((r) => r.id),
-    onSuccess: (id) => {
+        ? api.put<{ ok: true; postsToRerender?: number }>(`/api/templates/${editingId}`, draft).then((r) => ({ id: editingId, rerender: r.postsToRerender ?? 0 }))
+        : api.post<{ ok: true; id: string }>('/api/templates', draft).then((r) => ({ id: r.id, rerender: 0 })),
+    onSuccess: ({ id, rerender }) => {
       invalidate();
       // On reste sur le template (les retouches suivantes s'enregistrent dessus)
       setEditingId(id);
       setToast(editingId ? 'Modifications enregistrées' : `Template « ${draft.name} » créé`);
+      if (rerender > 0) notify.info(`${rerender} post(s) utilisent ce template : leurs slides seront re-rendues à la prochaine ouverture (bouton « Régénérer les images des slides »).`, { duration: 9000 });
     },
-    onError: (e) => alert(String(e)),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/templates/${id}`),
     onSuccess: (_r, id) => {
       invalidate();
       if (editingId === id) reset();
+      notify.success('Template supprimé');
     },
-    onError: (e) => alert(String(e)),
   });
   const duplicate = useMutation({
     mutationFn: (id: string) => api.post(`/api/templates/${id}/duplicate`),
-    onSuccess: invalidate,
-    onError: (e) => alert(String(e)),
+    onSuccess: () => {
+      invalidate();
+      notify.success('Copie créée dans « Mes templates »');
+    },
   });
 
   const uploadBackground = async (file: File) => {
-    const body = new FormData();
-    body.append('file', file);
-    const res = await fetch('/api/library', { method: 'POST', body, credentials: 'same-origin' });
-    if (!res.ok) return alert('Téléversement impossible');
-    const { id } = (await res.json()) as { id: string };
-    set('backgroundAssetId', id);
-    invalidate();
+    try {
+      const { id } = await upload<{ id: string }>('/api/library', file);
+      set('backgroundAssetId', id);
+      invalidate();
+      notify.success('Image importée et posée en fond');
+    } catch (e) {
+      notify.error(humanizeError(e));
+    }
   };
 
   const pickBackground = (img: LibraryImageDto | null) => {
@@ -873,9 +881,9 @@ export default function Templates() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-[1fr_22rem]">
+      <div className="grid min-w-0 gap-6 md:grid-cols-[minmax(0,1fr)_22rem]">
         {/* Éditeur */}
-        <div className="card p-5">
+        <div className="card min-w-0 p-5">
           <div className="mb-4 flex items-end gap-3">
             <div className="flex-1">
               <label className="label !mb-1">Nom du template</label>
@@ -1495,7 +1503,7 @@ export default function Templates() {
         </div>
 
         {/* Aperçu live */}
-        <div className="md:sticky md:top-6 md:self-start">
+        <div className="min-w-0 md:sticky md:top-6 md:self-start">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <span className="mono text-[10px] uppercase tracking-[0.18em] text-muted/70">Aperçu</span>
             <div className="pill-bar flex-wrap">
@@ -1559,7 +1567,9 @@ export default function Templates() {
               className="pill-btn"
               title="Supprimer"
               onClick={() => {
-                if (confirm(`Supprimer le template « ${t.name} » ?`)) remove.mutate(t.id);
+                void dialog
+                  .confirm({ title: `Supprimer « ${t.name} » ?`, message: 'Impossible s’il habille encore des posts (changez d’abord leur thème).', confirmLabel: 'Supprimer', danger: true })
+                  .then((ok) => ok && remove.mutate(t.id));
               }}
             >
               <Trash2 size={13} />
@@ -1573,7 +1583,7 @@ export default function Templates() {
         {catalogue?.builtin.map((b) => (
           <div
             key={b.id}
-            className={`flex items-center gap-2 rounded-xl border p-2 ${isDefault(b.id) ? 'border-accent/50 bg-accent-soft/40' : 'border-line'}`}
+            className={`flex min-w-0 flex-wrap items-center gap-2 rounded-xl border p-2 ${isDefault(b.id) ? 'border-accent/50 bg-accent-soft/40' : 'border-line'}`}
           >
             <span
               className="h-8 w-8 shrink-0 rounded-lg border border-white/10"
@@ -1581,7 +1591,7 @@ export default function Templates() {
                 background: `linear-gradient(150deg, ${BUILTIN_RECIPES[b.id]?.bg1 ?? '#050508'}, ${BUILTIN_RECIPES[b.id]?.bg2 ?? '#0a1024'} 60%, ${BUILTIN_RECIPES[b.id]?.accent ?? '#0099ff'})`,
               }}
             />
-            <span className="min-w-0 flex-1 truncate text-sm">
+            <span className="min-w-[7rem] flex-1 truncate text-sm">
               {b.label}
               {isDefault(b.id) && <span className="mono ml-2 text-[10px] uppercase tracking-wider text-ice">· par défaut</span>}
             </span>

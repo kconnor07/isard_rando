@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Copy, ExternalLink } from 'lucide-react';
 import { api } from '../api/client';
+import { toast } from '../components/Toaster';
 import type { CommentDto } from '../api/types';
 import { Empty, fmtDate, PageTitle } from '../components/shared';
 
@@ -63,7 +64,12 @@ export default function Comments() {
                   <div className="mt-2 flex gap-2">
                     <button
                       className="btn-primary !py-1.5 text-xs"
-                      onClick={() => void navigator.clipboard.writeText(comment.suggestedReply!)}
+                      onClick={() => {
+                        void navigator.clipboard.writeText(comment.suggestedReply!).then(
+                          () => toast.success('Réponse copiée'),
+                          () => toast.error('Copie impossible — sélectionnez le texte à la main'),
+                        );
+                      }}
                     >
                       <Copy size={13} /> Copier
                     </button>
