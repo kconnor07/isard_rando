@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
+import { isPublicHttpUrl, publicUrlProblem } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from '../render/browser.js';
 import { saveAsset } from '../render/renderer.js';
@@ -17,6 +18,11 @@ export async function captureUrl(
   url: string,
   meta: { postId?: number; slideId?: number } = {},
 ): Promise<CaptureResult> {
+  const problem = await publicUrlProblem(url);
+  if (problem) {
+    logger.warn({ url, problem }, 'capture refusée');
+    return { assetId: null, ok: false, reason: problem };
+  }
   const browser = await getBrowser();
   let lastReason = '';
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -30,6 +36,8 @@ export async function captureUrl(
     });
     const page = await context.newPage();
     try {
+      // La page elle-même ne peut pas rebondir vers le réseau local
+      await page.route('**/*', (route) => (isPublicHttpUrl(route.request().url()) || route.request().url().startsWith('data:') ? route.continue() : route.abort()));
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 * attempt });
       await page.waitForLoadState('networkidle', { timeout: 12_000 * attempt }).catch(() => undefined);
       await dismissCookieBanners(page);

@@ -5,7 +5,7 @@ import { db, schema } from '../../db/client.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { logger } from '../../lib/logger.js';
 import { FLOAT_KEYS, parseVisualOverrides } from '../../render/renderer.js';
-import { listCandidates, runVisualAgent } from '../../visuals/agent.js';
+import { listCandidates, runVisualAgent, visualRunInFlight } from '../../visuals/agent.js';
 
 const runSchema = z.object({
   more: z.boolean().default(false),
@@ -28,13 +28,14 @@ const floatsSchema = z.object({
   heroSize: z.number().int().min(60).max(140).nullable().optional(),
 });
 
-/** Passes en cours, par post (une seule à la fois). */
-const running = new Map<number, { startedAt: string; more: boolean }>();
+/** Dernière passe terminée, par post (succès ou échec), pour que le dashboard puisse le dire. */
+const lastRuns = new Map<number, { finishedAt: string; ok: boolean; error?: string; summary?: unknown }>();
 
 export function registerVisualRoutes(app: FastifyInstance): void {
   app.get<{ Params: { id: string } }>('/api/posts/:id/visuals', async (request) => {
     const postId = Number(request.params.id);
-    return { running: running.has(postId), candidates: listCandidates(postId) };
+    const run = visualRunInFlight(postId);
+    return { running: Boolean(run), startedAt: run?.startedAt ?? null, lastRun: lastRuns.get(postId) ?? null, candidates: listCandidates(postId) };
   });
 
   /** Lance une passe en tâche de fond ; le dashboard suit via GET. */
@@ -44,11 +45,14 @@ export function registerVisualRoutes(app: FastifyInstance): void {
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
     const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
     if (!post) return reply.status(404).send({ error: 'Post introuvable' });
-    if (running.has(postId)) return reply.status(409).send({ error: 'Une passe est déjà en cours pour ce post' });
-    running.set(postId, { startedAt: new Date().toISOString(), more: parsed.data.more });
+    if (visualRunInFlight(postId)) return reply.status(409).send({ error: 'Une passe est déjà en cours pour ce post' });
+    lastRuns.delete(postId);
     void runJob('agent-visuel', () => runVisualAgent(postId, parsed.data))
-      .catch((err) => logger.error({ postId, err: String(err) }, 'agent visuel en échec'))
-      .finally(() => running.delete(postId));
+      .then((r) => lastRuns.set(postId, { finishedAt: new Date().toISOString(), ok: true, summary: r.result }))
+      .catch((err) => {
+        logger.error({ postId, err: String(err) }, 'agent visuel en échec');
+        lastRuns.set(postId, { finishedAt: new Date().toISOString(), ok: false, error: String(err).slice(0, 300) });
+      });
     return { started: true };
   });
 
@@ -71,7 +75,14 @@ export function registerVisualRoutes(app: FastifyInstance): void {
       if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
       const now = new Date().toISOString();
       if (parsed.data.as.startsWith('float')) {
-        // Objet flottant du post : périphérie de toutes les slides
+        // Objet flottant du post : périphérie de toutes les slides — seulement un détourage
+        let cut = false;
+        try {
+          cut = Boolean(asset.meta && (JSON.parse(asset.meta) as { cutout?: boolean }).cutout);
+        } catch {
+          cut = false;
+        }
+        if (!cut) return reply.status(400).send({ error: "Seule une proposition détourée (PNG transparent) peut servir d'objet flottant." });
         const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get()!;
         const overrides = parseVisualOverrides(post.visualOverrides);
         overrides[parsed.data.as as (typeof FLOAT_KEYS)[number]] = asset.id;

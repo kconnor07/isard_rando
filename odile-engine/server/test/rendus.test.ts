@@ -245,3 +245,22 @@ describe('typographie française et écho', async () => {
     expect(html).toContain('>VITESSE<');
   });
 });
+
+describe('URL publiques (garde SSRF)', async () => {
+  const { isPrivateAddress, isPublicHttpUrl } = await import('../src/lib/http.js');
+  it('reconnaît les adresses privées, locales et de métadonnées', () => {
+    for (const ip of ['10.0.0.1', '127.0.0.1', '172.16.5.5', '172.31.255.1', '192.168.1.10', '169.254.169.254', '100.64.0.1', '::1', 'fd12::1', 'fe80::1', '::ffff:127.0.0.1']) {
+      expect(isPrivateAddress(ip), ip).toBe(true);
+    }
+    for (const ip of ['8.8.8.8', '172.32.0.1', '2606:4700::1111', '93.184.216.34']) expect(isPrivateAddress(ip), ip).toBe(false);
+  });
+  it('n’accepte que http(s) vers un hôte public', () => {
+    expect(isPublicHttpUrl('https://www.zapier.com/pricing')).toBe(true);
+    expect(isPublicHttpUrl('file:///etc/passwd')).toBe(false);
+    expect(isPublicHttpUrl('http://127.0.0.1:3080/api/posts')).toBe(false);
+    expect(isPublicHttpUrl('http://169.254.169.254/opc/v1/instance/')).toBe(false);
+    expect(isPublicHttpUrl('http://localhost/')).toBe(false);
+    expect(isPublicHttpUrl('http://app.internal/')).toBe(false);
+    expect(isPublicHttpUrl('pas une url')).toBe(false);
+  });
+});

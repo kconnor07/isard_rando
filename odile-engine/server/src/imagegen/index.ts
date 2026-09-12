@@ -140,9 +140,12 @@ export async function generateImageBuffer(
       const chosen = modelForStyle(opts.style, opts.model);
       const reference = opts.reference ?? null;
       attempts.push(() => generateViaFreepik(chosen, prompt, { aspect, quality, reference }));
-      // Repli sur un modèle rapide si le modèle choisi échoue
+      // Repli sur un modèle rapide si le modèle choisi échoue — sans référence si, pour un
+      // objet à détourer, ce modèle la prendrait comme image d'entrée (elle imposerait son fond)
       const fallback = findFreepikModel(config.FREEPIK_MODEL_IMAGE_FAST)?.id ?? FAST_FREEPIK_MODEL;
-      if (fallback !== chosen) attempts.push(() => generateViaFreepik(fallback, prompt, { aspect, quality: 'fast', reference }));
+      const fallbackTakesStyle = findFreepikModel(fallback)?.reference === 'style';
+      const fallbackReference = opts.style && isCutoutStyle(opts.style) && !fallbackTakesStyle ? null : reference;
+      if (fallback !== chosen) attempts.push(() => generateViaFreepik(fallback, prompt, { aspect, quality: 'fast', reference: fallbackReference }));
     }
     if (settings.provider !== 'freepik' && config.GEMINI_API_KEY) {
       attempts.push(
@@ -243,7 +246,9 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
   const maxAttempts = config.LLM_MODE === 'mock' ? 1 : 2;
   let best: { generated: GeneratedImage; png: Buffer; stats: Awaited<ReturnType<typeof cutoutStats>> } | null = null;
   let tokens = 0;
+  let attempts = 0;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    attempts++;
     const generated = await generate();
     tokens += generated.tokens;
     const png = await removeImageBackground(generated.buffer);
@@ -268,7 +273,7 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
     ext: 'png',
     mime: 'image/png',
     ...size,
-    gate: { coverage: chosen.stats.coverage, touchesEdge: chosen.stats.touchesEdge, attempts: maxAttempts },
+    gate: { coverage: chosen.stats.coverage, touchesEdge: chosen.stats.touchesEdge, attempts },
   };
 }
 

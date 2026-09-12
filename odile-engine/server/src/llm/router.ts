@@ -99,12 +99,14 @@ export async function completeText(req: LlmRequest): Promise<LlmResponse> {
 export async function completeJson<T>(
   req: LlmRequest,
   schema: z.ZodType<T>,
+  opts: { attempts?: number } = {},
 ): Promise<{ value: T; model: string }> {
+  const maxAttempts = Math.max(1, opts.attempts ?? 2);
   const jsonSchema = zodToPromptSchema(schema);
   const basePrompt = `${req.prompt}\n\nRéponds UNIQUEMENT avec un objet JSON valide (aucun texte autour, pas de bloc de code) conforme à ce schéma JSON :\n${jsonSchema}`;
   let attemptPrompt = basePrompt;
   let lastModel = '';
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const res = await completeText({ ...req, prompt: attemptPrompt });
     lastModel = res.model;
     try {

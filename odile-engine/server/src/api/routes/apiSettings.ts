@@ -86,7 +86,7 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
     return { ok: true, assetId };
   });
 
-  app.post('/api/settings/test-email', async () => {
+  app.post('/api/settings/test-email', async (_request, reply) => {
     const to = getApprovalEmail().to;
     const result = await sendMail({
       kind: 'test',
@@ -95,7 +95,8 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
       html: '<p>✅ La configuration email d’Odile Engine fonctionne.</p>',
       text: 'La configuration email d’Odile Engine fonctionne.',
     });
-    return { ok: result.ok, to };
+    if (!result.ok) return reply.status(409).send({ error: `Envoi impossible vers ${to} — vérifiez la configuration SMTP` });
+    return { ok: true, to };
   });
 
   app.get('/api/setup/health', async () => {

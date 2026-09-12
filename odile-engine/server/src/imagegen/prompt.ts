@@ -152,9 +152,13 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
   const light = !isLightHex(palette.textColor);
   const mono = args.monochrome || args.theme === 'encre-blanche';
   const style = args.style ?? styleForArchetype(args.archetypeId);
-  const guide = mono ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, args.popColor);
+  // Un objet à détourer garde son guide (fond gris neutre) même en monochrome : la scène N&B plein cadre ne se détoure pas
+  const guide = mono && !isCutoutStyle(style) ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, mono ? null : args.popColor);
   const parts = [
     `SUBJECT: ${args.idea}`,
+    mono && isCutoutStyle(style)
+      ? 'MONOCHROME: the object is fully desaturated (chrome, glass, greys, white highlights), no hue at all; the background stays the flat neutral mid-grey.'
+      : null,
     archetype?.imageComposition && style === 'full' ? `COMPOSITION TEMPLATE: ${archetype.imageComposition}` : null,
     guide,
     args.seriesOf

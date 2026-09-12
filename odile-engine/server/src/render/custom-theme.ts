@@ -472,6 +472,7 @@ ${clamp(theme.heroScrim, 0, 100) !== 100 ? `.hero-scrim { opacity: ${(clamp(them
     size: theme.floatSize,
     layout: theme.floatLayout,
     mirrored: theme.showAuthor,
+    topRightBusy: theme.showVerifiedBadge,
     darkTheme: light,
     bleed: theme.floatBleed,
     tilt: theme.floatTilt,

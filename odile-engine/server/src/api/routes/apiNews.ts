@@ -49,6 +49,10 @@ export function registerNewsRoutes(app: FastifyInstance): void {
     return { scrape: scrape.result, score: score.result, shortlist: shortlist.result };
   });
 
+  /** Fabrications en cours (pipeline complet), par actu : une seule à la fois. */
+  const generating = new Map<number, { startedAt: string }>();
+  app.get('/api/news/generating', async () => Array.from(generating, ([newsId, v]) => ({ newsId, startedAt: v.startedAt })));
+
   app.post<{ Params: { id: string } }>('/api/news/:id/generate', async (request, reply) => {
     const parsed = generateFromNewsSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
@@ -58,11 +62,15 @@ export function registerNewsRoutes(app: FastifyInstance): void {
     if (parsed.data.theme && !themeExists(parsed.data.theme)) {
       return reply.status(400).send({ error: 'Thème introuvable' });
     }
+    if (generating.has(newsId)) return reply.status(409).send({ error: 'Un post est déjà en fabrication pour cette actualité' });
     // Pipeline long (LLM + rendus + reviews) : lancé en tâche de fond,
-    // le dashboard suit l'avancement via la liste des posts.
+    // le dashboard suit l'avancement via GET /api/news/generating puis la liste des posts.
+    generating.set(newsId, { startedAt: new Date().toISOString() });
     void runJob('pipeline-manuel', () =>
       runDraftPipeline({ newsItemId: newsId, ...parsed.data }),
-    ).catch((err) => logger.error({ err: String(err) }, 'pipeline manuel en échec'));
+    )
+      .catch((err) => logger.error({ err: String(err) }, 'pipeline manuel en échec'))
+      .finally(() => generating.delete(newsId));
     return { started: true };
   });
 

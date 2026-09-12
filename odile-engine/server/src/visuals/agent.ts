@@ -6,7 +6,9 @@ import { getBrand, getImageGen, getVisualAgent } from '../db/settingsRepo.js';
 import { generateStyledImage, paletteForPost, usableReference } from '../imagegen/index.js';
 import { buildImagePrompt, styleForArchetype, type ImageStyle } from '../imagegen/prompt.js';
 import { notesFor } from '../imagegen/references.js';
-import { fetchWithRetry } from '../lib/http.js';
+import { fetchWithRetry, isPublicHttpUrl, publicUrlProblem } from '../lib/http.js';
+import { findFreepikModel } from '../imagegen/providers/freepikCatalog.js';
+import { modelForStyle } from '../imagegen/index.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
 import { getCustomTheme } from '../render/custom-theme.js';
@@ -52,7 +54,7 @@ export interface VisualRunSummary {
 
 const planSchema = z.object({
   screenshots: z
-    .array(z.object({ url: z.string().url(), label: z.string().max(60), why: z.string().max(140) }))
+    .array(z.object({ url: z.string().url().refine(isPublicHttpUrl, 'URL publique http(s) attendue'), label: z.string().max(60), why: z.string().max(140) }))
     .max(6),
   images: z
     .array(
@@ -124,21 +126,27 @@ export function listCandidates(postId: number): VisualCandidate[] {
     });
 }
 
-/** Une URL répond-elle vraiment ? (l'IA ne doit proposer que des pages existantes) */
+/** Une URL répond-elle vraiment ? (l'IA ne doit proposer que des pages existantes, publiques) */
 async function urlIsAlive(url: string): Promise<boolean> {
+  if (await publicUrlProblem(url)) return false;
+  const headers = { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36' };
   try {
-    const res = await fetchWithRetry(url, {
-      method: 'GET',
-      retries: 0,
-      timeoutMs: 12_000,
-      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36' },
-      redirect: 'follow',
-    });
+    // HEAD d'abord (aucun corps à télécharger) ; GET si le serveur ne l'accepte pas
+    let res = await fetchWithRetry(url, { method: 'HEAD', retries: 0, timeoutMs: 12_000, headers, redirect: 'follow' });
+    await res.body?.cancel().catch(() => undefined);
+    if (res.status === 405 || res.status === 501) {
+      res = await fetchWithRetry(url, { method: 'GET', retries: 0, timeoutMs: 12_000, headers, redirect: 'follow' });
+      await res.body?.cancel().catch(() => undefined);
+    }
     return res.status < 400;
   } catch {
     return false;
   }
 }
+
+/** Passes en cours, par post : une seule à la fois, que l'appel vienne du dashboard ou du pipeline. */
+const inFlight = new Map<number, { startedAt: string; more: boolean }>();
+export const visualRunInFlight = (postId: number) => inFlight.get(postId) ?? null;
 
 /** Plan de secours sans LLM (mode mock, panne) : la source + les idées des slides. */
 function fallbackPlan(
@@ -166,6 +174,19 @@ function fallbackPlan(
 export async function runVisualAgent(
   postId: number,
   opts: { more?: boolean; screenshots?: number; images?: number } = {},
+): Promise<VisualRunSummary> {
+  if (inFlight.has(postId)) throw new Error('Une passe est déjà en cours pour ce post');
+  inFlight.set(postId, { startedAt: new Date().toISOString(), more: Boolean(opts.more) });
+  try {
+    return await runVisualAgentInner(postId, opts);
+  } finally {
+    inFlight.delete(postId);
+  }
+}
+
+async function runVisualAgentInner(
+  postId: number,
+  opts: { more?: boolean; screenshots?: number; images?: number },
 ): Promise<VisualRunSummary> {
   const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (!post) throw new Error(`Post ${postId} introuvable`);
@@ -202,6 +223,10 @@ export async function runVisualAgent(
   const wantsSeries = counts.images >= 2 && Boolean(themeForSeries && (themeForSeries.floatLayout === '4-coins' || themeForSeries.imageStyle === 'objets'));
   const knownUrls = new Set(existing.map((c) => c.url).filter(Boolean) as string[]);
   const knownPrompts = existing.map((c) => c.prompt).filter(Boolean) as string[];
+  // L'idée d'image écrite par le rédacteur pour l'accroche prend une place du quota
+  const hookIdea = slides.find((s) => s.idx === 0)?.content.imageIdea?.trim() || null;
+  const hookIdeaPending = Boolean(counts.images > 0 && hookIdea && !knownPrompts.includes(hookIdea));
+  const llmImageCount = Math.max(0, counts.images - (hookIdeaPending ? 1 : 0));
 
   // --- 1. Planification -----------------------------------------------------
   let plan: Plan;
@@ -228,7 +253,7 @@ MISSION
    démo), puis l'article source lui-même. Uniquement des URL dont tu es CERTAIN qu'elles existent
    (domaine officiel connu, ou URL fournie ci-dessus). Jamais d'URL inventée ou approximative ;
    en cas de doute sur le domaine officiel d'un produit, prends l'URL citée dans l'article ou aucune.
-2. "images" : ${counts.images} concept(s) d'illustration à générer, en français, une scène précise
+2. "images" : ${llmImageCount} concept(s) d'illustration à générer, en français, une scène précise
    et sobre chacune (objet, matière, lumière, angle), sans aucun texte dans l'image, variés entre eux,
    et indique la slide à laquelle chacun se destine ("slideIdx") et son "style" :
    - "full" : scène cinématique plein cadre (idéal accroche / CTA — sujet en haut, titre en bas) ;
@@ -260,11 +285,16 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
   // L'idée d'image écrite par le rédacteur pour l'accroche est proposée en premier
   // (jamais posée toute seule), sauf si elle l'a déjà été.
   const hook = slides.find((s) => s.idx === 0);
-  if (counts.images > 0 && hook?.content.imageIdea && !knownPrompts.includes(hook.content.imageIdea)) {
+  if (hookIdeaPending && hook && hookIdea) {
     plan.images = [
-      { label: hook.content.title.slice(0, 60), prompt: hook.content.imageIdea, slideIdx: 0, style: 'full' },
-      ...plan.images.filter((i) => i.prompt !== hook.content.imageIdea),
+      { label: hook.content.title.slice(0, 60), prompt: hookIdea, slideIdx: 0, style: 'full' },
+      ...plan.images.filter((i) => i.prompt !== hookIdea),
     ];
+  }
+  // La slide visée par un concept existe toujours (le LLM peut dépasser)
+  const lastIdx = Math.max(0, slides.length - 1);
+  for (const concept of plan.images) {
+    if (concept.slideIdx != null) concept.slideIdx = Math.min(Math.max(0, concept.slideIdx), lastIdx);
   }
 
   const summary: VisualRunSummary = { postId, batch, screenshots: 0, images: 0, failed: 0, planner };
@@ -359,12 +389,15 @@ ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à 
   if (set && wantsSeries && !imageGen.monochrome) {
     const style: ImageStyle = imageGen.style === 'full' ? 'objets' : set.style;
     let first: { base64: string; mime: string } | null = null;
+    // Le 1er objet sert de référence aux suivants — seulement si le modèle accepte une image (base64 / style)
+    const refKind = findFreepikModel(modelForStyle(style))?.reference;
+    const modelTakesImage = refKind === 'base64' || refKind === 'style';
     for (const [i, object] of set.objects.slice(0, 4).entries()) {
       try {
-        // Le 1er objet suit la référence de style ; les suivants prennent le 1er pour référence (même série)
-        const reference = first ?? usableReference(style);
+        const reference = first && modelTakesImage ? first : usableReference(style);
+        const seriesOf = first && modelTakesImage ? set.label : undefined;
         const image = await generateStyledImage(
-          promptFor(object, style, { hasReference: Boolean(reference), seriesOf: first ? set.label : undefined }),
+          promptFor(object, style, { hasReference: Boolean(reference), seriesOf }),
           { style, quality: imageGen.quality, reference, monochrome: false, requestedPop: popColor },
         );
         if (!first) first = { base64: image.raw.toString('base64'), mime: 'image/jpeg' };

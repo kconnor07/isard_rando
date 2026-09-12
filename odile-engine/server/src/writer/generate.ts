@@ -116,11 +116,20 @@ export function normalizeArchetype(value: unknown): unknown {
  * l'erreur exacte (boucle de correction de completeJson).
  */
 export function writerResponseSchema(imagesAllowed: number) {
+  // L'archétype est vérifié dans le superRefine (et non par un enum) pour que ses
+  // erreurs et celle de l'idée d'image remontent ensemble au modèle, en une passe.
   const base = generatedPostSchema.extend({
-    archetype: z.preprocess(normalizeArchetype, z.enum(ARCHETYPE_IDS)),
+    archetype: z.preprocess(normalizeArchetype, z.string()),
   });
-  if (imagesAllowed <= 0) return base;
   return base.superRefine((post, ctx) => {
+    if (!post.archetype || !(ARCHETYPE_IDS as readonly string[]).includes(post.archetype)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['archetype'],
+        message: `obligatoire : l'un de ${ARCHETYPE_IDS.join(', ')}`,
+      });
+    }
+    if (imagesAllowed <= 0) return;
     const hook = post.slides[0];
     if (!hook?.imageIdea || hook.imageIdea.trim().length < 12) {
       ctx.addIssue({
@@ -238,6 +247,7 @@ CONTRAINTES :
   const { value: generated } = await completeJson<GeneratedPost>(
     { task: 'writing', tier: 'best', system: WRITER_SYSTEM, prompt, maxTokens: 16000 },
     writerResponseSchema(imagesAllowed),
+    { attempts: 3 },
   );
 
   return persistDraft({ news, channel, platform, format, theme, tone, generated });

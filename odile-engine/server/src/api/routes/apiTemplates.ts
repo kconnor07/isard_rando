@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import sharp from 'sharp';
 import { z } from 'zod';
@@ -242,10 +242,11 @@ const previewSchema = templateSchema.extend({
   full: z.boolean().default(false),
 });
 
-let previewObjectCache: string | null = null;
+const previewObjectCache = new Map<string, string>();
 /** Objet détouré témoin (sphère de verre dessinée par sharp) pour l'aperçu du placement. */
 async function previewObjectDataUri(accent: string): Promise<string> {
-  if (previewObjectCache) return previewObjectCache;
+  const hit = previewObjectCache.get(accent);
+  if (hit) return hit;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350">
   <defs>
     <radialGradient id="s" cx="0.38" cy="0.32" r="0.7"><stop offset="0" stop-color="#ffffff"/><stop offset="0.25" stop-color="${accent}"/><stop offset="0.7" stop-color="#101428"/><stop offset="1" stop-color="#05060d"/></radialGradient>
@@ -256,8 +257,9 @@ async function previewObjectDataUri(accent: string): Promise<string> {
   <circle cx="540" cy="560" r="326" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="3"/>
 </svg>`;
   const png = await sharp(Buffer.from(svg)).png().toBuffer();
-  previewObjectCache = `data:image/png;base64,${png.toString('base64')}`;
-  return previewObjectCache;
+  const uri = `data:image/png;base64,${png.toString('base64')}`;
+  previewObjectCache.set(accent, uri);
+  return uri;
 }
 
 let previewShotCache: string | null = null;
@@ -283,15 +285,18 @@ async function previewScreenshotDataUri(): Promise<string> {
   return previewShotCache;
 }
 
-let previewHeroCache: string | null = null;
+const previewHeroCache = new Map<'0' | '1', string>();
 /** Illustration témoin (placeholder de marque, en N&B si le réglage l'impose). */
 async function previewHeroDataUri(monochrome: boolean): Promise<string> {
-  if (previewHeroCache) return previewHeroCache;
+  const key = monochrome ? '1' : '0';
+  const hit = previewHeroCache.get(key);
+  if (hit) return hit;
   let pipeline = sharp(await generateMockPlaceholderBuffer());
   if (monochrome) pipeline = pipeline.grayscale();
   const jpg = await pipeline.jpeg({ quality: 80 }).toBuffer();
-  previewHeroCache = `data:image/jpeg;base64,${jpg.toString('base64')}`;
-  return previewHeroCache;
+  const uri = `data:image/jpeg;base64,${jpg.toString('base64')}`;
+  previewHeroCache.set(key, uri);
+  return uri;
 }
 
 export function registerTemplateRoutes(app: FastifyInstance): void {
@@ -354,11 +359,9 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
       .run();
     // Les slides rendues avec ce template devront être régénérées
     const themeId = customThemeId(request.params.id);
-    const posts = db.select().from(schema.posts).where(eq(schema.posts.theme, themeId)).all();
-    for (const post of posts) {
-      db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, post.id)).run();
-    }
-    return { ok: true, postsToRerender: posts.length };
+    const ids = db.select({ id: schema.posts.id }).from(schema.posts).where(eq(schema.posts.theme, themeId)).all().map((p) => p.id);
+    if (ids.length) db.update(schema.slides).set({ renderAssetId: null }).where(inArray(schema.slides.postId, ids)).run();
+    return { ok: true, postsToRerender: ids.length };
   });
 
   app.delete<{ Params: { id: string } }>('/api/templates/:id', async (request, reply) => {

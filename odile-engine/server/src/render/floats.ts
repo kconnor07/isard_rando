@@ -51,10 +51,16 @@ export interface FloatCssOpts {
   bleed?: boolean;
   /** inclinaison en degrés, 0-30 */
   tilt?: number;
+  /** le coin haut-droit est occupé (badge vérifié) : l'objet miroir y laisse la place */
+  topRightBusy?: boolean;
 }
 
 export function floatCss(opts: FloatCssOpts): string {
-  const anchors = (opts.mirrored ? MIRRORED[opts.layout] : undefined) ?? LAYOUTS[opts.layout] ?? LAYOUTS.coins;
+  let anchors = (opts.mirrored ? MIRRORED[opts.layout] : undefined) ?? LAYOUTS[opts.layout] ?? LAYOUTS.coins;
+  if (opts.mirrored && opts.topRightBusy && (opts.layout === 'coins' || opts.layout === 'haut')) {
+    // Chip auteur à gauche ET badge vérifié à droite : le 1er objet descend, le coin haut-droit reste rentré
+    anchors = [BL, BR, { ...TR, inset: [6, 14], bleed: [-9, 12] }, TL];
+  }
   const width = Math.round((1080 * Math.min(60, Math.max(10, opts.size))) / 100);
   const tilt = Math.min(30, Math.max(0, opts.tilt ?? 12));
   const shadow = opts.darkTheme === false
@@ -66,9 +72,9 @@ export function floatCss(opts: FloatCssOpts): string {
   // Un objet dans un coin bas : le logo et le compteur se regroupent de l'autre côté (ou au centre)
   const footer =
     bottomRight && bottomLeft
-      ? '.floats-on .brand-footer { justify-content: center; gap: 28px; }'
+      ? '.floats-on .brand-footer { justify-content: center; gap: 28px; }\n.floats-on.brand-bas-centre .slide-counter { position: static; margin-left: 28px; }'
       : bottomRight
-        ? '.floats-on .brand-footer { justify-content: flex-start; gap: 28px; }'
+        ? '.floats-on .brand-footer { justify-content: flex-start; gap: 28px; }\n.floats-on.brand-bas-centre .slide-counter { right: auto; left: 0; }'
         : bottomLeft
           ? '.floats-on .brand-footer { justify-content: flex-end; gap: 28px; }'
           : '';

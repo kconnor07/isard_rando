@@ -306,11 +306,13 @@ export function registerPostRoutes(app: FastifyInstance): void {
 
   app.post<{ Params: { id: string }; Body: { publishNow?: boolean } }>(
     '/api/posts/:id/approve',
-    async (request) => {
-      return dashboardAction(Number(request.params.id), 'approve', {
+    async (request, reply) => {
+      const outcome = await dashboardAction(Number(request.params.id), 'approve', {
         publishNow: Boolean(request.body?.publishNow),
         ip: request.ip,
       });
+      if (!outcome.ok) return reply.status(409).send({ error: outcome.message });
+      return outcome;
     },
   );
 
@@ -324,14 +326,18 @@ export function registerPostRoutes(app: FastifyInstance): void {
   app.post<{ Params: { id: string } }>('/api/posts/:id/reject', async (request, reply) => {
     const parsed = rejectSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
-    return dashboardAction(Number(request.params.id), 'reject', {
+    const outcome = await dashboardAction(Number(request.params.id), 'reject', {
       reason: parsed.data.reason,
       ip: request.ip,
     });
+    if (!outcome.ok) return reply.status(409).send({ error: outcome.message });
+    return outcome;
   });
 
-  app.post<{ Params: { id: string } }>('/api/posts/:id/send-approval-email', async (request) => {
-    return sendApprovalEmail(Number(request.params.id));
+  app.post<{ Params: { id: string } }>('/api/posts/:id/send-approval-email', async (request, reply) => {
+    const result = await sendApprovalEmail(Number(request.params.id));
+    if (!result.ok) return reply.status(409).send({ error: "L'email n'a pas pu être envoyé (SMTP) — vérifiez Réglages → Email" });
+    return result;
   });
 
   app.get<{ Querystring: { from?: string; to?: string } }>('/api/calendar', async (request) => {

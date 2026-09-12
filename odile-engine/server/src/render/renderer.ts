@@ -466,6 +466,7 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
         size: overrides.floatSize ?? custom?.floatSize ?? 30,
         layout: overrides.floatLayout ?? (floatUris.filter(Boolean).length > 2 ? '4-coins' : 'coins'),
         mirrored: custom?.showAuthor ?? false,
+        topRightBusy: custom?.showVerifiedBadge ?? false,
         darkTheme,
         bleed: overrides.floatBleed ?? custom?.floatBleed ?? true,
         tilt: overrides.floatTilt ?? custom?.floatTilt ?? 12,
