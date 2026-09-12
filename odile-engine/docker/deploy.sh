@@ -6,6 +6,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 echo "→ mise à jour de la branche $BRANCH"
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+  echo "✗ des fichiers suivis ont été modifiés localement, la mise à jour s'arrêterait dessus :"
+  git status --porcelain --untracked-files=no | sed 's/^/    /'
+  echo "  → pour abandonner ces modifications puis relancer :  git checkout -- . && ./docker/deploy.sh"
+  exit 1
+fi
 git fetch origin "$BRANCH"
 git checkout -q "$BRANCH"
 git pull --ff-only origin "$BRANCH"
