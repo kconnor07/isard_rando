@@ -3,6 +3,14 @@
 # l'image avec le numéro de commit, redémarre, puis affiche la version servie.
 #   cd ~/isard_rando/odile-engine && ./docker/deploy.sh
 set -euo pipefail
+# Ce script tourne sur le serveur (Ubuntu). Lancé depuis un Mac, il demanderait le
+# mot de passe du Mac (sudo) et construirait l'image au mauvais endroit.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  echo "✗ Ce script se lance SUR LE SERVEUR, pas sur le Mac."
+  echo "  1. ssh -i <clé> ubuntu@<IP du serveur>"
+  echo "  2. cd ~/isard_rando/odile-engine && ./docker/deploy.sh"
+  exit 1
+fi
 cd "$(dirname "$0")/.."
 BRANCH="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 echo "→ mise à jour de la branche $BRANCH"
