@@ -44,15 +44,36 @@ body {
 .safe {
   position: relative;
   z-index: 5;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 104px 96px 150px;
+}
+/* La pile de contenu : c'est elle que l'ajustement automatique réduit (jamais les marges) */
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
   gap: 36px;
+  width: 100%;
 }
 
-.kind-hook .safe, .kind-cta .safe { align-items: center; text-align: center; }
+/* Alignement : une seule source, la classe de slide (auto = centré sur accroche, chiffre, CTA, écho) */
+.align-center .safe { align-items: center; text-align: center; }
+.align-left .safe { align-items: flex-start; text-align: left; }
+.align-center .badge, .align-center .icon-badge, .align-center .cta-inline, .align-center .body, .align-center .subtitle, .align-center .keyword-block { align-self: center; }
+.align-left .badge, .align-left .icon-badge, .align-left .cta-inline, .align-left .body, .align-left .subtitle, .align-left .keyword-block { align-self: flex-start; }
+.align-center .bullets li { justify-content: center; }
+.align-center .notif-stack { align-items: center; }
+.align-left .notif-stack { align-items: flex-start; }
+.align-left .notif-card { width: 100%; }
+.align-left .notif-card.depth-1 { width: 92%; margin-left: 4%; }
+.align-left .notif-card.depth-2 { width: 84%; margin-left: 8%; }
+.keyword-block { display: flex; flex-direction: column; align-items: center; gap: 28px; margin-top: 20px; }
+.align-left .keyword-block { align-items: flex-start; }
 
 /* --- Typographie ------------------------------------------------------- */
 
@@ -108,7 +129,6 @@ body {
   box-shadow: 0 0 0 7px color-mix(in srgb, var(--bg) 45%, transparent), 0 18px 40px rgba(0, 0, 0, 0.45);
 }
 .icon-badge svg { width: 46px; height: 46px; }
-.kind-hook .icon-badge, .kind-cta .icon-badge { align-self: center; }
 /* Sous une illustration, le badge icône ferait doublon ; sous un objet détouré, l'annotation aussi */
 .has-hero .icon-badge, .hero-contain .annotation { display: none; }
 
@@ -136,12 +156,14 @@ body {
   background: var(--glass);
   border: 1.5px solid var(--glass-border);
   font-family: 'Fragment Mono', monospace;
-  font-size: 27px;
-  letter-spacing: 0.22em;
+  font-size: 26px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  backdrop-filter: blur(10px);
 }
-.kind-hook .badge, .kind-cta .badge { align-self: center; }
 .badge::before {
   content: '';
   width: 14px;
@@ -189,6 +211,8 @@ body {
   font-size: 46px;
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  max-width: 100%;
   box-shadow: 0 18px 70px color-mix(in srgb, var(--accent) 55%, transparent),
               inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
@@ -196,8 +220,7 @@ body {
 .cta-arrow-haut-droite .cta-button::after { content: '↗'; }
 .cta-arrow-aucune .cta-button::after { content: none; }
 /* CTA sur une slide qui n'est pas la slide CTA (accroche, chiffre, contenu) */
-.cta-inline { margin-top: 14px; align-self: flex-start; }
-.kind-hook .cta-inline, .kind-cta .cta-inline, .kind-value_prop .cta-inline { align-self: center; }
+.cta-inline { margin-top: 14px; }
 /* Variante « chevron » : pilule de verre sombre, chevron dans un rond, texte médium */
 .cta-chevron .cta-button {
   padding: 14px 40px 14px 14px;
@@ -350,7 +373,7 @@ body {
 }
 .author-avatar.photo { object-fit: cover; padding: 0; background: #fff; }
 .author-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 28px; letter-spacing: -0.01em; }
-.author-check { flex: none; }
+.author-check { flex: none; color: var(--accent); }
 .author-handle { font-size: 21px; font-weight: 500; letter-spacing: 0.01em; color: var(--muted); }
 
 /* Badge « vérifié » rond en verre, en haut à droite */
@@ -363,6 +386,7 @@ body {
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(18px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: var(--accent);
 }
 .verified-on .verified-badge { display: flex; }
 
@@ -371,13 +395,14 @@ body {
 .brand-bas-centre .brand-wordmark { height: 46px; }
 .brand-bas-centre .slide-counter { position: absolute; right: 0; bottom: 0; }
 .brand-top { display: none; }
+.brand-top:empty { display: none !important; }
 .brand-haut-centre .brand-top {
   display: inline-flex; align-items: center; justify-content: center;
   position: absolute; z-index: 6; top: 58px; left: 50%; transform: translateX(-50%);
   min-width: 300px; height: 86px; padding: 14px 34px; border-radius: 18px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(16px);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(24px) saturate(1.2);
 }
 .brand-haut-centre .brand-top .brand-wordmark { height: 40px; }
 .brand-haut-centre .brand-footer .brand-wordmark, .brand-haut-centre .brand-footer .brand-id { display: none; }
@@ -423,14 +448,17 @@ body {
 }
 /* Zone réservée à l'objet : le texte vit sous lui, réduit au besoin par l'ajustement automatique */
 .hero-contain.hero-place-centre .safe { padding-top: 700px; }
-.hero-contain.hero-place-haut .hero-image { background-size: auto calc(66% * var(--hero-scale, 1)); background-position: center -12%; }
-.hero-contain.hero-place-haut .safe { padding-top: 790px; }
+.hero-contain.hero-place-haut .hero-image { background-size: auto calc(62% * var(--hero-scale, 1)); background-position: center -12%; }
+.hero-contain.hero-place-haut .safe { padding-top: 700px; padding-bottom: 150px; }
+.hero-contain.hero-place-haut .title { font-size: 96px; }
 /* À droite / à gauche : l'objet est contenu dans sa colonne, le texte garde la sienne */
 .hero-contain.hero-place-droite .hero-image { inset: 8% -6% 14% 58%; background-size: calc(100% * var(--hero-scale, 1)) auto; background-position: center; }
 .hero-contain.hero-place-gauche .hero-image { inset: 8% 58% 14% -6%; background-size: calc(100% * var(--hero-scale, 1)) auto; background-position: center; }
 .hero-contain.hero-place-droite .safe, .hero-contain.hero-place-gauche .safe { justify-content: center; padding-bottom: 150px; }
 .hero-contain.hero-place-droite .safe { align-items: flex-start; text-align: left; padding-right: 440px; }
 .hero-contain.hero-place-gauche .safe { align-items: flex-start; text-align: left; padding-left: 440px; }
+.hero-contain.hero-place-droite .badge, .hero-contain.hero-place-droite .icon-badge, .hero-contain.hero-place-droite .cta-inline, .hero-contain.hero-place-droite .body, .hero-contain.hero-place-droite .subtitle,
+.hero-contain.hero-place-gauche .badge, .hero-contain.hero-place-gauche .icon-badge, .hero-contain.hero-place-gauche .cta-inline, .hero-contain.hero-place-gauche .body, .hero-contain.hero-place-gauche .subtitle { align-self: flex-start; }
 .hero-contain.hero-place-droite .safe .title, .hero-contain.hero-place-gauche .safe .title { font-size: 76px; }
 .hero-contain.hero-place-droite .safe .body, .hero-contain.hero-place-gauche .safe .body { font-size: 36px; }
 .hero-contain.hero-place-droite .safe .bullets li, .hero-contain.hero-place-gauche .safe .bullets li { font-size: 36px; }
@@ -484,11 +512,13 @@ body {
   /* Vignette : les bords de l'image se fondent dans le marine du thème,
      + dégradé de lisibilité pour le texte en bas */
   background:
-    radial-gradient(115% 100% at 50% 36%, rgba(5, 5, 16, 0) 52%, rgba(5, 5, 16, 0.9) 100%),
+    radial-gradient(115% 100% at 50% 36%, rgba(5, 5, 16, 0) 58%, rgba(5, 5, 16, 0.9) 100%),
     linear-gradient(180deg,
-    rgba(4, 6, 15, 0.18) 0%,
-    rgba(4, 6, 15, 0.05) 30%,
-    rgba(4, 6, 15, 0.66) 62%,
+    rgba(4, 6, 15, 0.15) 0%,
+    rgba(4, 6, 15, 0.05) 28%,
+    rgba(4, 6, 15, 0.30) 50%,
+    rgba(4, 6, 15, 0.62) 68%,
+    rgba(4, 6, 15, 0.86) 84%,
     rgba(4, 6, 15, 0.96) 100%);
 }
 
@@ -507,6 +537,8 @@ body {
   -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, rgba(0, 0, 0, 0.35) 100%);
 }
 .has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.22; }
+/* Un objet détouré a besoin de son décor (colonne de lumière, disques) : seule l'image plein cadre l'efface */
+.hero-contain .decor-1, .hero-contain .decor-2, .hero-contain .decor-3 { opacity: 1; }
 .has-hero .bg { opacity: 0.4; }
 .has-hero .safe { justify-content: flex-end; padding-bottom: 190px; }
 .has-hero .title { text-shadow: 0 8px 50px rgba(2, 6, 20, 0.9); }

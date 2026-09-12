@@ -177,7 +177,7 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     input.heroContain ? 'hero-contain' : '',
     input.popColor ? 'pop' : '',
     (input.floatsOn ?? floatsOnSlide(input.kind)) ? 'floats-on' : '',
-    ...(input.slideClasses ?? slideStyleFor(null).classes),
+    ...(input.slideClasses ?? slideStyleFor(null, {}, input.kind).classes),
   ]
     .filter(Boolean)
     .join(' ');
@@ -212,9 +212,9 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
   ${authorChip}
   <div class="verified-badge">${VERIFIED_SVG(40)}</div>
   <div class="brand-top">${wordmark}</div>
-  <div class="safe">
+  <div class="safe"><div class="stack">
 ${inner}
-  </div>
+  </div></div>
   <footer class="brand-footer">
     ${brandBlock}
     ${counter}
@@ -243,25 +243,24 @@ function pad(n: number): string {
  * la page avant la capture — aucune slide ne sort avec un texte coupé.
  */
 const FIT_SCRIPT = `(() => {
+  const slide = document.querySelector('.slide');
   const safe = document.querySelector('.safe');
-  if (!safe) return 1;
+  const stack = document.querySelector('.safe > .stack');
+  if (!slide || !safe || !stack) return 1;
   const cs = getComputedStyle(safe);
   const px = (v) => parseFloat(v) || 0;
-  const kids = Array.from(safe.children);
-  const gap = px(cs.rowGap) || px(cs.gap);
-  const needed = kids.reduce((h, el) => {
-    const m = getComputedStyle(el);
-    return h + el.getBoundingClientRect().height + px(m.marginTop) + px(m.marginBottom);
-  }, 0) + gap * Math.max(0, kids.length - 1) + px(cs.paddingTop) + px(cs.paddingBottom);
+  const kids = Array.from(stack.children);
+  const avail = slide.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom);
   const innerW = safe.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
   const contentWidth = (el) => {
     const range = document.createRange();
     range.selectNodeContents(el);
     return Math.max(el.getBoundingClientRect().width, range.getBoundingClientRect().width);
   };
-  // 1. Un gros chiffre trop large est réduit seul (jusqu'à 50 %) avant toute réduction globale
+  // 1. Les éléments d'une ligne (gros chiffre, boutons, badge) sont réduits seuls s'ils dépassent en largeur
   for (const el of kids) {
-    if (!el.classList.contains('big-number')) continue;
+    const single = el.matches('.big-number, .cta-button, .keyword-chip, .badge');
+    if (!single) continue;
     const base = px(getComputedStyle(el).fontSize);
     let f = 1;
     while (contentWidth(el) > innerW && f > 0.5) {
@@ -269,18 +268,17 @@ const FIT_SCRIPT = `(() => {
       el.style.fontSize = Math.round(base * f) + 'px';
     }
   }
-  const needed2 = kids.reduce((h, el) => {
-    const m = getComputedStyle(el);
-    return h + el.getBoundingClientRect().height + px(m.marginTop) + px(m.marginBottom);
-  }, 0) + gap * Math.max(0, kids.length - 1) + px(cs.paddingTop) + px(cs.paddingBottom);
+  // 2. Puis la pile entière si elle dépasse en hauteur ou en largeur (jamais sous 55 %)
+  const needed = stack.getBoundingClientRect().height;
   const widest = kids.reduce((w, el) => Math.max(w, contentWidth(el)), 0);
-  let scale = Math.min(1, safe.clientHeight / Math.max(needed, needed2), widest > innerW ? innerW / widest : 1);
+  let scale = Math.min(1, avail / needed, widest > innerW ? innerW / widest : 1);
   scale = Math.max(0.55, Math.floor(scale * 100) / 100);
   if (scale < 1) {
-    const ox = cs.alignItems === 'flex-start' ? '0%' : '50%';
+    const centered = slide.classList.contains('align-center') || cs.alignItems === 'center';
+    const ox = centered ? '50%' : '0%';
     const oy = cs.justifyContent === 'flex-end' ? '100%' : cs.justifyContent === 'flex-start' ? '0%' : '50%';
-    safe.style.transformOrigin = ox + ' ' + oy;
-    safe.style.transform = 'scale(' + scale + ')';
+    stack.style.transformOrigin = ox + ' ' + oy;
+    stack.style.transform = 'scale(' + scale + ')';
   }
   return scale;
 })()`;
@@ -440,7 +438,6 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
         tilt: overrides.floatTilt ?? custom?.floatTilt ?? 12,
       })
     : undefined;
-  const slideStyle = slideStyleFor(custom, overrides);
   const accentFromImage = custom ? custom.accentFromImage : true;
   const floatSlides: FloatSlides = overrides.floatSlides ?? custom?.floatSlides ?? 'centrees';
 
@@ -451,7 +448,11 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
     // Slide dense (titre à gauche, puces, cartes) + objet détouré : l'objet passe à droite
     // du texte plutôt qu'au-dessus, sauf placement choisi pour ce post.
     const heavy = ['content', 'notifications', 'screenshot'].includes(content.kind);
-    const perSlide = hero?.cutout && heavy && !overrides.heroPlacement ? slideStyleFor(custom, { ...overrides, heroPlacement: 'droite' }) : slideStyle;
+    const perSlide = slideStyleFor(
+      custom,
+      hero?.cutout && heavy && !overrides.heroPlacement ? { ...overrides, heroPlacement: 'droite' } : overrides,
+      content.kind,
+    );
     const html = buildSlideHtml({
       theme: post.theme,
       kind: content.kind,

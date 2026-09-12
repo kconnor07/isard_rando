@@ -92,7 +92,7 @@ export function floatCss(opts: FloatCssOpts): string {
 
 export type FloatSlides = 'centrees' | 'accroche' | 'toutes';
 /** Kinds de slides dont la mise en page est centrée : les objets aux coins n'y gênent pas le texte. */
-const CENTERED_KINDS = new Set(['hook', 'value_prop', 'cta', 'echo']);
+export const CENTERED_KINDS = new Set(['hook', 'value_prop', 'cta', 'echo']);
 
 /** Cette slide reçoit-elle les objets flottants ? */
 export function floatsOnSlide(kind: string, mode: FloatSlides = 'centrees'): boolean {

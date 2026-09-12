@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { THEMES } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { isLightHex, rgba } from '../lib/color.js';
-import { floatCss } from './floats.js';
+import { CENTERED_KINDS, floatCss } from './floats.js';
 import type { VisualOverrides } from './renderer.js';
 
 export type CustomTheme = typeof schema.customThemes.$inferSelect;
@@ -318,17 +318,8 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
             : '';
   const accentLine = theme.accentLine ? `.title .accent { display: block; }` : '';
 
-  const align =
-    theme.align === 'left'
-      ? `.safe, .kind-hook .safe, .kind-cta .safe { align-items: flex-start; text-align: left; }
-.badge, .kind-hook .badge, .kind-cta .badge { align-self: flex-start; }
-.kind-cta .safe > div { align-items: flex-start !important; }
-.body { align-self: flex-start !important; }`
-      : theme.align === 'center'
-        ? `.safe { align-items: center; text-align: center; }
-.badge { align-self: center; }
-.bullets li { justify-content: center; }`
-        : '';
+  // L'alignement est porté par la classe de slide (slideStyleFor) : rien à émettre ici.
+  const align = '';
 
   // --- Image de fond -----------------------------------------------------
   const bgPosition = { centre: 'center', haut: 'center top', bas: 'center bottom' }[theme.bgPosition] ?? 'center';
@@ -472,11 +463,13 @@ ${
    thèmes intégrés — pour une image toujours harmonisée avec la palette. */
 .hero-scrim {
   background:
-    radial-gradient(115% 100% at 50% 36%, ${rgba(theme.bg1, 0)} ${light ? '52%' : '46%'}, ${rgba(theme.bg1, light ? 0.9 : 0.94)} 100%),
+    radial-gradient(115% 100% at 50% 36%, ${rgba(theme.bg1, 0)} ${light ? '58%' : '56%'}, ${rgba(theme.bg1, light ? 0.9 : 0.94)} 100%),
     linear-gradient(180deg,
-      ${rgba(theme.bg1, 0.18)} 0%,
-      ${rgba(theme.bg1, 0.05)} 30%,
-      ${rgba(theme.bg1, 0.66)} 62%,
+      ${rgba(theme.bg1, 0.15)} 0%,
+      ${rgba(theme.bg1, 0.05)} 28%,
+      ${rgba(theme.bg1, 0.30)} 50%,
+      ${rgba(theme.bg1, 0.62)} 68%,
+      ${rgba(theme.bg1, 0.86)} 84%,
       ${rgba(theme.bg1, 0.96)} 100%);
 }
 ${
@@ -501,10 +494,13 @@ export interface SlideStyle {
   style: string;
 }
 
-export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverrides = {}): SlideStyle {
+export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverrides = {}, kind = 'content'): SlideStyle {
   const placement = overrides.heroPlacement ?? theme?.heroPlacement ?? 'centre';
   const size = clamp(overrides.heroSize ?? theme?.heroSize ?? 100, 60, 140) / 100;
+  // Alignement : réglage du template, sinon centré sur les slides centrées (accroche, chiffre, CTA, écho)
+  const align = theme?.align && theme.align !== 'auto' ? theme.align : CENTERED_KINDS.has(kind) ? 'center' : 'left';
   const classes = [
+    `align-${align}`,
     theme?.ctaStyle === 'chevron' ? 'cta-chevron' : '',
     `cta-arrow-${theme?.ctaArrow ?? 'droite'}`,
     `grade-${theme?.heroGrade ?? 'vif'}`,

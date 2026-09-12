@@ -285,7 +285,7 @@ export function registerTemplateRoutes(app: FastifyInstance): void {
     const withHero = kind === 'hook';
     const withObject = kind === 'objet';
     const brand = getBrand();
-    const style = slideStyleFor(draft);
+    const style = slideStyleFor(draft, {}, slide.kind);
     const html = buildSlideHtml({
       theme: 'odile-nuit',
       kind: slide.kind,
