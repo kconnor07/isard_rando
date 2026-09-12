@@ -24,7 +24,7 @@ interface Draft {
   accentStyle: 'serif' | 'plain' | 'underline' | 'highlight' | 'argent';
   accentLine: boolean;
   align: 'auto' | 'left' | 'center';
-  decor: 'orbes' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges' | 'aucun';
+  decor: 'orbes' | 'verre' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges' | 'aucun';
   bgTop: string | null;
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
@@ -78,6 +78,7 @@ interface Draft {
   lineHeight: 'serre' | 'normal' | 'aere';
   titleTracking: number;
   titleColor: string | null;
+  accentWordColor: string | null;
   blockGap: number;
   subtitleScale: number;
   subtitleTone: 'voile' | 'plein';
@@ -147,7 +148,7 @@ const BLANK: Draft = {
   showLogo: true,
   showCounter: true,
   brandStyle: 'auto',
-  counterStyle: 'pilule',
+  counterStyle: 'mono',
   titleGradient: 'aucun',
   ctaStyle: 'verre',
   ctaArrow: 'droite',
@@ -179,6 +180,7 @@ const BLANK: Draft = {
   lineHeight: 'normal',
   titleTracking: -25,
   titleColor: null,
+  accentWordColor: null,
   blockGap: 36,
   subtitleScale: 100,
   subtitleTone: 'voile',
@@ -220,11 +222,68 @@ interface StartPoint {
   draft: Partial<Draft>;
 }
 
+/** Base commune des recettes « Verre » : courbes de verre + lame, mot accentué serif clair, pied OA · nom · handle, compteur mono. */
+const VERRE = (o: Partial<Draft>): Partial<Draft> => ({
+  decor: 'verre',
+  decorPosition: 'haut-droite',
+  titleWeight: 800,
+  accentStyle: 'serif',
+  align: 'auto',
+  glass: 55,
+  grainLevel: 25,
+  brandStyle: 'initiales',
+  counterStyle: 'mono',
+  ctaStyle: 'plein',
+  ...o,
+});
+
 /**
  * Recettes signature : chaque recette reproduit une mise en page de référence
  * (couche codée + style d'image), en un clic. Tout reste modifiable ensuite.
  */
 const RECIPES: StartPoint[] = [
+  {
+    id: 'verre-bleu',
+    label: 'Verre Bleu',
+    hint: 'Grandes courbes de verre bleu nuit, lame diagonale, mot accentué serif bleu clair, pied « OA · Odile AI · @odileai »',
+    swatch: 'linear-gradient(150deg,#010207,#0a1a4a 55%,#4d9fff)',
+    draft: VERRE({ accent: '#0099ff', secondary: '#4d9fff', bg1: '#010207', bg2: '#0b1a44', accentWordColor: '#8ec2ff' }),
+  },
+  {
+    id: 'verre-nuit',
+    label: 'Verre Nuit',
+    hint: 'Même grammaire, indigo profond et arêtes lavande : plus feutré, très LinkedIn',
+    swatch: 'linear-gradient(150deg,#03051a,#141c5c 55%,#a9c1ff)',
+    draft: VERRE({ accent: '#5b8cff', secondary: '#a9c1ff', bg1: '#03051a', bg2: '#141c5c', accentWordColor: '#c3d3ff' }),
+  },
+  {
+    id: 'verre-violet',
+    label: 'Verre Violet',
+    hint: 'Courbes de verre violettes, arêtes lilas : pour les sujets créatifs et IA',
+    swatch: 'linear-gradient(150deg,#07040f,#26114f 55%,#c4b5fd)',
+    draft: VERRE({ accent: '#a78bfa', secondary: '#d2c4ff', bg1: '#07040f', bg2: '#26114f', accentWordColor: '#d9ccff' }),
+  },
+  {
+    id: 'verre-menthe',
+    label: 'Verre Menthe',
+    hint: 'Verre vert d’eau sur noir profond : frais, résultats et chiffres',
+    swatch: 'linear-gradient(150deg,#02100e,#0a4a42 55%,#9ff5e8)',
+    draft: VERRE({ accent: '#2dd4bf', secondary: '#9ff5e8', bg1: '#02100e', bg2: '#0a4a42', accentWordColor: '#b6fff3' }),
+  },
+  {
+    id: 'verre-ambre',
+    label: 'Verre Ambre',
+    hint: 'Verre ambré, arêtes dorées : chaleur, artisans, commerce',
+    swatch: 'linear-gradient(150deg,#0e0803,#3d2609 55%,#ffd58a)',
+    draft: VERRE({ accent: '#ffb02e', secondary: '#ffd58a', bg1: '#0e0803', bg2: '#3d2609', accentWordColor: '#ffe1a6' }),
+  },
+  {
+    id: 'verre-noir',
+    label: 'Verre Noir',
+    hint: 'Monochrome : verre gris anthracite, arêtes blanches, boutons blancs',
+    swatch: 'linear-gradient(150deg,#050506,#1a1a20 55%,#ffffff)',
+    draft: VERRE({ accent: '#ffffff', secondary: '#d8d8dc', bg1: '#050506', bg2: '#1a1a20', accentWordColor: '#e6e6ea', glass: 60 }),
+  },
   {
     id: 'signal',
     label: 'Signal',
@@ -282,27 +341,20 @@ const RECIPES: StartPoint[] = [
   {
     id: 'chrome',
     label: 'Chrome',
-    hint: 'Colonne de lumière bleue, objet chrome ancré en haut, titre deux lignes blanc / argent, logo en pilule',
-    swatch: 'linear-gradient(180deg,#02040f,#1a4fe8 45%,#02040f)',
+    hint: 'Courbes de verre acier, objet chrome au-dessus du titre, titre et mot accentué argent, bouton plein',
+    swatch: 'linear-gradient(150deg,#04070f,#1b2a52 55%,#c9d3e6)',
     draft: {
-      accent: '#2f83ff',
-      secondary: '#9aa3b8',
-      bg1: '#02040f',
-      bg2: '#061a4d',
-      decor: 'colonne',
-      decorPosition: 'centre',
-      titleWeight: 800,
-      titleScale: 120,
+      ...VERRE({ accent: '#7fb2ff', secondary: '#c9d3e6', bg1: '#04070f', bg2: '#132449' }),
+      titleGradient: 'argent',
       accentStyle: 'argent',
-      accentLine: true,
-      align: 'center',
+      align: 'auto',
       ctaStyle: 'plein',
       imageStyle: 'chrome',
-      heroPlacement: 'haut',
-      heroSize: 110,
+      heroPlacement: 'centre',
+      heroSize: 105,
       heroGlow: true,
-      brandPosition: 'haut-centre',
-      brandStyle: 'logo',
+      badgeStyle: 'contour',
+      decorIntensity: 85,
     },
   },
   {
@@ -401,7 +453,7 @@ const PRESETS: StartPoint[] = [
 /** Approximation éditable de chaque thème fourni (« Personnaliser » un thème intégré). */
 const BUILTIN_RECIPES: Record<string, Partial<Draft>> = {
   'odile-nuit': { accent: '#0099ff', bg1: '#010208', bg2: '#123c7e', gradientAngle: 180, decor: 'halo', decorPosition: 'bas-droite' },
-  'verre-bleu': { accent: '#0099ff', bg1: '#010207', bg2: '#0a1a42', decor: 'orbes', glass: 60 },
+  'verre-bleu': { accent: '#0099ff', secondary: '#4d9fff', bg1: '#010207', bg2: '#0b1a44', decor: 'verre', glass: 55, accentWordColor: '#8ec2ff' },
   'cyan-tech': { accent: '#0099ff', secondary: '#7dd3fc', bg1: '#041c38', bg2: '#010204', gradientAngle: 150, decor: 'points', titleWeight: 700 },
   'violet-glow': { accent: '#a78bfa', secondary: '#c4b5fd', bg1: '#05030a', bg2: '#150a2e', decor: 'points', decorPosition: 'centre', vignette: 20 },
   'encre-blanche': { accent: '#ffffff', secondary: '#d8d8dc', bg1: '#050506', bg2: '#101014', decor: 'orbes', glass: 60 },
@@ -420,6 +472,7 @@ const POP_PRESETS: { hex: string; label: string }[] = [
 
 const DECOR_LABELS: Record<Draft['decor'], string> = {
   orbes: 'Orbes de verre',
+  verre: 'Verre : courbes + lame (Verre Bleu)',
   halo: 'Halo diffus',
   degrade: 'Dégradé',
   points: 'Halo + grille de points',
@@ -445,7 +498,7 @@ const PREVIEW_KINDS: { id: string; label: string }[] = [
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const HEX_FIELDS = ['accent', 'bg1', 'bg2', 'textColor'] as const;
-const HEX_OPTIONAL = ['secondary', 'bgTop', 'bodyColor', 'titleColor', 'badgeColor', 'bulletColor', 'annotationColor'] as const;
+const HEX_OPTIONAL = ['secondary', 'bgTop', 'bodyColor', 'titleColor', 'accentWordColor', 'badgeColor', 'bulletColor', 'annotationColor'] as const;
 /** Champs couleur invalides (le serveur refuserait le brouillon). */
 function invalidColors(d: Draft): string[] {
   const bad: string[] = [];
@@ -922,6 +975,7 @@ export default function Templates() {
               <ColorField label="Secondaire (gros chiffres, second décor)" value={draft.secondary} onChange={(v) => set('secondary', v)} clearable />
               <ColorField label="Bande claire en haut (ex. lavande → violet)" value={draft.bgTop} onChange={(v) => set('bgTop', v)} clearable placeholder="aucune" />
               <ColorField label="Couleur des titres" value={draft.titleColor} onChange={(v) => set('titleColor', v)} clearable placeholder="= texte" />
+              <ColorField label="Couleur du mot accentué" value={draft.accentWordColor} onChange={(v) => set('accentWordColor', v)} clearable placeholder="= accent" />
               <ColorField label="Couleur du corps de texte" value={draft.bodyColor} onChange={(v) => set('bodyColor', v)} clearable placeholder="= texte" />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -1475,8 +1529,8 @@ export default function Templates() {
               label="Compteur « 03/06 → swipe »"
               value={draft.showCounter ? draft.counterStyle : 'aucun'}
               options={[
+                { v: 'mono', l: 'Texte mono « 01/07 → swipe »' },
                 { v: 'pilule', l: 'Pilule de verre' },
-                { v: 'mono', l: 'Texte mono discret' },
                 { v: 'aucun', l: 'Masqué' },
               ]}
               onChange={(v) => setMany(v === 'aucun' ? { showCounter: false } : { counterStyle: v, showCounter: true })}

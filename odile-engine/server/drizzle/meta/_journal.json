@@ -85,6 +85,13 @@
       "when": 1789185102059,
       "tag": "0011_templates-v4",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789218514661,
+      "tag": "0012_verre-accent-word",
+      "breakpoints": true
     }
   ]
 }

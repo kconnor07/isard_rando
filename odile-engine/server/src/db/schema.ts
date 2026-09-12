@@ -340,7 +340,7 @@ export const customThemes = sqliteTable('custom_themes', {
   textColor: text('text_color').notNull().default('#fdfdfd'),
   /** décor : orbes de verre, halo, dégradé, grille de points, anneaux, arcs lumineux, ou rien */
   decor: text('decor', {
-    enum: ['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun'],
+    enum: ['orbes', 'verre', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun'],
   })
     .notNull()
     .default('orbes'),
@@ -458,6 +458,8 @@ export const customThemes = sqliteTable('custom_themes', {
   titleTracking: integer('title_tracking').notNull().default(-25),
   /** couleur des titres (null = couleur du texte) */
   titleColor: text('title_color'),
+  /** couleur du mot accentué (null = accent) */
+  accentWordColor: text('accent_word_color'),
   /** espace entre les blocs de la slide, px */
   blockGap: integer('block_gap').notNull().default(36),
   /** sous-titre : taille (%) et ton (voilé sur deux tons, ou plein) */

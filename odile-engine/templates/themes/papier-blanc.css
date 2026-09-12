@@ -108,8 +108,19 @@
 /* Grain quasi imperceptible sur fond clair */
 .grain { opacity: 0.16; mix-blend-mode: multiply; }
 
+/* Capture : verre clair sur papier */
+.browser-frame {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.45) 100%);
+  border-color: rgba(11, 11, 14, 0.12);
+  box-shadow: 0 30px 80px rgba(11, 11, 14, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+.browser-frame::after { background: linear-gradient(118deg, rgba(255, 255, 255, 0.5) 0%, transparent 50%); }
+.browser-bar .url { background: rgba(11, 11, 14, 0.06); border-color: rgba(11, 11, 14, 0.1); color: rgba(11, 11, 14, 0.7); }
+.browser-frame img { box-shadow: 0 0 0 1px rgba(11, 11, 14, 0.1), 0 14px 40px rgba(11, 11, 14, 0.2); }
+.slide-counter .swipe { color: #0b0b0e; }
+
 /* Pilule du compteur sur fond clair */
-.slide-counter {
+.counter-pilule .slide-counter {
   background: rgba(11, 11, 14, 0.045);
   border-color: rgba(11, 11, 14, 0.14);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);

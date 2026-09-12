@@ -91,7 +91,6 @@
   box-shadow: 0 18px 70px rgba(0, 153, 255, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .notif-card { background: linear-gradient(135deg, rgba(28, 85, 201, 0.4), rgba(6, 16, 44, 0.85)); }
-.browser-frame { box-shadow: 0 50px 120px rgba(0,0,0,0.75), 0 0 90px rgba(28, 85, 201, 0.3); }
 
 /* Avec illustration générée : les orbes s'effacent davantage */
 .has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.15; }

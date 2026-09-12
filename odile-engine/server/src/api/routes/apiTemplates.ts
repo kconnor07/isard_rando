@@ -33,7 +33,7 @@ export const templateSchema = z.object({
   accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun']),
+  decor: z.enum(['orbes', 'verre', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun']),
   bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z
@@ -59,7 +59,7 @@ export const templateSchema = z.object({
   showLogo: z.boolean().default(true),
   showCounter: z.boolean().default(true),
   brandStyle: z.enum(['auto', 'logo', 'initiales', 'logo-nom', 'aucun']).default('auto'),
-  counterStyle: z.enum(['pilule', 'mono']).default('pilule'),
+  counterStyle: z.enum(['pilule', 'mono']).default('mono'),
   // Pack premium
   titleGradient: z.enum(['aucun', 'accent', 'argent', 'horizontal']).default('aucun'),
   ctaStyle: z.enum(['verre', 'plein', 'degrade', 'chevron']).default('verre'),
@@ -94,6 +94,7 @@ export const templateSchema = z.object({
   lineHeight: z.enum(['serre', 'normal', 'aere']).default('normal'),
   titleTracking: z.number().int().min(-60).max(40).default(-25),
   titleColor: z.string().regex(HEX).nullable().optional(),
+  accentWordColor: z.string().regex(HEX).nullable().optional(),
   blockGap: z.number().int().min(8).max(80).default(36),
   subtitleScale: z.number().int().min(60).max(140).default(100),
   subtitleTone: z.enum(['voile', 'plein']).default('voile'),
@@ -134,6 +135,7 @@ function toRow(data: TemplateInput) {
     bgTop: data.bgTop ?? null,
     bodyColor: data.bodyColor ?? null,
     titleColor: data.titleColor ?? null,
+    accentWordColor: data.accentWordColor ?? null,
     padTop: data.padTop ?? null,
     padSide: data.padSide ?? null,
     padBottom: data.padBottom ?? null,

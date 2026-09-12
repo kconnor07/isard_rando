@@ -92,8 +92,22 @@ const DISC_POS: Record<CustomTheme['decorPosition'], [DiscAnchor, DiscAnchor | n
   'bas-gauche': [{ bottom: -760, left: -560 }, { top: -700, right: -560 }],
   centre: [{ top: -980, left: -50 }, null],
 };
+/** Lame de verre du décor « verre » : au coin opposé au grand orbe */
+const BLADE_POS: Record<CustomTheme['decorPosition'], string> = {
+  'haut-droite': 'right: -42%; bottom: -30%;',
+  'haut-gauche': 'left: -42%; bottom: -30%; transform: rotate(14deg);',
+  'bas-droite': 'right: -42%; top: -30%;',
+  'bas-gauche': 'left: -42%; top: -30%; transform: rotate(14deg);',
+  centre: 'right: -46%; bottom: -34%;',
+};
 const COLUMN_X: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 60, 'haut-gauche': 40, 'bas-droite': 60, 'bas-gauche': 40, centre: 50 };
 const COLUMN_Y: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 38, 'haut-gauche': 38, 'bas-droite': 62, 'bas-gauche': 62, centre: 48 };
+/** Mélange linéaire de deux hex (t = part de b). */
+function mix(a: string, b: string, t: number): string {
+  const pa = a.replace('#', ''), pb = b.replace('#', '');
+  const c = (i: number) => Math.round(parseInt(pa.slice(i, i + 2), 16) * (1 - t) + parseInt(pb.slice(i, i + 2), 16) * t);
+  return `#${[0, 2, 4].map((i) => c(i).toString(16).padStart(2, '0')).join('')}`;
+}
 function discCss(a: DiscAnchor, grow = 0): string {
   return (Object.entries(a) as [string, number][]).map(([k, v]) => `${k}: ${v - grow}px;`).join(' ');
 }
@@ -165,6 +179,35 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 }
 .decor-3 { position: absolute; inset: 0; z-index: 3;
   background: linear-gradient(172deg, ${rgba('#ffffff', 0.05)} 0%, transparent 32%); }`
+      : theme.decor === 'verre'
+        ? `
+/* Verre : grandes courbes de verre sombres aux arêtes lumineuses + lame diagonale (grammaire « Verre Bleu ») */
+.decor-1 {
+  position: absolute; z-index: 2; ${pos.d1}
+  width: 1350px; height: 1350px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%,
+    ${theme.bg1} 0%, ${mix(theme.bg1, theme.bg2, 0.5)} 38%, ${theme.bg2} 62%,
+    ${rgba(accent, 0.7)} 82%, ${rgba(secondary, 0.9)} 94%, ${rgba('#ffffff', 0.85)} 100%);
+  box-shadow: 0 0 3px ${rgba('#ffffff', 0.75)}, 0 0 40px ${rgba(accent, 0.45)}, 0 0 140px ${rgba(accent, 0.3)};
+}
+.decor-2 {
+  position: absolute; z-index: 2; ${pos.d2}
+  width: 1400px; height: 1400px; border-radius: 50%;
+  background: radial-gradient(circle at 68% 72%,
+    ${theme.bg1} 0%, ${mix(theme.bg1, theme.bg2, 0.5)} 40%, ${theme.bg2} 64%,
+    ${rgba(accent, 0.7)} 84%, ${rgba(secondary, 0.9)} 95%, ${rgba('#ffffff', 0.85)} 100%);
+  box-shadow: 0 0 3px ${rgba('#ffffff', 0.75)}, 0 0 40px ${rgba(accent, 0.4)}, 0 0 140px ${rgba(accent, 0.28)};
+}
+.decor-3 {
+  position: absolute; z-index: 3; ${BLADE_POS[theme.decorPosition]}
+  width: 1250px; height: 1250px; border-radius: 50%;
+  transform: rotate(-14deg);
+  background: radial-gradient(circle at 20% 18%,
+    ${rgba(theme.bg1, 0.98)} 0%, ${rgba(theme.bg2, 0.95)} 45%,
+    ${rgba(accent, 0.6)} 74%, ${rgba(secondary, 0.75)} 92%, ${rgba('#ffffff', 0.8)} 100%);
+  box-shadow: 0 0 2px ${rgba('#ffffff', 0.8)}, 0 0 60px ${rgba(accent, 0.3)};
+}
+.has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.15; }`
       : theme.decor === 'halo'
         ? `
 .decor-1 {
@@ -283,8 +326,8 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 /* Colonne de lumière verticale + fines stries (référence « System Token ») */
 .decor-1 {
   position: absolute; z-index: 2; left: 50%; top: -8%; width: 1000px; height: 116%; transform: translateX(-50%);
-  background: radial-gradient(ellipse 46% 58% at ${COLUMN_X[theme.decorPosition]}% ${COLUMN_Y[theme.decorPosition]}%,
-    ${rgba('#ffffff', 0.35)} 0%, ${accent} 22%, ${rgba(accent, 0.75)} 40%, ${rgba(secondary, 0.55)} 56%, ${rgba(theme.bg2, 0.6)} 74%, transparent 100%);
+  background: radial-gradient(ellipse 28% 54% at ${COLUMN_X[theme.decorPosition]}% ${COLUMN_Y[theme.decorPosition]}%,
+    ${rgba('#ffffff', 0.2)} 0%, ${rgba(accent, 0.8)} 16%, ${rgba(accent, 0.45)} 34%, ${rgba(secondary, 0.28)} 50%, ${rgba(theme.bg2, 0.4)} 70%, transparent 100%);
 }
 .decor-2 {
   position: absolute; inset: 0; z-index: 2;
@@ -330,6 +373,9 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }`
             : '';
   const accentLine = theme.accentLine ? `.title .accent { display: block; }` : '';
+  const accentWord = theme.accentWordColor && theme.accentStyle !== 'argent'
+    ? `.title .accent { color: ${theme.accentWordColor}; -webkit-text-fill-color: ${theme.accentWordColor}; }`
+    : '';
 
   // L'alignement est porté par la classe de slide (slideStyleFor) : rien à émettre ici.
   const align = '';
@@ -456,8 +502,8 @@ ${bullets}
 .brand-footer { left: ${clamp(theme.footerInset, 40, 160)}px; right: ${clamp(theme.footerInset, 40, 160)}px; bottom: ${clamp(theme.footerBottom, 24, 120)}px; }
 .author-chip { left: ${clamp(theme.footerInset, 40, 160)}px; }
 .verified-badge { right: ${clamp(theme.footerInset, 40, 160)}px; }
-.slide-counter { font-size: ${Math.round(25 * counterSize)}px; padding: ${Math.round(14 * counterSize)}px ${Math.round(30 * counterSize)}px; }
-.counter-mono .slide-counter { font-size: ${Math.round(26 * counterSize)}px; padding: 0; }
+.slide-counter { font-size: ${Math.round(26 * counterSize)}px; }
+.counter-pilule .slide-counter { font-size: ${Math.round(25 * counterSize)}px; padding: ${Math.round(14 * counterSize)}px ${Math.round(30 * counterSize)}px; }
 ${decorScale !== 1 ? `.decor-1, .decor-2 { scale: ${decorScale.toFixed(2)}; }` : ''}
 ${clamp(theme.heroScrim, 0, 100) !== 100 ? `.hero-scrim { opacity: ${(clamp(theme.heroScrim, 0, 100) / 100).toFixed(2)}; }` : ''}
 `;
@@ -511,6 +557,7 @@ ${decor}
 ${accentStyle}
 ${accentLine}
 ${titleGradient}
+${accentWord}
 ${align}
 ${bigNumber}
 .body, .bullets li { color: ${rgba(theme.textColor, 0.88)}; }
@@ -593,7 +640,7 @@ export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverri
     (theme?.heroGlow ?? true) ? 'hero-glow-on' : '',
     theme?.showVerifiedBadge ? 'verified-on' : '',
     `brand-${theme?.brandPosition ?? 'bas'}`,
-    `counter-${theme?.counterStyle ?? 'pilule'}`,
+    `counter-${theme?.counterStyle ?? 'mono'}`,
   ].filter(Boolean);
   return {
     classes,
