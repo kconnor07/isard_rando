@@ -1,5 +1,5 @@
-import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
+import { getOauthApps } from '../db/oauthApps.js';
 import { fetchJson, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { GRAPH } from './instagram.js';
@@ -49,11 +49,12 @@ async function refreshLinkedIn(now: Date): Promise<string> {
     return left > 0 ? `expire dans ${Math.ceil(left)} j — pas de refresh token, reconnexion manuelle requise` : 'expiré — reconnexion manuelle requise';
   }
   try {
+    const apps = getOauthApps();
     const body = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: person.refreshToken,
-      client_id: config.LINKEDIN_CLIENT_ID ?? '',
-      client_secret: config.LINKEDIN_CLIENT_SECRET ?? '',
+      client_id: apps.linkedinClientId,
+      client_secret: apps.linkedinClientSecret,
     });
     const token = await fetchJson<{ access_token: string; expires_in: number; refresh_token?: string; refresh_token_expires_in?: number }>(
       'https://www.linkedin.com/oauth/v2/accessToken',
@@ -111,8 +112,9 @@ async function refreshMeta(now: Date): Promise<string> {
   const left = daysLeft(user.expiresAt, now.getTime());
   if (left !== null && left > 20) return `ok (${Math.floor(left)} j restants)`;
   try {
+    const apps = getOauthApps();
     const longTok = await fetchJson<{ access_token: string; expires_in?: number }>(
-      `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${config.META_APP_ID}&client_secret=${config.META_APP_SECRET}&fb_exchange_token=${encodeURIComponent(
+      `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(apps.metaAppId)}&client_secret=${encodeURIComponent(apps.metaAppSecret)}&fb_exchange_token=${encodeURIComponent(
         user.accessToken,
       )}`,
     );
@@ -211,7 +213,7 @@ export async function checkConnections(): Promise<ConnectionCheck[]> {
         const apps = await fetchJson<{ data?: { id: string }[] }>(
           `${GRAPH}/${token.externalId}/subscribed_apps?access_token=${encodeURIComponent(token.accessToken)}`,
         );
-        webhookInstalled = (apps.data ?? []).some((a) => a.id === config.META_APP_ID);
+        webhookInstalled = (apps.data ?? []).some((a) => a.id === getOauthApps().metaAppId);
       } catch {
         /* la lecture des abonnements peut être refusée : on garde l'état connu */
       }

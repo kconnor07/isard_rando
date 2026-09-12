@@ -10,6 +10,7 @@ import {
   dmTriggerSettingsSchema,
   imageGenSettingsSchema,
   llmRoutingSchema,
+  oauthAppsSchema,
   publishSlotsSchema,
   themeIdSchema,
   toneSettingsSchema,
@@ -17,6 +18,7 @@ import {
 } from '@odile/shared';
 import { config } from '../../config.js';
 import { db, schema } from '../../db/client.js';
+import { linkedinAppConfigured, maskedOauthApps, metaAppConfigured, setOauthApps } from '../../db/oauthApps.js';
 import {
   getApprovalEmail,
   getBrand,
@@ -74,6 +76,15 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
     setSetting(request.params.key, parsed.data);
     return { ok: true, value: parsed.data };
+  });
+
+  // Clés des apps LinkedIn / Meta (secrets chiffrés, jamais renvoyés)
+  app.get('/api/settings/oauth-apps', async () => maskedOauthApps());
+  app.put('/api/settings/oauth-apps', async (request, reply) => {
+    const parsed = oauthAppsSchema.safeParse(request.body ?? {});
+    if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
+    setOauthApps(parsed.data);
+    return { ok: true, value: maskedOauthApps() };
   });
 
   app.post('/api/settings/brand/logo', async (request, reply) => {
@@ -146,8 +157,9 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
       smtp,
       chromium,
       oauth: {
-        linkedinConfigured: Boolean(config.LINKEDIN_CLIENT_ID),
-        metaConfigured: Boolean(config.META_APP_ID),
+        linkedinConfigured: linkedinAppConfigured(),
+        metaConfigured: metaAppConfigured(),
+        apps: maskedOauthApps(),
         tokens,
       },
       lastWebhookCommentAt: lastWebhook?.fetchedAt ?? null,

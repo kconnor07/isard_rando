@@ -263,3 +263,11 @@ export interface VisualCandidateDto {
   setIdx?: number;
   batch: number;
 }
+
+/** Clés des apps LinkedIn / Meta (identifiants publics, secrets jamais renvoyés) */
+export interface OauthAppsDto {
+  linkedin: { clientId: string; secretSet: boolean; source: 'dashboard' | 'env' | 'aucune'; configured: boolean };
+  meta: { appId: string; secretSet: boolean; verifyToken: string; source: 'dashboard' | 'env' | 'aucune'; configured: boolean };
+  updatedAt: string | null;
+  urls: { linkedinRedirect: string; metaRedirect: string; metaWebhook: string };
+}

@@ -18,9 +18,13 @@ première fois. Tout est gratuit.
 
 1. [developers.facebook.com](https://developers.facebook.com) → **My Apps** →
    **Create App** → cas d'usage « Autre » → type **Business**.
-2. Nom : `Odile Engine`. Une fois créée, note dans `.env` :
-   - `META_APP_ID` : App ID (tableau de bord de l'app),
-   - `META_APP_SECRET` : *App settings* → *Basic* → App Secret.
+2. Nom : `Odile Engine`. Une fois créée, copie dans le dashboard →
+   **Connexions & santé** → *Applications LinkedIn et Meta* :
+   - **App ID** (tableau de bord de l'app),
+   - **App Secret** (*App settings* → *Basic*),
+   - un **verify token** pour le webhook (bouton « Générer »), puis
+     **Enregistrer les clés**. (À défaut, `.env` : `META_APP_ID`,
+     `META_APP_SECRET`, `META_VERIFY_TOKEN`.)
 3. *App settings* → *Basic* : renseigne **App domains** (`engine.odileai.com`)
    et une URL de politique de confidentialité (celle d'odileai.com convient).
 4. **Add product** → **Facebook Login** → *Settings* → **Valid OAuth Redirect
@@ -45,8 +49,9 @@ ton compte dans *App roles* si besoin.
 ## 4. Webhook commentaires (commentaire → DM)
 
 1. Dans l'app : **Add product** → **Webhooks** → objet **Instagram**.
-2. Callback URL : `https://engine.odileai.com/webhooks/meta`
-   Verify token : la valeur de `META_VERIFY_TOKEN` de ton `.env`.
+2. Callback URL : `https://engine.odileai.com/webhooks/meta` (« Webhook
+   Meta » dans la carte des clés, bouton copier).
+   Verify token : la valeur enregistrée dans cette carte.
    Meta appelle le serveur (GET) et doit afficher « validé ».
 3. Abonne le champ **comments**.
 4. Produit **Instagram** → active la réception des webhooks pour le compte

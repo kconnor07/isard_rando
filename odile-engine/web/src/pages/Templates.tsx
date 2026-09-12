@@ -24,7 +24,7 @@ interface Draft {
   accentStyle: 'serif' | 'plain' | 'underline' | 'highlight' | 'argent';
   accentLine: boolean;
   align: 'auto' | 'left' | 'center';
-  decor: 'orbes' | 'verre' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges' | 'aucun';
+  decor: 'orbes' | 'verre' | 'liquide' | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges' | 'aucun';
   bgTop: string | null;
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
@@ -41,13 +41,15 @@ interface Draft {
   grain: boolean;
   grainLevel: number;
   frame: 'aucun' | 'texte' | 'accent';
+  /** panneau de verre derrière le bloc de texte */
+  panel: 'aucun' | 'verre' | 'liquide';
   padding: 'serre' | 'normal' | 'aere';
   showLogo: boolean;
   showCounter: boolean;
   brandStyle: 'auto' | 'logo' | 'initiales' | 'logo-nom' | 'aucun';
   counterStyle: 'pilule' | 'mono';
   titleGradient: 'aucun' | 'accent' | 'argent' | 'horizontal';
-  ctaStyle: 'verre' | 'plein' | 'degrade' | 'chevron';
+  ctaStyle: 'verre' | 'plein' | 'degrade' | 'chevron' | 'liquide';
   ctaArrow: 'droite' | 'haut-droite' | 'aucune';
   bigNumberWeight: 300 | 500 | 900;
   showAuthor: boolean;
@@ -144,6 +146,7 @@ const BLANK: Draft = {
   grain: true,
   grainLevel: 30,
   frame: 'aucun',
+  panel: 'aucun',
   padding: 'normal',
   showLogo: true,
   showCounter: true,
@@ -237,11 +240,117 @@ const VERRE = (o: Partial<Draft>): Partial<Draft> => ({
   ...o,
 });
 
+/** Base commune des recettes « Liquide » : bulles de verre liquide, panneau de verre derrière le texte, boutons liquides, compteur pilule. */
+const LIQUIDE = (o: Partial<Draft>): Partial<Draft> => ({
+  decor: 'liquide',
+  decorPosition: 'haut-droite',
+  panel: 'liquide',
+  ctaStyle: 'liquide',
+  ctaArrow: 'droite',
+  titleWeight: 800,
+  accentStyle: 'serif',
+  align: 'auto',
+  glass: 70,
+  grainLevel: 12,
+  radius: 'pill',
+  brandStyle: 'initiales',
+  counterStyle: 'pilule',
+  badgeStyle: 'contour',
+  ...o,
+});
+
 /**
  * Recettes signature : chaque recette reproduit une mise en page de référence
  * (couche codée + style d'image), en un clic. Tout reste modifiable ensuite.
  */
 const RECIPES: StartPoint[] = [
+  {
+    id: 'liquide-bleu',
+    label: 'Liquide Bleu',
+    hint: 'Bulles de verre liquide sur bleu nuit, panneau de verre derrière le texte, boutons en verre liquide',
+    swatch: 'linear-gradient(150deg,#04112c,#0a2a6b 55%,#9fd2ff)',
+    draft: LIQUIDE({ accent: '#3b9cff', secondary: '#9fd2ff', bg1: '#04112c', bg2: '#0a2a6b', accentWordColor: '#bfe0ff' }),
+  },
+  {
+    id: 'liquide-aurora',
+    label: 'Liquide Aurora',
+    hint: 'Verre liquide sur un dégradé menthe → violet, façon aurore boréale',
+    swatch: 'linear-gradient(150deg,#071a2a,#2a1b5e 55%,#5eead4)',
+    draft: LIQUIDE({ accent: '#5eead4', secondary: '#a78bfa', bg1: '#071a2a', bg2: '#2a1b5e', gradientAngle: 150, accentWordColor: '#c7f9f0' }),
+  },
+  {
+    id: 'liquide-clair',
+    label: 'Liquide Clair',
+    hint: 'Verre liquide clair sur pastel bleu → lavande, texte sombre : la lisibilité d’un écran, la douceur du verre',
+    swatch: 'linear-gradient(150deg,#ffffff,#dbe9ff 45%,#f3e8ff)',
+    draft: LIQUIDE({
+      accent: '#0a84ff',
+      secondary: '#5ac8fa',
+      bg1: '#dbe9ff',
+      bg2: '#f3e8ff',
+      bgTop: '#ffffff',
+      bgTopSpread: 12,
+      gradientAngle: 165,
+      textColor: '#0b1220',
+      accentWordColor: '#0a63d6',
+      grainLevel: 6,
+      badgeStyle: 'plein',
+    }),
+  },
+  {
+    id: 'liquide-peche',
+    label: 'Liquide Pêche',
+    hint: 'Verre liquide sur pêche → rose, corail en accent : chaleur, commerce, artisans',
+    swatch: 'linear-gradient(150deg,#ffd8c2,#ffe9f2 55%,#ff5e3a)',
+    draft: LIQUIDE({
+      accent: '#ff5e3a',
+      secondary: '#ffb86b',
+      bg1: '#ffd8c2',
+      bg2: '#ffe9f2',
+      textColor: '#2a1410',
+      accentWordColor: '#d9431f',
+      decorPosition: 'bas-gauche',
+      grainLevel: 8,
+    }),
+  },
+  {
+    id: 'neon-liquide',
+    label: 'Néon Liquide',
+    hint: 'Verre liquide magenta et cyan sur violet profond, titre dégradé : pour les sujets qui claquent',
+    swatch: 'linear-gradient(150deg,#0a0412,#1d0838 55%,#ff3fa4)',
+    draft: LIQUIDE({
+      accent: '#ff3fa4',
+      secondary: '#3ef2ff',
+      bg1: '#0a0412',
+      bg2: '#1d0838',
+      decorPosition: 'bas-droite',
+      accentWordColor: '#ff9bd3',
+      titleGradient: 'horizontal',
+      accentStyle: 'plain',
+    }),
+  },
+  {
+    id: 'givre',
+    label: 'Givre',
+    hint: 'Fond gris-bleu givré, panneau de verre dépoli, halo bleu : sobre et très lisible',
+    swatch: 'linear-gradient(150deg,#e6edf7,#cfdbee 60%,#2563eb)',
+    draft: {
+      accent: '#2563eb',
+      secondary: '#93c5fd',
+      bg1: '#e6edf7',
+      bg2: '#cfdbee',
+      textColor: '#0f172a',
+      decor: 'halo',
+      decorPosition: 'haut-gauche',
+      panel: 'verre',
+      ctaStyle: 'plein',
+      grainLevel: 18,
+      accentStyle: 'plain',
+      accentWordColor: '#2563eb',
+      titleWeight: 700,
+      counterStyle: 'pilule',
+    },
+  },
   {
     id: 'verre-bleu',
     label: 'Verre Bleu',
@@ -381,6 +490,95 @@ const RECIPES: StartPoint[] = [
       accentFromImage: true,
     },
   },
+  {
+    id: 'studio',
+    label: 'Studio',
+    hint: 'Éditorial clair : ivoire, titres Playfair, accent corail, cadre fin, listes numérotées — sans décor',
+    swatch: 'linear-gradient(150deg,#f7f3ec,#efe6d8 60%,#ff6a3d)',
+    draft: {
+      accent: '#ff6a3d',
+      secondary: '#ffb199',
+      bg1: '#f7f3ec',
+      bg2: '#efe6d8',
+      textColor: '#141210',
+      titleFont: 'playfair',
+      titleWeight: 700,
+      accentStyle: 'plain',
+      accentWordColor: '#ff6a3d',
+      decor: 'aucun',
+      frame: 'texte',
+      grainLevel: 35,
+      radius: 'rounded',
+      ctaStyle: 'plein',
+      align: 'left',
+      bulletGlyph: 'numero',
+      badgeStyle: 'texte',
+    },
+  },
+  {
+    id: 'carbone',
+    label: 'Carbone',
+    hint: 'Noir carbone, colonne de lumière, titres capitales serrés, angles nets, mot accentué vert acide',
+    swatch: 'linear-gradient(150deg,#0a0a0b,#1c1c20 60%,#a3e635)',
+    draft: {
+      accent: '#e5e7eb',
+      secondary: '#9ca3af',
+      bg1: '#0a0a0b',
+      bg2: '#1c1c20',
+      decor: 'colonne',
+      radius: 'sharp',
+      titleCase: 'upper',
+      titleWeight: 900,
+      titleScale: 90,
+      titleTracking: -10,
+      accentStyle: 'plain',
+      accentWordColor: '#a3e635',
+      ctaStyle: 'plein',
+      badgeStyle: 'contour',
+      bulletGlyph: 'tiret',
+      counterStyle: 'mono',
+    },
+  },
+  {
+    id: 'sable',
+    label: 'Sable',
+    hint: 'Beige sable, grain de papier, halo et points au centre, titres Playfair, mot accentué surligné',
+    swatch: 'linear-gradient(150deg,#f5e9d6,#e8d5b5 60%,#b45309)',
+    draft: {
+      accent: '#b45309',
+      secondary: '#f59e0b',
+      bg1: '#f5e9d6',
+      bg2: '#e8d5b5',
+      textColor: '#2b1d0e',
+      decor: 'points',
+      decorPosition: 'centre',
+      grainLevel: 45,
+      radius: 'rounded',
+      ctaStyle: 'plein',
+      accentStyle: 'highlight',
+      titleFont: 'playfair',
+      titleWeight: 600,
+    },
+  },
+  {
+    id: 'ocean',
+    label: 'Océan',
+    hint: 'Bleu profond, arcs lumineux cyan, panneau de verre dépoli, titre dégradé, bouton dégradé',
+    swatch: 'linear-gradient(150deg,#031a2b,#06344f 60%,#22d3ee)',
+    draft: {
+      accent: '#22d3ee',
+      secondary: '#0ea5e9',
+      bg1: '#031a2b',
+      bg2: '#06344f',
+      decor: 'arcs',
+      decorPosition: 'bas-gauche',
+      panel: 'verre',
+      titleGradient: 'accent',
+      accentStyle: 'plain',
+      ctaStyle: 'degrade',
+      vignette: 25,
+    },
+  },
 ];
 
 /** Autres points de départ : palettes et ambiances, un clic charge la recette. */
@@ -473,6 +671,7 @@ const POP_PRESETS: { hex: string; label: string }[] = [
 const DECOR_LABELS: Record<Draft['decor'], string> = {
   orbes: 'Orbes de verre',
   verre: 'Verre : courbes + lame (Verre Bleu)',
+  liquide: 'Verre liquide : bulles, reflets, arêtes lumineuses',
   halo: 'Halo diffus',
   degrade: 'Dégradé',
   points: 'Halo + grille de points',
@@ -1322,10 +1521,21 @@ export default function Templates() {
                   { v: 'plein', l: 'Plein accent' },
                   { v: 'degrade', l: 'Dégradé blanc → accent' },
                   { v: 'chevron', l: 'Verre + chevron ›' },
+                  { v: 'liquide', l: 'Verre liquide' },
                 ]}
                 onChange={(v) => set('ctaStyle', v)}
               />
             </div>
+            <Chips
+              label="Panneau de verre derrière le texte"
+              value={draft.panel}
+              options={[
+                { v: 'aucun', l: 'Aucun' },
+                { v: 'verre', l: 'Verre dépoli' },
+                { v: 'liquide', l: 'Verre liquide (reflets, arête lumineuse)' },
+              ]}
+              onChange={(v) => set('panel', v)}
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <Chips
                 label="Flèche des boutons"

@@ -100,6 +100,14 @@ const BLADE_POS: Record<CustomTheme['decorPosition'], string> = {
   'bas-gauche': 'left: -42%; top: -30%; transform: rotate(14deg);',
   centre: 'right: -46%; bottom: -34%;',
 };
+/** Bulles de verre liquide : grande bulle, bulle secondaire, capsule (partiellement dans le cadre). */
+const LIQUID_POS: Record<CustomTheme['decorPosition'], { d1: string; d2: string; d3: string }> = {
+  'haut-droite': { d1: 'top: -18%; right: -26%;', d2: 'bottom: -14%; left: -22%;', d3: 'top: 57%; right: -8%; transform: rotate(-26deg);' },
+  'haut-gauche': { d1: 'top: -18%; left: -26%;', d2: 'bottom: -14%; right: -22%;', d3: 'top: 57%; left: -8%; transform: rotate(26deg);' },
+  'bas-droite': { d1: 'bottom: -18%; right: -26%;', d2: 'top: -14%; left: -22%;', d3: 'top: 14%; right: -8%; transform: rotate(-26deg);' },
+  'bas-gauche': { d1: 'bottom: -18%; left: -26%;', d2: 'top: -14%; right: -22%;', d3: 'top: 14%; left: -8%; transform: rotate(26deg);' },
+  centre: { d1: 'top: 50%; left: 50%; transform: translate(-50%, -52%);', d2: 'display: none;', d3: 'bottom: -6%; right: -10%; transform: rotate(-22deg);' },
+};
 const COLUMN_X: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 60, 'haut-gauche': 40, 'bas-droite': 60, 'bas-gauche': 40, centre: 50 };
 const COLUMN_Y: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 38, 'haut-gauche': 38, 'bas-droite': 62, 'bas-gauche': 62, centre: 48 };
 /** Mélange linéaire de deux hex (t = part de b). */
@@ -208,6 +216,38 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   box-shadow: 0 0 2px ${rgba('#ffffff', 0.8)}, 0 0 60px ${rgba(accent, 0.3)};
 }
 .has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.15; }`
+      : theme.decor === 'liquide'
+        ? `
+/* Verre liquide : bulles de verre translucides, arête lumineuse, reflet spéculaire, ombre colorée */
+.decor-1, .decor-2, .decor-3 {
+  position: absolute; z-index: 2; border-radius: 50%;
+  background: ${
+    light
+      ? `radial-gradient(circle at 30% 26%, ${rgba('#ffffff', 0.2)} 0%, ${rgba(accent, 0.26)} 30%, ${rgba(secondary, 0.14)} 58%, ${rgba(theme.bg2, 0.05)} 80%)`
+      : `radial-gradient(circle at 30% 26%, ${rgba('#ffffff', 0.72)} 0%, ${rgba('#ffffff', 0.5)} 34%, ${rgba(accent, 0.22)} 70%, ${rgba('#ffffff', 0.3)} 100%)`
+  };
+  border: 1.5px solid ${rgba('#ffffff', light ? 0.32 : 0.85)};
+  box-shadow:
+    inset 0 2px 0 ${rgba('#ffffff', light ? 0.55 : 0.95)},
+    inset 0 -46px 90px ${rgba(accent, light ? 0.34 : 0.16)},
+    inset 0 0 0 1px ${rgba('#ffffff', 0.08)},
+    0 70px 150px -40px ${rgba(accent, light ? 0.6 : 0.35)},
+    0 0 2px ${rgba('#ffffff', 0.6)};
+  backdrop-filter: blur(12px) saturate(1.25);
+  -webkit-backdrop-filter: blur(12px) saturate(1.25);
+}
+.decor-1 { ${LIQUID_POS[theme.decorPosition].d1} width: 940px; height: 940px; }
+.decor-2 { ${LIQUID_POS[theme.decorPosition].d2} width: 680px; height: 680px; }
+.decor-3 { ${LIQUID_POS[theme.decorPosition].d3} width: 600px; height: 236px; border-radius: 999px;
+  background: linear-gradient(120deg, ${rgba('#ffffff', light ? 0.24 : 0.7)} 0%, ${rgba(secondary, light ? 0.2 : 0.3)} 55%, ${rgba(accent, light ? 0.14 : 0.2)} 100%); }
+/* Reflet spéculaire en haut à gauche de chaque bulle */
+.decor-1::before, .decor-2::before, .decor-3::before {
+  content: ''; position: absolute; left: 12%; top: 8%; width: 48%; height: 24%; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, ${rgba('#ffffff', light ? 0.5 : 0.85)} 0%, transparent 70%);
+  filter: blur(7px);
+}
+.decor-3::before { left: 8%; top: 12%; width: 40%; height: 34%; }
+.has-hero .decor-1, .has-hero .decor-2, .has-hero .decor-3 { opacity: 0.35; }`
       : theme.decor === 'halo'
         ? `
 .decor-1 {
@@ -433,6 +473,68 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
       : theme.ctaStyle === 'degrade'
         ? `.cta-button, .keyword-chip { background: linear-gradient(90deg, #ffffff 0%, ${accent} 100%); border-color: transparent; color: #0b0b0e; backdrop-filter: none; box-shadow: 0 24px 60px -24px ${rgba(accent, 0.7)}; }`
         : '';
+  // Bouton « verre liquide » : verre blanc translucide, arête lumineuse, reflet en haut, ombre à l'accent
+  const liquidCta =
+    theme.ctaStyle === 'liquide'
+      ? `
+.cta-button, .keyword-chip {
+  position: relative; overflow: hidden; color: ${theme.textColor};
+  background: linear-gradient(160deg, ${rgba('#ffffff', light ? 0.26 : 0.72)} 0%, ${rgba('#ffffff', light ? 0.09 : 0.5)} 55%, ${rgba(accent, 0.16)} 100%);
+  border: 1.5px solid ${rgba('#ffffff', light ? 0.5 : 0.9)};
+  backdrop-filter: blur(26px) saturate(1.5); -webkit-backdrop-filter: blur(26px) saturate(1.5);
+  box-shadow:
+    inset 0 2px 0 ${rgba('#ffffff', light ? 0.6 : 0.95)},
+    inset 0 -2px 8px ${rgba('#ffffff', 0.08)},
+    inset 0 0 0 1px ${rgba(accent, 0.18)},
+    0 28px 70px -22px ${rgba(accent, 0.6)},
+    0 0 0 1px ${rgba(accent, 0.14)};
+}
+.cta-button::before, .keyword-chip::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, ${rgba('#ffffff', light ? 0.32 : 0.55)} 0%, ${rgba('#ffffff', 0.06)} 42%, transparent 62%);
+}
+.cta-button::after { position: relative; }
+.cta-button > *, .keyword-chip > * { position: relative; }`
+      : '';
+  // Panneau de verre derrière le bloc de texte (dépoli ou liquide) : la pile devient une carte
+  const panelInset = theme.panel === 'liquide' ? '-60px -68px' : '-52px -60px';
+  const panelRadius = theme.panel === 'liquide' ? '72px' : theme.radius === 'sharp' ? '10px' : '48px';
+  // Verre dépoli : blanc translucide dans les deux cas (sur fond clair, une carte givrée blanche — jamais un voile gris)
+  const panel =
+    theme.panel === 'verre'
+      ? `
+.stack { position: relative; }
+.stack::before {
+  content: ''; position: absolute; inset: ${panelInset}; z-index: -1; border-radius: ${panelRadius}; pointer-events: none;
+  background: linear-gradient(160deg, ${rgba('#ffffff', light ? 0.1 : 0.5)} 0%, ${rgba('#ffffff', light ? 0.04 : 0.34)} 60%, ${rgba('#ffffff', light ? 0.07 : 0.42)} 100%);
+  border: 1px solid ${rgba('#ffffff', light ? 0.2 : 0.8)};
+  backdrop-filter: blur(30px) saturate(1.3); -webkit-backdrop-filter: blur(30px) saturate(1.3);
+  box-shadow: inset 0 1.5px 0 ${rgba('#ffffff', light ? 0.28 : 0.95)}, inset 0 -1px 0 ${rgba('#ffffff', 0.05)}, 0 40px 100px -30px ${rgba('#000000', light ? 0.6 : 0.22)}${light ? '' : `, 0 0 0 1px ${rgba(theme.bg2, 0.12)}`};
+}
+.has-hero .stack::before { background: linear-gradient(160deg, ${rgba('#ffffff', light ? 0.14 : 0.58)} 0%, ${rgba('#ffffff', light ? 0.07 : 0.4)} 100%); }`
+      : theme.panel === 'liquide'
+        ? `
+.stack { position: relative; }
+.stack::before {
+  content: ''; position: absolute; inset: ${panelInset}; z-index: -1; border-radius: ${panelRadius}; pointer-events: none;
+  background: linear-gradient(155deg, ${rgba('#ffffff', light ? 0.2 : 0.58)} 0%, ${rgba('#ffffff', light ? 0.06 : 0.4)} 40%, ${rgba(accent, light ? 0.12 : 0.1)} 100%);
+  border: 1.5px solid ${rgba('#ffffff', light ? 0.45 : 0.85)};
+  backdrop-filter: blur(34px) saturate(1.5); -webkit-backdrop-filter: blur(34px) saturate(1.5);
+  box-shadow:
+    inset 0 2px 0 ${rgba('#ffffff', light ? 0.6 : 0.95)},
+    inset 0 -2px 10px ${rgba('#ffffff', 0.1)},
+    inset 0 0 0 1px ${rgba(accent, 0.16)},
+    0 50px 120px -30px ${rgba(light ? '#000000' : theme.bg2, light ? 0.65 : 0.35)},
+    0 0 0 1px ${rgba(accent, 0.12)},
+    0 0 90px -20px ${rgba(accent, light ? 0.45 : 0.25)};
+}
+.stack::after {
+  content: ''; position: absolute; inset: ${panelInset}; z-index: -1; border-radius: ${panelRadius}; pointer-events: none;
+  background:
+    linear-gradient(180deg, ${rgba('#ffffff', light ? 0.22 : 0.4)} 0%, ${rgba('#ffffff', 0.05)} 22%, transparent 48%),
+    radial-gradient(60% 40% at 18% 8%, ${rgba('#ffffff', light ? 0.35 : 0.55)} 0%, transparent 60%);
+}`
+        : '';
   const bigWeight = [300, 500, 900].includes(theme.bigNumberWeight) ? theme.bigNumberWeight : 900;
   const bigNumber = `:root { --big-weight: ${bigWeight}; }${bigWeight === 300 ? '\n.big-number { font-size: 320px; letter-spacing: -0.05em; }' : ''}`;
   const pad = PADDINGS[theme.padding] ?? PADDINGS.normal;
@@ -569,6 +671,8 @@ ${bigNumber}
 .notif-card, .browser-frame { border-radius: ${radii.card}; }
 .keyword-chip { background: rgba(${veil}, ${(0.09 * glass).toFixed(3)}); border-color: rgba(${veil}, ${(0.2 * glass).toFixed(3)}); }
 ${ctaStyle}
+${liquidCta}
+${panel}
 ${frame}
 ${footer}
 ${author}
@@ -580,6 +684,7 @@ ${
     : `
 /* Texte sombre : le verre et le logo s'inversent pour rester lisibles */
 .brand-wordmark, .brand-logo { filter: invert(1); }
+.has-hero .annotation { background: rgba(255, 255, 255, 0.74); color: ${theme.textColor}; opacity: 1; box-shadow: 0 8px 30px -12px rgba(11, 11, 14, 0.35); }
 .keyword-chip { box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.5), 0 24px 60px -28px rgba(11, 11, 14, 0.3); }
 .notif-card { background: rgba(255, 255, 255, 0.85); border-color: rgba(11, 11, 14, 0.1); }
 .notif-title { color: #0b0b0e; }
@@ -633,7 +738,8 @@ export function slideStyleFor(theme: CustomTheme | null, overrides: VisualOverri
   const align = theme?.align && theme.align !== 'auto' ? theme.align : CENTERED_KINDS.has(kind) ? 'center' : 'left';
   const classes = [
     `align-${align}`,
-    theme?.ctaStyle === 'chevron' ? 'cta-chevron' : '',
+    theme?.ctaStyle === 'chevron' ? 'cta-chevron' : theme?.ctaStyle === 'liquide' ? 'cta-liquide' : '',
+    theme?.panel && theme.panel !== 'aucun' ? `panel-${theme.panel}` : '',
     `cta-arrow-${theme?.ctaArrow ?? 'droite'}`,
     `grade-${theme?.heroGrade ?? 'vif'}`,
     `hero-place-${placement}`,

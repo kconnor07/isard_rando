@@ -33,7 +33,7 @@ export const templateSchema = z.object({
   accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'verre', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun']),
+  decor: z.enum(['orbes', 'verre', 'liquide', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun']),
   bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z
@@ -54,6 +54,7 @@ export const templateSchema = z.object({
   grain: z.boolean(),
   grainLevel: pct(30),
   frame: z.enum(['aucun', 'texte', 'accent']).default('aucun'),
+  panel: z.enum(['aucun', 'verre', 'liquide']).default('aucun'),
   padding: z.enum(['serre', 'normal', 'aere']).default('normal'),
   // Pied de page
   showLogo: z.boolean().default(true),
@@ -62,7 +63,7 @@ export const templateSchema = z.object({
   counterStyle: z.enum(['pilule', 'mono']).default('mono'),
   // Pack premium
   titleGradient: z.enum(['aucun', 'accent', 'argent', 'horizontal']).default('aucun'),
-  ctaStyle: z.enum(['verre', 'plein', 'degrade', 'chevron']).default('verre'),
+  ctaStyle: z.enum(['verre', 'plein', 'degrade', 'chevron', 'liquide']).default('verre'),
   ctaArrow: z.enum(['droite', 'haut-droite', 'aucune']).default('droite'),
   bigNumberWeight: z.union([z.literal(300), z.literal(500), z.literal(900)]).default(900),
   showAuthor: z.boolean().default(false),

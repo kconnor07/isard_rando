@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Activity, RefreshCw, Unplug } from 'lucide-react';
-import { useState } from 'react';
+import { Activity, Copy, KeyRound, RefreshCw, Unplug } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { api, humanizeError } from '../api/client';
-import type { ConnectionCheckDto, OauthTokenDto } from '../api/types';
+import type { ConnectionCheckDto, OauthAppsDto, OauthTokenDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import { toast } from '../components/Toaster';
 import { fmtDate, PageTitle } from '../components/shared';
@@ -15,7 +15,7 @@ interface HealthDto {
   llm: { anthropic: boolean; gemini: boolean };
   smtp: { ok: boolean; detail: string };
   chromium: { ok: boolean; detail: string };
-  oauth: { linkedinConfigured: boolean; metaConfigured: boolean; tokens: OauthTokenDto[] };
+  oauth: { linkedinConfigured: boolean; metaConfigured: boolean; apps: OauthAppsDto; tokens: OauthTokenDto[] };
   lastWebhookCommentAt: string | null;
   lastJobRuns: { job: string; ok: boolean | null; finishedAt: string | null; summary: unknown }[];
 }
@@ -39,6 +39,141 @@ function Dot({ ok, warn }: { ok: boolean; warn?: boolean }) {
         !ok ? 'bg-transparent ring-1 ring-white/35' : warn ? 'bg-white/70' : 'bg-accent'
       }`}
     />
+  );
+}
+
+function CopyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-xs">
+      <span className="w-44 shrink-0 text-muted">{label}</span>
+      <code className="mono min-w-0 flex-1 truncate rounded-md border border-line bg-white/[0.03] px-2 py-1 text-[11px]" title={value}>
+        {value}
+      </code>
+      <button
+        className="btn-ghost !px-2 !py-1"
+        title="Copier"
+        onClick={() => void navigator.clipboard?.writeText(value).then(() => toast.success('Copié'), () => toast.error('Copie impossible'))}
+      >
+        <Copy size={12} />
+      </button>
+    </div>
+  );
+}
+
+const SOURCE_LABEL: Record<OauthAppsDto['linkedin']['source'], string> = { dashboard: 'saisie ici', env: 'depuis le fichier .env', aucune: 'manquante' };
+
+/** Clés des applications LinkedIn et Meta : saisie, URLs à coller dans les portails, mini-guide. */
+function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => void }) {
+  const [open, setOpen] = useState(!apps.linkedin.configured || !apps.meta.configured);
+  const blank = () => ({
+    linkedinClientId: apps.linkedin.clientId,
+    linkedinClientSecret: '',
+    metaAppId: apps.meta.appId,
+    metaAppSecret: '',
+    metaVerifyToken: apps.meta.verifyToken,
+  });
+  const [form, setForm] = useState(blank);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => setForm(blank()), [apps.linkedin.clientId, apps.meta.appId, apps.meta.verifyToken]);
+  const save = useMutation({
+    mutationFn: () => api.put<{ ok: boolean }>('/api/settings/oauth-apps', form),
+    onSuccess: () => {
+      toast.success('Clés enregistrées — tu peux connecter les comptes ci-dessous');
+      onSaved();
+    },
+  });
+  const set = (k: keyof ReturnType<typeof blank>, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const randomToken = () => {
+    const bytes = new Uint8Array(18);
+    crypto.getRandomValues(bytes);
+    set('metaVerifyToken', Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(''));
+  };
+  const status = (a: { configured: boolean; source: OauthAppsDto['linkedin']['source'] }) =>
+    a.configured ? `configurée (${SOURCE_LABEL[a.source]})` : a.source === 'aucune' ? 'clés manquantes' : `identifiant présent mais secret manquant (${SOURCE_LABEL[a.source]})`;
+
+  return (
+    <div className="card mb-5 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-bold">
+            <KeyRound size={16} /> Applications LinkedIn et Meta (clés)
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            LinkedIn : {status(apps.linkedin)} · Meta : {status(apps.meta)}
+          </p>
+        </div>
+        <button className="btn-ghost !py-1.5 text-xs" onClick={() => setOpen((o) => !o)}>
+          {open ? 'Replier' : 'Modifier les clés'}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-4 flex flex-col gap-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-line p-4">
+              <h3 className="text-sm font-bold">LinkedIn</h3>
+              <ol className="mt-1 list-decimal pl-4 text-xs text-muted">
+                <li>
+                  <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noreferrer" className="text-accent hover:underline">linkedin.com/developers/apps</a> → Create app, associée à la Page LinkedIn de la marque.
+                </li>
+                <li>Onglet Products : « Sign In with LinkedIn using OpenID Connect » et « Share on LinkedIn ».</li>
+                <li>Onglet Auth : copie Client ID et Client Secret ci-dessous, ajoute l’URL de redirection.</li>
+              </ol>
+              <label className="label mt-3">Client ID</label>
+              <input className="input" value={form.linkedinClientId} onChange={(e) => set('linkedinClientId', e.target.value)} placeholder="86abc123def456" autoComplete="off" />
+              <label className="label mt-3">Client Secret</label>
+              <input
+                className="input"
+                type="password"
+                value={form.linkedinClientSecret}
+                onChange={(e) => set('linkedinClientSecret', e.target.value)}
+                placeholder={apps.linkedin.secretSet ? '•••••••• enregistré — laisser vide pour conserver' : 'WPL_AP1.…'}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="rounded-xl border border-line p-4">
+              <h3 className="text-sm font-bold">Meta (Instagram via Facebook)</h3>
+              <ol className="mt-1 list-decimal pl-4 text-xs text-muted">
+                <li>
+                  <a href="https://developers.facebook.com/apps" target="_blank" rel="noreferrer" className="text-accent hover:underline">developers.facebook.com/apps</a> → Create App, type Business.
+                </li>
+                <li>App settings → Basic : copie App ID et App Secret ; ajoute le domaine public.</li>
+                <li>Facebook Login → Settings : URL de redirection ; Webhooks → Instagram : URL du webhook + verify token, champ « comments ».</li>
+              </ol>
+              <label className="label mt-3">App ID</label>
+              <input className="input" value={form.metaAppId} onChange={(e) => set('metaAppId', e.target.value)} placeholder="1234567890123456" autoComplete="off" />
+              <label className="label mt-3">App Secret</label>
+              <input
+                className="input"
+                type="password"
+                value={form.metaAppSecret}
+                onChange={(e) => set('metaAppSecret', e.target.value)}
+                placeholder={apps.meta.secretSet ? '•••••••• enregistré — laisser vide pour conserver' : 'a1b2c3…'}
+                autoComplete="new-password"
+              />
+              <label className="label mt-3">Verify token du webhook</label>
+              <div className="flex gap-2">
+                <input className="input" value={form.metaVerifyToken} onChange={(e) => set('metaVerifyToken', e.target.value)} placeholder="odile-verify" autoComplete="off" />
+                <button className="btn-ghost shrink-0 !py-1.5 text-xs" onClick={randomToken} title="Génère une valeur aléatoire à coller dans la configuration du webhook Meta">
+                  Générer
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <div className="label !mb-0">À coller dans les portails</div>
+            <CopyField label="Redirection LinkedIn" value={apps.urls.linkedinRedirect} />
+            <CopyField label="Redirection Meta" value={apps.urls.metaRedirect} />
+            <CopyField label="Webhook Meta (commentaires)" value={apps.urls.metaWebhook} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button className="btn-primary" disabled={save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? 'Enregistrement…' : 'Enregistrer les clés'}
+            </button>
+            <span className="text-xs text-muted">Les secrets sont chiffrés sur le serveur et ne sont jamais réaffichés. Un secret laissé vide conserve la valeur enregistrée.</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -206,6 +341,8 @@ export default function Setup() {
         }
       />
 
+      <AppKeysCard apps={health.oauth.apps} onSaved={refreshAll} />
+
       <div className="card mb-5 p-5">
         <h2 className="mb-3 text-base font-bold">Comptes sociaux</h2>
         <div className="flex flex-col gap-4">
@@ -241,7 +378,7 @@ export default function Setup() {
                 className="btn-primary !py-1.5 text-xs"
                 disabled={!health.oauth.linkedinConfigured || connectLinkedIn.isPending}
                 onClick={() => connectLinkedIn.mutate()}
-                title={health.oauth.linkedinConfigured ? '' : 'LINKEDIN_CLIENT_ID manquant dans .env'}
+                title={health.oauth.linkedinConfigured ? '' : 'Renseigne d’abord les clés de l’app LinkedIn ci-dessus'}
               >
                 {liToken ? 'Reconnecter' : 'Connecter'}
               </button>
@@ -356,7 +493,7 @@ export default function Setup() {
                 className="btn-primary !py-1.5 text-xs"
                 disabled={!health.oauth.metaConfigured || connectMeta.isPending}
                 onClick={() => connectMeta.mutate()}
-                title={health.oauth.metaConfigured ? '' : 'META_APP_ID manquant dans .env'}
+                title={health.oauth.metaConfigured ? '' : 'Renseigne d’abord les clés de l’app Meta ci-dessus'}
               >
                 {igToken ? 'Reconnecter' : 'Connecter'}
               </button>
@@ -382,8 +519,8 @@ export default function Setup() {
           <div className="flex items-center gap-2"><Dot ok={health.llm.anthropic} /> Claude API {health.llmMode === 'mock' && <span className="text-xs text-muted">(mode mock)</span>}</div>
           <div className="flex items-center gap-2"><Dot ok={health.llm.gemini} /> Gemini API</div>
           <div className="flex items-center gap-2"><Dot ok={health.publishMode === 'live'} /> Publication : <b>{health.publishMode === 'live' ? 'réelle' : 'dry-run (simulation)'}</b></div>
-          <div className="flex items-center gap-2"><Dot ok={health.oauth.linkedinConfigured} /> App LinkedIn <span className="text-xs text-muted">{health.oauth.linkedinConfigured ? 'configurée' : 'LINKEDIN_CLIENT_ID absent'}</span></div>
-          <div className="flex items-center gap-2"><Dot ok={health.oauth.metaConfigured} /> App Meta <span className="text-xs text-muted">{health.oauth.metaConfigured ? 'configurée' : 'META_APP_ID absent'}</span></div>
+          <div className="flex items-center gap-2"><Dot ok={health.oauth.linkedinConfigured} /> App LinkedIn <span className="text-xs text-muted">{health.oauth.linkedinConfigured ? `configurée (${SOURCE_LABEL[health.oauth.apps.linkedin.source]})` : 'clés manquantes'}</span></div>
+          <div className="flex items-center gap-2"><Dot ok={health.oauth.metaConfigured} /> App Meta <span className="text-xs text-muted">{health.oauth.metaConfigured ? `configurée (${SOURCE_LABEL[health.oauth.apps.meta.source]})` : 'clés manquantes'}</span></div>
         </div>
         <p className="mt-3 text-xs text-muted">URL publique : {health.publicUrl} · version déployée : <b className="mono">{health.version ?? 'dev'}</b></p>
       </div>

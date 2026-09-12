@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
-import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
+import { getOauthApps } from '../db/oauthApps.js';
 import { logger } from '../lib/logger.js';
 import { handleInstagramComment } from './commentDm.js';
 
@@ -28,7 +28,7 @@ export async function metaWebhookPlugin(app: FastifyInstance): Promise<void> {
     Querystring: { 'hub.mode'?: string; 'hub.verify_token'?: string; 'hub.challenge'?: string };
   }>('/webhooks/meta', async (request, reply) => {
     const q = request.query;
-    if (q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === config.META_VERIFY_TOKEN) {
+    if (q['hub.mode'] === 'subscribe' && q['hub.verify_token'] === getOauthApps().metaVerifyToken) {
       return reply.type('text/plain').send(q['hub.challenge'] ?? '');
     }
     return reply.status(403).send('Verify token invalide');
@@ -37,10 +37,11 @@ export async function metaWebhookPlugin(app: FastifyInstance): Promise<void> {
   app.post('/webhooks/meta', async (request, reply) => {
     const raw = request.body as Buffer;
     const signature = request.headers['x-hub-signature-256'];
-    if (!config.META_APP_SECRET || typeof signature !== 'string') {
+    const appSecret = getOauthApps().metaAppSecret;
+    if (!appSecret || typeof signature !== 'string') {
       return reply.status(401).send('Signature absente');
     }
-    const expected = `sha256=${createHmac('sha256', config.META_APP_SECRET).update(raw).digest('hex')}`;
+    const expected = `sha256=${createHmac('sha256', appSecret).update(raw).digest('hex')}`;
     const a = Buffer.from(signature);
     const b = Buffer.from(expected);
     if (a.length !== b.length || !timingSafeEqual(a, b)) {

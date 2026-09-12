@@ -6,6 +6,7 @@ import { logger } from '../lib/logger.js';
 import { createToken, verifyToken } from '../lib/signedToken.js';
 import { resultPage } from '../api/pages.js';
 import { requireSession } from '../api/auth.js';
+import { getOauthApps, linkedinAppConfigured, metaAppConfigured } from '../db/oauthApps.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
@@ -213,11 +214,14 @@ export async function deriveMetaPage(
 export function registerOauthRoutes(app: FastifyInstance): void {
   // ----- LinkedIn -----------------------------------------------------------
   app.get<{ Querystring: { org?: string } }>('/api/oauth/linkedin/start', { preHandler: requireSession }, async (request, reply) => {
-    if (!config.LINKEDIN_CLIENT_ID) return reply.status(400).send({ error: 'LINKEDIN_CLIENT_ID manquant dans .env' });
+    const apps = getOauthApps();
+    if (!linkedinAppConfigured(apps)) {
+      return reply.status(400).send({ error: 'Clés de l’app LinkedIn manquantes — renseigne Client ID et Client Secret dans Connexions & santé (ou dans .env)' });
+    }
     const withOrg = request.query.org === '1' || request.query.org === 'true';
     const url = new URL('https://www.linkedin.com/oauth/v2/authorization');
     url.searchParams.set('response_type', 'code');
-    url.searchParams.set('client_id', config.LINKEDIN_CLIENT_ID);
+    url.searchParams.set('client_id', apps.linkedinClientId);
     url.searchParams.set('redirect_uri', `${config.PUBLIC_URL}/oauth/linkedin/callback`);
     url.searchParams.set('scope', withOrg ? `${LI_SCOPES} ${LI_ORG_SCOPES}` : LI_SCOPES);
     url.searchParams.set('state', makeState(withOrg ? 'org' : ''));
@@ -237,11 +241,12 @@ export function registerOauthRoutes(app: FastifyInstance): void {
         return reply.type('text/html').send(resultPage(false, `Connexion LinkedIn refusée : ${reason}${hint}`));
       }
       try {
+        const apps = getOauthApps();
         const body = new URLSearchParams({
           grant_type: 'authorization_code',
           code,
-          client_id: config.LINKEDIN_CLIENT_ID ?? '',
-          client_secret: config.LINKEDIN_CLIENT_SECRET ?? '',
+          client_id: apps.linkedinClientId,
+          client_secret: apps.linkedinClientSecret,
           redirect_uri: `${config.PUBLIC_URL}/oauth/linkedin/callback`,
         });
         const token = await fetchJson<LinkedInTokenResponse>('https://www.linkedin.com/oauth/v2/accessToken', {
@@ -351,9 +356,12 @@ export function registerOauthRoutes(app: FastifyInstance): void {
 
   // ----- Meta ---------------------------------------------------------------
   app.get('/api/oauth/meta/start', { preHandler: requireSession }, async (_request, reply) => {
-    if (!config.META_APP_ID) return reply.status(400).send({ error: 'META_APP_ID manquant dans .env' });
+    const apps = getOauthApps();
+    if (!metaAppConfigured(apps)) {
+      return reply.status(400).send({ error: 'Clés de l’app Meta manquantes — renseigne App ID et App Secret dans Connexions & santé (ou dans .env)' });
+    }
     const url = new URL('https://www.facebook.com/v21.0/dialog/oauth');
-    url.searchParams.set('client_id', config.META_APP_ID);
+    url.searchParams.set('client_id', apps.metaAppId);
     url.searchParams.set('redirect_uri', `${config.PUBLIC_URL}/oauth/meta/callback`);
     url.searchParams.set('scope', META_SCOPES);
     url.searchParams.set('state', makeState());
@@ -370,15 +378,16 @@ export function registerOauthRoutes(app: FastifyInstance): void {
           .send(resultPage(false, `Connexion Meta refusée : ${error_description ?? 'state invalide'}`));
       }
       try {
+        const apps = getOauthApps();
         // 1. code → jeton court
         const shortTok = await fetchJson<{ access_token: string }>(
-          `${GRAPH}/oauth/access_token?client_id=${config.META_APP_ID}&client_secret=${config.META_APP_SECRET}&redirect_uri=${encodeURIComponent(
+          `${GRAPH}/oauth/access_token?client_id=${encodeURIComponent(apps.metaAppId)}&client_secret=${encodeURIComponent(apps.metaAppSecret)}&redirect_uri=${encodeURIComponent(
             `${config.PUBLIC_URL}/oauth/meta/callback`,
           )}&code=${encodeURIComponent(code)}`,
         );
         // 2. jeton court → jeton utilisateur long (~60 j, renouvelé par le job quotidien)
         const longTok = await fetchJson<{ access_token: string; expires_in?: number }>(
-          `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${config.META_APP_ID}&client_secret=${config.META_APP_SECRET}&fb_exchange_token=${encodeURIComponent(
+          `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${encodeURIComponent(apps.metaAppId)}&client_secret=${encodeURIComponent(apps.metaAppSecret)}&fb_exchange_token=${encodeURIComponent(
             shortTok.access_token,
           )}`,
         );

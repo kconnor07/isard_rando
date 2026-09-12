@@ -263,6 +263,16 @@ export const regenerateSchema = z.object({
 
 export const rejectSchema = z.object({ reason: z.string().max(500).optional() });
 
+/** Clés des apps LinkedIn / Meta saisies depuis le dashboard (un secret vide conserve l'existant) */
+export const oauthAppsSchema = z.object({
+  linkedinClientId: z.string().trim().max(200).default(''),
+  linkedinClientSecret: z.string().trim().max(400).optional(),
+  metaAppId: z.string().trim().max(200).default(''),
+  metaAppSecret: z.string().trim().max(400).optional(),
+  metaVerifyToken: z.string().trim().max(200).default(''),
+});
+export type OauthAppsInput = z.infer<typeof oauthAppsSchema>;
+
 /** Programmation à une date précise (ISO 8601 avec fuseau) */
 export const schedulePostSchema = z.object({ at: z.string().datetime({ offset: true }) });
 

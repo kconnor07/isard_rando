@@ -366,7 +366,7 @@ export const customThemes = sqliteTable('custom_themes', {
   textColor: text('text_color').notNull().default('#fdfdfd'),
   /** décor : orbes de verre, halo, dégradé, grille de points, anneaux, arcs lumineux, ou rien */
   decor: text('decor', {
-    enum: ['orbes', 'verre', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun'],
+    enum: ['orbes', 'verre', 'liquide', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'aucun'],
   })
     .notNull()
     .default('orbes'),
@@ -416,6 +416,8 @@ export const customThemes = sqliteTable('custom_themes', {
   /** intensité du verre (badges, pilules), 0-100 — 50 = réglage d'origine */
   glass: integer('glass').notNull().default(50),
   frame: text('frame', { enum: ['aucun', 'texte', 'accent'] }).notNull().default('aucun'),
+  /** panneau de verre derrière le bloc de texte : aucun, verre dépoli, verre liquide (reflets, arête lumineuse) */
+  panel: text('panel', { enum: ['aucun', 'verre', 'liquide'] }).notNull().default('aucun'),
   padding: text('padding', { enum: ['serre', 'normal', 'aere'] }).notNull().default('normal'),
   // --- Pied de page ---
   showLogo: integer('show_logo', { mode: 'boolean' }).notNull().default(true),
@@ -428,7 +430,7 @@ export const customThemes = sqliteTable('custom_themes', {
   /** titre en dégradé : aucun, blanc → accent, blanc → argent */
   titleGradient: text('title_gradient', { enum: ['aucun', 'accent', 'argent', 'horizontal'] }).notNull().default('aucun'),
   /** style des pilules d'action (CTA, mot-clé) */
-  ctaStyle: text('cta_style', { enum: ['verre', 'plein', 'degrade', 'chevron'] }).notNull().default('verre'),
+  ctaStyle: text('cta_style', { enum: ['verre', 'plein', 'degrade', 'chevron', 'liquide'] }).notNull().default('verre'),
   /** flèche du bouton d'action */
   ctaArrow: text('cta_arrow', { enum: ['droite', 'haut-droite', 'aucune'] }).notNull().default('droite'),
   /** graisse des gros chiffres (300 fin, 500 médium, 900 noir) */

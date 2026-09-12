@@ -10,10 +10,11 @@
    - **Sign In with LinkedIn using OpenID Connect** (instantané),
    - **Share on LinkedIn** (instantané) → permission `w_member_social`.
 4. Onglet **Auth** :
-   - note `Client ID` et `Client Secret` → `.env`
-     (`LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`),
-   - **Authorized redirect URLs** :
-     `https://engine.odileai.com/oauth/linkedin/callback`.
+   - copie `Client ID` et `Client Secret` dans le dashboard → **Connexions &
+     santé** → *Applications LinkedIn et Meta* → **Enregistrer les clés**
+     (ou, à défaut, dans `.env` : `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`),
+   - **Authorized redirect URLs** : l'URL « Redirection LinkedIn » affichée
+     dans cette même carte (`https://engine.odileai.com/oauth/linkedin/callback`).
 
 ## 2. Connecter le profil depuis le dashboard
 

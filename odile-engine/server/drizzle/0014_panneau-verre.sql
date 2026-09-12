@@ -1,0 +1,1 @@
+ALTER TABLE `custom_themes` ADD `panel` text DEFAULT 'aucun' NOT NULL;
