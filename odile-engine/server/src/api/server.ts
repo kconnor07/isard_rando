@@ -63,14 +63,30 @@ export async function buildServer(): Promise<FastifyInstance> {
 
   // Dashboard statique (production : web/dist construit par Vite)
   if (fs.existsSync(WEB_DIST)) {
-    await app.register(fastifyStatic, { root: WEB_DIST, prefix: '/', wildcard: false });
+    await app.register(fastifyStatic, {
+      root: WEB_DIST,
+      prefix: '/',
+      wildcard: false,
+      // Les fichiers d'assets portent une empreinte dans leur nom (index-a1b2c3.js) :
+      // ils ne changent jamais, donc cache long. index.html, lui, doit être revalidé à
+      // chaque visite — sinon le navigateur (Safari iOS en particulier, qui applique un
+      // cache heuristique en l'absence d'en-tête) continue de charger l'ancien bundle
+      // après un déploiement, et l'utilisateur voit une version périmée du dashboard.
+      setHeaders(reply, filePath) {
+        const asset = filePath.includes(`${path.sep}assets${path.sep}`);
+        reply.header('cache-control', asset ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    });
     app.setNotFoundHandler(async (request, reply) => {
       const url = request.url;
       const isApiLike =
         url.startsWith('/api') || url.startsWith('/a/') || url.startsWith('/r/') ||
         url.startsWith('/webhooks') || url.startsWith('/public-assets') || url.startsWith('/oauth');
       if (request.method === 'GET' && !isApiLike) {
-        return reply.type('text/html').send(fs.readFileSync(path.join(WEB_DIST, 'index.html')));
+        return reply
+          .type('text/html')
+          .header('cache-control', 'no-cache')
+          .send(fs.readFileSync(path.join(WEB_DIST, 'index.html')));
       }
       return reply.status(404).send({ error: 'Introuvable' });
     });
