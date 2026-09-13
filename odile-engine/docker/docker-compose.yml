@@ -2,8 +2,13 @@
 # Prérequis : .env à la racine d'odile-engine/ (copie de .env.example rempli)
 # et la variable DOMAIN (ex: engine.odileai.com) pointée en DNS vers le serveur.
 #
+# Le .env étant à la racine et le compose dans docker/, toute commande compose
+# doit passer --env-file (sinon : « required variable DOMAIN is missing a value »).
+# Le plus simple est d'utiliser les deux scripts fournis :
+#
 #   cd odile-engine
-#   docker compose -f docker/docker-compose.yml up -d --build
+#   ./docker/deploy.sh                    # mettre à jour, reconstruire, redémarrer
+#   ./docker/dc.sh logs --tail=40 caddy   # toute autre commande compose
 
 services:
   app:

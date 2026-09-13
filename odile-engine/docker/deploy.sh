@@ -35,7 +35,7 @@ PUBLIC_URL="$(grep -E '^PUBLIC_URL=' .env | cut -d= -f2- | tr -d '\r' | sed -e "
 health() {
   # Le port n'est pas publié sur l'hôte : on interroge l'application depuis son conteneur,
   # puis l'URL publique (Caddy) si elle est renseignée.
-  sudo docker compose -f docker/docker-compose.yml exec -T app node -e "fetch('http://127.0.0.1:3080/healthz').then(r=>r.text()).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))" 2>/dev/null \
+  sudo docker compose --env-file .env -f docker/docker-compose.yml exec -T app node -e "fetch('http://127.0.0.1:3080/healthz').then(r=>r.text()).then(t=>process.stdout.write(t)).catch(()=>process.exit(1))" 2>/dev/null \
     || { [[ -n "$PUBLIC_URL" ]] && curl -fs "$PUBLIC_URL/healthz" 2>/dev/null; }
 }
 echo "→ attente du démarrage"
@@ -47,5 +47,5 @@ for i in $(seq 1 20); do
     exit 0
   fi
 done
-echo "✗ l'application ne répond pas — sudo docker compose -f docker/docker-compose.yml logs --tail=100 app"
+echo "✗ l'application ne répond pas — ./docker/dc.sh logs --tail=100 app"
 exit 1
