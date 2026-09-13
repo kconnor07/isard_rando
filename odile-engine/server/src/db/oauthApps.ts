@@ -16,6 +16,7 @@ interface Stored {
   metaAppId: string;
   metaAppSecretEnc: string | null;
   metaVerifyToken: string;
+  metaConfigId: string;
   updatedAt: string | null;
 }
 
@@ -27,6 +28,7 @@ function readStored(): Stored {
     metaAppId: typeof raw?.metaAppId === 'string' ? raw.metaAppId : '',
     metaAppSecretEnc: typeof raw?.metaAppSecretEnc === 'string' ? raw.metaAppSecretEnc : null,
     metaVerifyToken: typeof raw?.metaVerifyToken === 'string' ? raw.metaVerifyToken : '',
+    metaConfigId: typeof raw?.metaConfigId === 'string' ? raw.metaConfigId : '',
     updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null,
   };
 }
@@ -48,6 +50,8 @@ export interface OauthApps {
   metaAppId: string;
   metaAppSecret: string;
   metaVerifyToken: string;
+  /** vide = dialogue OAuth classique ; renseigné = Facebook Login for Business */
+  metaConfigId: string;
   source: { linkedin: AppSource; meta: AppSource };
 }
 
@@ -65,6 +69,7 @@ export function getOauthApps(): OauthApps {
     metaAppId,
     metaAppSecret,
     metaVerifyToken: s.metaVerifyToken || config.META_VERIFY_TOKEN,
+    metaConfigId: metaDash ? s.metaConfigId : (config.META_CONFIG_ID ?? ''),
     source: {
       linkedin: liDash ? 'dashboard' : linkedinClientId ? 'env' : 'aucune',
       meta: metaDash ? 'dashboard' : metaAppId ? 'env' : 'aucune',
@@ -93,6 +98,7 @@ export function setOauthApps(input: OauthAppsInput): void {
     metaAppId: input.metaAppId,
     metaAppSecretEnc: !input.metaAppId ? null : input.metaAppSecret ? encryptSecret(input.metaAppSecret) : current.metaAppSecretEnc,
     metaVerifyToken: input.metaVerifyToken,
+    metaConfigId: input.metaConfigId,
     updatedAt: new Date().toISOString(),
   };
   setSetting(KEY, next);
@@ -113,6 +119,7 @@ export function maskedOauthApps() {
       appId: apps.metaAppId,
       secretSet: Boolean(apps.metaAppSecret),
       verifyToken: apps.metaVerifyToken,
+      configId: apps.metaConfigId,
       source: apps.source.meta,
       configured: metaAppConfigured(apps),
     },

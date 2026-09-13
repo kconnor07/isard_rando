@@ -270,6 +270,8 @@ export const oauthAppsSchema = z.object({
   metaAppId: z.string().trim().max(200).default(''),
   metaAppSecret: z.string().trim().max(400).optional(),
   metaVerifyToken: z.string().trim().max(200).default(''),
+  /** Facebook Login for Business : la configuration porte permissions et actifs (Page + compte Instagram) */
+  metaConfigId: z.string().trim().max(200).default(''),
 });
 export type OauthAppsInput = z.infer<typeof oauthAppsSchema>;
 

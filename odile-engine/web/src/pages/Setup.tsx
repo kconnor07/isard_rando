@@ -71,10 +71,11 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
     metaAppId: apps.meta.appId,
     metaAppSecret: '',
     metaVerifyToken: apps.meta.verifyToken,
+    metaConfigId: apps.meta.configId ?? '',
   });
   const [form, setForm] = useState(blank);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => setForm(blank()), [apps.linkedin.clientId, apps.meta.appId, apps.meta.verifyToken]);
+  useEffect(() => setForm(blank()), [apps.linkedin.clientId, apps.meta.appId, apps.meta.verifyToken, apps.meta.configId]);
   const save = useMutation({
     mutationFn: () => api.put<{ ok: boolean }>('/api/settings/oauth-apps', form),
     onSuccess: () => {
@@ -157,6 +158,20 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
                 placeholder={apps.meta.secretSet ? '•••••••• enregistré — laisser vide pour conserver' : 'a1b2c3…'}
                 autoComplete="new-password"
               />
+              <label className="label mt-3">ID de configuration (Facebook Login for Business)</label>
+              <input
+                className="input"
+                value={form.metaConfigId}
+                onChange={(e) => set('metaConfigId', e.target.value)}
+                placeholder="facultatif — 1234567890123456"
+                autoComplete="off"
+              />
+              <p className="mt-1 text-[11px] leading-snug text-muted">
+                App Meta → <i>Connexion Facebook pour les entreprises</i> → <i>Configurations</i>. La configuration porte
+                les permissions <b>et</b> les actifs proposés (Page + compte Instagram). Sans elle, Meta peut accorder les
+                permissions sans rattacher le compte Instagram au jeton, et la connexion échoue avec « aucun compte
+                Instagram professionnel ».
+              </p>
               <label className="label mt-3">Verify token du webhook</label>
               <div className="flex gap-2">
                 <input className="input" value={form.metaVerifyToken} onChange={(e) => set('metaVerifyToken', e.target.value)} placeholder="odile-verify" autoComplete="off" />

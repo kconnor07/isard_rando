@@ -386,7 +386,16 @@ export function registerOauthRoutes(app: FastifyInstance): void {
     const url = new URL('https://www.facebook.com/v21.0/dialog/oauth');
     url.searchParams.set('client_id', apps.metaAppId);
     url.searchParams.set('redirect_uri', `${config.PUBLIC_URL}/oauth/meta/callback`);
-    url.searchParams.set('scope', metaScopes(minimal));
+    if (apps.metaConfigId) {
+      // Facebook Login for Business : c'est la configuration qui porte les permissions
+      // ET les actifs proposés (Page + compte Instagram). Un « scope » en plus serait
+      // ignoré, et sans elle Meta ouvre un dialogue sans périmètre d'actifs — l'app
+      // obtient les permissions mais aucune Page ne remonte son compte Instagram.
+      url.searchParams.set('config_id', apps.metaConfigId);
+      url.searchParams.set('response_type', 'code');
+    } else {
+      url.searchParams.set('scope', metaScopes(minimal));
+    }
     url.searchParams.set('state', makeState());
     return { url: url.toString() };
   });

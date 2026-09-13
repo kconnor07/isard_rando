@@ -52,6 +52,8 @@ const envSchema = z.object({
   LINKEDIN_VERSION: z.string().regex(/^\d{6}$/).default('202608'),
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
+  /** ID de configuration Facebook Login for Business (sinon dialogue OAuth classique) */
+  META_CONFIG_ID: z.string().optional(),
   /** valeur arbitraire à recopier dans la config webhook Meta */
   META_VERIFY_TOKEN: z.string().default('odile-verify'),
 

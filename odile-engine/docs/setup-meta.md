@@ -38,6 +38,31 @@ première fois. Tout est gratuit.
 4. **Add product** → **Facebook Login** → *Settings* → **Valid OAuth Redirect
    URIs** : `https://engine.odileai.com/oauth/meta/callback`.
 
+## 2 bis. Connexion Facebook pour les entreprises (configuration)
+
+Meta bascule les apps Business sur *Facebook Login for Business*. Dans ce mode,
+c'est une **configuration** qui définit les permissions ET les actifs proposés à
+la connexion (Page + compte Instagram) — et l'URL OAuth doit porter son
+`config_id`. Sans configuration, le dialogue accorde bien les permissions mais
+n'attache aucun actif au jeton : `/me/accounts` renvoie alors des Pages sans
+`instagram_business_account`, et la connexion échoue sur « aucun compte
+Instagram professionnel ».
+
+1. App Meta → **Connexion Facebook pour les entreprises** → *Configurations* →
+   **Créer une configuration**.
+2. Type de jeton : **jeton d'accès utilisateur**.
+3. Autorisations : `pages_show_list`, `pages_read_engagement`, `instagram_basic`,
+   `instagram_content_publish` (socle) ; ajouter `pages_manage_metadata`,
+   `instagram_manage_comments`, `instagram_manage_messages`,
+   `instagram_manage_insights` si les cas d'utilisation les proposent.
+4. Actifs : **Pages** et **comptes Instagram**.
+5. Copier l'**ID de configuration** dans le dashboard → Connexions & santé →
+   *Applications LinkedIn et Meta* → champ « ID de configuration », puis
+   **Enregistrer les clés**. (À défaut, `.env` : `META_CONFIG_ID`.)
+
+Dès qu'il est renseigné, le moteur construit l'URL avec `config_id` et sans
+`scope` ; laissé vide, il conserve le dialogue OAuth classique.
+
 ## 3. Connecter le compte depuis le dashboard
 
 ⚠️ Si Facebook répond « **Invalid Scopes** » en listant `pages_manage_metadata`,
