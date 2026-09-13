@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import { fetchJson } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { createToken, verifyToken } from '../lib/signedToken.js';
-import { resultPage } from '../api/pages.js';
+import { escapeHtml, resultPage } from '../api/pages.js';
 import { requireSession } from '../api/auth.js';
 import { getOauthApps, linkedinAppConfigured, metaAppConfigured } from '../db/oauthApps.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
@@ -434,14 +434,34 @@ export function registerOauthRoutes(app: FastifyInstance): void {
           meta: { name: me.name ?? '', candidates, pagesTotal: pages.length, connectedAt: new Date().toISOString() },
         });
         if (pages.length === 0) {
-          return reply
-            .type('text/html')
-            .send(resultPage(false, 'Aucune Page Facebook trouvée. Crée une Page et lie-la au compte Instagram pro (voir guide setup-meta).'));
+          return reply.type('text/html').send(
+            resultPage(
+              false,
+              'Aucune Page Facebook autorisée.',
+              `<p>Deux causes possibles :</p>
+<ul style="color:#aab3c2;font-size:15px;line-height:1.55">
+  <li>aucune Page n'a été cochée dans la fenêtre Facebook — reclique sur « Connecter » et coche la Page de la marque ;</li>
+  <li>le compte Facebook utilisé n'administre aucune Page — connecte-toi avec le compte administrateur de la Page.</li>
+</ul>`,
+            ),
+          );
         }
         if (candidates.length === 0) {
-          return reply
-            .type('text/html')
-            .send(resultPage(false, 'Aucun compte Instagram professionnel lié à tes Pages. Lie le compte dans les paramètres de la Page (guide setup-meta).'));
+          // Nommer les Pages vues : sans cela, impossible de savoir si la bonne Page
+          // a été autorisée ou si c'est le lien avec Instagram qui manque.
+          const noms = pages.map((p) => `« ${escapeHtml(p.name)} »`).join(', ');
+          return reply.type('text/html').send(
+            resultPage(
+              false,
+              'Aucun compte Instagram professionnel rattaché aux Pages autorisées.',
+              `<p>Pages vues par le moteur : ${noms}.</p>
+<p>Si la Page de la marque ne figure pas dans cette liste, reclique sur « Connecter » et coche-la dans la fenêtre Facebook.</p>
+<p>Si elle y figure, c'est le lien avec Instagram qui manque : ouvre
+<a class="accent" href="https://business.facebook.com/settings" target="_blank" rel="noreferrer">Meta Business Suite</a>
+→ Paramètres → Comptes → Comptes Instagram → <b>Connecter</b>, et rattache le compte à cette Page. Le compte Instagram
+doit être en mode professionnel (Instagram → Paramètres → Type de compte).</p>`,
+            ),
+          );
         }
         // On garde la Page déjà choisie si elle est toujours disponible, sinon la première
         const current = getStoredToken('meta', 'ig_user');
