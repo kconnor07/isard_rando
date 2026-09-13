@@ -224,25 +224,32 @@ describe('personnalisation fine des templates', async () => {
   });
 });
 
-describe('typographie française et écho', async () => {
-  const { frTypo, buildTitleHtml, buildSlideHtml } = await import('../src/render/renderer.js');
-  const { getBrand } = await import('../src/db/settingsRepo.js');
+describe('typographie française', async () => {
+  const { frTypo, buildTitleHtml } = await import('../src/render/renderer.js');
   it('espace fine insécable devant la ponctuation haute et après le guillemet ouvrant', () => {
     expect(frTypo('Devis Express : signé ?')).toBe('Devis Express : signé ?');
     expect(frTypo('« mot » !')).toBe('« mot » !');
     expect(buildTitleHtml('Devis Express : signé', 'Express')).toContain('<span class="accent">Express</span> :');
   });
-  it('le fond répété de la slide écho vit hors de la pile de texte', () => {
+});
+
+describe('slides « écho » déjà en base', async () => {
+  const { slideContentSchema } = await import('@odile/shared');
+  const { buildSlideHtml } = await import('../src/render/renderer.js');
+  const { getBrand } = await import('../src/db/settingsRepo.js');
+
+  it('une slide écho enregistrée avant la suppression du design se relit en chiffre clé', () => {
+    // Les posts déjà publiés gardent kind: 'echo' dans leur JSON : ils doivent rester lisibles.
+    const content = slideContentSchema.parse({ kind: 'echo', title: 'Répondre vite', echoWord: 'vitesse', body: 'Chaque heure compte.' });
+    expect(content.kind).toBe('value_prop');
+    expect(content).not.toHaveProperty('echoWord');
+
     const html = buildSlideHtml({
-      theme: 'odile-nuit', kind: 'echo', format: 'static', brand: getBrand(), slideNum: 1, slideTotal: 1,
-      content: { kind: 'echo', title: 'Répondre vite', echoWord: 'vitesse' },
+      theme: 'odile-nuit', kind: content.kind, format: 'static', brand: getBrand(), slideNum: 1, slideTotal: 1, content,
     });
-    const stackAt = html.indexOf('<div class="safe"><div class="stack">');
-    const echoAt = html.indexOf('<div class="echo-stack"');
-    expect(echoAt).toBeGreaterThan(0);
-    expect(echoAt).toBeLessThan(stackAt);
-    expect(html.match(/echo-line echo-\d/g)).toHaveLength(5);
-    expect(html).toContain('>VITESSE<');
+    expect(html).toContain('kind-value_prop');
+    expect(html).not.toContain('echo-stack');
+    expect(html).toContain('Répondre vite');
   });
 });
 

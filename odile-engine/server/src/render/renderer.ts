@@ -201,12 +201,6 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     .filter(Boolean)
     .join(' ');
   const style = [input.slideStyle ?? '', input.popColor ? `--pop: ${input.popColor};` : ''].filter(Boolean).join(' ');
-  // Slide écho : le mot répété tapisse le fond, hors de la pile de texte (jamais réduit avec elle)
-  const echoWord = input.kind === 'echo' ? escapeHtml((input.content.echoWord || input.content.title).toUpperCase()) : '';
-  const echoStack = echoWord
-    ? `<div class="echo-stack" aria-hidden="true">${[0, 1, 2, 3, 4].map((i) => `<div class="echo-line echo-${i}">${echoWord}</div>`).join('')}</div>`
-    : '';
-
   return `<!doctype html>
 <html><head><meta charset="utf-8"><style>
 ${fontFaceCss()}
@@ -236,7 +230,6 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
   ${authorChip}
   <div class="verified-badge">${VERIFIED_SVG(40)}</div>
   <div class="brand-top">${brandBlock}</div>
-  ${echoStack}
   <div class="safe"><div class="stack">
 ${inner}
   </div></div>

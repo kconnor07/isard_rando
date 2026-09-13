@@ -10,7 +10,7 @@ import { toast } from '../components/Toaster';
 import VisualAgentPanel from '../components/VisualAgentPanel';
 import { CHANNEL_LABELS, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge } from '../components/shared';
 
-const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'] as const;
+const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications'] as const;
 /** Statuts pendant lesquels le post évolue tout seul (pipeline, studio, publication) : l'éditeur se rafraîchit */
 const LIVE_STATUSES = ['draft', 'reviewing', 'publishing', 'scheduled'];
 
@@ -263,10 +263,6 @@ function SlideCard({
               <div>
                 <label className="label !mb-0.5">{SLIDE_FIELD_LABELS.toolUrl}</label>
                 <input className="input !py-1.5" value={str('toolUrl')} onChange={(e) => set('toolUrl', e.target.value)} />
-              </div>
-              <div>
-                <label className="label !mb-0.5">{SLIDE_FIELD_LABELS.echoWord}</label>
-                <input className="input !py-1.5" value={str('echoWord')} onChange={(e) => set('echoWord', e.target.value)} />
               </div>
               <div>
                 <label className="label !mb-0.5">{SLIDE_FIELD_LABELS.kind}</label>

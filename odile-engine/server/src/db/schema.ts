@@ -120,7 +120,7 @@ export const slides = sqliteTable(
       .references(() => posts.id, { onDelete: 'cascade' }),
     idx: integer('idx').notNull(),
     kind: text('kind', {
-      enum: ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications', 'echo'],
+      enum: ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications'],
     }).notNull(),
     content: text('content').notNull(), // JSON SlideContent
     renderAssetId: text('render_asset_id'),
@@ -366,7 +366,7 @@ export const customThemes = sqliteTable('custom_themes', {
   textColor: text('text_color').notNull().default('#fdfdfd'),
   /** décor : orbes de verre, halo, dégradé, grille de points, anneaux, arcs lumineux, ou rien */
   decor: text('decor', {
-    enum: ['orbes', 'verre', 'liquide', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun'],
+    enum: ['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun'],
   })
     .notNull()
     .default('orbes'),

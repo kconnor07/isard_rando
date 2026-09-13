@@ -648,64 +648,6 @@ body {
 .notif-body { font-size: 28px; color: rgba(235, 243, 255, 0.82); margin-top: 4px; }
 .notif-time { font-family: 'Fragment Mono', monospace; font-size: 22px; color: var(--muted); align-self: flex-start; }
 
-/* --- Texte répété + bandeau tampon (archétype A9) ----------------------- */
-
-.echo-stack {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  overflow: hidden;
-  pointer-events: none;
-}
-.echo-line {
-  display: flex; justify-content: center;
-  font-weight: 900;
-  font-size: 190px;
-  line-height: 0.96;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-  color: transparent;
-  -webkit-text-stroke: 2px rgba(255, 255, 255, 0.16);
-  text-align: center;
-}
-.echo-0 { color: rgba(255, 255, 255, 0.06); -webkit-text-stroke: 0; }
-.echo-1 { -webkit-text-stroke-color: rgba(255, 255, 255, 0.24); }
-.echo-2 { color: var(--text); -webkit-text-stroke: 0; }
-.echo-3 { -webkit-text-stroke-color: rgba(255, 255, 255, 0.24); }
-.echo-4 { color: rgba(255, 255, 255, 0.06); -webkit-text-stroke: 0; }
-
-.stamp {
-  position: relative;
-  z-index: 6;
-  align-self: center;
-  transform: rotate(-5deg);
-  padding: 22px 46px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--on-accent, #fff);
-  font-family: 'Fragment Mono', monospace;
-  font-size: 40px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  box-shadow: 0 18px 60px color-mix(in srgb, var(--accent) 55%, transparent);
-  outline: 3px dashed rgba(255, 255, 255, 0.55);
-  outline-offset: -12px;
-}
-.stamp .accent { font-family: inherit; font-style: normal; color: var(--on-accent, #eaf6ff); }
-.kind-echo .body {
-  position: relative;
-  z-index: 6;
-  background: rgba(4, 6, 15, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 18px 32px;
-  border-radius: 16px;
-  max-width: 700px;
-}
-
 /* Mot surligné pill (archétype A8) */
 .highlight-pill {
   background: color-mix(in srgb, var(--accent) 80%, #003a6b);

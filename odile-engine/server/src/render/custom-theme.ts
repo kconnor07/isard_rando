@@ -160,6 +160,36 @@ function orbitPoints(c: { x: number; y: number }, a: number, k: number, theta: n
     return { x: Math.round(c.x + ex * Math.cos(th) - ey * Math.sin(th)), y: Math.round(c.y + ex * Math.sin(th) + ey * Math.cos(th)) };
   });
 }
+/**
+ * « Lames » : grands disques à cœur sombre et bord incandescent, disposés pour laisser
+ * un couloir sombre là où le texte s'écrit (référence : fonds de verre bleu sur noir).
+ * Coordonnées en px sur le canevas 1080×1350 ; les cœurs sont opaques, ils se masquent
+ * mutuellement — c'est ce qui donne l'imbrication des lames.
+ */
+interface Lame { x: number; y: number; r: number }
+const LAMES_BASE: Lame[] = [
+  { x: 1260, y: -520, r: 1000 }, // grande lame en haut à droite
+  { x: -520, y: 1560, r: 880 }, // pétale en bas à gauche
+  { x: 1640, y: 1760, r: 800 }, // lame en bas à droite (dégage le compteur)
+  { x: -120, y: -420, r: 470 }, // éclat en haut à gauche
+];
+const LAMES_CENTRE: Lame[] = [
+  { x: -300, y: -300, r: 620 },
+  { x: 1380, y: -300, r: 620 },
+  { x: -300, y: 1650, r: 620 },
+  { x: 1380, y: 1650, r: 620 },
+];
+function lamesLayout(pos: CustomTheme['decorPosition'], scale: number): Lame[] {
+  if (pos === 'centre') return LAMES_CENTRE.map((l) => ({ ...l, r: Math.round(l.r * scale) }));
+  const mx = pos === 'haut-gauche' || pos === 'bas-gauche';
+  const my = pos === 'bas-droite' || pos === 'bas-gauche';
+  return LAMES_BASE.map((l) => ({ x: mx ? 1080 - l.x : l.x, y: my ? 1350 - l.y : l.y, r: Math.round(l.r * scale) }));
+}
+/** Plis verticaux du décor « rideau » : [centre %, demi-largeur %, opacité]. */
+const FOLDS: [number, number, number][] = [
+  [3, 7, 0.15], [12, 6, 0.09], [21, 8, 0.17], [30, 5, 0.07], [38, 9, 0.12], [48, 6, 0.18],
+  [57, 7, 0.08], [67, 8, 0.15], [76, 5, 0.1], [85, 7, 0.17], [94, 6, 0.09],
+];
 const COLUMN_X: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 60, 'haut-gauche': 40, 'bas-droite': 60, 'bas-gauche': 40, centre: 50 };
 const COLUMN_Y: Record<CustomTheme['decorPosition'], number> = { 'haut-droite': 38, 'haut-gauche': 38, 'bas-droite': 62, 'bas-gauche': 62, centre: 48 };
 /** Mélange linéaire de deux hex (t = part de b). */
@@ -211,7 +241,10 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   const bgImage = assetDataUri(theme.backgroundAssetId);
   const opacity = clamp(theme.backgroundOpacity, 0, 100) / 100;
   const glass = clamp(theme.glass, 0, 100) / 50; // 1 = réglage d'origine
-  const decorOpacity = clamp(theme.decorIntensity, 0, 100) / 100;
+  // Les lames s'imbriquent par occlusion : une opacité globale casserait l'effet.
+  // L'intensité y agit sur la largeur de la bande lumineuse (voir lameRamp).
+  const decorIntensity = clamp(theme.decorIntensity, 0, 100) / 100;
+  const decorOpacity = theme.decor === 'lames' ? 1 : decorIntensity;
   const titleScale = clamp(theme.titleScale, 60, 140) / 100;
   const vignette = clamp(theme.vignette, 0, 100) / 100;
   const pos = POSITIONS[theme.decorPosition] ?? POSITIONS['haut-droite'];
@@ -219,8 +252,154 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   const grain = theme.grain ? (clamp(theme.grainLevel, 0, 100) / 100) * (light ? 0.55 : 1) : 0;
 
   // --- Décor -----------------------------------------------------------
+  const dScale = clamp(theme.decorScale, 60, 140) / 100;
+  /**
+   * Rampe d'une lame : cœur au fond du thème, puis montée vers l'accent et un liseré
+   * blanc au bord exact du disque. `closest-side` est indispensable : sans lui, 100 %
+   * du dégradé tombe au coin du carré et toute la partie lumineuse sort du disque.
+   */
+  const lameRamp = (wide: boolean): string => {
+    const base = wide ? [46, 68, 83, 92, 97, 99.2] : [54, 72, 85, 93, 97.5, 99.4];
+    // Intensité : 100 % = bande lumineuse pleine largeur, moins = liseré resserré
+    const k = 0.35 + 0.65 * decorIntensity;
+    const at = base.map((v) => (100 - (100 - v) * k).toFixed(2));
+    const cols = [
+      theme.bg1,
+      mix(theme.bg1, accent, 0.18),
+      mix(theme.bg1, accent, 0.7),
+      accent,
+      mix(accent, '#ffffff', 0.62),
+      mix(secondary, '#ffffff', 0.9),
+    ];
+    return `${theme.bg1} 0%, ${cols.map((c, i) => `${c} ${at[i]}%`).join(', ')}, rgba(255,255,255,0) 100%`;
+  };
+  const lame = (l: Lame, wide: boolean, glow: number) =>
+    `position: absolute; border-radius: 50%; left: ${l.x - l.r}px; top: ${l.y - l.r}px; width: ${2 * l.r}px; height: ${2 * l.r}px;
+  background: radial-gradient(circle closest-side at 50% 50%, ${lameRamp(wide)});${glow ? `\n  box-shadow: 0 0 ${glow}px ${rgba(accent, 0.18)};` : ''}`;
+  const lames = lamesLayout(theme.decorPosition, dScale);
+
   const decor =
-    theme.decor === 'orbes'
+    theme.decor === 'lames'
+      ? `
+/* Lames de verre : disques à cœur sombre et bord incandescent, imbriqués par occlusion.
+   Le fond reste plat (sinon la jointure entre le cœur des lames et le fond se verrait). */
+.bg { background: ${theme.bg1}; }
+.decor-1 { z-index: 4; ${lame(lames[0]!, true, Math.round(100 * dScale))} }
+.decor-2 { z-index: 3; ${lame(lames[1]!, false, Math.round(90 * dScale))} }
+.decor-3 { z-index: 2; ${lame(lames[2]!, false, Math.round(80 * dScale))} }
+.slide::before { content: ''; z-index: 2; ${lame(lames[3]!, false, 0)} }
+/* Voile de lisibilité : assombrit le couloir du texte et le bas de page, sous le texte. */
+.safe {
+  background:
+    radial-gradient(ellipse 88% 44% at 46% 47%, ${rgba(theme.bg1, 0.86)} 0%, ${rgba(theme.bg1, 0.6)} 52%, transparent 82%),
+    linear-gradient(180deg, transparent 76%, ${rgba(theme.bg1, 0.34)} 89%, ${rgba(theme.bg1, 0.68)} 100%);
+}
+.brand-footer { text-shadow: 0 2px 18px ${rgba(theme.bg1, 0.95)}; }
+.slide-counter { color: ${rgba(theme.textColor, 0.86)}; }
+/* Sous une illustration plein cadre, les lames n'ont plus lieu d'être. */
+.has-hero:not(.hero-contain) .decor-1, .has-hero:not(.hero-contain) .decor-2, .has-hero:not(.hero-contain) .decor-3 { display: none; }
+.has-hero:not(.hero-contain).slide::before { display: none; }
+.has-hero:not(.hero-contain) .safe { background: none; }`
+      : theme.decor === 'rideau'
+        ? `
+/* Rideau : plis de lumière verticaux, grille technique et nœuds (référence « affiche studio ») */
+.decor-1 {
+  position: absolute; inset: 0; z-index: 2;
+  background: ${FOLDS.map(([pos, w, a], i) => `linear-gradient(90deg, transparent ${(pos - w).toFixed(1)}%, ${rgba(i % 2 ? secondary : accent, a * (0.6 + 0.4 * decorIntensity))} ${pos}%, transparent ${(pos + w).toFixed(1)}%)`).join(',\n    ')};
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 34%, rgba(0,0,0,.35) 72%, transparent 96%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 34%, rgba(0,0,0,.35) 72%, transparent 96%);
+}
+.decor-2 {
+  position: absolute; inset: 0; z-index: 2;
+  background-image:
+    linear-gradient(${rgba(theme.textColor, 0.055)} 1px, transparent 1px),
+    linear-gradient(90deg, ${rgba(theme.textColor, 0.055)} 1px, transparent 1px),
+    radial-gradient(circle, ${rgba(theme.textColor, 0.34)} 2.4px, transparent 3px);
+  background-size: 135px 135px, 135px 135px, 135px 135px;
+  background-position: -1px -1px, -1px -1px, -2.5px -2.5px;
+  -webkit-mask-image: radial-gradient(ellipse 72% 58% at ${theme.decorPosition.includes('gauche') ? '18%' : '82%'} ${theme.decorPosition.includes('bas') ? '74%' : '26%'}, #000 0%, transparent 76%);
+  mask-image: radial-gradient(ellipse 72% 58% at ${theme.decorPosition.includes('gauche') ? '18%' : '82%'} ${theme.decorPosition.includes('bas') ? '74%' : '26%'}, #000 0%, transparent 76%);
+}
+.decor-3 {
+  position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse 96% 42% at 50% ${theme.decorPosition.includes('bas') ? '104%' : '-4%'}, ${rgba(accent, 0.4)} 0%, ${rgba(secondary, 0.14)} 42%, transparent 74%);
+}`
+        : theme.decor === 'lamelles'
+          ? (() => {
+              // Verre cannelé : 15 lamelles verticales, la lumière est décalée d'une lamelle
+              // à l'autre selon une onde — c'est ce décalage qui fait la signature de la référence.
+              const n = 12;
+              const w = 1080 / n;
+              // Hauteur de la nappe lumineuse selon la position demandée
+              const bandY = theme.decorPosition.includes('haut') ? 430 : theme.decorPosition.includes('bas') ? 920 : 675;
+              const layers: string[] = [];
+              const sizes: string[] = [];
+              const spots: string[] = [];
+              const hot = mix(accent, '#ffffff', 0.55);
+              for (let i = 0; i < n; i++) {
+                // La lumière remplit la lamelle d'un bord à l'autre : arêtes franches sur
+                // les côtés (les joints), dégradé doux en haut et en bas. Le décalage
+                // vertical d'une lamelle à l'autre suit une onde — signature du verre cannelé.
+                const h = Math.round((560 + Math.cos(i * 0.85) * 200) * dScale);
+                const dy = Math.round(bandY + Math.sin(i * 0.62) * 160 * dScale - h / 2);
+                layers.push(
+                  `linear-gradient(180deg, transparent 0%, ${rgba(accent, 0.3 * decorIntensity)} 14%, ${rgba(hot, 0.82 * decorIntensity)} 38%, ${rgba('#ffffff', 0.95 * decorIntensity)} 50%, ${rgba(hot, 0.82 * decorIntensity)} 62%, ${rgba(accent, 0.3 * decorIntensity)} 86%, transparent 100%)`,
+                );
+                sizes.push(`${w.toFixed(2)}px ${h}px`);
+                spots.push(`${(i * w).toFixed(2)}px ${dy}px`);
+              }
+              return `
+.decor-1 {
+  position: absolute; inset: 0; z-index: 2;
+  background-image: ${layers.join(',\n    ')};
+  background-size: ${sizes.join(', ')};
+  background-position: ${spots.join(', ')};
+  background-repeat: no-repeat;
+}
+/* Arêtes des lamelles : trait sombre au joint, reflet clair sur la face */
+.decor-2 {
+  position: absolute; inset: 0; z-index: 3;
+  background:
+    repeating-linear-gradient(90deg, ${rgba(theme.bg1, 0.95)} 0 3px, transparent 3px ${w.toFixed(2)}px),
+    repeating-linear-gradient(90deg, transparent 0 3px, ${rgba('#ffffff', 0.1)} 3px 5px, transparent 5px ${w.toFixed(2)}px),
+    repeating-linear-gradient(90deg, transparent 0 ${(w - 4).toFixed(2)}px, ${rgba(theme.bg1, 0.5)} ${(w - 4).toFixed(2)}px ${w.toFixed(2)}px);
+}
+.decor-3 {
+  position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse 82% 62% at 50% 50%, transparent 26%, ${rgba(theme.bg1, 0.55)} 100%);
+}
+/* Voile de lisibilité sous le texte : la nappe lumineuse passe derrière, jamais dessus. */
+.safe {
+  background:
+    radial-gradient(ellipse 84% 40% at 50% 48%, ${rgba(theme.bg1, 0.8)} 0%, ${rgba(theme.bg1, 0.5)} 56%, transparent 84%),
+    linear-gradient(180deg, transparent 78%, ${rgba(theme.bg1, 0.4)} 92%, ${rgba(theme.bg1, 0.72)} 100%);
+}
+.brand-footer { text-shadow: 0 2px 18px ${rgba(theme.bg1, 0.95)}; }
+.has-hero:not(.hero-contain) .safe { background: none; }`;
+            })()
+          : theme.decor === 'projecteur'
+            ? `
+/* Projecteur : nappe de lumière venue du haut, sol éclairé, chevrons de rythme */
+.decor-1 {
+  position: absolute; inset: 0; z-index: 2;
+  background:
+    radial-gradient(ellipse 92% 52% at 50% ${theme.decorPosition.includes('bas') ? '102%' : '10%'}, ${rgba(mix(accent, '#ffffff', 0.25), 0.5 * decorIntensity)} 0%, ${rgba(accent, 0.34 * decorIntensity)} 30%, ${rgba(secondary, 0.14 * decorIntensity)} 58%, transparent 80%),
+    radial-gradient(ellipse 60% 34% at ${theme.decorPosition.includes('gauche') ? '22%' : '78%'} ${theme.decorPosition.includes('bas') ? '18%' : '84%'}, ${rgba(secondary, 0.2 * decorIntensity)} 0%, transparent 72%);
+}
+.decor-2 {
+  position: absolute; inset: 0; z-index: 2;
+  background: radial-gradient(ellipse 78% 62% at 50% 46%, transparent 34%, ${rgba(theme.bg1, 0.62)} 100%);
+}
+/* Chevrons : rythme de lecture, en bas à droite comme sur la référence */
+.decor-3 {
+  position: absolute; right: 74px; bottom: 150px; width: 430px; height: 46px; z-index: 3;
+  background-image: url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='34' height='46'><path d='M7 10 L21 23 L7 36' fill='none' stroke='${accent}' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/></svg>`)}");
+  background-repeat: repeat-x; background-size: 34px 46px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 55%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 55%, #000 100%);
+  opacity: ${(0.75 * decorIntensity).toFixed(2)};
+}`
+            : theme.decor === 'orbes'
       ? `
 .decor-1 {
   position: absolute; z-index: 2; ${pos.d1}
@@ -859,7 +1038,7 @@ ${bullets}
 .verified-badge { right: ${clamp(theme.footerInset, 40, 160)}px; }
 .slide-counter { font-size: ${Math.round(26 * counterSize)}px; }
 .counter-pilule .slide-counter { font-size: ${Math.round(25 * counterSize)}px; padding: ${Math.round(14 * counterSize)}px ${Math.round(30 * counterSize)}px; }
-${decorScale !== 1 ? `.decor-1, .decor-2 { scale: ${decorScale.toFixed(2)}; }` : ''}
+${decorScale !== 1 && theme.decor !== 'lames' && theme.decor !== 'lamelles' ? `.decor-1, .decor-2 { scale: ${decorScale.toFixed(2)}; }` : ''}
 ${clamp(theme.heroScrim, 0, 100) !== 100 ? `.hero-scrim { opacity: ${(clamp(theme.heroScrim, 0, 100) / 100).toFixed(2)}; }` : ''}
 `;
 

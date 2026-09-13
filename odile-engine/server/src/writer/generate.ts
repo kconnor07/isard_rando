@@ -164,8 +164,8 @@ ${catalog}
 
 ${imageSpec}
 
-Kinds de slides disponibles en plus : "notifications" (pile de 3 cartes de notification — renseigne notifications[{title,body}], parfait pour montrer des résultats concrets type « Devis signé », « Paiement reçu ») et "echo" (mot répété en fond — renseigne echoWord + un title court qui sert de bandeau).${
-    isCarousel ? " Tu peux remplacer une slide 'content' par l'un de ces kinds si l'archétype s'y prête." : ''
+Kind de slide disponible en plus : "notifications" (pile de 3 cartes de notification — renseigne notifications[{title,body}], parfait pour montrer des résultats concrets type « Devis signé », « Paiement reçu »).${
+    isCarousel ? " Tu peux remplacer une slide 'content' par ce kind si l'archétype s'y prête." : ''
   }`;
 }
 

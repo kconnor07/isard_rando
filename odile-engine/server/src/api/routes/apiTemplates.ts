@@ -33,7 +33,7 @@ export const templateSchema = z.object({
   accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'verre', 'liquide', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun']),
+  decor: z.enum(['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun']),
   bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z
@@ -224,13 +224,6 @@ const PREVIEW_SLIDES = {
     toolName: 'Odile Studio',
     body: 'Un tableau de bord, zéro saisie.',
   },
-  echo: {
-    kind: 'echo',
-    title: 'Répondre vite, c’est vendre.',
-    echoWord: 'VITESSE',
-    body: 'Chaque heure d’attente coûte 7 % de chances de signer.',
-    ctaLabel: 'Réagir en 5 minutes',
-  },
   bouton: {
     kind: 'cta',
     title: 'On en parle ?',
@@ -240,7 +233,7 @@ const PREVIEW_SLIDES = {
 } satisfies Record<string, SlideContent>;
 type PreviewKind = keyof typeof PREVIEW_SLIDES;
 const previewSchema = templateSchema.extend({
-  kind: z.enum(['hook', 'objet', 'value_prop', 'content', 'liste', 'notifications', 'capture', 'echo', 'cta', 'bouton']).default('value_prop'),
+  kind: z.enum(['hook', 'objet', 'value_prop', 'content', 'liste', 'notifications', 'capture', 'cta', 'bouton']).default('value_prop'),
   /** true : image pleine taille (1080×1350) pour la loupe ; sinon 540×675 */
   full: z.boolean().default(false),
 });

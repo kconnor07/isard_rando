@@ -56,13 +56,6 @@ const SAMPLES: SlideContent[] = [
       { title: 'Nouveau prospect', body: 'Formulaire site → CRM' },
     ],
   },
-  {
-    kind: 'echo',
-    title: 'On automatise tout ça',
-    accentWord: 'automatise',
-    echoWord: 'Répéter',
-    body: 'Chaque tâche répétitive est une tâche automatisable.',
-  },
 ];
 
 /** Galerie de contrôle : chaque thème × chaque type de slide → var/assets/gallery/. */

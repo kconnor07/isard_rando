@@ -160,7 +160,9 @@ export type LlmRouting = z.infer<typeof llmRoutingSchema>;
 // ---------------------------------------------------------------------------
 
 export const slideContentSchema = z.object({
-  kind: z.enum(SLIDE_KINDS),
+  // Les posts d'avant la suppression de la slide « écho » gardent kind: 'echo'
+  // en base : on les relit en value_prop plutôt que de les rendre illisibles.
+  kind: z.preprocess((v) => (v === 'echo' ? 'value_prop' : v), z.enum(SLIDE_KINDS)),
   /** petit texte au-dessus du titre (annotation manuscrite / badge) */
   annotation: z.string().max(80).optional(),
   badge: z.string().max(40).optional(),
@@ -185,8 +187,6 @@ export const slideContentSchema = z.object({
     .array(z.object({ title: z.string().max(60), body: z.string().max(120) }))
     .max(3)
     .optional(),
-  /** kind "echo" : le mot répété en fond (le title sert de bandeau) */
-  echoWord: z.string().max(24).optional(),
 });
 export type SlideContent = z.infer<typeof slideContentSchema>;
 

@@ -27,7 +27,6 @@ export const SLIDE_KINDS = [
   'screenshot',
   'cta',
   'notifications',
-  'echo',
 ] as const;
 export type SlideKind = (typeof SLIDE_KINDS)[number];
 
@@ -109,14 +108,7 @@ export const ARCHETYPES: Archetype[] = [
     id: 'typo_stickers',
     label: 'Typo mixte + stickers',
     description:
-      "Composition 100 % typographique : titre sans-serif bold avec mots serif italiques accentués, badges pill, mots surlignés, tampon incliné, souligné manuscrit. Aucune image.",
-    needsImage: false,
-  },
-  {
-    id: 'echo_process',
-    label: 'Texte répété + bandeau',
-    description:
-      "Un mot-clé répété en couches d'opacité décroissante en fond, barré d'un bandeau tampon incliné portant le message principal. Slide kind « echo ».",
+      "Composition 100 % typographique : titre sans-serif bold avec mots serif italiques accentués, badges pill, mots surlignés, souligné manuscrit. Aucune image.",
     needsImage: false,
   },
 ];

@@ -32,7 +32,6 @@ export const SLIDE_KIND_LABELS: Record<string, string> = {
   value_prop: 'Chiffre clé',
   screenshot: 'Capture',
   notifications: 'Notifications',
-  echo: 'Écho',
   cta: 'Appel à l’action',
 };
 export const SLIDE_FIELD_LABELS: Record<string, string> = {
@@ -49,7 +48,6 @@ export const SLIDE_FIELD_LABELS: Record<string, string> = {
   notifications: 'Notifications (une par ligne : titre | détail)',
   toolName: 'Nom de l’outil',
   toolUrl: 'URL de l’outil (capture)',
-  echoWord: 'Mot répété en fond',
   icon: 'Icône',
   kind: 'Type de slide',
 };
