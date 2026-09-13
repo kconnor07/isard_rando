@@ -101,6 +101,13 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
           <p className="mt-1 text-xs text-muted">
             LinkedIn : {status(apps.linkedin)} · Meta : {status(apps.meta)}
           </p>
+          {(!apps.linkedin.configured || !apps.meta.configured) && (
+            <p className="mt-1 max-w-xl text-xs text-txt">
+              Étape obligatoire : tant que ces clés ne sont pas saisies <b>ici</b> et enregistrées, les boutons
+              « Connecter » plus bas restent inactifs — le moteur n’a aucun moyen de parler à LinkedIn ni à Meta.
+              Les textes grisés des champs sont des exemples, pas des valeurs.
+            </p>
+          )}
         </div>
         <button className="btn-ghost !py-1.5 text-xs" onClick={() => setOpen((o) => !o)}>
           {open ? 'Replier' : 'Modifier les clés'}
@@ -373,12 +380,12 @@ export default function Setup() {
                 Demander aussi les droits « page entreprise » (exige le produit Community Management API sur l’app LinkedIn — sinon la connexion est refusée)
               </label>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <div className="flex items-center gap-2">
               <button
                 className="btn-primary !py-1.5 text-xs"
                 disabled={!health.oauth.linkedinConfigured || connectLinkedIn.isPending}
                 onClick={() => connectLinkedIn.mutate()}
-                title={health.oauth.linkedinConfigured ? '' : 'Renseigne d’abord les clés de l’app LinkedIn ci-dessus'}
               >
                 {liToken ? 'Reconnecter' : 'Connecter'}
               </button>
@@ -386,6 +393,12 @@ export default function Setup() {
                 <button className="btn-ghost !py-1.5 text-xs" onClick={() => void disconnectAsk('linkedin')} title="Supprimer les jetons LinkedIn">
                   <Unplug size={13} />
                 </button>
+              )}
+              </div>
+              {!health.oauth.linkedinConfigured && (
+                <p className="max-w-[13rem] text-right text-[11px] leading-snug text-muted">
+                  Renseignez d’abord les clés de l’app LinkedIn, tout en haut de cette page.
+                </p>
               )}
             </div>
           </div>
@@ -488,12 +501,12 @@ export default function Setup() {
                 </div>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <div className="flex items-center gap-2">
               <button
                 className="btn-primary !py-1.5 text-xs"
                 disabled={!health.oauth.metaConfigured || connectMeta.isPending}
                 onClick={() => connectMeta.mutate()}
-                title={health.oauth.metaConfigured ? '' : 'Renseigne d’abord les clés de l’app Meta ci-dessus'}
               >
                 {igToken ? 'Reconnecter' : 'Connecter'}
               </button>
@@ -501,6 +514,12 @@ export default function Setup() {
                 <button className="btn-ghost !py-1.5 text-xs" onClick={() => void disconnectAsk('meta')} title="Supprimer les jetons Meta">
                   <Unplug size={13} />
                 </button>
+              )}
+              </div>
+              {!health.oauth.metaConfigured && (
+                <p className="max-w-[13rem] text-right text-[11px] leading-snug text-muted">
+                  Renseignez d’abord les clés de l’app Meta, tout en haut de cette page.
+                </p>
               )}
             </div>
           </div>
