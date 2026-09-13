@@ -69,7 +69,11 @@ export function getOauthApps(): OauthApps {
     metaAppId,
     metaAppSecret,
     metaVerifyToken: s.metaVerifyToken || config.META_VERIFY_TOKEN,
-    metaConfigId: metaDash ? s.metaConfigId : (config.META_CONFIG_ID ?? ''),
+    // L'ID de configuration n'est pas un secret et se règle indifféremment depuis le
+    // dashboard ou le .env : le champ du dashboard prime, le .env prend le relais s'il
+    // est vide (sans quoi META_CONFIG_ID resterait lettre morte dès que les clés Meta
+    // sont saisies dans le dashboard).
+    metaConfigId: s.metaConfigId || config.META_CONFIG_ID || '',
     source: {
       linkedin: liDash ? 'dashboard' : linkedinClientId ? 'env' : 'aucune',
       meta: metaDash ? 'dashboard' : metaAppId ? 'env' : 'aucune',
