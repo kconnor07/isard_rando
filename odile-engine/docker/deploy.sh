@@ -7,8 +7,12 @@ set -euo pipefail
 # mot de passe du Mac (sudo) et construirait l'image au mauvais endroit.
 if [[ "$(uname -s)" == "Darwin" ]]; then
   echo "✗ Ce script se lance SUR LE SERVEUR, pas sur le Mac."
-  echo "  1. ssh -i <clé> ubuntu@<IP du serveur>"
-  echo "  2. cd ~/isard_rando/odile-engine && ./docker/deploy.sh"
+  echo "  En une seule commande depuis le Mac (ServerAliveInterval évite la coupure pendant le build) :"
+  echo
+  echo "    ssh -t -o ServerAliveInterval=30 -i <clé> ubuntu@<IP du serveur> \\"
+  echo "        'cd ~/isard_rando/odile-engine && ./docker/deploy.sh'"
+  echo
+  echo "  Ou en deux temps : se connecter en ssh, puis lancer ./docker/deploy.sh sur le serveur."
   exit 1
 fi
 cd "$(dirname "$0")/.."
