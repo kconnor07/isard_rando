@@ -220,6 +220,8 @@ export default function Setup() {
   const dialog = useDialog();
   const qc = useQueryClient();
   const [withOrg, setWithOrg] = useState(false);
+  /** Connexion Meta réduite aux permissions de publication (voir le libellé sous la case). */
+  const [metaMinimal, setMetaMinimal] = useState(false);
   const { data: health, refetch } = useQuery({
     queryKey: ['health'],
     queryFn: () => api.get<HealthDto>('/api/setup/health'),
@@ -252,7 +254,7 @@ export default function Setup() {
     onSuccess: (data) => location.assign(data.url),
   });
   const connectMeta = useMutation({
-    mutationFn: () => api.get<{ url: string }>('/api/oauth/meta/start'),
+    mutationFn: () => api.get<{ url: string }>(`/api/oauth/meta/start${metaMinimal ? '?minimal=1' : ''}`),
     onSuccess: (data) => location.assign(data.url),
   });
   const checkConnections = useMutation({
@@ -482,6 +484,16 @@ export default function Setup() {
                     {webhookInstalled === true ? 'Réinstaller' : 'Installer'}
                   </button>
                 </div>
+              )}
+              {!igToken && (
+                <label className="mt-2 flex items-start gap-2 text-xs text-muted">
+                  <input type="checkbox" className="mt-0.5" checked={metaMinimal} onChange={(e) => setMetaMinimal(e.target.checked)} />
+                  <span>
+                    Connexion minimale : demander uniquement les permissions de publication. À cocher si Facebook
+                    répond « Invalid Scopes » — la publication fonctionne, mais les commentaires, les réponses privées
+                    et les statistiques de portée restent inactifs jusqu’à une reconnexion complète.
+                  </span>
+                </label>
               )}
               {pages && pages.candidates.length > 1 && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">

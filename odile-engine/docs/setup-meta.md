@@ -40,6 +40,20 @@ première fois. Tout est gratuit.
 
 ## 3. Connecter le compte depuis le dashboard
 
+⚠️ Si Facebook répond « **Invalid Scopes** » en listant `pages_manage_metadata`,
+`instagram_manage_comments`, `instagram_manage_messages` ou
+`instagram_manage_insights`, c'est que l'app ne déclare pas encore les cas
+d'utilisation qui donnent accès à ces permissions. Deux options :
+
+- **tout de suite** : cocher « Connexion minimale » sous le bouton Connecter —
+  le moteur ne demande que les quatre permissions de publication et Instagram se
+  connecte. Commentaires, réponses privées et statistiques de portée restent
+  inactifs ;
+- **complet** : dans l'app Meta, section *Cas d'utilisation*, ajouter et
+  personnaliser ceux qui couvrent la gestion de Page et l'API Instagram, puis
+  reconnecter sans cocher la case.
+
+
 Dashboard → **Connexions & santé** → **Connecter** (Instagram). La fenêtre Meta
 demande : gestion des Pages, contenu Instagram, commentaires, messages,
 statistiques (`instagram_manage_insights`, pour la portée et les enregistrements

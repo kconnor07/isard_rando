@@ -102,16 +102,19 @@ export function linkLinkedInOrganization(orgId: string): LinkedInOrg {
 // Meta (Facebook Login → Page → compte Instagram professionnel)
 // ---------------------------------------------------------------------------
 
-export const META_SCOPES = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'pages_manage_metadata',
-  'instagram_basic',
-  'instagram_content_publish',
-  'instagram_manage_comments',
-  'instagram_manage_messages',
-  'instagram_manage_insights',
-].join(',');
+/**
+ * Permissions Meta, en deux niveaux.
+ *
+ * Le socle suffit à publier sur Instagram. Les permissions avancées (webhooks de
+ * Page, commentaires, messages privés, statistiques) ne sont proposées par Meta que
+ * si l'app déclare les cas d'utilisation correspondants ; sinon le dialogue affiche
+ * « Invalid Scopes » et la connexion est impossible. D'où la connexion minimale :
+ * elle permet de publier tout de suite, quitte à élargir plus tard.
+ */
+export const META_CORE_SCOPES = ['pages_show_list', 'pages_read_engagement', 'instagram_basic', 'instagram_content_publish'];
+export const META_EXTRA_SCOPES = ['pages_manage_metadata', 'instagram_manage_comments', 'instagram_manage_messages', 'instagram_manage_insights'];
+export const META_SCOPES = [...META_CORE_SCOPES, ...META_EXTRA_SCOPES].join(',');
+export const metaScopes = (minimal: boolean): string => (minimal ? META_CORE_SCOPES : [...META_CORE_SCOPES, ...META_EXTRA_SCOPES]).join(',');
 
 export interface MetaPage {
   id: string;
@@ -149,6 +152,18 @@ export function metaCandidates(pages: MetaPage[]): MetaCandidate[] {
  * Installe l'app sur la Page : indispensable pour recevoir les webhooks Instagram
  * (commentaires → DM). Sans cela, Meta n'envoie rien même si le webhook est configuré.
  */
+/** Permissions réellement accordées par l'utilisateur (le dialogue Meta permet d'en refuser). */
+export async function fetchGrantedScopes(userToken: string): Promise<string[]> {
+  try {
+    const res = await fetchJson<{ data?: { permission: string; status: string }[] }>(
+      `${GRAPH}/me/permissions?access_token=${encodeURIComponent(userToken)}`,
+    );
+    return (res.data ?? []).filter((p) => p.status === 'granted').map((p) => p.permission);
+  } catch {
+    return [];
+  }
+}
+
 export async function subscribePageWebhooks(pageId: string, pageToken: string): Promise<{ ok: boolean; detail: string }> {
   try {
     const res = await fetchJson<{ success?: boolean }>(`${GRAPH}/${pageId}/subscribed_apps`, {
@@ -171,13 +186,20 @@ export async function subscribePageWebhooks(pageId: string, pageToken: string): 
 export async function deriveMetaPage(
   userToken: string,
   pageId: string,
+  grantedScopes?: string[],
 ): Promise<{ pageName: string; igUsername: string; igId: string; webhook: { ok: boolean; detail: string } }> {
   const pages = await listMetaPages(userToken);
   const page = pages.find((p) => p.id === pageId);
   if (!page) throw new Error(`Page ${pageId} introuvable parmi les Pages gérées par ce compte`);
   const ig = page.instagram_business_account;
   if (!ig) throw new Error(`Aucun compte Instagram professionnel lié à la Page « ${page.name} »`);
-  const webhook = await subscribePageWebhooks(page.id, page.access_token);
+  const granted = grantedScopes?.length ? grantedScopes : await fetchGrantedScopes(userToken);
+  const scopes = granted.length ? granted.join(',') : META_CORE_SCOPES.join(',');
+  // L'abonnement aux webhooks exige pages_manage_metadata : en connexion minimale,
+  // on ne tente pas l'appel (il échouerait) et on l'annonce clairement.
+  const webhook = granted.length && !granted.includes('pages_manage_metadata')
+    ? { ok: false, detail: 'permission pages_manage_metadata non accordée — commentaires et réponses privées inactifs' }
+    : await subscribePageWebhooks(page.id, page.access_token);
   const previousIg = getStoredToken('meta', 'ig_user');
   const derivedAt = new Date().toISOString();
   storeToken({
@@ -185,7 +207,7 @@ export async function deriveMetaPage(
     subject: 'fb_page',
     externalId: page.id,
     accessToken: page.access_token,
-    scopes: META_SCOPES,
+    scopes,
     expiresAt: null,
     meta: { pageName: page.name, webhookInstalled: webhook.ok, webhookDetail: webhook.detail, derivedAt },
   });
@@ -194,7 +216,7 @@ export async function deriveMetaPage(
     subject: 'ig_user',
     externalId: ig.id,
     accessToken: page.access_token,
-    scopes: META_SCOPES,
+    scopes,
     expiresAt: null,
     meta: {
       ...(previousIg?.externalId === ig.id ? previousIg.meta : {}),
@@ -355,15 +377,16 @@ export function registerOauthRoutes(app: FastifyInstance): void {
   });
 
   // ----- Meta ---------------------------------------------------------------
-  app.get('/api/oauth/meta/start', { preHandler: requireSession }, async (_request, reply) => {
+  app.get<{ Querystring: { minimal?: string } }>('/api/oauth/meta/start', { preHandler: requireSession }, async (request, reply) => {
     const apps = getOauthApps();
     if (!metaAppConfigured(apps)) {
       return reply.status(400).send({ error: 'Clés de l’app Meta manquantes — renseigne App ID et App Secret dans Connexions & santé (ou dans .env)' });
     }
+    const minimal = request.query.minimal === '1' || request.query.minimal === 'true';
     const url = new URL('https://www.facebook.com/v21.0/dialog/oauth');
     url.searchParams.set('client_id', apps.metaAppId);
     url.searchParams.set('redirect_uri', `${config.PUBLIC_URL}/oauth/meta/callback`);
-    url.searchParams.set('scope', META_SCOPES);
+    url.searchParams.set('scope', metaScopes(minimal));
     url.searchParams.set('state', makeState());
     return { url: url.toString() };
   });
@@ -398,12 +421,15 @@ export function registerOauthRoutes(app: FastifyInstance): void {
         // 3. Pages gérées + comptes Instagram professionnels liés
         const pages = await listMetaPages(longTok.access_token);
         const candidates = metaCandidates(pages);
+        // Ce que l'utilisateur a réellement accordé : il peut avoir décoché des permissions,
+        // ou s'être connecté en mode minimal. Les fonctions dépendantes s'y réfèrent.
+        const granted = await fetchGrantedScopes(longTok.access_token);
         storeToken({
           provider: 'meta',
           subject: 'fb_user',
           externalId: me.id,
           accessToken: longTok.access_token,
-          scopes: META_SCOPES,
+          scopes: granted.length ? granted.join(',') : META_CORE_SCOPES.join(','),
           expiresAt,
           meta: { name: me.name ?? '', candidates, pagesTotal: pages.length, connectedAt: new Date().toISOString() },
         });
@@ -420,7 +446,7 @@ export function registerOauthRoutes(app: FastifyInstance): void {
         // On garde la Page déjà choisie si elle est toujours disponible, sinon la première
         const current = getStoredToken('meta', 'ig_user');
         const chosen = candidates.find((c) => c.pageId === current?.meta.pageId) ?? candidates[0]!;
-        const derived = await deriveMetaPage(longTok.access_token, chosen.pageId);
+        const derived = await deriveMetaPage(longTok.access_token, chosen.pageId, granted);
         logger.info({ ig: derived.igUsername, page: derived.pageName, webhook: derived.webhook.ok }, 'Instagram connecté');
         const more = candidates.length > 1 ? ` ${candidates.length} comptes disponibles — tu peux en choisir un autre dans Connexions & santé.` : '';
         const webhook = derived.webhook.ok
