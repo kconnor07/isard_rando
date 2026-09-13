@@ -327,6 +327,23 @@ export default function Setup() {
     });
     if (ok) disconnect.mutate(provider);
   };
+  /** Page Facebook absente du sélecteur Meta (Page détenue par un portefeuille) : saisie directe. */
+  const askPageId = async () => {
+    const pageId = await dialog.prompt({
+      title: 'Page Facebook',
+      message:
+        'Identifiant numérique de la Page liée au compte Instagram (Meta Business Suite → Paramètres → Pages → la Page, ou « À propos » de la Page).',
+      placeholder: '102938475647382',
+      confirmLabel: 'Rattacher',
+    });
+    if (!pageId) return;
+    try {
+      await selectPage.mutateAsync(pageId.trim());
+    } catch (err) {
+      toast.error(humanizeError(err));
+    }
+  };
+
   const askOrgId = async () => {
     const orgId = await dialog.prompt({
       title: 'Organisation LinkedIn',
@@ -537,6 +554,11 @@ export default function Setup() {
               >
                 {igToken ? 'Reconnecter' : 'Connecter'}
               </button>
+              {fbUser && (
+                <button className="btn-ghost !py-1.5 text-xs" disabled={selectPage.isPending} onClick={() => void askPageId()}>
+                  Saisir l’ID de la Page
+                </button>
+              )}
               {igToken && (
                 <button className="btn-ghost !py-1.5 text-xs" onClick={() => void disconnectAsk('meta')} title="Supprimer les jetons Meta">
                   <Unplug size={13} />

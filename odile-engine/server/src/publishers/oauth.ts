@@ -137,6 +137,20 @@ export async function listMetaPages(userToken: string): Promise<MetaPage[]> {
   return res.data ?? [];
 }
 
+/**
+ * Une Page précise, lue directement par son identifiant.
+ *
+ * `/me/accounts` ne liste que les Pages où l'utilisateur a un rôle direct : une Page
+ * détenue par un portefeuille d'entreprise, à laquelle il accède par ce portefeuille,
+ * peut en être absente alors que le jeton y donne accès. On interroge alors la Page
+ * elle-même, ce qui rend son jeton et son compte Instagram.
+ */
+export async function fetchMetaPage(userToken: string, pageId: string): Promise<MetaPage> {
+  return fetchJson<MetaPage>(
+    `${GRAPH}/${encodeURIComponent(pageId)}?fields=id,name,access_token,instagram_business_account{id,username}&access_token=${encodeURIComponent(userToken)}`,
+  );
+}
+
 export function metaCandidates(pages: MetaPage[]): MetaCandidate[] {
   return pages
     .filter((p) => p.instagram_business_account)
@@ -189,8 +203,16 @@ export async function deriveMetaPage(
   grantedScopes?: string[],
 ): Promise<{ pageName: string; igUsername: string; igId: string; webhook: { ok: boolean; detail: string } }> {
   const pages = await listMetaPages(userToken);
-  const page = pages.find((p) => p.id === pageId);
-  if (!page) throw new Error(`Page ${pageId} introuvable parmi les Pages gérées par ce compte`);
+  let page = pages.find((p) => p.id === pageId);
+  if (!page) {
+    // Absente de /me/accounts : on tente la lecture directe (Page d'un portefeuille).
+    try {
+      page = await fetchMetaPage(userToken, pageId);
+    } catch (err) {
+      throw new Error(`Page ${pageId} inaccessible avec ce compte Facebook : ${String(err).slice(0, 200)}`);
+    }
+  }
+  if (!page.access_token) throw new Error(`Page « ${page.name} » : aucun jeton de Page accordé à l'application`);
   const ig = page.instagram_business_account;
   if (!ig) throw new Error(`Aucun compte Instagram professionnel lié à la Page « ${page.name} »`);
   const granted = grantedScopes?.length ? grantedScopes : await fetchGrantedScopes(userToken);
@@ -447,10 +469,13 @@ export function registerOauthRoutes(app: FastifyInstance): void {
             resultPage(
               false,
               'Aucune Page Facebook autorisée.',
-              `<p>Deux causes possibles :</p>
+              `<p>Trois causes possibles :</p>
 <ul style="color:#aab3c2;font-size:15px;line-height:1.55">
   <li>aucune Page n'a été cochée dans la fenêtre Facebook — reclique sur « Connecter » et coche la Page de la marque ;</li>
-  <li>le compte Facebook utilisé n'administre aucune Page — connecte-toi avec le compte administrateur de la Page.</li>
+  <li>le compte Facebook utilisé n'administre aucune Page — connecte-toi avec le compte administrateur de la Page ;</li>
+  <li>la Page appartient à un portefeuille d'entreprise et n'apparaît pas dans la liste automatique :
+  dans Connexions &amp; santé, utilise <b>« Saisir l'ID de la Page »</b> — le jeton reste valable, la Page
+  est alors lue directement.</li>
 </ul>`,
             ),
           );
@@ -464,7 +489,9 @@ export function registerOauthRoutes(app: FastifyInstance): void {
               false,
               'Aucun compte Instagram professionnel rattaché aux Pages autorisées.',
               `<p>Pages vues par le moteur : ${noms}.</p>
-<p>Si la Page de la marque ne figure pas dans cette liste, reclique sur « Connecter » et coche-la dans la fenêtre Facebook.</p>
+<p>Si la Page de la marque ne figure pas dans cette liste, deux voies : recliquer sur « Connecter » et la cocher
+dans la fenêtre Facebook, ou — si elle appartient à un portefeuille d'entreprise et n'y apparaît jamais — utiliser
+<b>« Saisir l'ID de la Page »</b> dans Connexions &amp; santé, qui la lit directement par son identifiant.</p>
 <p>Si elle y figure, c'est le lien avec Instagram qui manque : ouvre
 <a class="accent" href="https://business.facebook.com/settings" target="_blank" rel="noreferrer">Meta Business Suite</a>
 → Paramètres → Comptes → Comptes Instagram → <b>Connecter</b>, et rattache le compte à cette Page. Le compte Instagram
