@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { api, humanizeError } from '../api/client';
 
 export default function Login() {
   const [password, setPassword] = useState('');
@@ -23,7 +23,9 @@ export default function Login() {
               await api.post('/api/auth/login', { password });
               location.href = '/';
             } catch (err) {
-              setError(err instanceof ApiError ? 'Mot de passe incorrect' : String(err));
+              // Le serveur distingue mot de passe erroné, blocage temporaire et panne :
+              // son message est plus utile qu'un « mot de passe incorrect » systématique.
+              setError(humanizeError(err));
             } finally {
               setBusy(false);
             }

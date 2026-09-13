@@ -59,7 +59,7 @@ export function approvalLandingPage(args: {
 <form method="post" action="/a/${token}/confirm">
   <button class="neutral" type="submit">Ouvrir l'éditeur du dashboard</button>
 </form>
-<p style="font-size:13px">Une session sécurisée sera ouverte dans ton navigateur.</p>`,
+<p style="font-size:13px">Une session sécurisée de 2 heures sera ouverte dans ton navigateur.</p>`,
   );
 }
 

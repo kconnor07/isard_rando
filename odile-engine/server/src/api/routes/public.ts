@@ -93,7 +93,14 @@ export function registerPublicRoutes(app: FastifyInstance): void {
         return reply.type('text/html').send(resultPage(false, 'Lien invalide ou expiré.'));
       }
       if (payload.act === 'edit') {
-        issueSession(reply);
+        // Même contrôle que le GET : un lien d'email révoqué (ligne d'approbation supprimée)
+        // ou pointant vers un post disparu n'ouvre pas de session.
+        const approval = getApprovalByJti(payload.jti);
+        const post = db.select().from(schema.posts).where(eq(schema.posts.id, payload.pid)).get();
+        if (!approval || !post) {
+          return reply.type('text/html').send(resultPage(false, 'Lien inconnu ou révoqué.'));
+        }
+        issueSession(reply, { fromEmail: true });
         return reply.redirect(`/posts/${payload.pid}`, 303);
       }
       const outcome = executeApprovalAction(payload, {

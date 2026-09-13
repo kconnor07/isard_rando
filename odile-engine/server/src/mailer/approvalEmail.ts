@@ -144,7 +144,7 @@ export async function sendApprovalEmail(
     ${btn('❌ Rejeter', urlFor('reject'), '#dc2626')}
   </td></tr>
   <tr><td align="center" style="padding:4px 28px 26px">
-    <p style="margin:0;color:#99a;font-size:12px">Les liens expirent dans 7 jours et ne fonctionnent qu'une fois.<br/>Rien ne sera publié sans ton accord.</p>
+    <p style="margin:0;color:#99a;font-size:12px">Les liens expirent dans 7 jours. « Approuver » et « Rejeter » ne fonctionnent qu'une fois ; « Modifier » ouvre une session de 2 heures dans ton navigateur.<br/>Rien ne sera publié sans ton accord.</p>
   </td></tr>
 </table>
 </td></tr></table></body></html>`;

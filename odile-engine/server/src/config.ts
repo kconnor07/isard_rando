@@ -39,7 +39,8 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().int().default(587),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  // z.stringbool : « false » et « 0 » valent bien false (z.coerce.boolean les lisait comme true)
+  SMTP_SECURE: z.stringbool().default(false),
   MAIL_FROM: z.string().default('Odile Engine <noreply@localhost>'),
   APPROVAL_EMAIL_TO: z.string().email().optional(),
 
@@ -57,16 +58,77 @@ const envSchema = z.object({
   /** suréchantillonnage du rendu des slides (2 = rendu en 2160×2700 puis réduit : typographie et dégradés plus nets) */
   RENDER_SCALE: z.coerce.number().min(1).max(3).default(2),
   /** désactive le lancement des crons (ex: conteneur de test) */
-  DISABLE_SCHEDULER: z.coerce.boolean().default(false),
+  DISABLE_SCHEDULER: z.stringbool().default(false),
 });
 
-const parsed = envSchema.safeParse(process.env);
+/** Valeurs livrées dans .env.example : utilisables en local, jamais en production. */
+const PLACEHOLDERS = {
+  APP_SECRET: 'dev-secret-change-me-in-production!',
+  ADMIN_PASSWORD: 'odile',
+};
+
+export interface SecretProblem {
+  key: 'APP_SECRET' | 'ADMIN_PASSWORD';
+  level: 'erreur' | 'avertissement';
+  message: string;
+}
+
+/**
+ * Contrôle des secrets en production : le moteur refuse de démarrer avec les valeurs
+ * d'exemple, qui sont publiques (dépôt, documentation). APP_SECRET signe le cookie
+ * d'administration et dérive la clé de chiffrement des jetons OAuth ; ADMIN_PASSWORD
+ * est l'unique barrière du dashboard. Un secret court mais personnel ne bloque pas le
+ * démarrage — il avertit — pour ne jamais verrouiller une instance déjà en service.
+ */
+export function checkProductionSecrets(env: { APP_SECRET: string; ADMIN_PASSWORD: string }): SecretProblem[] {
+  const problems: SecretProblem[] = [];
+  const placeholder = (v: string) => /change[-_ ]?me|changeme|à-changer|a-changer/i.test(v);
+
+  if (env.APP_SECRET === PLACEHOLDERS.APP_SECRET || placeholder(env.APP_SECRET)) {
+    problems.push({
+      key: 'APP_SECRET',
+      level: 'erreur',
+      message:
+        "valeur d'exemple encore en place. Génère un secret avec « openssl rand -base64 32 ». " +
+        'Attention : le changer rend illisibles les jetons LinkedIn/Meta déjà enregistrés (il faudra reconnecter les comptes).',
+    });
+  } else if (env.APP_SECRET.length < 32) {
+    problems.push({ key: 'APP_SECRET', level: 'avertissement', message: `${env.APP_SECRET.length} caractères — 32 au moins sont recommandés (openssl rand -base64 32).` });
+  }
+
+  if (env.ADMIN_PASSWORD === PLACEHOLDERS.ADMIN_PASSWORD || placeholder(env.ADMIN_PASSWORD)) {
+    problems.push({ key: 'ADMIN_PASSWORD', level: 'erreur', message: "valeur d'exemple encore en place : le dashboard serait ouvert à tous." });
+  } else if (env.ADMIN_PASSWORD.length < 12) {
+    problems.push({ key: 'ADMIN_PASSWORD', level: 'avertissement', message: `${env.ADMIN_PASSWORD.length} caractères — 12 au moins sont recommandés.` });
+  }
+  return problems;
+}
+
+// Une variable laissée vide dans .env (« APPROVAL_EMAIL_TO= ») arrive comme chaîne vide et
+// ferait échouer la validation : on la traite comme absente, donc comme « valeur par défaut ».
+const rawEnv = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== ''));
+
+const parsed = envSchema.safeParse(rawEnv);
 if (!parsed.success) {
   console.error('Configuration invalide (.env) :');
   for (const issue of parsed.error.issues) {
     console.error(`  - ${issue.path.join('.')}: ${issue.message}`);
   }
   process.exit(1);
+}
+
+if (parsed.data.NODE_ENV === 'production') {
+  const problems = checkProductionSecrets(parsed.data);
+  for (const p of problems.filter((x) => x.level === 'avertissement')) {
+    console.warn(`⚠️  ${p.key} : ${p.message}`);
+  }
+  const blocking = problems.filter((p) => p.level === 'erreur');
+  if (blocking.length > 0) {
+    console.error('Démarrage refusé : secrets d’exemple en production.');
+    for (const p of blocking) console.error(`  - ${p.key} : ${p.message}`);
+    console.error('  → édite le fichier .env sur le serveur, puis relance ./docker/deploy.sh');
+    process.exit(1);
+  }
 }
 
 export const config = {

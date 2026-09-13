@@ -2,13 +2,50 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 
+/** Paramètres d'URL qui portent un secret (Graph API, OAuth) — jamais journalisés. */
+const SECRET_PARAMS = /^(access_token|client_secret|code|fb_exchange_token|refresh_token|token|api[-_]?key)$/i;
+
+/**
+ * URL réduite à ce qui aide au diagnostic : origine, chemin, et paramètres non secrets.
+ * Les appels Graph passent le jeton en query string, et ce message finit en base
+ * (`publish_jobs.last_error`, `posts.error`), dans les logs et dans un email d'alerte.
+ */
+export function redactUrl(raw: string): string {
+  try {
+    const url = new URL(raw);
+    const kept: string[] = [];
+    for (const [k, v] of url.searchParams) {
+      kept.push(`${k}=${SECRET_PARAMS.test(k) ? '***' : v.slice(0, 40)}`);
+    }
+    return `${url.origin}${url.pathname}${kept.length ? `?${kept.join('&')}` : ''}`;
+  } catch {
+    return raw.split('?')[0] ?? raw;
+  }
+}
+
+/** Masque un secret recopié par la plateforme dans son propre message d'erreur. */
+export function redactSecrets(text: string): string {
+  return text
+    .replace(/("?(?:access_token|client_secret|refresh_token|code|fb_exchange_token|api[-_]?key)"?\s*[:=]\s*"?)[^"&,\s}]+/gi, '$1***')
+    .replace(/\bEAA[A-Za-z0-9]{20,}/g, 'EAA***')
+    .replace(/\bAQ[A-Za-z0-9_-]{30,}/g, 'AQ***');
+}
+
 export class HttpError extends Error {
+  /** URL masquée (jamais la query string brute) */
+  public readonly url: string;
+  public readonly body: string;
+
   constructor(
     public status: number,
-    public url: string,
-    public body: string,
+    url: string,
+    body: string,
   ) {
-    super(`HTTP ${status} sur ${url}: ${body.slice(0, 400)}`);
+    const safeUrl = redactUrl(url);
+    const safeBody = redactSecrets(body);
+    super(`HTTP ${status} sur ${safeUrl}: ${safeBody.slice(0, 400)}`);
+    this.url = safeUrl;
+    this.body = safeBody;
   }
 }
 

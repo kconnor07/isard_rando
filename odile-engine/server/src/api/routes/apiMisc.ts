@@ -6,14 +6,33 @@ import { latestMetricsByPost } from '../../publishers/metrics.js';
 import { connectionWarnings } from '../../publishers/refresh.js';
 import { nextPublishSlot, shouldDraftToday } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
+import { loginLimiter } from '../rateLimit.js';
+import { dailyIpHash } from '../../lib/crypto.js';
+import { logger } from '../../lib/logger.js';
 
 export function registerMiscRoutes(app: FastifyInstance): void {
   // ----- Auth ---------------------------------------------------------------
   app.post('/api/auth/login', async (request, reply) => {
+    // 5 échecs par quart d'heure et par IP : le mot de passe d'administration est la
+    // seule barrière devant les jetons LinkedIn/Meta.
+    const key = request.ip ?? 'inconnu';
+    const gate = loginLimiter.check(key);
+    if (!gate.allowed) {
+      logger.warn({ ip: dailyIpHash(key), retryAfter: gate.retryAfter }, 'connexion bloquée (trop de tentatives)');
+      return reply
+        .status(429)
+        .header('retry-after', String(gate.retryAfter))
+        .send({ error: `Trop de tentatives — réessayez dans ${Math.ceil(gate.retryAfter / 60)} minute(s).` });
+    }
     const parsed = loginSchema.safeParse(request.body);
     if (!parsed.success || !checkPassword(parsed.data.password)) {
-      return reply.status(401).send({ error: 'Mot de passe incorrect' });
+      const after = loginLimiter.fail(key);
+      logger.warn({ ip: dailyIpHash(key), restantes: after.remaining }, 'mot de passe incorrect');
+      return reply.status(401).send({
+        error: after.remaining > 0 ? `Mot de passe incorrect — ${after.remaining} tentative(s) avant blocage.` : 'Mot de passe incorrect.',
+      });
     }
+    loginLimiter.reset(key);
     issueSession(reply);
     return { ok: true };
   });
