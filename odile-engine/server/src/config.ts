@@ -43,6 +43,8 @@ const envSchema = z.object({
   SMTP_SECURE: z.stringbool().default(false),
   MAIL_FROM: z.string().default('Odile Engine <noreply@localhost>'),
   APPROVAL_EMAIL_TO: z.string().email().optional(),
+  /** adresse publiée sur les pages « confidentialité » et « suppression des données » */
+  CONTACT_EMAIL: z.string().email().default('contact@odileai.com'),
 
   LINKEDIN_CLIENT_ID: z.string().optional(),
   LINKEDIN_CLIENT_SECRET: z.string().optional(),

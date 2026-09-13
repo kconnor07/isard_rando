@@ -26,7 +26,15 @@ première fois. Tout est gratuit.
      **Enregistrer les clés**. (À défaut, `.env` : `META_APP_ID`,
      `META_APP_SECRET`, `META_VERIFY_TOKEN`.)
 3. *App settings* → *Basic* : renseigne **App domains** (`engine.odileai.com`)
-   et une URL de politique de confidentialité (celle d'odileai.com convient).
+   et les deux URL que le moteur sert lui-même :
+   - **Privacy Policy URL** : `https://engine.odileai.com/confidentialite`
+   - **User Data Deletion** → *Data Deletion Instructions URL* :
+     `https://engine.odileai.com/suppression-donnees`
+
+   Ces pages sont publiques et décrivent le traitement réel (jetons chiffrés,
+   commentaires reçus par webhook, empreinte d'IP quotidienne sur les liens
+   courts, durées de purge). L'adresse de contact qui y apparaît se règle avec
+   `CONTACT_EMAIL` dans le `.env` (par défaut `contact@odileai.com`).
 4. **Add product** → **Facebook Login** → *Settings* → **Valid OAuth Redirect
    URIs** : `https://engine.odileai.com/oauth/meta/callback`.
 

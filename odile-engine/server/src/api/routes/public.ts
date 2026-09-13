@@ -9,6 +9,7 @@ import { resolveLink, targetWithUtm } from '../../shortener/index.js';
 import { executeApprovalAction, getApprovalByJti } from '../../approvals/service.js';
 import { nextPublishSlot } from '../../scheduler/cadence.js';
 import { issueSession } from '../auth.js';
+import { dataDeletionPage, privacyPage } from '../legalPages.js';
 import { approvalLandingPage, resultPage } from '../pages.js';
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -25,6 +26,16 @@ export function isBotUserAgent(ua: string): boolean {
 
 export function registerPublicRoutes(app: FastifyInstance): void {
   app.get('/healthz', async () => ({ ok: true, ts: new Date().toISOString(), version: process.env.GIT_SHA ?? 'dev' }));
+
+  // ----- Pages légales (URL réclamées par Meta pour valider l'app) ----------
+  // Servies par le moteur lui-même : elles suivent le domaine du serveur et
+  // restent accessibles sans connexion, y compris au robot de vérification Meta.
+  for (const route of ['/confidentialite', '/privacy', '/politique-de-confidentialite']) {
+    app.get(route, async (_request, reply) => reply.type('text/html; charset=utf-8').send(privacyPage()));
+  }
+  for (const route of ['/suppression-donnees', '/data-deletion']) {
+    app.get(route, async (_request, reply) => reply.type('text/html; charset=utf-8').send(dataDeletionPage()));
+  }
 
   // ----- Raccourcisseur de liens tracké -------------------------------------
   app.get<{ Params: { code: string } }>('/r/:code', async (request, reply) => {
