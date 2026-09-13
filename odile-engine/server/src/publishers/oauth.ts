@@ -513,6 +513,47 @@ doit être en mode professionnel (Instagram → Paramètres → Type de compte).
     return { candidates, selectedPageId: (ig?.meta.pageId as string | undefined) ?? null, userToken: true, error };
   });
 
+  /**
+   * Point de contrôle : ce que le jeton Meta voit réellement. Utile quand la connexion
+   * échoue sans que Meta explique pourquoi — permissions accordées, Pages autorisées,
+   * comptes Instagram rattachés. Aucun jeton n'est renvoyé.
+   */
+  app.get('/api/oauth/meta/diagnostic', { preHandler: requireSession }, async (_request, reply) => {
+    const user = getStoredToken('meta', 'fb_user');
+    if (!user) {
+      return reply.status(404).send({ error: 'Aucun jeton Meta enregistré — lance une connexion, même si elle échoue ensuite.' });
+    }
+    const permissions = await fetchGrantedScopes(user.accessToken);
+    const manquantes = META_CORE_SCOPES.filter((s) => !permissions.includes(s));
+    let pages: { id: string; nom: string; instagram: string | null }[] = [];
+    let pagesErreur: string | null = null;
+    try {
+      pages = (await listMetaPages(user.accessToken)).map((p) => ({
+        id: p.id,
+        nom: p.name,
+        instagram: p.instagram_business_account ? `@${p.instagram_business_account.username ?? p.instagram_business_account.id}` : null,
+      }));
+    } catch (err) {
+      pagesErreur = String(err).slice(0, 300);
+    }
+    const apps = getOauthApps();
+    return {
+      compte: user.meta.name ?? '',
+      connecteLe: user.meta.connectedAt ?? null,
+      configurationUtilisee: apps.metaConfigId || '(dialogue OAuth classique)',
+      permissionsAccordees: permissions,
+      permissionsSoclesManquantes: manquantes,
+      pagesAutorisees: pages,
+      pagesErreur,
+      lecture:
+        pages.length === 0
+          ? 'Aucune Page dans le jeton : la fenêtre Facebook n’en a proposé aucune (la configuration Login for Business doit déclarer l’actif « Pages ») ou aucune n’a été cochée.'
+          : pages.every((p) => !p.instagram)
+            ? 'Pages autorisées, mais aucun compte Instagram rattaché au jeton : coche aussi le compte Instagram dans la fenêtre Facebook.'
+            : 'Page et compte Instagram présents : la connexion peut aboutir.',
+    };
+  });
+
   app.post<{ Body: { pageId: string } }>('/api/oauth/meta/select', { preHandler: requireSession }, async (request, reply) => {
     const pageId = request.body?.pageId?.replace(/\D/g, '');
     if (!pageId) return reply.status(400).send({ error: 'pageId requis' });
