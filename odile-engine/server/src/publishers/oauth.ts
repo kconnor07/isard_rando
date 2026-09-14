@@ -112,7 +112,7 @@ export function linkLinkedInOrganization(orgId: string): LinkedInOrg {
  * elle permet de publier tout de suite, quitte à élargir plus tard.
  */
 export const META_CORE_SCOPES = ['pages_show_list', 'pages_read_engagement', 'instagram_basic', 'instagram_content_publish'];
-export const META_EXTRA_SCOPES = ['pages_manage_metadata', 'instagram_manage_comments', 'instagram_manage_messages', 'instagram_manage_insights'];
+export const META_EXTRA_SCOPES = ['pages_manage_metadata', 'pages_manage_posts', 'instagram_manage_comments', 'instagram_manage_messages', 'instagram_manage_insights'];
 export const META_SCOPES = [...META_CORE_SCOPES, ...META_EXTRA_SCOPES].join(',');
 export const metaScopes = (minimal: boolean): string => (minimal ? META_CORE_SCOPES : [...META_CORE_SCOPES, ...META_EXTRA_SCOPES]).join(',');
 

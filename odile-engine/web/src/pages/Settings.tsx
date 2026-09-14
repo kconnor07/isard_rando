@@ -12,6 +12,7 @@ type AllSettings = Record<string, unknown> & {
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
+  fb_mirror: { enabled: boolean };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
   image_gen: { enabled: boolean; autoPlace?: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined>; modelByStyle?: Record<string, string | undefined> };
@@ -118,7 +119,7 @@ export default function Settings() {
   }, [settings]);
 
   const SECTION_LABELS: Record<string, string> = {
-    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM',
+    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook',
     design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
     default_theme: 'Thème par défaut', default_format: 'Format par défaut',
   };
@@ -331,6 +332,23 @@ export default function Settings() {
           <div><label className="label">Créneaux LinkedIn</label>
             <SlotsEditor slots={form.publish_slots.li} onChange={(li) => set('publish_slots', { ...form.publish_slots, li })} /></div>
         </div>
+      </Section>
+
+      <Section title="Miroir Facebook" saving={savingOf('fb_mirror')} onSave={() => save.mutate({ key: 'fb_mirror', value: form.fb_mirror })}>
+        <label className="mb-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.fb_mirror?.enabled ?? false}
+            onChange={(e) => set('fb_mirror', { enabled: e.target.checked })} />
+          Recopier chaque publication Instagram sur la Page Facebook liée
+        </label>
+        <p className="text-xs text-muted">
+          Mêmes visuels, même légende, publiés juste après Instagram — sans créneau ni validation séparés. Une image
+          devient une photo, un carrousel devient une publication à plusieurs photos. Un échec côté Facebook est
+          consigné sur le post et laisse la publication Instagram intacte.
+        </p>
+        <p className="mt-2 text-xs text-muted">
+          Exige la permission <code>pages_manage_posts</code> sur l'app Meta : ajoutez-la aux autorisations, puis
+          reconnectez le compte depuis Connexions &amp; santé.
+        </p>
       </Section>
 
       <Section title="Commentaire → DM" saving={savingOf('dm_triggers')} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>

@@ -1,12 +1,48 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { and, eq, lte } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getApprovalEmail } from '../db/settingsRepo.js';
+import { getApprovalEmail, getFbMirror } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { sendMail } from '../mailer/smtp.js';
+import { facebookMirrorDryPayload, mirrorToFacebookPage } from './facebook.js';
 import { instagramDryPayload, InstagramPublisher } from './instagram.js';
 import { linkedInDryPayload, LinkedInPublisher } from './linkedin.js';
 import { buildCaption, collectPublishImages, DryRunPublisher, type Publisher } from './types.js';
+
+/**
+ * Recopie du post Instagram sur la Page Facebook, quand le miroir est activé.
+ *
+ * Volontairement hors du chemin critique : le post Instagram est déjà en ligne, un
+ * échec ici est consigné sur le post et n'entraîne ni nouvelle tentative de
+ * publication, ni statut « échec ».
+ */
+async function mirrorOnFacebook(post: typeof schema.posts.$inferSelect, input: Parameters<Publisher['publish']>[0]): Promise<void> {
+  if (post.platform !== 'instagram' || !getFbMirror().enabled) return;
+  try {
+    if (config.PUBLISH_MODE === 'dry') {
+      const payload = facebookMirrorDryPayload(input);
+      const file = path.join(config.outboxDir, `mirror-${post.id}-facebook-${Date.now()}.json`);
+      fs.mkdirSync(config.outboxDir, { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ publisher: 'facebook-mirror', post: post.id, payload }, null, 2));
+      db.update(schema.posts)
+        .set({ fbMirrorPostId: `dry-facebook-${post.id}`, fbMirrorUrl: `file://${file}`, fbMirrorError: null })
+        .where(eq(schema.posts.id, post.id))
+        .run();
+      return;
+    }
+    const mirror = await mirrorToFacebookPage(input);
+    db.update(schema.posts)
+      .set({ fbMirrorPostId: mirror.postId, fbMirrorUrl: mirror.url, fbMirrorError: null })
+      .where(eq(schema.posts.id, post.id))
+      .run();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    db.update(schema.posts).set({ fbMirrorError: message.slice(0, 500) }).where(eq(schema.posts.id, post.id)).run();
+    logger.warn({ postId: post.id, err: message }, 'recopie Facebook impossible — le post Instagram reste publié');
+  }
+}
 
 function publisherFor(platform: string): Publisher {
   if (config.PUBLISH_MODE === 'dry') {
@@ -76,6 +112,7 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
         .run();
       summary.published++;
       logger.info({ postId: post.id, publisher: publisher.name }, 'publication réussie');
+      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post) });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const retryable = job.attempt + 1 < job.maxAttempts;

@@ -13,6 +13,7 @@ import {
   publishSlotsSchema,
   toneSettingsSchema,
   visualAgentSettingsSchema,
+  fbMirrorSettingsSchema,
 } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from './client.js';
@@ -68,6 +69,8 @@ export const getDmTriggers = () =>
     keywords: [...DEFAULTS.dmTriggers.keywords],
     replyTemplate: DEFAULTS.dmTriggers.replyTemplate,
   });
+/** Recopie des publications Instagram sur la Page Facebook (désactivée par défaut). */
+export const getFbMirror = () => getSetting('fb_mirror', fbMirrorSettingsSchema, { enabled: false });
 export const getApprovalEmail = () =>
   getSetting('approval_email', approvalEmailSettingsSchema, {
     to: config.APPROVAL_EMAIL_TO ?? 'admin@localhost.local',

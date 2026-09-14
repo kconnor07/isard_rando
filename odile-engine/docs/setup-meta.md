@@ -63,6 +63,18 @@ Instagram professionnel ».
 Dès qu'il est renseigné, le moteur construit l'URL avec `config_id` et sans
 `scope` ; laissé vide, il conserve le dialogue OAuth classique.
 
+## 2 ter. Publier aussi sur la Page Facebook (facultatif)
+
+Réglages → **Miroir Facebook** recopie chaque publication Instagram sur la Page
+liée : mêmes visuels, même légende, juste après Instagram, sans créneau ni
+validation séparés. Une image devient une photo, un carrousel une publication à
+plusieurs photos.
+
+Cela exige la permission **`pages_manage_posts`**, distincte de celles
+d'Instagram : ajoutez-la aux autorisations de l'app (ou de la configuration
+Login for Business), puis reconnectez le compte. Sans elle, la recopie est
+refusée avec un message explicite et la publication Instagram reste intacte.
+
 ## 3. Connecter le compte depuis le dashboard
 
 ⚠️ Si Facebook répond « **Invalid Scopes** » en listant `pages_manage_metadata`,

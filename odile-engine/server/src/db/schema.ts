@@ -101,6 +101,10 @@ export const posts = sqliteTable(
     publishedAt: text('published_at'),
     externalPostId: text('external_post_id'),
     externalUrl: text('external_url'),
+    /** recopie sur la Page Facebook : identifiant, lien, ou motif d'échec (n'invalide pas le post Instagram) */
+    fbMirrorPostId: text('fb_mirror_post_id'),
+    fbMirrorUrl: text('fb_mirror_url'),
+    fbMirrorError: text('fb_mirror_error'),
     rejectReason: text('reject_reason'),
     /** objets flottants choisis pour ce post (JSON {float1, float2, floatSize, floatLayout}) */
     visualOverrides: text('visual_overrides'),

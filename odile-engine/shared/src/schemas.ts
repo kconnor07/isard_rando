@@ -69,6 +69,12 @@ export const dmTriggerSettingsSchema = z.object({
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 
+/** Recopie automatique de chaque publication Instagram sur la Page Facebook liée. */
+export const fbMirrorSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+});
+export type FbMirrorSettings = z.infer<typeof fbMirrorSettingsSchema>;
+
 export const approvalEmailSettingsSchema = z.object({
   to: z.string().email(),
   subjectPrefix: z.string().max(40).default('[Odile]'),
