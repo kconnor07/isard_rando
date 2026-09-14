@@ -76,8 +76,8 @@ export const getDmTriggers = () =>
     thanksTemplate: dmTriggerSettingsSchema.shape.thanksTemplate.parse(undefined),
     remindTemplate: dmTriggerSettingsSchema.shape.remindTemplate.parse(undefined),
     publicReply: true,
-    publicReplyTemplate: dmTriggerSettingsSchema.shape.publicReplyTemplate.parse(undefined),
-    publicReplyFallback: dmTriggerSettingsSchema.shape.publicReplyFallback.parse(undefined),
+    publicReplyVariants: dmTriggerSettingsSchema.shape.publicReplyVariants.parse(undefined),
+    publicReplyFallbackVariants: dmTriggerSettingsSchema.shape.publicReplyFallbackVariants.parse(undefined),
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });

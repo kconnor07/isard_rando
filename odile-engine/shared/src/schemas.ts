@@ -97,13 +97,40 @@ export const dmTriggerSettingsSchema = z.object({
    * Meta n'est pas encore ouverte, et elle montre aux autres lecteurs qu'on répond.
    */
   publicReply: z.boolean().default(true),
-  /** texte posté sous le commentaire quand le message privé est bien parti */
-  publicReplyTemplate: z.string().max(300).default('Je t’envoie ça en message privé 📩'),
   /**
-   * Texte posté quand le message privé n'a pas pu partir : promettre un DM qui
-   * n'arrivera pas serait pire que se taire, alors le lien est donné publiquement.
+   * Phrases postées sous le commentaire quand le message privé est parti. Elles
+   * renvoient vers les DM et ne portent jamais le lien : tout se passe en privé.
+   * Une phrase différente à chaque commentaire — un compte qui répond la même
+   * chose vingt fois de suite a l'air d'un robot.
    */
-  publicReplyFallback: z.string().max(300).default('Merci ! Voici le lien : {{link}}'),
+  publicReplyVariants: z
+    .array(z.string().min(1).max(300))
+    .max(30)
+    .default([
+      'C’est parti dans tes messages privés 💌',
+      'Je t’ai glissé ça en DM ✨',
+      'Regarde tes messages, tout y est 👀',
+      'Direction tes DM 📩',
+      'Je viens de t’écrire en privé 🤍',
+      'Un petit cadeau t’attend en DM 🎁',
+      'File voir tes messages privés 🚀',
+      'Réponse envoyée en privé, bonne lecture 💫',
+    ]),
+  /**
+   * Phrases postées quand le message privé n'a pas pu partir. Elles invitent la
+   * personne à écrire la première : promettre un DM qui n'arrivera pas serait pire
+   * que se taire, et un message reçu ouvre la fenêtre de réponse côté Instagram.
+   */
+  publicReplyFallbackVariants: z
+    .array(z.string().min(1).max(300))
+    .max(30)
+    .default([
+      'Écris-moi en message privé, je t’envoie tout 💌',
+      'Envoie-moi un petit DM et c’est à toi ✨',
+      'Passe par mes messages privés, je t’attends 📩',
+      'Un mot en privé et je te réponds tout de suite 🤍',
+      'Glisse-moi un DM, j’ai tout préparé 🎁',
+    ]),
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 

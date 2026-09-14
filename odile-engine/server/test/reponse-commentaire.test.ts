@@ -33,15 +33,39 @@ describe('refus Meta traduits en marche à suivre', async () => {
 });
 
 describe('réponse publique sous le commentaire', async () => {
-  const { buildReply } = await import('../src/webhooks/commentDm.js');
+  const { choisirVariante } = await import('../src/webhooks/commentDm.js');
   const { dmTriggerSettingsSchema } = await import('@odile/shared');
+  const reglages = dmTriggerSettingsSchema.parse({ keywords: ['GUIDE'], replyTemplate: 'lien : {{link}}' });
 
-  it('est active par défaut et ne promet un DM que s’il est parti', () => {
-    const s = dmTriggerSettingsSchema.parse({ keywords: ['GUIDE'], replyTemplate: 'lien : {{link}}' });
-    expect(s.publicReply).toBe(true);
-    expect(s.publicReplyTemplate).toMatch(/privé/i);
-    // Le repli donne le lien publiquement : personne ne reste sans réponse.
-    expect(buildReply(s.publicReplyFallback, 'https://odile.test/r/abc')).toContain('https://odile.test/r/abc');
-    expect(buildReply(s.publicReplyTemplate, 'https://odile.test/r/abc')).not.toContain('odile.test');
+  it('est active par défaut, avec plusieurs phrases de chaque côté', () => {
+    expect(reglages.publicReply).toBe(true);
+    expect(reglages.publicReplyVariants.length).toBeGreaterThan(3);
+    expect(reglages.publicReplyFallbackVariants.length).toBeGreaterThan(2);
+  });
+
+  it('aucune phrase ne porte de lien : tout se passe en privé', () => {
+    for (const phrase of [...reglages.publicReplyVariants, ...reglages.publicReplyFallbackVariants]) {
+      expect(phrase).not.toMatch(/\{\{link\}\}|https?:\/\//);
+    }
+  });
+
+  it('chaque phrase renvoie vers les messages privés et porte un émoji', () => {
+    const emoji = /\p{Extended_Pictographic}/u;
+    for (const phrase of reglages.publicReplyVariants) {
+      expect(phrase).toMatch(/privé|DM|message/i);
+      expect(phrase).toMatch(emoji);
+    }
+    for (const phrase of reglages.publicReplyFallbackVariants) {
+      expect(phrase).toMatch(emoji);
+    }
+  });
+
+  it('deux commentaires qui se suivent ne reçoivent pas la même phrase', () => {
+    const vues = [101, 102, 103, 104].map((id) => choisirVariante(reglages.publicReplyVariants, id));
+    expect(new Set(vues).size).toBe(4);
+    // La liste tourne en boucle sans jamais sortir de ses bornes
+    expect(choisirVariante(reglages.publicReplyVariants, 0)).toBe(reglages.publicReplyVariants[0]);
+    expect(choisirVariante([], 3)).toBeNull();
+    expect(choisirVariante(['  ', 'une phrase'], 7)).toBe('une phrase');
   });
 });

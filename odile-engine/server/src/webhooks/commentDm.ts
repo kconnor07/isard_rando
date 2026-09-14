@@ -61,20 +61,31 @@ async function envoyerMessage(igsid: string, texte: string): Promise<void> {
 }
 
 /**
+ * Une phrase différente d'un commentaire au suivant. La rotation suit l'identifiant
+ * du commentaire : deux commentaires consécutifs ne reçoivent jamais la même phrase,
+ * sans avoir à retenir ce qui a déjà servi.
+ */
+export function choisirVariante(variantes: string[], graine: number): string | null {
+  const utiles = variantes.map((v) => v.trim()).filter(Boolean);
+  if (utiles.length === 0) return null;
+  return utiles[((graine % utiles.length) + utiles.length) % utiles.length]!;
+}
+
+/**
  * Réponse publique sous le commentaire.
  *
  * Elle ne dépend que de `instagram_manage_comments` : elle part même quand la
- * messagerie de l'app Meta n'est pas ouverte. Le texte dépend du sort du message
- * privé — promettre un DM qui n'arrivera pas serait pire que se taire, donc le
- * lien est donné publiquement quand l'envoi privé a échoué.
+ * messagerie de l'app Meta n'est pas ouverte. Elle ne porte jamais le lien — tout
+ * se passe en privé — et son texte dépend du sort du message privé : renvoi vers
+ * les DM s'il est parti, invitation à écrire sinon.
  */
 export async function repondreEnPublic(commentId: number, dmParti: boolean, lien: string): Promise<void> {
   const comment = db.select().from(schema.comments).where(eq(schema.comments.id, commentId)).get();
   if (!comment || comment.publicReplyStatus === 'sent' || !comment.externalId) return;
   const settings = getDmTriggers();
   if (!settings.publicReply) return;
-  const modele = dmParti ? settings.publicReplyTemplate : settings.publicReplyFallback;
-  if (!modele.trim()) return;
+  const modele = choisirVariante(dmParti ? settings.publicReplyVariants : settings.publicReplyFallbackVariants, commentId);
+  if (!modele) return;
   const texte = buildReply(modele, lien);
 
   const igToken = getStoredToken('meta', 'ig_user');

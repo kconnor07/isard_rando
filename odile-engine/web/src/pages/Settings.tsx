@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
-  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyTemplate?: string; publicReplyFallback?: string };
+  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[] };
   fb_mirror: { enabled: boolean };
   llm_budget: { enabled: boolean; dailyEuros: number };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
@@ -432,15 +432,18 @@ export default function Settings() {
             {(form.dm_triggers.publicReply ?? true) && (
               <div className="mt-3 grid gap-3">
                 <div>
-                  <label className="label">Quand le message privé est parti</label>
-                  <input className="input" value={form.dm_triggers.publicReplyTemplate ?? ''}
-                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReplyTemplate: e.target.value })} />
+                  <label className="label">Phrases quand le message privé est parti — une par ligne, tirées à tour de rôle</label>
+                  <textarea className="input" rows={5} value={(form.dm_triggers.publicReplyVariants ?? []).join('\n')}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReplyVariants: e.target.value.split('\n').map((l) => l.trim()).filter(Boolean) })} />
                 </div>
                 <div>
-                  <label className="label">Quand il n'a pas pu partir ({'{{link}}'} = lien tracké)</label>
-                  <input className="input" value={form.dm_triggers.publicReplyFallback ?? ''}
-                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReplyFallback: e.target.value })} />
+                  <label className="label">Phrases quand il n'a pas pu partir (invitation à écrire en privé)</label>
+                  <textarea className="input" rows={4} value={(form.dm_triggers.publicReplyFallbackVariants ?? []).join('\n')}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReplyFallbackVariants: e.target.value.split('\n').map((l) => l.trim()).filter(Boolean) })} />
                 </div>
+                <p className="text-xs text-muted">
+                  Le lien ne part jamais en commentaire : il reste dans le message privé.
+                </p>
               </div>
             )}
           </div>
