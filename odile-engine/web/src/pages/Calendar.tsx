@@ -128,7 +128,7 @@ export default function Calendar() {
           <div className="flex items-center gap-1.5">
             <span className="mono text-[11px] text-ice">{fmtTime(item.at)}</span>
             <span className="mono text-[10px] uppercase text-muted">{PLATFORM_SHORT[post.platform] ?? post.platform}</span>
-            {!compact && <StatusBadge status={post.status} />}
+            {!compact && <StatusBadge status={post.status} simulated={post.simulated} />}
             {movable && (
               <button className="ml-auto hidden text-muted hover:text-txt group-hover:inline-flex" title="Déplacer" onClick={() => void move(post)}>
                 <MoveRight size={12} />

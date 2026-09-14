@@ -184,7 +184,7 @@ export default function Dashboard() {
               className="rise group flex items-center gap-4 py-3.5 transition-colors hover:bg-white/[0.025] md:px-2 md:-mx-2 rounded-lg"
               style={{ '--i': 3 + i } as React.CSSProperties}
             >
-              <StatusBadge status={post.status} />
+              <StatusBadge status={post.status} simulated={post.simulated} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[14px] font-semibold group-hover:text-ice">
                   {post.hook || '(sans titre)'}

@@ -410,7 +410,7 @@ export default function PostEditor() {
       <PageTitle
         title={post.hook || `Post #${post.id}`}
         subtitle={`${CHANNEL_LABELS[post.channel] ?? post.channel} · ${FORMAT_LABELS[post.format] ?? post.format} · thème ${post.theme}${post.scheduledAt ? ` · prévu ${fmtDate(post.scheduledAt)}` : ''}${post.clicks ? ` · ${post.clicks} clic(s)` : ''}`}
-        actions={<StatusBadge status={post.status} />}
+        actions={<StatusBadge status={post.status} simulated={post.simulated} />}
       />
 
       {inProgress && (

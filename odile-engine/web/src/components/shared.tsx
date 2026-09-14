@@ -52,7 +52,8 @@ export const SLIDE_FIELD_LABELS: Record<string, string> = {
   kind: 'Type de slide',
 };
 
-export function StatusBadge({ status }: { status: string }) {
+/** `simulated` : publié en mode simulation — le statut « publié » ne doit pas laisser croire le contraire. */
+export function StatusBadge({ status, simulated }: { status: string; simulated?: boolean }) {
   const s = STATUS_LABELS[status] ?? { label: status, dot: 'bg-white/30', text: 'text-muted' };
   return (
     <span
@@ -60,6 +61,7 @@ export function StatusBadge({ status }: { status: string }) {
     >
       <span className={`h-1.5 w-1.5 rounded-full ${s.dot}`} />
       {s.label}
+      {simulated && <span className="ml-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[9px]">simulation</span>}
     </span>
   );
 }

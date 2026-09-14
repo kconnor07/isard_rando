@@ -12,6 +12,7 @@ export interface PostSummaryDto {
   scheduledAt: string | null;
   publishedAt: string | null;
   externalUrl: string | null;
+  simulated?: boolean;
   createdAt: string;
   commentTriggerKeyword: string | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;

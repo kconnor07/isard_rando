@@ -104,7 +104,7 @@ export default function Approvals() {
           return (
             <div key={post.id} className={`card p-5 ${busy ? 'opacity-70' : ''}`}>
               <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                <StatusBadge status={post.status} />
+                <StatusBadge status={post.status} simulated={post.simulated} />
                 <span className="text-xs font-semibold text-muted">
                   {CHANNEL_LABELS[post.channel] ?? post.channel} · {FORMAT_LABELS[post.format] ?? post.format} · thème {post.theme}
                 </span>

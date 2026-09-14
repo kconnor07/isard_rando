@@ -44,6 +44,9 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     scheduledAt: post.scheduledAt,
     publishedAt: post.publishedAt,
     externalUrl: post.externalUrl,
+    // Publication simulée (PUBLISH_MODE=dry) : le statut dit « publié » alors que
+    // rien n'est parti. Le dashboard doit pouvoir le dire sans ambiguïté.
+    simulated: Boolean(post.externalPostId?.startsWith('dry-')),
     createdAt: post.createdAt,
     commentTriggerKeyword: post.commentTriggerKeyword,
     reviewSummary: post.reviewSummary ? JSON.parse(post.reviewSummary) : null,

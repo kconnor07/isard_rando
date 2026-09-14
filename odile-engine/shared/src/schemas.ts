@@ -298,6 +298,8 @@ export type PostSummary = {
   scheduledAt: string | null;
   publishedAt: string | null;
   externalUrl: string | null;
+  /** publié en mode simulation : rien n'est parti sur les réseaux */
+  simulated?: boolean;
   createdAt: string;
   newsTitle?: string | null;
   newsUrl?: string | null;
