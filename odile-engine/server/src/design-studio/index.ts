@@ -56,15 +56,21 @@ export async function runDesignReview(postId: number): Promise<DesignReviewSumma
 
     // Les 4 relecteurs partent en escalier (250 ms d'écart) : une rafale
     // simultanée déclenche les limites « par minute » des API.
+    // À partir de la 2e passe, seuls les relecteurs qui n'ont pas passé le seuil
+    // sont rejoués : relancer les quatre ferait payer des critiques déjà rendues
+    // (chaque appel emporte toutes les slides en image).
+    const aRejouer = REVIEWER_DEFS.filter(
+      (r) => iteration === 1 || (finalScores[r.id] ?? 0) < settings.passThreshold,
+    );
     const settled = await Promise.allSettled(
-      REVIEWER_DEFS.map(async (reviewer, reviewerIdx) => {
+      aRejouer.map(async (reviewer, reviewerIdx) => {
         if (reviewerIdx > 0) await new Promise((r) => setTimeout(r, reviewerIdx * 250));
         const prompt = `Itération : ${iteration}/${settings.maxIterations}
 
 Post ${post.platform} (${post.format}, thème ${post.theme}) — les images jointes sont les slides rendues, dans l'ordre.
 
 SPEC JSON des slides :
-${JSON.stringify(slidesJson, null, 2)}
+${JSON.stringify(slidesJson)}
 
 CAPTION :
 ${post.caption}
@@ -115,10 +121,12 @@ target = champ visé, problem, fix). Aucun issue si le score passe.`;
       break;
     }
 
-    finalScores = Object.fromEntries(
-      results.map((r) => [r.reviewer, Math.round(r.score)]),
-    ) as Record<ReviewerId, number>;
-    passed = results.every((r) => r.score >= settings.passThreshold);
+    // Les relecteurs non rejoués gardent leur note : elle vaut toujours.
+    finalScores = {
+      ...finalScores,
+      ...(Object.fromEntries(results.map((r) => [r.reviewer, Math.round(r.score)])) as Record<ReviewerId, number>),
+    };
+    passed = REVIEWER_DEFS.every((r) => (finalScores[r.id] ?? 0) >= settings.passThreshold);
     logger.info({ postId, iteration, finalScores, passed }, 'passe du studio de design');
     if (passed) break;
     if (iteration === settings.maxIterations) break;

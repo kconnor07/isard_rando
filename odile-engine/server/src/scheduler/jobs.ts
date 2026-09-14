@@ -84,6 +84,15 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'metrics en échec'));
   }, { timezone: TZ });
 
+  // Relevé rapproché des posts tout juste publiés : la courbe des premières heures
+  // ne s'attrape pas avec un seul passage quotidien (voir delaiEntreReleves).
+  cron.schedule('25 */2 * * *', () => {
+    void (async () => {
+      const { runMetricsJob } = await import('../publishers/metrics.js');
+      await runJob('metrics-recents', () => runMetricsJob({ maxAgeDays: 3 }));
+    })().catch((err) => logger.error({ err: String(err) }, 'metrics-recents en échec'));
+  }, { timezone: TZ });
+
   // Relances d'approbation (24 h sans réponse, max configurable)
   cron.schedule('0 8 * * *', () => {
     void runJob('approval-reminders', sendApprovalReminders);

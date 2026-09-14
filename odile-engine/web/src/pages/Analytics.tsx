@@ -3,7 +3,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { AnalyticsOverviewDto, PostStatDto } from '../api/types';
+import type { AnalyticsOverviewDto, LlmUsageDto, PostStatDto } from '../api/types';
 import { CHANNEL_LABELS, Empty, fmtDate, PageTitle } from '../components/shared';
 import { toast } from '../components/Toaster';
 
@@ -32,6 +32,15 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
+/** Noms des tâches IA, côté humain. */
+const TACHE_LABELS: Record<string, string> = {
+  writing: 'Rédaction (posts, guides)',
+  review: 'Studio de design',
+  scoring: 'Veille — notation',
+  vision_check: 'Contrôle des captures',
+  generic: 'Divers',
+};
+
 export default function Analytics() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
@@ -46,6 +55,11 @@ export default function Analytics() {
   const { data: learning } = useQuery({
     queryKey: ['analytics', 'learning'],
     queryFn: () => api.get<LearningDto>('/api/analytics/learning'),
+  });
+  const { data: ia } = useQuery({
+    queryKey: ['analytics', 'llm'],
+    queryFn: () => api.get<LlmUsageDto>('/api/analytics/llm'),
+    refetchInterval: 60_000,
   });
   const refresh = useMutation({
     mutationFn: () => api.post<MetricsJobSummary>('/api/analytics/refresh', { force: true }),
@@ -101,6 +115,41 @@ export default function Analytics() {
         <Kpi label="Clics humains" value={fmtNum(overview?.totals.clicks)} hint="liens courts /r/, robots exclus" />
         <Kpi label="Abonnés Instagram" value={fmtNum(overview?.totals.followers)} hint={overview?.connected.instagram ? 'au dernier test de connexion' : 'Instagram non connecté'} />
       </div>
+
+      {ia && (
+        <div className="card mb-5 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-sm font-bold">Consommation IA</h3>
+            <span className="text-xs text-muted">
+              {ia.aujourdhui.appels} appel(s) aujourd'hui · {fmtNum(ia.aujourdhui.entree + ia.aujourdhui.sortie)} jetons
+            </span>
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="mono text-[26px] leading-none text-ice">{ia.aujourdhui.cout.toFixed(2)} €</span>
+            {ia.plafond !== null && <span className="text-sm text-muted">/ {ia.plafond.toFixed(2)} € par jour</span>}
+          </div>
+          {ia.partUtilisee !== null && (
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className={`h-full rounded-full ${ia.partUtilisee >= 1 ? 'bg-white/70' : 'bg-accent'}`}
+                style={{ width: `${Math.round(ia.partUtilisee * 100)}%` }}
+              />
+            </div>
+          )}
+          {ia.repartition.length > 0 && (
+            <div className="mt-3 flex flex-col gap-1">
+              <div className="text-[11px] uppercase tracking-wider text-muted">Ce qui consomme, aujourd'hui</div>
+              {ia.repartition.slice(0, 6).map((r) => (
+                <div key={`${r.task}-${r.provider}`} className="flex items-baseline justify-between text-sm">
+                  <span>{TACHE_LABELS[r.task] ?? r.task} <span className="text-xs text-muted">· {r.provider}</span></span>
+                  <span className="mono text-xs text-muted">{r.appels} appel(s) · {r.cout.toFixed(3)} €</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {ia.aujourdhui.appels === 0 && <p className="mt-2 text-sm text-muted">Aucun appel aujourd'hui.</p>}
+        </div>
+      )}
 
       {overview && (
         <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">

@@ -79,8 +79,7 @@ export async function refabriquerPost(postId: number): Promise<PipelineSummary> 
  */
 const ETAPES = [
   'Ressource promise',
-  'Capture d’écran',
-  'Illustrations',
+  'Capture et illustrations',
   'Agent visuel',
   'Rendu des slides',
   'Relecture du studio',
@@ -124,17 +123,21 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
     }
   }
 
-  etape(draft.postId, 'Capture d’écran');
-  const capture = await captureForPost(draft.postId, draft.screenshotUrl);
-  // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose
-  // (idée d'image de l'accroche comprise) et l'humain la pose s'il la veut.
-  etape(draft.postId, 'Illustrations');
-  const images: ImagesSummary = getImageGen().autoPlace
-    ? await generateImagesForPost(draft.postId).catch((err) => {
-        logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
-        return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
-      })
-    : { generated: 0, skipped: 0, failed: 0, tokens: 0 };
+  // La capture (navigateur, réseau) et les illustrations (API d'images) ne dépendent
+  // pas l'une de l'autre : les enchaîner faisait attendre deux fois. En parallèle,
+  // l'étape ne dure plus que la plus lente des deux.
+  etape(draft.postId, 'Capture et illustrations');
+  const [capture, images] = await Promise.all([
+    captureForPost(draft.postId, draft.screenshotUrl),
+    // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose
+    // (idée d'image de l'accroche comprise) et l'humain la pose s'il la veut.
+    getImageGen().autoPlace
+      ? generateImagesForPost(draft.postId).catch((err): ImagesSummary => {
+          logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
+          return { generated: 0, skipped: 0, failed: 1, tokens: 0 };
+        })
+      : Promise.resolve<ImagesSummary>({ generated: 0, skipped: 0, failed: 0, tokens: 0 }),
+  ]);
   // L'agent visuel propose captures et illustrations pour cette veille (non bloquant)
   etape(draft.postId, 'Agent visuel');
   const visuals = await runVisualAgentForPipeline(draft.postId);

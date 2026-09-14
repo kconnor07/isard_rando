@@ -52,13 +52,15 @@ export function nextPublishSlot(platform: 'linkedin' | 'instagram', now = new Da
     .all()
     .map((j) => new Date(j.scheduledAt).getTime());
 
-  const candidates = list
-    .map((slot) => nextSlotOccurrence(slot, after))
+  // On explore quatre semaines de créneaux, pas seulement la première : si tous les
+  // créneaux de la semaine sont pris, la publication doit glisser au prochain créneau
+  // LIBRE, pas sept jours après le premier (ce qui sautait des créneaux disponibles).
+  const candidates = Array.from({ length: 4 }, (_, semaine) => list.map((slot) => nextSlotOccurrence(slot, after, semaine)))
+    .flat()
     .sort((a, b) => a.getTime() - b.getTime());
   for (const c of candidates) {
     const clash = taken.some((t) => Math.abs(t - c.getTime()) < 30 * 60 * 1000);
     if (!clash) return c;
   }
-  // Tous pris : premier créneau + 1 semaine
-  return new Date(candidates[0]!.getTime() + 7 * 24 * 3600 * 1000);
+  return candidates[candidates.length - 1] ?? after;
 }

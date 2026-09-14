@@ -221,10 +221,26 @@ export function registerAnalyticsRoutes(app: FastifyInstance): void {
       entry.total += performanceScore(p.linkId ? (allClicks.get(p.linkId) ?? 0) : 0, allMetrics.get(p.id));
       slots.set(key, entry);
     }
-    const bestSlots = [...slots.values()]
-      .map((s) => ({ ...s, label: `${DOW_LABELS[s.dow]} ${String(s.hour).padStart(2, '0')}h`, avg: Math.round((s.total / s.posts) * 10) / 10 }))
-      .filter((s) => s.total > 0)
-      .sort((a, b) => b.avg - a.avg || b.posts - a.posts)
+    // Un créneau ne monte sur le podium qu'avec au moins deux posts : sinon un coup
+    // de chance sur une seule publication dicterait toute la programmation. La
+    // moyenne est en plus ramenée vers la moyenne générale tant que l'échantillon
+    // est mince (pondération de Bayes) — un créneau à 2 posts ne bat pas un créneau
+    // à 10 sur un écart de rien du tout.
+    const tous = [...slots.values()];
+    const moyenneGenerale = tous.length
+      ? tous.reduce((a, s) => a + s.total, 0) / Math.max(1, tous.reduce((a, s) => a + s.posts, 0))
+      : 0;
+    const POIDS = 3;
+    const bestSlots = tous
+      .filter((s) => s.posts >= 2 && s.total > 0)
+      .map((s) => ({
+        ...s,
+        label: `${DOW_LABELS[s.dow]} ${String(s.hour).padStart(2, '0')}h`,
+        avg: Math.round((s.total / s.posts) * 10) / 10,
+        /** moyenne lissée : c'est elle qui classe */
+        lisse: Math.round(((s.total + POIDS * moyenneGenerale) / (s.posts + POIDS)) * 10) / 10,
+      }))
+      .sort((a, b) => b.lisse - a.lisse || b.posts - a.posts)
       .slice(0, 6);
 
     const lastFetch = db.select({ fetchedAt: schema.postMetrics.fetchedAt }).from(schema.postMetrics).orderBy(desc(schema.postMetrics.id)).limit(1).get();

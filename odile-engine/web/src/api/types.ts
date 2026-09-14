@@ -299,3 +299,12 @@ export interface OauthAppsDto {
   updatedAt: string | null;
   urls: { linkedinRedirect: string; metaRedirect: string; metaWebhook: string };
 }
+
+/** Consommation des modèles de langage : ce qui a été dépensé, et par quelle tâche. */
+export interface LlmUsageDto {
+  aujourdhui: { jour: string; appels: number; entree: number; sortie: number; cout: number };
+  plafond: number | null;
+  partUtilisee: number | null;
+  jours: { jour: string; appels: number; entree: number; sortie: number; cout: number }[];
+  repartition: { task: string; provider: string; appels: number; tokens: number; cout: number }[];
+}

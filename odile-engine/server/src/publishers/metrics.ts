@@ -195,6 +195,20 @@ export interface MetricsJobSummary {
  * Relève quotidienne des statistiques des posts publiés depuis moins de `maxAgeDays`
  * (une ligne d'historique par relevé ; un post n'est relevé qu'une fois par 20 h, sauf `force`).
  */
+/**
+ * Délai minimal entre deux relevés, selon l'âge du post.
+ *
+ * Tout se joue dans les premières heures : un relevé par jour ne montrait qu'un
+ * chiffre final, jamais la courbe. Un post publié à 18 h n'était mesuré que le
+ * lendemain matin. On resserre au début, on espace ensuite.
+ */
+function delaiEntreReleves(post: Post): number {
+  const ageH = post.publishedAt ? (Date.now() - new Date(post.publishedAt).getTime()) / 3600000 : 999;
+  if (ageH < 6) return 1 * 3600000; // démarrage : toutes les heures
+  if (ageH < 48) return 5 * 3600000; // premier jour et demi : quelques points
+  return 20 * 3600000; // ensuite : une fois par jour
+}
+
 export async function runMetricsJob(opts: { maxAgeDays?: number; postIds?: number[]; force?: boolean } = {}): Promise<MetricsJobSummary> {
   const maxAgeDays = opts.maxAgeDays ?? 60;
   const since = new Date(Date.now() - maxAgeDays * 86400000).toISOString();
@@ -205,7 +219,7 @@ export async function runMetricsJob(opts: { maxAgeDays?: number; postIds?: numbe
   const summary: MetricsJobSummary = { candidates: posts.length, fetched: 0, skipped: 0, errors: 0, partial: 0 };
   for (const post of posts) {
     const last = latest.get(post.id);
-    if (!opts.force && last && Date.now() - new Date(last.fetchedAt).getTime() < 20 * 3600000) {
+    if (!opts.force && last && Date.now() - new Date(last.fetchedAt).getTime() < delaiEntreReleves(post)) {
       summary.skipped++;
       continue;
     }

@@ -34,18 +34,29 @@ export function parisParts(date: Date): {
  * Prochaine occurrence (instant UTC) d'un créneau {dow, "HH:MM"} heure de Paris,
  * strictement après `after`. Approche par balayage horaire — robuste aux DST.
  */
-export function nextSlotOccurrence(slot: { dow: number; time: string }, after: Date): Date {
-  const [hh, mm] = slot.time.split(':').map(Number);
-  // Balaye par pas de 15 min sur 15 jours max.
-  const step = 15 * 60 * 1000;
-  const start = Math.ceil(after.getTime() / step) * step;
-  for (let t = start; t < after.getTime() + 15 * 24 * 3600 * 1000; t += step) {
-    const d = new Date(t);
-    const p = parisParts(d);
-    if (p.dow === slot.dow && p.hh === hh && p.mm === mm) return d;
+export function nextSlotOccurrence(slot: { dow: number; time: string }, after: Date, semaines = 0): Date {
+  const [hh, mm] = slot.time.split(':').map(Number) as [number, number];
+  // Calcul direct plutôt qu'un balayage : l'ancienne version avançait de 15 minutes
+  // en 15 minutes sur quinze jours (des milliers de conversions de fuseau), et surtout
+  // ne tombait JAMAIS sur un créneau dont les minutes n'étaient pas un multiple de 15
+  // — un créneau à 9 h 07 finissait au repli « +48 h », sans que rien ne le signale.
+  const ici = parisParts(after);
+  const versLeJour = (ymd: string, jours: number): string => {
+    const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];
+    const t = new Date(Date.UTC(y, m - 1, d + jours));
+    return t.toISOString().slice(0, 10);
+  };
+  let delta = (slot.dow - ici.dow + 7) % 7;
+  let candidat = parisLocalToUtc(versLeJour(ici.ymd, delta), hh, mm);
+  // Même jour mais heure déjà passée : la semaine suivante.
+  if (candidat.getTime() <= after.getTime()) {
+    delta += 7;
+    candidat = parisLocalToUtc(versLeJour(ici.ymd, delta), hh, mm);
   }
-  // Improbable : fallback +48 h
-  return new Date(after.getTime() + 48 * 3600 * 1000);
+  if (semaines > 0) {
+    candidat = parisLocalToUtc(versLeJour(ici.ymd, delta + 7 * semaines), hh, mm);
+  }
+  return candidat;
 }
 
 /** Instant UTC correspondant à une date/heure locale de Paris (robuste aux changements d'heure). */

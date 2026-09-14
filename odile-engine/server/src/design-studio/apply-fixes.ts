@@ -57,7 +57,8 @@ ${issuesText}
 Règles : même nombre de slides, mêmes "kind" dans le même ordre. title ≤ 9 mots.
 Recopie les champs "imageIdea" tels quels (l'illustration est gérée séparément).
 Renvoie l'intégralité corrigée (slides + caption + cta).`,
-      maxTokens: 16000,
+      // Huit correctifs de slides : 6 000 jetons suffisent largement en sortie.
+      maxTokens: 6000,
     },
     fixSchema,
   );
