@@ -127,6 +127,13 @@
       "when": 1789392603966,
       "tag": "0017_etape-fabrication",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1789394624784,
+      "tag": "0018_reponse-publique",
+      "breakpoints": true
     }
   ]
 }

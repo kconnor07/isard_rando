@@ -60,6 +60,47 @@ async function envoyerMessage(igsid: string, texte: string): Promise<void> {
   });
 }
 
+/**
+ * Réponse publique sous le commentaire.
+ *
+ * Elle ne dépend que de `instagram_manage_comments` : elle part même quand la
+ * messagerie de l'app Meta n'est pas ouverte. Le texte dépend du sort du message
+ * privé — promettre un DM qui n'arrivera pas serait pire que se taire, donc le
+ * lien est donné publiquement quand l'envoi privé a échoué.
+ */
+export async function repondreEnPublic(commentId: number, dmParti: boolean, lien: string): Promise<void> {
+  const comment = db.select().from(schema.comments).where(eq(schema.comments.id, commentId)).get();
+  if (!comment || comment.publicReplyStatus === 'sent' || !comment.externalId) return;
+  const settings = getDmTriggers();
+  if (!settings.publicReply) return;
+  const modele = dmParti ? settings.publicReplyTemplate : settings.publicReplyFallback;
+  if (!modele.trim()) return;
+  const texte = buildReply(modele, lien);
+
+  const igToken = getStoredToken('meta', 'ig_user');
+  if (config.PUBLISH_MODE === 'dry' || !igToken) {
+    db.update(schema.comments).set({ publicReplyStatus: 'sent', publicReplyError: null }).where(eq(schema.comments.id, commentId)).run();
+    logger.info({ commentId, texte }, 'réponse publique simulée (mode dry)');
+    return;
+  }
+  try {
+    await fetchJson(`${GRAPH}/${encodeURIComponent(comment.externalId)}/replies`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ message: texte, access_token: igToken.accessToken }),
+    });
+    db.update(schema.comments).set({ publicReplyStatus: 'sent', publicReplyError: null }).where(eq(schema.comments.id, commentId)).run();
+    logger.info({ commentId, dmParti }, 'réponse publique postée');
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    db.update(schema.comments)
+      .set({ publicReplyStatus: 'failed', publicReplyError: detail.slice(0, 500) })
+      .where(eq(schema.comments.id, commentId))
+      .run();
+    logger.error({ commentId, err: detail }, 'échec de la réponse publique');
+  }
+}
+
 /** Lien de valeur à envoyer : le lien court tracké du post, sinon le site. */
 function linkForPost(postId: number | null): string {
   if (postId) {
@@ -140,6 +181,7 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
       .run();
     db.update(schema.comments).set({ dmStatus: 'sent' }).where(eq(schema.comments.id, commentId)).run();
     logger.info({ commentId, matched }, 'DM simulé (mode dry)');
+    await repondreEnPublic(commentId, true, lien);
     return;
   }
 
@@ -168,6 +210,7 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
       .where(eq(schema.comments.id, commentId))
       .run();
     logger.info({ commentId, matched, porteFermee }, porteFermee ? 'demande d’abonnement envoyée' : 'private reply envoyée');
+    await repondreEnPublic(commentId, true, lien);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     db.insert(schema.dmEvents)
@@ -182,6 +225,9 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
       .run();
     db.update(schema.comments).set({ dmStatus: 'failed' }).where(eq(schema.comments.id, commentId)).run();
     logger.error({ commentId, err: detail }, 'échec de la private reply');
+    // Le commentaire reçoit quand même une réponse : la messagerie Meta peut être
+    // fermée (produit Messenger absent) sans que la personne reste sans réponse.
+    await repondreEnPublic(commentId, false, lien);
   }
 }
 

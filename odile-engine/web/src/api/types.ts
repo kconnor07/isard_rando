@@ -96,9 +96,24 @@ export interface CommentDto {
   matchedKeyword: string | null;
   dmStatus: string;
   dmError?: string | null;
+  /** refus Meta traduit en cause et en marche à suivre */
+  dmCause?: string | null;
+  dmRemede?: string | null;
+  publicReplyStatus?: string;
+  publicReplyError?: string | null;
   suggestedReply: string | null;
   externalPostUrl: string | null;
   createdTime: string;
+}
+
+/** Bilan de la messagerie Meta, lu sur le jeton qui sert vraiment aux envois. */
+export interface MessagerieDiagDto {
+  compteInstagram: { id: string; username: string } | null;
+  page: { id: string; nom: string } | null;
+  jetonDePage: { permissions: string[]; erreur: string | null };
+  abonnementPage: { champs: string[]; erreur: string | null };
+  fonctions: Record<string, { pret: boolean; manque: string[] }>;
+  dernierRefus: { quand: string; message: string | null; cause: string | null; remede: string | null } | null;
 }
 
 export interface ConnectionWarningDto {

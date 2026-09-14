@@ -1,3 +1,4 @@
+import { desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { customAlphabet } from 'nanoid';
 import { config } from '../config.js';
@@ -8,6 +9,8 @@ import { escapeHtml, resultPage } from '../api/pages.js';
 import { requireSession } from '../api/auth.js';
 import { getOauthApps, linkedinAppConfigured, metaAppConfigured } from '../db/oauthApps.js';
 import { getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
+import { db, schema } from '../db/client.js';
+import { expliquerErreurMeta } from './metaErrors.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
@@ -179,29 +182,46 @@ export async function fetchGrantedScopes(userToken: string): Promise<string[]> {
   }
 }
 
-export async function subscribePageWebhooks(pageId: string, pageToken: string): Promise<{ ok: boolean; detail: string }> {
-  try {
-    const res = await fetchJson<{ success?: boolean }>(`${GRAPH}/${pageId}/subscribed_apps`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ subscribed_fields: 'feed', access_token: pageToken }),
-    });
-    return res.success
-      ? { ok: true, detail: 'app installée sur la Page (webhooks actifs)' }
-      : { ok: false, detail: 'réponse inattendue de Meta' };
-  } catch (err) {
-    const brut = String(err);
-    // Meta répond « (#200) … pages_manage_metadata » : inutile de recopier l'erreur,
-    // seule la marche à suivre intéresse.
-    if (/#200|pages_manage_metadata/.test(brut)) {
+/**
+ * Champs d'abonnement tentés, du plus complet au plus sûr. `messages` est ce qui
+ * fait arriver les messages entrants — sans lui, la porte d'abonnement ne voit
+ * jamais la réponse de la personne. Il exige la messagerie ouverte côté app Meta,
+ * d'où la dégradation : on garde au moins `feed`, qui porte les commentaires.
+ */
+const CHAMPS_WEBHOOK = ['feed,messages,messaging_postbacks,message_reactions', 'feed,messages', 'feed'];
+
+export async function subscribePageWebhooks(pageId: string, pageToken: string): Promise<{ ok: boolean; detail: string; champs?: string }> {
+  let dernier: unknown = null;
+  for (const champs of CHAMPS_WEBHOOK) {
+    try {
+      const res = await fetchJson<{ success?: boolean }>(`${GRAPH}/${pageId}/subscribed_apps`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ subscribed_fields: champs, access_token: pageToken }),
+      });
+      if (!res.success) return { ok: false, detail: 'réponse inattendue de Meta' };
       return {
-        ok: false,
-        detail:
-          'permission pages_manage_metadata manquante — ajoute-la aux autorisations de l’app Meta, puis reconnecte le compte depuis Connexions & santé',
+        ok: true,
+        champs,
+        detail: champs.includes('messages')
+          ? `app installée sur la Page — commentaires et messages entrants (${champs})`
+          : 'app installée sur la Page — commentaires seulement : les messages entrants exigent la messagerie ouverte côté app Meta (produit Messenger)',
       };
+    } catch (err) {
+      dernier = err;
     }
-    return { ok: false, detail: brut.slice(0, 200) };
   }
+  const brut = String(dernier);
+  // Meta répond « (#200) … pages_manage_metadata » : inutile de recopier l'erreur,
+  // seule la marche à suivre intéresse.
+  if (/#200|pages_manage_metadata/.test(brut)) {
+    return {
+      ok: false,
+      detail:
+        'permission pages_manage_metadata manquante — ajoute-la aux autorisations de l’app Meta, puis reconnecte le compte depuis Connexions & santé',
+    };
+  }
+  return { ok: false, detail: brut.slice(0, 200) };
 }
 
 /**
@@ -653,6 +673,81 @@ doit être en mode professionnel (Instagram → Paramètres → Type de compte).
           : pages.every((p) => !p.instagram)
             ? 'Pages autorisées, mais aucun compte Instagram rattaché au jeton : coche aussi le compte Instagram dans la fenêtre Facebook.'
             : 'Page et compte Instagram présents : la connexion peut aboutir.',
+    };
+  });
+
+  /**
+   * Bilan de la messagerie, lu sur le jeton qui sert vraiment aux envois.
+   *
+   * Le diagnostic général lit les permissions du jeton UTILISATEUR ; les messages
+   * privés partent avec le jeton de PAGE, qui peut porter moins. Cette vue lit donc
+   * le jeton de Page par debug_token, l'abonnement réel de la Page, et traduit le
+   * dernier refus de Meta en marche à suivre.
+   */
+  app.get('/api/diagnostic/messagerie', { preHandler: requireSession }, async () => {
+    const page = getStoredToken('meta', 'fb_page');
+    const ig = getStoredToken('meta', 'ig_user');
+    const apps = getOauthApps();
+    const appToken = `${apps.metaAppId}|${apps.metaAppSecret}`;
+
+    let scopes: string[] = [];
+    let jetonErreur: string | null = null;
+    if (ig && metaAppConfigured(apps)) {
+      try {
+        const res = await fetchJson<{ data?: { scopes?: string[]; is_valid?: boolean } }>(
+          `${GRAPH}/debug_token?input_token=${encodeURIComponent(ig.accessToken)}&access_token=${encodeURIComponent(appToken)}`,
+        );
+        scopes = res.data?.scopes ?? [];
+        if (res.data?.is_valid === false) jetonErreur = 'jeton de Page invalide — reconnecte le compte';
+      } catch (err) {
+        jetonErreur = String(err).slice(0, 200);
+      }
+    }
+
+    let champsAbonnes: string[] = [];
+    let abonnementErreur: string | null = null;
+    if (page) {
+      try {
+        const res = await fetchJson<{ data?: { subscribed_fields?: string[] }[] }>(
+          `${GRAPH}/${page.externalId}/subscribed_apps?access_token=${encodeURIComponent(page.accessToken)}`,
+        );
+        champsAbonnes = res.data?.[0]?.subscribed_fields ?? [];
+      } catch (err) {
+        abonnementErreur = String(err).slice(0, 200);
+      }
+    }
+
+    const dernier = db
+      .select()
+      .from(schema.dmEvents)
+      .where(eq(schema.dmEvents.status, 'failed'))
+      .orderBy(desc(schema.dmEvents.id))
+      .limit(1)
+      .get();
+    const cause = expliquerErreurMeta(dernier?.error);
+
+    const peutCommenter = scopes.includes('instagram_manage_comments');
+    const peutEnvoyer = scopes.includes('instagram_manage_messages');
+    const recoitMessages = champsAbonnes.includes('messages');
+    return {
+      compteInstagram: ig ? { id: ig.externalId, username: (ig.meta.igUsername as string) ?? '' } : null,
+      page: page ? { id: page.externalId, nom: (page.meta.pageName as string) ?? '' } : null,
+      jetonDePage: { permissions: scopes, erreur: jetonErreur },
+      abonnementPage: { champs: champsAbonnes, erreur: abonnementErreur },
+      fonctions: {
+        reponsePublique: { pret: peutCommenter, manque: peutCommenter ? [] : ['permission instagram_manage_comments sur le jeton de Page'] },
+        messagePrive: {
+          pret: peutEnvoyer && !cause?.cotePlateforme,
+          manque: [
+            ...(peutEnvoyer ? [] : ['permission instagram_manage_messages sur le jeton de Page']),
+            ...(cause?.cotePlateforme ? [cause.cause] : []),
+          ],
+        },
+        messagesEntrants: { pret: recoitMessages, manque: recoitMessages ? [] : ['champ webhook « messages » non abonné sur la Page'] },
+      },
+      dernierRefus: dernier
+        ? { quand: dernier.sentAt, message: dernier.error, cause: cause?.cause ?? null, remede: cause?.remede ?? null }
+        : null,
     };
   });
 

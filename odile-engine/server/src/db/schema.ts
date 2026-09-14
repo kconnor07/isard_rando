@@ -238,6 +238,9 @@ export const comments = sqliteTable(
       .notNull()
       .default('none'),
     suggestedReply: text('suggested_reply'),
+    /** réponse publique postée sous le commentaire (indépendante du message privé) */
+    publicReplyStatus: text('public_reply_status', { enum: ['none', 'sent', 'failed'] }).notNull().default('none'),
+    publicReplyError: text('public_reply_error'),
     raw: text('raw'), // JSON payload webhook/API
     fetchedAt: text('fetched_at').notNull().$defaultFn(now),
   },

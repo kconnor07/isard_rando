@@ -91,6 +91,19 @@ export const dmTriggerSettingsSchema = z.object({
   remindTemplate: z.string().max(900).default(
     'Je ne te vois pas encore dans les abonnés — abonne-toi et réponds-moi, et le lien part aussitôt.',
   ),
+  /**
+   * Réponse publique sous le commentaire. Elle ne dépend que de
+   * `instagram_manage_comments` : elle part même quand la messagerie de l'app
+   * Meta n'est pas encore ouverte, et elle montre aux autres lecteurs qu'on répond.
+   */
+  publicReply: z.boolean().default(true),
+  /** texte posté sous le commentaire quand le message privé est bien parti */
+  publicReplyTemplate: z.string().max(300).default('Je t’envoie ça en message privé 📩'),
+  /**
+   * Texte posté quand le message privé n'a pas pu partir : promettre un DM qui
+   * n'arrivera pas serait pire que se taire, alors le lien est donné publiquement.
+   */
+  publicReplyFallback: z.string().max(300).default('Merci ! Voici le lien : {{link}}'),
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 

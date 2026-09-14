@@ -8,6 +8,7 @@ import { db, schema } from '../../db/client.js';
 import { latestMetricsByPost } from '../../publishers/metrics.js';
 import { clicksByLink } from './apiAnalytics.js';
 import { connectionWarnings } from '../../publishers/refresh.js';
+import { expliquerErreurMeta } from '../../publishers/metaErrors.js';
 import { nextPublishSlot, shouldDraftToday } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
 import { loginLimiter } from '../rateLimit.js';
@@ -174,7 +175,14 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       .orderBy(desc(schema.dmEvents.id))
       .limit(1)
       .get();
-    return { ok: apres?.dmStatus !== 'failed', dmStatus: apres?.dmStatus ?? 'none', error: dernier?.error ?? null };
+    const cause = expliquerErreurMeta(dernier?.error);
+    return {
+      ok: apres?.dmStatus !== 'failed',
+      dmStatus: apres?.dmStatus ?? 'none',
+      error: dernier?.error ?? null,
+      cause: cause?.cause ?? null,
+      remede: cause?.remede ?? null,
+    };
   });
 
   /**
@@ -272,18 +280,27 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       .all()) {
       if (e.commentId !== null && e.error && !erreurs.has(e.commentId)) erreurs.set(e.commentId, e.error);
     }
-    return rows.map((c) => ({
-      id: c.id,
-      platform: c.platform,
-      authorName: c.authorName,
-      text: c.text,
-      matchedKeyword: c.matchedKeyword,
-      dmStatus: c.dmStatus,
-      dmError: erreurs.get(c.id) ?? null,
-      suggestedReply: c.suggestedReply,
-      externalPostUrl: c.externalPostUrl,
-      createdTime: c.createdTime ?? c.fetchedAt,
-    }));
+    return rows.map((c) => {
+      const brut = erreurs.get(c.id) ?? null;
+      // Le numéro d'erreur de Meta ne dit pas quoi corriger : la traduction, si.
+      const cause = expliquerErreurMeta(brut);
+      return {
+        id: c.id,
+        platform: c.platform,
+        authorName: c.authorName,
+        text: c.text,
+        matchedKeyword: c.matchedKeyword,
+        dmStatus: c.dmStatus,
+        dmError: brut,
+        dmCause: cause?.cause ?? null,
+        dmRemede: cause?.remede ?? null,
+        publicReplyStatus: c.publicReplyStatus,
+        publicReplyError: c.publicReplyError,
+        suggestedReply: c.suggestedReply,
+        externalPostUrl: c.externalPostUrl,
+        createdTime: c.createdTime ?? c.fetchedAt,
+      };
+    });
   });
 
   app.post<{ Params: { id: string } }>('/api/comments/:id/mark-handled', async (request) => {

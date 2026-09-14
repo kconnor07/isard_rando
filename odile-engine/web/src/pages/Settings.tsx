@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
-  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string };
+  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyTemplate?: string; publicReplyFallback?: string };
   fb_mirror: { enabled: boolean };
   llm_budget: { enabled: boolean; dailyEuros: number };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
@@ -416,6 +416,33 @@ export default function Settings() {
             <label className="label">Message envoyé ({'{{link}}'} = lien tracké du post)</label>
             <textarea className="input" rows={3} value={form.dm_triggers.replyTemplate}
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, replyTemplate: e.target.value })} />
+          </div>
+          <div className="rounded-xl border border-line p-4">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1 accent-sky-500" checked={form.dm_triggers.publicReply ?? true}
+                onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReply: e.target.checked })} />
+              <span>
+                Répondre aussi publiquement sous le commentaire
+                <span className="mt-1 block text-xs text-muted">
+                  Cette réponse ne dépend pas de la messagerie Meta : elle part même quand le message privé est
+                  refusé, et elle montre aux autres lecteurs que le compte répond.
+                </span>
+              </span>
+            </label>
+            {(form.dm_triggers.publicReply ?? true) && (
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <label className="label">Quand le message privé est parti</label>
+                  <input className="input" value={form.dm_triggers.publicReplyTemplate ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReplyTemplate: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Quand il n'a pas pu partir ({'{{link}}'} = lien tracké)</label>
+                  <input className="input" value={form.dm_triggers.publicReplyFallback ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReplyFallback: e.target.value })} />
+                </div>
+              </div>
+            )}
           </div>
           <div className="rounded-xl border border-line p-4">
             <label className="flex items-start gap-2 text-sm">
