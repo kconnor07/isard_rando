@@ -85,8 +85,16 @@ describe('ton des messages privés et porte d’abonnement', async () => {
     }
   });
 
-  it('la demande d’abonnement ne présume pas que la personne ne suit pas', () => {
-    expect(reglages.askFollowTemplate).toMatch(/si ce n’est pas déjà fait/i);
+  it('le premier message ne réclame pas l’abonnement : à cet instant, Meta ne sait pas qui suit', () => {
+    expect(reglages.askFollowTemplate).not.toMatch(/abonne/i);
+    expect(reglages.askFollowTemplate).toMatch(/réponds/i);
+    // Et il ne donne pas le lien : c'est toute la raison d'être de la porte.
+    expect(reglages.askFollowTemplate).not.toContain('{{link}}');
+  });
+
+  it('la relance demande l’abonnement sans laisser filer le lien', () => {
+    expect(reglages.remindTemplate).toMatch(/abonnement/i);
+    expect(reglages.remindTemplate).not.toContain('{{link}}');
   });
 
   it('le lien privé vise l’article source par défaut', () => {

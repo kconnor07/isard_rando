@@ -7,7 +7,9 @@ describe('porte d’abonnement avant le lien', async () => {
   it('les messages du parcours sont fournis par défaut', () => {
     const s = dmTriggerSettingsSchema.parse({ keywords: ['GUIDE'], replyTemplate: 'lien : {{link}}' });
     expect(s.requireFollow).toBe(false);
-    expect(s.askFollowTemplate).toMatch(/abonne/i);
+    // Le premier message ne réclame pas l'abonnement : à cet instant, Meta ne sait
+    // pas encore si la personne suit le compte.
+    expect(s.askFollowTemplate).toMatch(/réponds/i);
     expect(s.thanksTemplate).toContain('{{link}}');
     expect(s.remindTemplate).toMatch(/abonn/i);
   });

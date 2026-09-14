@@ -85,16 +85,17 @@ export const dmTriggerSettingsSchema = z.object({
   /** ce que cette adresse offre, en quelques mots — sert de promesse au rédacteur */
   fixedLabel: z.string().max(80).default(''),
   /**
-   * Exiger l'abonnement avant d'envoyer le lien. Meta ne prévient pas d'un
-   * nouvel abonné et n'expose pas la liste des abonnés : l'état d'abonnement
-   * n'est lisible que pour une personne qui a écrit au compte. Le parcours se
-   * fait donc en deux temps — on demande l'abonnement, et la réponse de la
-   * personne permet de le vérifier puis d'envoyer le lien.
+   * Exiger l'abonnement avant d'envoyer le lien. Meta ne prévient pas d'un nouvel
+   * abonné et n'expose pas la liste des abonnés : l'état d'abonnement n'est lisible
+   * que pour une personne qui a écrit au compte. Le parcours se fait donc en deux
+   * temps : le premier message demande seulement de répondre (il ne réclame rien,
+   * puisqu'on ignore encore si la personne suit), et c'est cette réponse qui rend
+   * l'abonnement lisible — lien pour un abonné, demande d'abonnement sinon.
    */
   requireFollow: z.boolean().default(false),
   /** premier message : demande de s'abonner puis de répondre */
   askFollowTemplate: z.string().max(900).default(
-    'Coucou ☀️ merci pour ton message ! Si ce n’est pas déjà fait, abonne-toi — et réponds-moi un petit mot, je t’envoie tout de suite ce que tu cherches 💛',
+    'Coucou ☀️ j’ai bien vu ton commentaire ! Réponds-moi juste un petit mot ici et je t’envoie tout de suite ce que je t’ai promis 💛',
   ),
   /** message envoyé une fois l'abonnement constaté, avec le lien */
   thanksTemplate: z.string().max(900).default(

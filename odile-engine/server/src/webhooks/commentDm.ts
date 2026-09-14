@@ -192,11 +192,12 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
   // Porte d'abonnement : on demande d'abord de s'abonner, et la réponse de la
   // personne permettra de vérifier puis d'envoyer le lien (voir handleInstagramMessage).
   const abonne = settings.requireFollow ? await estAbonne(comment.authorExternalId ?? '') : true;
-  // La porte ne se ferme que sur un « non » constaté. Au premier commentaire, Meta ne
-  // sait pas répondre (`is_user_follow_business` n'est lisible qu'en conversation) :
-  // demander l'abonnement à quelqu'un qui est déjà abonné le vexe pour rien, et le
-  // moteur n'a aucun moyen de le savoir. Dans le doute, le lien part.
-  const porteFermee = settings.requireFollow && abonne === false;
+  // Porte d'abonnement, en deux temps. Au premier commentaire, Meta ne sait pas dire si
+  // la personne suit le compte : `is_user_follow_business` n'est lisible qu'une fois la
+  // conversation ouverte. Le premier message ne réclame donc rien — il demande seulement
+  // de répondre. C'est cette réponse qui rend l'abonnement lisible, et c'est alors
+  // seulement que le lien part (ou que l'abonnement est demandé, à bon escient).
+  const porteFermee = settings.requireFollow && abonne !== true;
   const message = porteFermee
     ? buildReply(settings.askFollowTemplate, lien)
     : buildReply(settings.replyTemplate, lien);
@@ -244,7 +245,7 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
       .set({ dmStatus: porteFermee ? 'awaiting_follow' : 'sent' })
       .where(eq(schema.comments.id, commentId))
       .run();
-    logger.info({ commentId, matched, porteFermee }, porteFermee ? 'demande d’abonnement envoyée' : 'private reply envoyée');
+    logger.info({ commentId, matched, porteFermee }, porteFermee ? 'invitation à répondre envoyée (porte d’abonnement)' : 'private reply envoyée');
     await repondreEnPublic(commentId, true, lien);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);

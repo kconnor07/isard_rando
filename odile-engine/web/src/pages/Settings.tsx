@@ -493,26 +493,27 @@ export default function Settings() {
               <span>
                 Demander l'abonnement avant d'envoyer le lien
                 <span className="mt-1 block text-xs text-muted">
-                  La porte ne se ferme que sur un abonnement <b>constaté absent</b>. Au premier commentaire, Instagram ne
-                  sait pas répondre — l'état d'abonnement n'est lisible qu'une fois la conversation ouverte — et dans le
-                  doute le lien part quand même : demander de s'abonner à quelqu'un qui l'est déjà le vexe pour rien.
+                  En deux temps, parce qu'Instagram ne dit pas qui suit le compte tant que la conversation n'est pas
+                  ouverte. <b>1.</b> Le premier message ne réclame rien : il demande seulement de répondre — un abonné
+                  n'a donc jamais l'impression qu'on lui demande de s'abonner. <b>2.</b> Sa réponse rend l'abonnement
+                  lisible : le lien part s'il suit, la demande d'abonnement part sinon.
                 </span>
               </span>
             </label>
             {form.dm_triggers.requireFollow && (
               <div className="mt-3 grid gap-3">
                 <div>
-                  <label className="label">1. Demande d'abonnement (sans le lien)</label>
+                  <label className="label">1. Premier message (demande juste une réponse, sans le lien)</label>
                   <textarea className="input" rows={2} value={form.dm_triggers.askFollowTemplate ?? ''}
                     onChange={(e) => set('dm_triggers', { ...form.dm_triggers, askFollowTemplate: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">2. Remerciement + lien, une fois l'abonnement constaté</label>
+                  <label className="label">2. Une fois l'abonnement constaté : remerciement + lien</label>
                   <textarea className="input" rows={2} value={form.dm_triggers.thanksTemplate ?? ''}
                     onChange={(e) => set('dm_triggers', { ...form.dm_triggers, thanksTemplate: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">3. Relance si la personne répond sans s'être abonnée</label>
+                  <label className="label">3. Si la personne répond sans suivre le compte</label>
                   <textarea className="input" rows={2} value={form.dm_triggers.remindTemplate ?? ''}
                     onChange={(e) => set('dm_triggers', { ...form.dm_triggers, remindTemplate: e.target.value })} />
                 </div>
