@@ -13,6 +13,8 @@ import { executeApprovalAction, schedulePost, unschedulePost } from '../../appro
 import { getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
+import { mirrorToFacebookPage } from '../../publishers/facebook.js';
+import { buildCaption, collectPublishImages } from '../../publishers/types.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
 import { themeExists } from '../../render/custom-theme.js';
@@ -305,6 +307,31 @@ export function registerPostRoutes(app: FastifyInstance): void {
       return { ok: true, assetId };
     },
   );
+
+  /**
+   * Recopie manuelle sur la Page Facebook d'un post déjà publié sur Instagram.
+   * Le miroir automatique ne vaut que pour les publications à venir : ce bouton
+   * rattrape celles qui sont parties avant son activation.
+   */
+  app.post<{ Params: { id: string } }>('/api/posts/:id/mirror-facebook', async (request, reply) => {
+    const post = db.select().from(schema.posts).where(eq(schema.posts.id, Number(request.params.id))).get();
+    if (!post) return reply.status(404).send({ error: 'Post introuvable' });
+    if (post.status !== 'published') return reply.status(409).send({ error: 'Le post doit d’abord être publié sur Instagram' });
+    if (post.platform !== 'instagram') return reply.status(409).send({ error: 'La recopie ne concerne que les posts Instagram' });
+    try {
+      const images = collectPublishImages(post.id);
+      const mirror = await mirrorToFacebookPage({ post, images, caption: buildCaption(post) });
+      db.update(schema.posts)
+        .set({ fbMirrorPostId: mirror.postId, fbMirrorUrl: mirror.url, fbMirrorError: null })
+        .where(eq(schema.posts.id, post.id))
+        .run();
+      return { ok: true, url: mirror.url };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      db.update(schema.posts).set({ fbMirrorError: message.slice(0, 500) }).where(eq(schema.posts.id, post.id)).run();
+      return reply.status(502).send({ error: message.slice(0, 300) });
+    }
+  });
 
   app.post<{ Params: { id: string } }>('/api/posts/:id/review', async (request) => {
     return runDesignReview(Number(request.params.id));

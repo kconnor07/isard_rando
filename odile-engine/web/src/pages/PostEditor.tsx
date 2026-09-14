@@ -310,6 +310,14 @@ export default function PostEditor() {
     void qc.invalidateQueries({ queryKey: ['posts'] });
     void qc.invalidateQueries({ queryKey: ['summary'] });
   };
+  /** Recopie manuelle sur la Page Facebook (le miroir automatique ne vaut que pour les publications à venir). */
+  const mirrorFacebook = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; url: string | null }>(`/api/posts/${id}/mirror-facebook`),
+    onSuccess: (r) => {
+      toast.success(r.url ? 'Recopié sur la Page Facebook' : 'Recopie effectuée');
+      void qc.invalidateQueries({ queryKey: ['post', id] });
+    },
+  });
   const patchPost = useMutation({
     mutationFn: (patch: Partial<Pick<PostDetailDto, 'theme' | 'format' | 'channel'>> & { render?: boolean }) => {
       const { render, ...body } = patch;
@@ -410,7 +418,16 @@ export default function PostEditor() {
       <PageTitle
         title={post.hook || `Post #${post.id}`}
         subtitle={`${CHANNEL_LABELS[post.channel] ?? post.channel} · ${FORMAT_LABELS[post.format] ?? post.format} · thème ${post.theme}${post.scheduledAt ? ` · prévu ${fmtDate(post.scheduledAt)}` : ''}${post.clicks ? ` · ${post.clicks} clic(s)` : ''}`}
-        actions={<StatusBadge status={post.status} simulated={post.simulated} />}
+        actions={
+          <div className="flex items-center gap-2">
+            {post.status === 'published' && post.channel === 'ig' && !post.simulated && (
+              <button className="btn-ghost !py-1.5 text-xs" disabled={mirrorFacebook.isPending} onClick={() => mirrorFacebook.mutate()}>
+                {mirrorFacebook.isPending ? 'Recopie…' : 'Recopier sur Facebook'}
+              </button>
+            )}
+            <StatusBadge status={post.status} simulated={post.simulated} />
+          </div>
+        }
       />
 
       {inProgress && (
