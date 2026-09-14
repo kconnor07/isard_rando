@@ -113,6 +113,13 @@
       "when": 1789377734871,
       "tag": "0015_miroir-facebook",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1789381765270,
+      "tag": "0016_compteur-jetons",
+      "breakpoints": true
     }
   ]
 }

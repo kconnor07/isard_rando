@@ -1,8 +1,10 @@
 import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { loginSchema } from '@odile/shared';
+import { config } from '../../config.js';
 import { db, schema } from '../../db/client.js';
 import { latestMetricsByPost } from '../../publishers/metrics.js';
+import { clicksByLink } from './apiAnalytics.js';
 import { connectionWarnings } from '../../publishers/refresh.js';
 import { nextPublishSlot, shouldDraftToday } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
@@ -90,6 +92,76 @@ export function registerMiscRoutes(app: FastifyInstance): void {
         instagram: nextPublishSlot('instagram').toISOString(),
         linkedin: nextPublishSlot('linkedin').toISOString(),
       },
+    };
+  });
+
+  /**
+   * État réel de la chaîne de publication : ce qui attend son tour, ce qui est parti
+   * (avec le lien vivant et ses chiffres), ce qui a échoué et pourquoi. Tout vient des
+   * tables publish_jobs / posts / post_metrics — aucune valeur d'exemple.
+   */
+  app.get('/api/dashboard/publications', async () => {
+    const jobs = db
+      .select()
+      .from(schema.publishJobs)
+      .where(inArray(schema.publishJobs.state, ['pending', 'failed'] as never))
+      .orderBy(schema.publishJobs.scheduledAt)
+      .limit(40)
+      .all();
+    const publies = db
+      .select()
+      .from(schema.posts)
+      .where(eq(schema.posts.status, 'published'))
+      .orderBy(desc(schema.posts.publishedAt))
+      .limit(12)
+      .all();
+    const metriques = latestMetricsByPost(publies.map((p) => p.id));
+    const liens = new Map(db.select().from(schema.links).all().map((l) => [l.id, l]));
+    const clics = clicksByLink([...liens.keys()]);
+    const postDe = (postId: number) => db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
+    const ligneJob = (j: typeof jobs[number]) => {
+      const post = postDe(j.postId);
+      return {
+        postId: j.postId,
+        hook: post?.hook ?? '',
+        channel: post?.channel ?? '',
+        scheduledAt: j.scheduledAt,
+        state: j.state,
+        tentative: j.attempt,
+        tentativesMax: j.maxAttempts,
+        erreur: j.lastError,
+      };
+    };
+    const dernierPassage = db
+      .select()
+      .from(schema.jobRuns)
+      .where(eq(schema.jobRuns.jobName, 'publish-due'))
+      .orderBy(desc(schema.jobRuns.startedAt))
+      .limit(1)
+      .get();
+    return {
+      mode: config.PUBLISH_MODE,
+      dernierPassage: dernierPassage ? { a: dernierPassage.startedAt, ok: dernierPassage.ok } : null,
+      aVenir: jobs.filter((j) => j.state === 'pending').map(ligneJob),
+      echecs: jobs.filter((j) => j.state === 'failed').map(ligneJob),
+      publiees: publies.map((p) => {
+        const m = metriques.get(p.id);
+        return {
+          postId: p.id,
+          hook: p.hook,
+          channel: p.channel,
+          publishedAt: p.publishedAt,
+          url: p.externalUrl,
+          simule: Boolean(p.externalPostId?.startsWith('dry-')),
+          miroirFacebook: p.fbMirrorUrl,
+          miroirErreur: p.fbMirrorError,
+          portee: m?.reach ?? null,
+          likes: m?.likes ?? null,
+          commentaires: m?.comments ?? null,
+          clics: p.linkId ? (clics.get(p.linkId) ?? 0) : 0,
+          releveLe: m?.fetchedAt ?? null,
+        };
+      }),
     };
   });
 

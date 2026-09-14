@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
+import { BudgetDepasseError } from './llmBudget.js';
 import { logger } from './logger.js';
 
 /** Exécute un job en journalisant début/fin/résumé dans job_runs. */
@@ -25,6 +26,16 @@ export async function runJob<T>(
     logger.info({ job: jobName, result }, 'job terminé');
     return { ok: true, result };
   } catch (err) {
+    // Un plafond de budget atteint est une décision, pas une panne : le job est
+    // consigné comme arrêté volontairement, sans pile d'appels ni alerte d'erreur.
+    if (err instanceof BudgetDepasseError) {
+      db.update(schema.jobRuns)
+        .set({ finishedAt: new Date().toISOString(), ok: true, summary: JSON.stringify({ arreteParLeBudget: err.verdict.motif }) })
+        .where(eq(schema.jobRuns.id, inserted.id))
+        .run();
+      logger.warn({ job: jobName, motif: err.verdict.motif }, 'job arrêté par le budget IA');
+      return { ok: false, error: err.message };
+    }
     const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
     db.update(schema.jobRuns)
       .set({

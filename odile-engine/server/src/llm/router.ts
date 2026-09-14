@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import { getLlmRouting } from '../db/settingsRepo.js';
 import { config } from '../config.js';
+import { BudgetDepasseError, enregistrerUsage, verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { anthropicProvider } from './anthropic.js';
 import { geminiProvider } from './gemini.js';
@@ -64,12 +65,26 @@ export function retryAfterMs(err: unknown): number {
 
 export async function completeText(req: LlmRequest): Promise<LlmResponse> {
   const chain = chainFor(req.task);
+  // Le plafond se vérifie avant l'appel : un dépassement est un choix de dépense,
+  // pas une panne — il ne doit pas déclencher la chaîne de repli entre fournisseurs.
+  const verdict = verifierBudget(req.task);
+  if (!verdict.autorise) {
+    logger.warn({ task: req.task, cout: verdict.consommation.cout, plafond: verdict.plafond }, 'appel LLM refusé par le budget');
+    throw new BudgetDepasseError(verdict);
+  }
   let lastError: unknown;
   for (const provider of chain) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const started = Date.now();
         const res = await provider.completeText(req);
+        enregistrerUsage({
+          provider: provider.name,
+          model: res.model,
+          task: req.task,
+          inputTokens: res.inputTokens,
+          outputTokens: res.outputTokens,
+        });
         logger.debug(
           { provider: provider.name, model: res.model, task: req.task, ms: Date.now() - started, in: res.inputTokens, out: res.outputTokens },
           'appel LLM',

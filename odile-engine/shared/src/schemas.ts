@@ -75,6 +75,14 @@ export const dmTriggerSettingsSchema = z.object({
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 
+/** Plafond quotidien de consommation des modèles de langage. */
+export const llmBudgetSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** budget du jour, en euros (0 = illimité) */
+  dailyEuros: z.number().min(0).max(500).default(2),
+});
+export type LlmBudgetSettings = z.infer<typeof llmBudgetSettingsSchema>;
+
 /** Recopie automatique de chaque publication Instagram sur la Page Facebook liée. */
 export const fbMirrorSettingsSchema = z.object({
   enabled: z.boolean().default(false),

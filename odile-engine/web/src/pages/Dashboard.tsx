@@ -3,6 +3,19 @@ import { AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto, SummaryDto } from '../api/types';
+
+/** Chaîne de publication, telle qu'elle est réellement en base. */
+interface PublicationsDto {
+  mode: 'live' | 'dry';
+  dernierPassage: { a: string; ok: boolean } | null;
+  aVenir: { postId: number; hook: string; channel: string; scheduledAt: string; tentative: number; tentativesMax: number }[];
+  echecs: { postId: number; hook: string; channel: string; scheduledAt: string; erreur: string | null }[];
+  publiees: {
+    postId: number; hook: string; channel: string; publishedAt: string | null; url: string | null; simule: boolean;
+    miroirFacebook: string | null; miroirErreur: string | null;
+    portee: number | null; likes: number | null; commentaires: number | null; clics: number; releveLe: string | null;
+  }[];
+}
 import { CHANNEL_LABELS, Empty, fmtDate, Skeleton, StatusBadge } from '../components/shared';
 
 /** « jeu. 18:30 » — assez court pour tenir sur une ligne de station. */
@@ -120,6 +133,11 @@ export default function Dashboard() {
     queryKey: ['posts', 'recent'],
     queryFn: () => api.get<PostSummaryDto[]>('/api/posts'),
   });
+  const { data: pub } = useQuery({
+    queryKey: ['dashboard', 'publications'],
+    queryFn: () => api.get<PublicationsDto>('/api/dashboard/publications'),
+    refetchInterval: 60_000,
+  });
 
   return (
     <div>
@@ -144,6 +162,70 @@ export default function Dashboard() {
       )}
 
       <Thread summary={summary} />
+
+      {pub && (
+        <section className="rise mb-8" style={{ '--i': 2 } as React.CSSProperties}>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-[15px] font-bold tracking-tight">Chaîne de publication</h2>
+            <span className="text-xs text-muted">
+              {pub.mode === 'live' ? 'publication réelle' : 'simulation — rien ne part sur les réseaux'}
+              {pub.dernierPassage ? ` · dernier passage ${fmtDate(pub.dernierPassage.a)}` : ' · worker jamais passé'}
+            </span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="card p-4">
+              <div className="label !mb-2">À venir ({pub.aVenir.length})</div>
+              {pub.aVenir.length === 0 && <p className="text-xs text-muted">Aucune publication en file.</p>}
+              {pub.aVenir.slice(0, 5).map((j) => (
+                <Link key={j.postId} to={`/posts/${j.postId}`} className="block border-t border-line py-2 first:border-0 first:pt-0 hover:text-ice">
+                  <div className="truncate text-[13px] font-semibold">{j.hook || `Post ${j.postId}`}</div>
+                  <div className="text-xs text-muted">{CHANNEL_LABELS[j.channel] ?? j.channel} · {fmtSlot(j.scheduledAt)}</div>
+                </Link>
+              ))}
+            </div>
+            <div className="card p-4">
+              <div className="label !mb-2">Parties ({pub.publiees.length})</div>
+              {pub.publiees.length === 0 && <p className="text-xs text-muted">Rien n'est encore parti.</p>}
+              {pub.publiees.slice(0, 5).map((p) => (
+                <div key={p.postId} className="border-t border-line py-2 first:border-0 first:pt-0">
+                  <div className="flex items-center gap-2">
+                    <Link to={`/posts/${p.postId}`} className="min-w-0 flex-1 truncate text-[13px] font-semibold hover:text-ice">
+                      {p.hook || `Post ${p.postId}`}
+                    </Link>
+                    {p.simule && <span className="mono shrink-0 rounded-full bg-white/10 px-1.5 text-[9px] uppercase">simulation</span>}
+                    {!p.simule && p.url && (
+                      <a href={p.url} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-accent hover:underline">voir ↗</a>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted">
+                    {p.publishedAt ? fmtDate(p.publishedAt) : ''}
+                    {p.portee !== null ? ` · ${p.portee} atteints` : ''}
+                    {p.likes !== null ? ` · ${p.likes} j'aime` : ''}
+                    {p.clics > 0 ? ` · ${p.clics} clics` : ''}
+                    {p.releveLe ? '' : p.simule ? '' : ' · chiffres pas encore relevés'}
+                  </div>
+                  {p.miroirErreur && <div className="mt-0.5 text-[11px] text-txt">Facebook : {p.miroirErreur}</div>}
+                  {p.miroirFacebook && !p.miroirErreur && (
+                    <a href={p.miroirFacebook} target="_blank" rel="noreferrer" className="text-[11px] text-accent hover:underline">
+                      recopié sur la Page Facebook ↗
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="card p-4">
+              <div className="label !mb-2">Échecs ({pub.echecs.length})</div>
+              {pub.echecs.length === 0 && <p className="text-xs text-muted">Aucun échec.</p>}
+              {pub.echecs.slice(0, 5).map((j) => (
+                <Link key={j.postId} to={`/posts/${j.postId}`} className="block border-t border-line py-2 first:border-0 first:pt-0">
+                  <div className="truncate text-[13px] font-semibold">{j.hook || `Post ${j.postId}`}</div>
+                  <div className="text-xs text-txt">{j.erreur ?? 'motif inconnu'}</div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="rise" style={{ '--i': 2 } as React.CSSProperties}>
         <div className="mb-1 flex items-baseline justify-between">

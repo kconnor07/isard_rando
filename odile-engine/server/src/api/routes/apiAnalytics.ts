@@ -1,7 +1,8 @@
 import { and, desc, eq, gte, inArray, like } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { db, schema } from '../../db/client.js';
-import { getTopicAffinity } from '../../db/settingsRepo.js';
+import { getLlmBudget, getTopicAffinity } from '../../db/settingsRepo.js';
+import { consommationDuJour, consommationRecente, repartitionDuJour } from '../../lib/llmBudget.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { parisParts } from '../../lib/time.js';
 import { latestMetricsByPost, performanceScore, runMetricsJob } from '../../publishers/metrics.js';
@@ -32,6 +33,19 @@ function commentsByPost(postIds: number[]): Map<number, number> {
 const DOW_LABELS = ['dim.', 'lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.'];
 
 export function registerAnalyticsRoutes(app: FastifyInstance): void {
+  /** Consommation des modèles de langage : aujourd'hui, plafond, quinzaine, répartition. */
+  app.get('/api/analytics/llm', async () => {
+    const budget = getLlmBudget();
+    const aujourdhui = consommationDuJour();
+    return {
+      aujourdhui,
+      plafond: budget.enabled ? budget.dailyEuros : null,
+      partUtilisee: budget.enabled && budget.dailyEuros > 0 ? Math.min(1, aujourdhui.cout / budget.dailyEuros) : null,
+      jours: consommationRecente(14),
+      repartition: repartitionDuJour(),
+    };
+  });
+
   app.get<{ Querystring: { days?: string } }>('/api/analytics/clicks', async (request) => {
     const days = Math.min(365, Math.max(1, Number(request.query.days ?? 30) || 30));
     const since = new Date(Date.now() - days * 86400000).toISOString();

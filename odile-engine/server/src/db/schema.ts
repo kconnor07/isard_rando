@@ -358,6 +358,28 @@ export const jobRuns = sqliteTable(
  * Templates maison : thèmes visuels créés depuis le dashboard. Le CSS est
  * généré à partir de ces paramètres — pas de CSS libre saisi par l'utilisateur.
  */
+/**
+ * Consommation des modèles de langage, un enregistrement par appel réussi.
+ * Sert au compteur du dashboard et au plafond quotidien (lib/llmBudget.ts).
+ */
+export const llmUsage = sqliteTable(
+  'llm_usage',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    ts: text('ts').notNull().$defaultFn(now),
+    /** jour de Paris (AAAA-MM-JJ) : le plafond se remet à zéro à minuit local */
+    day: text('day').notNull(),
+    provider: text('provider').notNull(),
+    model: text('model').notNull(),
+    task: text('task').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    /** coût estimé en millièmes d'euro (les tarifs vivent dans lib/llmBudget.ts) */
+    costMilli: integer('cost_milli').notNull().default(0),
+  },
+  (t) => [index('llm_usage_day_idx').on(t.day)],
+);
+
 export const customThemes = sqliteTable('custom_themes', {
   id: text('id').primaryKey(), // slug : « ma-signature »
   name: text('name').notNull(),

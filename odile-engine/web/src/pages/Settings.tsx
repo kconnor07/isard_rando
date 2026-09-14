@@ -13,6 +13,7 @@ type AllSettings = Record<string, unknown> & {
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
   fb_mirror: { enabled: boolean };
+  llm_budget: { enabled: boolean; dailyEuros: number };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
   image_gen: { enabled: boolean; autoPlace?: boolean; imagesPerPost: number; styleNotes: string; quality: 'pro' | 'fast'; monochrome: boolean; provider: 'auto' | 'gemini' | 'freepik'; model: string; style: 'auto' | 'full' | 'objets' | 'chrome'; references: Record<string, string | null | undefined>; notesByStyle: Record<string, string | undefined>; modelByStyle?: Record<string, string | undefined> };
@@ -119,7 +120,7 @@ export default function Settings() {
   }, [settings]);
 
   const SECTION_LABELS: Record<string, string> = {
-    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook',
+    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', llm_budget: 'Budget IA',
     design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
     default_theme: 'Thème par défaut', default_format: 'Format par défaut',
   };
@@ -357,6 +358,29 @@ export default function Settings() {
           <div><label className="label">Créneaux LinkedIn</label>
             <SlotsEditor slots={form.publish_slots.li} onChange={(li) => set('publish_slots', { ...form.publish_slots, li })} /></div>
         </div>
+      </Section>
+
+      <Section title="Budget IA" saving={savingOf('llm_budget')} onSave={() => save.mutate({ key: 'llm_budget', value: form.llm_budget })}>
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.llm_budget?.enabled ?? true}
+            onChange={(e) => set('llm_budget', { ...(form.llm_budget ?? { dailyEuros: 2 }), enabled: e.target.checked })} />
+          Plafonner la dépense quotidienne des modèles de langage
+        </label>
+        <div className="flex items-center gap-3">
+          <label className="label !mb-0">Plafond par jour</label>
+          <input
+            type="number" step="0.5" min="0" max="500"
+            className="input !w-28"
+            value={form.llm_budget?.dailyEuros ?? 2}
+            onChange={(e) => set('llm_budget', { ...(form.llm_budget ?? { enabled: true }), dailyEuros: Number(e.target.value) })}
+          />
+          <span className="text-sm text-muted">€</span>
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Le compteur se remet à zéro à minuit, heure de Paris. À partir de 70 % du plafond, les tâches facultatives
+          (relecture, agent visuel, scoring, recherche web) s'effacent pour laisser passer la rédaction du post. Au-delà
+          de 100 %, plus aucun appel ne part jusqu'au lendemain — un arrêt annoncé, pas une panne.
+        </p>
       </Section>
 
       <Section title="Miroir Facebook" saving={savingOf('fb_mirror')} onSave={() => save.mutate({ key: 'fb_mirror', value: form.fb_mirror })}>
@@ -612,8 +636,9 @@ export default function Settings() {
         onSave={() => save.mutate([{ key: 'default_theme', value: form.default_theme }, { key: 'default_format', value: form.default_format }])}>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label className="label">Thème par défaut</label>
-            <select className="input" value={form.default_theme} onChange={(e) => set('default_theme', e.target.value)}>
-              {!catalogue && <option value={form.default_theme}>{form.default_theme}</option>}
+            <select className="input" value={form.default_theme || 'dernier'} onChange={(e) => set('default_theme', e.target.value)}>
+              <option value="dernier">Dernier template créé (suit automatiquement)</option>
+              {!catalogue && form.default_theme && form.default_theme !== 'dernier' && <option value={form.default_theme}>{form.default_theme}</option>}
               {catalogue && catalogue.custom.length > 0 && (
                 <optgroup label="Mes templates">
                   {catalogue.custom.map((t) => <option key={t.themeId} value={t.themeId}>{t.name}</option>)}
@@ -624,7 +649,11 @@ export default function Settings() {
                   {catalogue.builtin.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </optgroup>
               )}
-            </select></div>
+            </select>
+            <p className="mt-1.5 text-xs text-muted">
+              Par défaut, les posts générés prennent le dernier template que vous avez créé : dessinez-en un, il
+              s'applique aux publications suivantes. Épinglez-en un précis pour figer le rendu.
+            </p></div>
           <div><label className="label">Format Instagram par défaut</label>
             <select className="input" value={form.default_format} onChange={(e) => set('default_format', e.target.value)}>
               {Object.entries(FORMAT_LABELS).map(([v, l]) => (

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, desc} from 'drizzle-orm';
 import { z } from 'zod';
 import {
   approvalEmailSettingsSchema,
@@ -14,6 +14,7 @@ import {
   toneSettingsSchema,
   visualAgentSettingsSchema,
   fbMirrorSettingsSchema,
+  llmBudgetSettingsSchema,
 } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from './client.js';
@@ -69,6 +70,8 @@ export const getDmTriggers = () =>
     keywords: [...DEFAULTS.dmTriggers.keywords],
     replyTemplate: DEFAULTS.dmTriggers.replyTemplate,
   });
+/** Plafond quotidien de consommation IA (2 € par jour par défaut). */
+export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });
 /** Recopie des publications Instagram sur la Page Facebook (désactivée par défaut). */
 export const getFbMirror = () => getSetting('fb_mirror', fbMirrorSettingsSchema, { enabled: false });
 export const getApprovalEmail = () =>
@@ -97,9 +100,23 @@ export const getLlmRouting = () =>
     vision: 'gemini',
     visionFinal: 'anthropic',
   });
+/** Valeur de réglage qui suit le dernier template créé plutôt qu'un thème figé. */
+export const THEME_DERNIER = 'dernier';
+
+/** Le template maison le plus récemment créé, s'il en existe un. */
+export const dernierTemplate = (): string | null =>
+  db.select({ id: schema.customThemes.id }).from(schema.customThemes).orderBy(desc(schema.customThemes.createdAt)).limit(1).get()?.id ?? null;
+
+/**
+ * Thème des posts générés. Par défaut — et tant qu'aucun thème n'est épinglé —
+ * c'est le dernier template créé qui sert : un template fraîchement dessiné
+ * s'applique aux publications suivantes sans réglage supplémentaire.
+ */
 export const getDefaultTheme = (): string => {
   const raw = getSettingRaw('default_theme');
-  return typeof raw === 'string' && raw ? raw : DEFAULTS.theme;
+  const epingle = typeof raw === 'string' && raw ? raw : THEME_DERNIER;
+  if (epingle !== THEME_DERNIER) return epingle;
+  return dernierTemplate() ?? DEFAULTS.theme;
 };
 export const getDefaultFormat = (): string => {
   const raw = getSettingRaw('default_format');
