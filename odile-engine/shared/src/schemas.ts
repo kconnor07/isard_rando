@@ -39,6 +39,12 @@ export const brandSettingsSchema = z.object({
   footerStyle: z.enum(['logo', 'initiales', 'logo-nom']).default('initiales'),
   /** initiales du carré de marque (sinon déduites du nom : « Odile AI » → OA) */
   initials: z.string().max(3).default(''),
+  /**
+   * Émojis dans les visuels : « aucun » les retire des slides et les laisse dans la
+   * légende, où l'appareil du lecteur les dessine (émojis Apple sur iPhone).
+   * « systeme » garde ceux de la police du serveur (Noto, style Google).
+   */
+  emojiStyle: z.enum(['aucun', 'systeme']).default('aucun'),
 });
 export type BrandSettings = z.infer<typeof brandSettingsSchema>;
 

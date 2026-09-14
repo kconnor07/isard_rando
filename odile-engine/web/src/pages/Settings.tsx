@@ -8,7 +8,7 @@ import type { LibraryImageDto } from '../api/types';
 
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
-  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string };
+  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
@@ -269,6 +269,31 @@ export default function Settings() {
                 onChange={(e) => set('brand', { ...form.brand, initials: e.target.value.toUpperCase() })}
               />
             </div>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Émojis dans les visuels</label>
+            <div className="flex flex-wrap items-center gap-2">
+              {([
+                { v: 'aucun', l: 'Aucun — gardés dans la légende' },
+                { v: 'systeme', l: 'Police du serveur (style Google)' },
+              ] as const).map((o) => (
+                <button
+                  key={o.v}
+                  onClick={() => set('brand', { ...form.brand, emojiStyle: o.v })}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                    (form.brand.emojiStyle ?? 'aucun') === o.v ? 'border-accent/50 bg-accent-soft text-ice' : 'border-line text-muted hover:text-txt'
+                  }`}
+                >
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-muted">
+              Les visuels sont dessinés sur le serveur : les émojis y prennent le style de la police installée (Noto,
+              allure Google). La police Apple ne peut pas y être embarquée, sa licence la réservant aux appareils Apple.
+              En les gardant hors des visuels, ils restent dans la légende — et là, c'est l'iPhone du lecteur qui les
+              dessine, donc en émojis Apple.
+            </p>
           </div>
           <div className="sm:col-span-2">
             <label className="label">Chip auteur (templates avec « chip auteur ») — photo et ligne sous le nom</label>

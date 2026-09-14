@@ -164,6 +164,10 @@ ${catalog}
 
 ${imageSpec}
 
+Émojis : uniquement dans la légende (caption), jamais dans le texte des slides — les
+visuels sont typographiques, et les émojis de la légende s'affichent avec le style de
+l'appareil du lecteur.
+
 Kind de slide disponible en plus : "notifications" (pile de 3 cartes de notification — renseigne notifications[{title,body}], parfait pour montrer des résultats concrets type « Devis signé », « Paiement reçu »).${
     isCarousel ? " Tu peux remplacer une slide 'content' par ce kind si l'archétype s'y prête." : ''
   }`;

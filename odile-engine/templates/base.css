@@ -648,6 +648,11 @@ body {
 .notif-body { font-size: 28px; color: rgba(235, 243, 255, 0.82); margin-top: 4px; }
 .notif-time { font-family: 'Fragment Mono', monospace; font-size: 22px; color: var(--muted); align-self: flex-start; }
 
+/* Un mot plus large que la colonne (URL, terme composé) doit se couper, jamais déborder */
+.title, .body, .bullets li, .subtitle, .annotation, .badge, .cta-button, .notif-text {
+  overflow-wrap: break-word;
+}
+
 /* Mot surligné pill (archétype A8) */
 .highlight-pill {
   background: color-mix(in srgb, var(--accent) 80%, #003a6b);

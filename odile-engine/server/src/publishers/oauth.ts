@@ -189,7 +189,17 @@ export async function subscribePageWebhooks(pageId: string, pageToken: string): 
       ? { ok: true, detail: 'app installée sur la Page (webhooks actifs)' }
       : { ok: false, detail: 'réponse inattendue de Meta' };
   } catch (err) {
-    return { ok: false, detail: String(err).slice(0, 200) };
+    const brut = String(err);
+    // Meta répond « (#200) … pages_manage_metadata » : inutile de recopier l'erreur,
+    // seule la marche à suivre intéresse.
+    if (/#200|pages_manage_metadata/.test(brut)) {
+      return {
+        ok: false,
+        detail:
+          'permission pages_manage_metadata manquante — ajoute-la aux autorisations de l’app Meta, puis reconnecte le compte depuis Connexions & santé',
+      };
+    }
+    return { ok: false, detail: brut.slice(0, 200) };
   }
 }
 

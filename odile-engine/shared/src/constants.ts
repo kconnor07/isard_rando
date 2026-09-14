@@ -204,4 +204,6 @@ export const BRAND_DEFAULTS = {
   tagline: 'Automatisez ce qui vous ralentit. Concentrez-vous sur ce qui vous fait grandir.',
   footerStyle: 'initiales',
   initials: '',
+  /** les émojis vivent dans la légende, pas dans les visuels (voir render/emoji.ts) */
+  emojiStyle: 'aucun',
 } as const;

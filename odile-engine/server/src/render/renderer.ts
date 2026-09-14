@@ -15,6 +15,7 @@ import { buildCustomThemeCss, getCustomTheme, slideStyleFor } from './custom-the
 import { floatCss, floatsOnSlide, type FloatLayout, type FloatSlides } from './floats.js';
 import { iconSvg } from './icons.js';
 import { isLightHex } from '../lib/color.js';
+import { stripEmoji } from './emoji.js';
 import { baseCss, defaultBrandLogoDataUri, fontFaceCss, slideTemplate, themeCss } from './themes.js';
 import { brandBlockHtml, brandInitials, resolveBrandStyle, type TemplateBrandStyle } from './brand.js';
 
@@ -145,18 +146,35 @@ const VERIFIED_SVG = (size: number) =>
 /** Construit le HTML complet d'une slide (coquille + template du kind). */
 export function buildSlideHtml(input: SlideRenderInput): string {
   const { width, height } = RENDER_SIZES[input.format];
-  const content: SlideContent = {
+  // Émojis : retirés des visuels par défaut (ils restent dans la légende, où
+  // l'appareil du lecteur les dessine — voir render/emoji.ts).
+  const net = (t: string | undefined) =>
+    t && input.brand.emojiStyle !== 'systeme' ? stripEmoji(t) : t;
+  const source: SlideContent = {
     ...input.content,
-    bullets: input.content.bullets?.map(frTypo),
-    notifications: input.content.notifications?.map((n) => ({ title: frTypo(n.title), body: frTypo(n.body) })),
-    ctaLabel: input.content.ctaLabel ? frTypo(input.content.ctaLabel) : input.content.ctaLabel,
-    footer: input.content.footer ? frTypo(input.content.footer) : input.content.footer,
+    title: net(input.content.title) ?? input.content.title,
+    subtitle: net(input.content.subtitle),
+    body: net(input.content.body),
+    badge: net(input.content.badge),
+    annotation: net(input.content.annotation),
+    accentWord: net(input.content.accentWord),
+    ctaLabel: net(input.content.ctaLabel),
+    footer: net(input.content.footer),
+    bullets: input.content.bullets?.map((b) => net(b) ?? b),
+    notifications: input.content.notifications?.map((n) => ({ title: net(n.title) ?? n.title, body: net(n.body) ?? n.body })),
+  };
+  const content: SlideContent = {
+    ...source,
+    bullets: source.bullets?.map(frTypo),
+    notifications: source.notifications?.map((n) => ({ title: frTypo(n.title), body: frTypo(n.body) })),
+    ctaLabel: source.ctaLabel ? frTypo(source.ctaLabel) : source.ctaLabel,
+    footer: source.footer ? frTypo(source.footer) : source.footer,
   };
   const inner = eta.renderString(slideTemplate(input.kind), {
     content,
-    titleHtml: buildTitleHtml(input.content.title, input.content.accentWord),
-    subtitleHtml: buildSubtitleHtml(input.content.subtitle),
-    bodyHtml: buildBodyHtml(input.content.body),
+    titleHtml: buildTitleHtml(source.title, source.accentWord),
+    subtitleHtml: buildSubtitleHtml(source.subtitle),
+    bodyHtml: buildBodyHtml(source.body),
     iconSvg: iconSvg(input.content.icon),
     keyword: input.keyword ?? null,
     screenshotDataUri: input.screenshotDataUri ?? null,
