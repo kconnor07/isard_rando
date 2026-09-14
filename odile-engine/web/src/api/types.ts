@@ -92,6 +92,7 @@ export interface CommentDto {
   text: string;
   matchedKeyword: string | null;
   dmStatus: string;
+  dmError?: string | null;
   suggestedReply: string | null;
   externalPostUrl: string | null;
   createdTime: string;

@@ -95,6 +95,25 @@ export function registerMiscRoutes(app: FastifyInstance): void {
     };
   });
 
+  /** Relance l'envoi du DM d'un commentaire (après correction d'un réglage Meta). */
+  app.post<{ Params: { id: string } }>('/api/comments/:id/retry-dm', async (request, reply) => {
+    const id = Number(request.params.id);
+    const comment = db.select().from(schema.comments).where(eq(schema.comments.id, id)).get();
+    if (!comment) return reply.status(404).send({ error: 'Commentaire introuvable' });
+    db.update(schema.comments).set({ dmStatus: 'none' }).where(eq(schema.comments.id, id)).run();
+    const { handleInstagramComment } = await import('../../webhooks/commentDm.js');
+    await handleInstagramComment(id);
+    const apres = db.select().from(schema.comments).where(eq(schema.comments.id, id)).get();
+    const dernier = db
+      .select()
+      .from(schema.dmEvents)
+      .where(eq(schema.dmEvents.commentId, id))
+      .orderBy(desc(schema.dmEvents.id))
+      .limit(1)
+      .get();
+    return { ok: apres?.dmStatus !== 'failed', dmStatus: apres?.dmStatus ?? 'none', error: dernier?.error ?? null };
+  });
+
   /**
    * État réel de la chaîne de publication : ce qui attend son tour, ce qui est parti
    * (avec le lien vivant et ses chiffres), ce qui a échoué et pourquoi. Tout vient des
@@ -179,6 +198,17 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       .orderBy(desc(schema.comments.id))
       .limit(100)
       .all();
+    // Motif du dernier envoi raté : « Échec DM » sans raison n'aide personne.
+    const erreurs = new Map<number, string>();
+    for (const e of db
+      .select()
+      .from(schema.dmEvents)
+      .where(eq(schema.dmEvents.status, 'failed'))
+      .orderBy(desc(schema.dmEvents.id))
+      .limit(200)
+      .all()) {
+      if (e.commentId !== null && e.error && !erreurs.has(e.commentId)) erreurs.set(e.commentId, e.error);
+    }
     return rows.map((c) => ({
       id: c.id,
       platform: c.platform,
@@ -186,6 +216,7 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       text: c.text,
       matchedKeyword: c.matchedKeyword,
       dmStatus: c.dmStatus,
+      dmError: erreurs.get(c.id) ?? null,
       suggestedReply: c.suggestedReply,
       externalPostUrl: c.externalPostUrl,
       createdTime: c.createdTime ?? c.fetchedAt,

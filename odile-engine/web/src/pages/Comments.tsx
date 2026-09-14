@@ -22,6 +22,14 @@ export default function Comments() {
     queryFn: () => api.get<CommentDto[]>('/api/comments'),
     refetchInterval: 30_000,
   });
+  const retryDm = useMutation({
+    mutationFn: (id: number) => api.post<{ ok: boolean; dmStatus: string; error: string | null }>(`/api/comments/${id}/retry-dm`),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['comments'] });
+      if (r.ok) toast.success('Message privé envoyé');
+      else toast.error(r.error ?? 'Envoi toujours refusé par Meta');
+    },
+  });
   const markHandled = useMutation({
     mutationFn: (id: number) => api.post(`/api/comments/${id}/mark-handled`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['comments'] }),
@@ -55,6 +63,15 @@ export default function Comments() {
                 <span className="ml-auto text-xs text-muted">{fmtDate(comment.createdTime)}</span>
               </div>
               <p className="mt-2 text-sm">{comment.text}</p>
+              {comment.dmStatus === 'failed' && (
+                <div className="mt-3 rounded-2xl border border-line bg-white/[0.03] p-3">
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Motif du refus, tel que Meta l'a renvoyé</div>
+                  <p className="text-sm">{comment.dmError ?? 'Motif non enregistré (échec antérieur à cette version).'}</p>
+                  <button className="btn-ghost mt-2 !py-1.5 text-xs" disabled={retryDm.isPending} onClick={() => retryDm.mutate(comment.id)}>
+                    {retryDm.isPending ? 'Nouvel essai…' : 'Réessayer l’envoi'}
+                  </button>
+                </div>
+              )}
               {comment.suggestedReply && comment.dmStatus === 'manual_suggested' && (
                 <div className="mt-3 rounded-2xl border border-line bg-white/[0.03] p-3">
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
