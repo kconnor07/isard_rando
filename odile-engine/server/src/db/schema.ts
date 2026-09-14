@@ -101,6 +101,8 @@ export const posts = sqliteTable(
     publishedAt: text('published_at'),
     externalPostId: text('external_post_id'),
     externalUrl: text('external_url'),
+    /** étape de fabrication en cours (« rendu 3/7 ») : rend l'attente lisible */
+    pipelineStep: text('pipeline_step'),
     /** recopie sur la Page Facebook : identifiant, lien, ou motif d'échec (n'invalide pas le post Instagram) */
     fbMirrorPostId: text('fb_mirror_post_id'),
     fbMirrorUrl: text('fb_mirror_url'),

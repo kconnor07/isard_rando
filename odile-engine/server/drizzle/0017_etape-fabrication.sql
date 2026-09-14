@@ -1,0 +1,1 @@
+ALTER TABLE `posts` ADD `pipeline_step` text;

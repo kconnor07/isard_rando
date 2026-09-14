@@ -32,8 +32,14 @@ export async function runDraftPipeline(opts: DraftOptions = {}): Promise<Pipelin
     // Sans cela, une étape qui échoue (rendu, capture, agent visuel) laissait le
     // post figé sur « en fabrication », sans motif et sans moyen de le relancer.
     const message = err instanceof Error ? err.message : String(err);
+    const ou = etapeCourante(draft.postId);
     db.update(schema.posts)
-      .set({ status: 'failed', error: `Fabrication interrompue : ${message.slice(0, 700)}`, updatedAt: new Date().toISOString() })
+      .set({
+        status: 'failed',
+        error: `Fabrication interrompue${ou ? ` à l’étape ${ou}` : ''} : ${message.slice(0, 700)}`,
+        pipelineStep: null,
+        updatedAt: new Date().toISOString(),
+      })
       .where(eq(schema.posts.id, draft.postId))
       .run();
     logger.error({ postId: draft.postId, err: message }, 'fabrication interrompue');
@@ -54,19 +60,54 @@ export async function refabriquerPost(postId: number): Promise<PipelineSummary> 
     return await fabriquer({ postId, screenshotUrl: null }, {});
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    const ou = etapeCourante(postId);
     db.update(schema.posts)
-      .set({ status: 'failed', error: `Fabrication interrompue : ${message.slice(0, 700)}` })
+      .set({
+        status: 'failed',
+        error: `Fabrication interrompue${ou ? ` à l’étape ${ou}` : ''} : ${message.slice(0, 700)}`,
+        pipelineStep: null,
+      })
       .where(eq(schema.posts.id, postId))
       .run();
     throw err;
   }
 }
 
+/**
+ * Les étapes de fabrication, dans l'ordre. La rédaction n'y figure pas : le post
+ * n'existe en base qu'une fois le texte écrit, il n'y a donc rien à afficher avant.
+ */
+const ETAPES = [
+  'Capture d’écran',
+  'Illustrations',
+  'Agent visuel',
+  'Rendu des slides',
+  'Relecture du studio',
+  'Email de validation',
+] as const;
+type Etape = (typeof ETAPES)[number];
+
+/** Étape courante, écrite sur le post : la fabrication est longue, l'attente doit être lisible. */
+function etape(postId: number, libelle: Etape): void {
+  const rang = ETAPES.indexOf(libelle) + 1;
+  db.update(schema.posts)
+    .set({ pipelineStep: `${rang}/${ETAPES.length} · ${libelle}` })
+    .where(eq(schema.posts.id, postId))
+    .run();
+}
+
+/** Étape atteinte au moment d'un échec, pour dire où la chaîne s'est arrêtée. */
+function etapeCourante(postId: number): string | null {
+  return db.select({ s: schema.posts.pipelineStep }).from(schema.posts).where(eq(schema.posts.id, postId)).get()?.s ?? null;
+}
+
 /** Les étapes qui suivent la rédaction : capture, illustrations, rendu, relecture, email. */
 async function fabriquer(draft: { postId: number; screenshotUrl: string | null }, _opts: DraftOptions): Promise<PipelineSummary> {
+  etape(draft.postId, 'Capture d’écran');
   const capture = await captureForPost(draft.postId, draft.screenshotUrl);
   // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose
   // (idée d'image de l'accroche comprise) et l'humain la pose s'il la veut.
+  etape(draft.postId, 'Illustrations');
   const images: ImagesSummary = getImageGen().autoPlace
     ? await generateImagesForPost(draft.postId).catch((err) => {
         logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
@@ -74,15 +115,19 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
       })
     : { generated: 0, skipped: 0, failed: 0, tokens: 0 };
   // L'agent visuel propose captures et illustrations pour cette veille (non bloquant)
+  etape(draft.postId, 'Agent visuel');
   const visuals = await runVisualAgentForPipeline(draft.postId);
+  etape(draft.postId, 'Rendu des slides');
   await renderPost(draft.postId);
   // Le studio ne doit jamais bloquer la livraison : un post rendu vaut mieux
   // qu'aucun post — l'humain valide de toute façon.
+  etape(draft.postId, 'Relecture du studio');
   const review = await runDesignReview(draft.postId).catch((err) => {
     logger.error({ err: String(err) }, 'studio de design en échec (non bloquant)');
     return { postId: draft.postId, iterations: 0, passed: false, finalScores: {}, unavailable: true };
   });
 
+  etape(draft.postId, 'Email de validation');
   let emailed = false;
   try {
     const { sendApprovalEmail } = await import('../mailer/approvalEmail.js');
@@ -93,7 +138,7 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
   }
 
   db.update(schema.posts)
-    .set({ status: 'awaiting_approval', updatedAt: new Date().toISOString() })
+    .set({ status: 'awaiting_approval', pipelineStep: null, updatedAt: new Date().toISOString() })
     .where(eq(schema.posts.id, draft.postId))
     .run();
 

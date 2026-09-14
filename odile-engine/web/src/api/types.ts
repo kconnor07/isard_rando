@@ -14,6 +14,8 @@ export interface PostSummaryDto {
   externalUrl: string | null;
   simulated?: boolean;
   error?: string | null;
+  /** étape de fabrication en cours, ex. « 4/6 · Rendu des slides » */
+  pipelineStep?: string | null;
   createdAt: string;
   commentTriggerKeyword: string | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;

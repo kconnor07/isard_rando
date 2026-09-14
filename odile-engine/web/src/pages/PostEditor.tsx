@@ -451,8 +451,13 @@ export default function PostEditor() {
       {inProgress && (
         <div className="card mb-4 flex items-center gap-3 border-accent/40 p-4 text-sm">
           <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
-          {post.status === 'draft' ? 'Fabrication en cours : rédaction, visuels, rendu…' : 'Studio de design en cours : relecture par les critiques IA…'}
-          <span className="text-muted">— la page se met à jour toute seule.</span>
+          {/* L'étape courante évite de confondre « long » et « bloqué » : la chaîne prend 2 à 4 min. */}
+          {post.pipelineStep
+            ? post.pipelineStep
+            : post.status === 'draft'
+              ? 'Rédaction du post…'
+              : 'Studio de design en cours : relecture par les critiques IA…'}
+          <span className="text-muted">— mise à jour automatique, comptez 2 à 4 min en tout.</span>
         </div>
       )}
 

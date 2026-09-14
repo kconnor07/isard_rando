@@ -52,6 +52,8 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     simulated: Boolean(post.externalPostId?.startsWith('dry-')),
     /** motif du dernier échec (fabrication ou publication) */
     error: post.error,
+    /** étape de fabrication en cours, quand le post est encore en chantier */
+    pipelineStep: post.pipelineStep,
     createdAt: post.createdAt,
     commentTriggerKeyword: post.commentTriggerKeyword,
     reviewSummary: post.reviewSummary ? JSON.parse(post.reviewSummary) : null,

@@ -123,7 +123,7 @@ export default function Approvals() {
               {inProgress ? (
                 <p className="mt-4 flex items-center gap-2 text-xs text-muted">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
-                  {post.status === 'draft' ? 'Fabrication en cours (rédaction, visuels, rendu)…' : 'Studio de design en cours…'} — les actions s’ouvrent à la fin.
+                  {post.pipelineStep ?? (post.status === 'draft' ? 'Rédaction du post…' : 'Studio de design en cours…')} — les actions s’ouvrent à la fin.
                 </p>
               ) : (
                 <div className="mt-4 flex flex-wrap gap-2">
