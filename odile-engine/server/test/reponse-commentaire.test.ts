@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 describe('refus Meta traduits en marche à suivre', async () => {
   const { expliquerErreurMeta } = await import('../src/publishers/metaErrors.js');
 
-  it('(#3) désigne la capacité messagerie absente de l’app, pas une permission', () => {
+  it('(#3) désigne l’appel refusé au niveau de l’app, pas une permission manquante', () => {
     const brut =
       'HTTP 400 sur https://graph.facebook.com/v21.0/17841413031371776/messages: {"error":{"message":"(#3) Application does not have the capability to make this API call.","type":"OAuthException","code":3}}';
     const cause = expliquerErreurMeta(brut);
     expect(cause?.cause).toMatch(/messagerie/i);
+    // La cause à écarter en premier : l'objet visé par l'appel.
+    expect(cause?.cause).toMatch(/Page/);
     // La marche à suivre vise la console « cas d'utilisation », seule en vigueur.
     expect(cause?.remede).toMatch(/Cas d’utilisation/);
     expect(cause?.remede).toMatch(/AVANCÉ/);

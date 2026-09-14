@@ -22,7 +22,7 @@ const TABLE: { test: RegExp; cause: CauseMeta }[] = [
     test: /\(#3\)|does not have the capability/i,
     cause: {
       cause:
-        'L’app Meta n’a pas la capacité « messagerie » pour ce compte. Deux causes possibles : la permission instagram_manage_messages est en accès standard (elle ne vaut alors que pour les personnes ayant un rôle dans l’app), ou le compte Instagram refuse l’accès à ses messages aux applications tierces.',
+        'Meta refuse l’appel au niveau de l’application. Cause la plus fréquente, corrigée depuis cette version : le message était posté sur le compte Instagram alors qu’avec Facebook Login la messagerie passe par la Page. S’il persiste après déploiement, il reste deux pistes : la permission instagram_manage_messages est en accès standard (elle ne vaut alors que pour les personnes ayant un rôle dans l’app), ou le compte Instagram refuse l’accès à ses messages aux applications tierces.',
       remede:
         'App Meta → Cas d’utilisation → « Gérer les messages et les contenus sur Instagram » : vérifie que instagram_manage_messages est en accès AVANCÉ (l’accès avancé passe par la vérification de l’app). Côté Instagram : autorise l’accès aux messages — app Instagram → Paramètres → Confidentialité des messages (compte professionnel « Entreprise », la section n’apparaît pas pour un compte « Créateur »), ou depuis Meta Business Suite → Boîte de réception.',
       cotePlateforme: true,

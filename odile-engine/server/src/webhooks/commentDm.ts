@@ -49,14 +49,31 @@ export async function estAbonne(igsid: string): Promise<boolean | null> {
   }
 }
 
+/**
+ * Où poster un message Instagram, et avec quel jeton.
+ *
+ * Avec Facebook Login, la messagerie Instagram passe par la Messenger Platform :
+ * l'objet visé est la **Page**, pas le compte Instagram — `POST /{page-id}/messages`.
+ * Le point d'entrée `/{ig-user-id}/messages` appartient à l'autre parcours (Instagram
+ * Login, sur graph.instagram.com) ; l'appeler ici vaut à Meta de répondre
+ * « (#3) Application does not have the capability to make this API call ».
+ */
+export function cibleMessagerie(): { pageId: string; token: string } | null {
+  const igToken = getStoredToken('meta', 'ig_user');
+  const pageToken = getStoredToken('meta', 'fb_page');
+  const pageId = pageToken?.externalId ?? (igToken?.meta.pageId as string | undefined);
+  const token = pageToken?.accessToken ?? igToken?.accessToken;
+  return pageId && token ? { pageId, token } : null;
+}
+
 /** Envoi d'un message privé à une personne, hors réponse à un commentaire. */
 async function envoyerMessage(igsid: string, texte: string): Promise<void> {
-  const igToken = getStoredToken('meta', 'ig_user');
-  if (!igToken) throw new Error('Aucun compte Instagram connecté');
-  await fetchJson(`${GRAPH}/${igToken.externalId}/messages`, {
+  const cible = cibleMessagerie();
+  if (!cible) throw new Error('Aucune Page Facebook connectée — la messagerie Instagram passe par elle');
+  await fetchJson(`${GRAPH}/${cible.pageId}/messages`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ recipient: { id: igsid }, message: { text: texte }, access_token: igToken.accessToken }),
+    body: JSON.stringify({ recipient: { id: igsid }, message: { text: texte }, access_token: cible.token }),
   });
 }
 
@@ -196,15 +213,18 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
     return;
   }
 
+  const cible = cibleMessagerie();
   try {
-    // Private reply : la fenêtre d'envoi est déclenchée par le commentaire lui-même
-    await fetchJson(`${GRAPH}/${igToken.externalId}/messages`, {
+    if (!cible) throw new Error('Aucune Page Facebook connectée — la messagerie Instagram passe par elle');
+    // Private reply : la fenêtre d'envoi est déclenchée par le commentaire lui-même,
+    // et l'objet visé est la Page (voir cibleMessagerie).
+    await fetchJson(`${GRAPH}/${cible.pageId}/messages`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         recipient: { comment_id: comment.externalId },
         message: { text: message },
-        access_token: igToken.accessToken,
+        access_token: cible.token,
       }),
     });
     db.insert(schema.dmEvents)
