@@ -4,7 +4,7 @@
 <div class="notif-stack">
   <% (it.content.notifications || []).slice(0, 3).forEach(function (n, i) { %>
   <div class="notif-card depth-<%= i %>">
-    <div class="notif-icon">⚡</div>
+    <div class="notif-icon"><svg viewBox="0 0 48 48" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M27 4L10 28h11l-2 16 18-24H26z"/></svg></div>
     <div class="notif-text">
       <div class="notif-title"><%= n.title %></div>
       <div class="notif-body"><%= n.body %></div>

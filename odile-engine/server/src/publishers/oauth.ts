@@ -7,6 +7,7 @@ import { createToken, verifyToken } from '../lib/signedToken.js';
 import { escapeHtml, resultPage } from '../api/pages.js';
 import { requireSession } from '../api/auth.js';
 import { getOauthApps, linkedinAppConfigured, metaAppConfigured } from '../db/oauthApps.js';
+import { getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
@@ -574,10 +575,52 @@ doit être en mode professionnel (Instagram → Paramètres → Type de compte).
       pagesErreur = String(err).slice(0, 300);
     }
     const apps = getOauthApps();
+    // État par fonction : chacune dépend de permissions et d'un réglage précis,
+    // et Meta ne dit jamais lequel manque. Cette vue le nomme.
+    const pageToken = getStoredToken('meta', 'fb_page');
+    const igToken = getStoredToken('meta', 'ig_user');
+    const dm = getDmTriggers();
+    const besoin = (scopes: string[], autres: [boolean, string][] = []) => [
+      ...scopes.filter((sc) => !permissions.includes(sc)).map((sc) => `permission ${sc}`),
+      ...autres.filter(([ok]) => !ok).map(([, quoi]) => quoi),
+    ];
+    const fonction = (manque: string[]) => ({ pret: manque.length === 0, manque });
+    const fonctions = {
+      publicationInstagram: fonction(
+        besoin(['instagram_basic', 'instagram_content_publish'], [[Boolean(igToken), 'compte Instagram connecté']]),
+      ),
+      miroirFacebook: fonction(
+        besoin(
+          ['pages_manage_posts'],
+          [
+            [Boolean(pageToken), 'Page Facebook connectée'],
+            [getFbMirror().enabled, 'réglage « Miroir Facebook » activé'],
+          ],
+        ),
+      ),
+      webhookCommentaires: fonction(
+        besoin(
+          ['pages_manage_metadata'],
+          [[pageToken?.meta.webhookInstalled === true, 'webhook installé sur la Page (bouton « Installer »)']],
+        ),
+      ),
+      reponsePriveeDm: fonction(
+        besoin(
+          ['instagram_manage_comments', 'instagram_manage_messages'],
+          [
+            [dm.enabled, 'réglage « Commentaire → DM » activé'],
+            [dm.keywords.length > 0, 'au moins un mot-clé déclencheur'],
+          ],
+        ),
+      ),
+    };
     return {
       compte: user.meta.name ?? '',
       connecteLe: user.meta.connectedAt ?? null,
       configurationUtilisee: apps.metaConfigId || '(dialogue OAuth classique)',
+      fonctions,
+      rappel:
+        'Un commentaire écrit depuis le compte de la marque ne déclenche jamais de réponse privée : teste depuis un autre compte Instagram.',
       permissionsAccordees: permissions,
       permissionsSoclesManquantes: manquantes,
       pagesAutorisees: pages,

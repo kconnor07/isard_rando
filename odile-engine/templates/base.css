@@ -609,44 +609,73 @@ body {
 .align-center.has-hero .annotation { align-self: center; }
 
 /* --- Pile de notifications (archétype A2) ------------------------------- */
+/* Verre liquide : la carte laisse passer le fond, une arête claire en haut et un
+   reflet spéculaire donnent l'épaisseur, l'accent ne teinte que la profondeur. */
 
 .notif-stack {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 26px;
+  gap: 24px;
   margin-top: 30px;
   width: 100%;
 }
 .notif-card {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 24px;
   width: 92%;
   padding: 30px 34px;
-  border-radius: 24px;
-  background: linear-gradient(135deg,
-    color-mix(in srgb, var(--accent) 30%, #0a1220),
-    color-mix(in srgb, var(--accent) 12%, #070b14));
-  border: 1.5px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55),
-              0 0 60px color-mix(in srgb, var(--accent) 25%, transparent),
-              inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  border-radius: 40px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.04) 52%, rgba(255, 255, 255, 0.015)),
+    color-mix(in srgb, var(--accent) 9%, rgba(7, 11, 20, 0.44));
+  backdrop-filter: blur(26px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.5),
+    0 0 60px -20px color-mix(in srgb, var(--accent) 55%, transparent),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -30px 60px -50px color-mix(in srgb, var(--accent) 80%, transparent);
 }
-.notif-card.depth-1 { width: 84%; opacity: 0.62; filter: blur(1px); transform: translateY(-6px); }
-.notif-card.depth-2 { width: 76%; opacity: 0.34; filter: blur(2.2px); transform: translateY(-12px); }
+/* Reflet du haut : la lumière glisse sur la moitié supérieure et s'éteint */
+.notif-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 55%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+.notif-card > * { position: relative; }
+.notif-card.depth-1 { width: 84%; opacity: 0.66; filter: blur(0.8px); transform: translateY(-6px); }
+.notif-card.depth-2 { width: 76%; opacity: 0.38; filter: blur(1.8px); transform: translateY(-12px); }
 .notif-icon {
-  width: 66px; height: 66px; flex-shrink: 0;
+  width: 68px; height: 68px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 18px;
-  font-size: 32px;
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 50%, #003060));
-  box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 60%, transparent);
+  border-radius: 999px;
+  color: #fff;
+  background:
+    radial-gradient(120% 120% at 32% 22%, color-mix(in srgb, var(--accent) 78%, #ffffff), color-mix(in srgb, var(--accent) 62%, #001c3c));
+  box-shadow:
+    0 12px 28px -10px color-mix(in srgb, var(--accent) 75%, transparent),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -10px 18px -12px rgba(0, 0, 0, 0.55);
 }
 .notif-text { flex: 1; min-width: 0; text-align: left; }
 .notif-title { font-size: 33px; font-weight: 800; }
 .notif-body { font-size: 28px; color: rgba(235, 243, 255, 0.82); margin-top: 4px; }
-.notif-time { font-family: 'Fragment Mono', monospace; font-size: 22px; color: var(--muted); align-self: flex-start; }
+.notif-time {
+  font-family: 'Fragment Mono', monospace; font-size: 20px; color: var(--muted);
+  align-self: flex-start;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
 
 /* Un mot plus large que la colonne (URL, terme composé) doit se couper, jamais déborder */
 .title, .body, .bullets li, .subtitle, .annotation, .badge, .cta-button, .notif-text {
