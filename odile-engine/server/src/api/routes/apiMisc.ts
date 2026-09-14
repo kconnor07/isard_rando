@@ -2,6 +2,8 @@ import { and, desc, eq, gte, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { loginSchema } from '@odile/shared';
 import { config } from '../../config.js';
+import { getDefaultTheme, getLlmBudget } from '../../db/settingsRepo.js';
+import { consommationDuJour } from '../../lib/llmBudget.js';
 import { db, schema } from '../../db/client.js';
 import { latestMetricsByPost } from '../../publishers/metrics.js';
 import { clicksByLink } from './apiAnalytics.js';
@@ -92,6 +94,67 @@ export function registerMiscRoutes(app: FastifyInstance): void {
         instagram: nextPublishSlot('instagram').toISOString(),
         linkedin: nextPublishSlot('linkedin').toISOString(),
       },
+    };
+  });
+
+  /**
+   * Bilan de santé du moteur, en une page : version, mode, clés présentes,
+   * budget du jour, derniers passages de chaque tâche avec leur motif d'échec,
+   * et l'état des posts. Conçu pour remplacer une conversation de diagnostic :
+   * aucun secret n'y figure, seulement la présence ou l'absence des clés.
+   */
+  app.get('/api/diagnostic/moteur', async () => {
+    const derniers = db
+      .select()
+      .from(schema.jobRuns)
+      .orderBy(desc(schema.jobRuns.startedAt))
+      .limit(20)
+      .all()
+      .map((r) => {
+        let motif: string | null = null;
+        try {
+          const resume = r.summary ? (JSON.parse(r.summary) as Record<string, unknown>) : null;
+          const brut = resume && typeof resume.error === 'string' ? resume.error : null;
+          const budget = resume && typeof resume.arreteParLeBudget === 'string' ? resume.arreteParLeBudget : null;
+          motif = budget ? `budget : ${budget}` : brut ? brut.split('\n')[0]!.slice(0, 300) : null;
+        } catch {
+          motif = (r.summary ?? '').slice(0, 200);
+        }
+        return { tache: r.jobName, a: r.startedAt, fini: r.finishedAt, ok: r.ok, motif };
+      });
+    const parStatut = new Map<string, number>();
+    for (const p of db.select({ status: schema.posts.status }).from(schema.posts).all()) {
+      parStatut.set(p.status, (parStatut.get(p.status) ?? 0) + 1);
+    }
+    const recents = db
+      .select()
+      .from(schema.posts)
+      .orderBy(desc(schema.posts.id))
+      .limit(5)
+      .all()
+      .map((p) => ({ id: p.id, statut: p.status, theme: p.theme, motif: p.error?.slice(0, 300) ?? null, cree: p.createdAt }));
+    const budget = getLlmBudget();
+    const conso = consommationDuJour();
+    return {
+      version: process.env.GIT_SHA ?? 'dev',
+      modePublication: config.PUBLISH_MODE,
+      modeIA: config.LLM_MODE,
+      clesPresentes: {
+        anthropic: Boolean(config.ANTHROPIC_API_KEY),
+        gemini: Boolean(config.GEMINI_API_KEY),
+        images: Boolean(config.FREEPIK_API_KEY),
+      },
+      budgetIA: {
+        actif: budget.enabled,
+        plafondEuros: budget.dailyEuros,
+        depenseAujourdhui: Number(conso.cout.toFixed(3)),
+        appelsAujourdhui: conso.appels,
+        bloque: budget.enabled && budget.dailyEuros > 0 && conso.cout >= budget.dailyEuros,
+      },
+      themeParDefaut: getDefaultTheme(),
+      postsParStatut: Object.fromEntries(parStatut),
+      postsRecents: recents,
+      dernieresTaches: derniers,
     };
   });
 
