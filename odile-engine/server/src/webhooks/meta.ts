@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { db, schema } from '../db/client.js';
 import { getOauthApps } from '../db/oauthApps.js';
 import { logger } from '../lib/logger.js';
-import { handleInstagramComment } from './commentDm.js';
+import { handleInstagramComment, handleInstagramMessage } from './commentDm.js';
 
 interface CommentChangeValue {
   id: string;
@@ -53,9 +53,23 @@ export async function metaWebhookPlugin(app: FastifyInstance): Promise<void> {
     reply.status(200).send('OK');
     try {
       const payload = JSON.parse(raw.toString()) as {
-        entry?: { changes?: { field: string; value: CommentChangeValue }[] }[];
+        entry?: {
+          changes?: { field: string; value: CommentChangeValue }[];
+          /** messages entrants (champ « messages » de l'abonnement Instagram) */
+          messaging?: { sender?: { id?: string }; message?: { text?: string; is_echo?: boolean } }[];
+        }[];
       };
       for (const entry of payload.entry ?? []) {
+        // Un message entrant est le seul moment où l'état d'abonnement d'une
+        // personne devient lisible : c'est lui qui rouvre la porte du lien.
+        for (const evt of entry.messaging ?? []) {
+          if (evt.message?.is_echo) continue;
+          const sender = evt.sender?.id;
+          if (!sender) continue;
+          void handleInstagramMessage(sender, evt.message?.text ?? '').catch((err) =>
+            logger.warn({ err: String(err).slice(0, 200) }, 'traitement du message entrant impossible'),
+          );
+        }
         for (const change of entry.changes ?? []) {
           if (change.field !== 'comments' || !change.value?.id) continue;
           const value = change.value;

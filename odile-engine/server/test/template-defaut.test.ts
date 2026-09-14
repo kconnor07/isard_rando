@@ -1,18 +1,28 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 describe('thème des posts générés', async () => {
   const { db, schema } = await import('../src/db/client.js');
-  const { getDefaultTheme, dernierTemplate, THEME_DERNIER } = await import('../src/db/settingsRepo.js');
-  const { setSetting } = await import('../src/db/settingsRepo.js');
+  const { eq } = await import('drizzle-orm');
+  const { getDefaultTheme, dernierTemplate, setSetting, THEME_DERNIER } = await import('../src/db/settingsRepo.js');
 
-  const creerTemplate = (id: string, createdAt: string) =>
+  // Horodatages uniques et postérieurs à tout l'existant : le test ne dépend pas
+  // du contenu de la base et n'y laisse rien (voir afterAll).
+  const marque = Date.now();
+  const ancien = `t-ancien-${marque}`;
+  const recent = `t-recent-${marque}`;
+  const iso = (msApres: number) => new Date(4_000_000_000_000 + marque + msApres).toISOString();
+  const creer = (id: string, createdAt: string) =>
     db.insert(schema.customThemes).values({ id, name: id, createdAt, updatedAt: createdAt }).run();
+
+  afterAll(() => {
+    for (const id of [ancien, recent]) db.delete(schema.customThemes).where(eq(schema.customThemes.id, id)).run();
+    setSetting('default_theme', THEME_DERNIER);
+  });
 
   it('suit le dernier template créé quand aucun thème n’est épinglé', () => {
     setSetting('default_theme', THEME_DERNIER);
-    creerTemplate(`t-ancien-${Date.now()}`, '2026-01-01T10:00:00.000Z');
-    const recent = `t-recent-${Date.now()}`;
-    creerTemplate(recent, '2030-01-01T10:00:00.000Z');
+    creer(ancien, iso(0));
+    creer(recent, iso(60_000));
     expect(dernierTemplate()).toBe(recent);
     expect(getDefaultTheme()).toBe(recent);
   });
@@ -20,6 +30,5 @@ describe('thème des posts générés', async () => {
   it('respecte un thème épinglé', () => {
     setSetting('default_theme', 'odile-nuit');
     expect(getDefaultTheme()).toBe('odile-nuit');
-    setSetting('default_theme', THEME_DERNIER);
   });
 });

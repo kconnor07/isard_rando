@@ -71,7 +71,26 @@ export type CadenceSettings = z.infer<typeof cadenceSettingsSchema>;
 export const dmTriggerSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   keywords: z.array(z.string().min(1).max(40)).max(20),
+  /** message qui porte le lien ({{link}}) */
   replyTemplate: z.string().min(1).max(900),
+  /**
+   * Exiger l'abonnement avant d'envoyer le lien. Meta ne prévient pas d'un
+   * nouvel abonné et n'expose pas la liste des abonnés : l'état d'abonnement
+   * n'est lisible que pour une personne qui a écrit au compte. Le parcours se
+   * fait donc en deux temps — on demande l'abonnement, et la réponse de la
+   * personne permet de le vérifier puis d'envoyer le lien.
+   */
+  requireFollow: z.boolean().default(false),
+  /** premier message : demande de s'abonner puis de répondre */
+  askFollowTemplate: z.string().max(900).default(
+    'Merci pour ton commentaire ! Abonne-toi au compte, puis réponds « OK » à ce message : je t’envoie le lien juste après.',
+  ),
+  /** message envoyé une fois l'abonnement constaté, avec le lien */
+  thanksTemplate: z.string().max(900).default('Merci pour ton abonnement ! Voici ce que je t’avais promis : {{link}}'),
+  /** relance quand la personne répond sans s'être abonnée */
+  remindTemplate: z.string().max(900).default(
+    'Je ne te vois pas encore dans les abonnés — abonne-toi et réponds-moi, et le lien part aussitôt.',
+  ),
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 

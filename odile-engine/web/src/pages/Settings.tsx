@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
-  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string };
+  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string };
   fb_mirror: { enabled: boolean };
   llm_budget: { enabled: boolean; dailyEuros: number };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
@@ -416,6 +416,39 @@ export default function Settings() {
             <label className="label">Message envoyé ({'{{link}}'} = lien tracké du post)</label>
             <textarea className="input" rows={3} value={form.dm_triggers.replyTemplate}
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, replyTemplate: e.target.value })} />
+          </div>
+          <div className="rounded-xl border border-line p-4">
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1 accent-sky-500" checked={form.dm_triggers.requireFollow ?? false}
+                onChange={(e) => set('dm_triggers', { ...form.dm_triggers, requireFollow: e.target.checked })} />
+              <span>
+                Demander l'abonnement avant d'envoyer le lien
+                <span className="mt-1 block text-xs text-muted">
+                  Le premier message invite à s'abonner puis à répondre. Dès que la personne répond, son abonnement est
+                  vérifié et le lien part. Instagram n'émet aucun événement d'abonnement et n'expose pas la liste des
+                  abonnés : cette réponse est le seul moment où l'information devient lisible.
+                </span>
+              </span>
+            </label>
+            {form.dm_triggers.requireFollow && (
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <label className="label">1. Demande d'abonnement (sans le lien)</label>
+                  <textarea className="input" rows={2} value={form.dm_triggers.askFollowTemplate ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, askFollowTemplate: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">2. Remerciement + lien, une fois l'abonnement constaté</label>
+                  <textarea className="input" rows={2} value={form.dm_triggers.thanksTemplate ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, thanksTemplate: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">3. Relance si la personne répond sans s'être abonnée</label>
+                  <textarea className="input" rows={2} value={form.dm_triggers.remindTemplate ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, remindTemplate: e.target.value })} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </Section>

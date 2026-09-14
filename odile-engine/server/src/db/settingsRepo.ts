@@ -69,6 +69,12 @@ export const getDmTriggers = () =>
     enabled: true,
     keywords: [...DEFAULTS.dmTriggers.keywords],
     replyTemplate: DEFAULTS.dmTriggers.replyTemplate,
+    // La porte d'abonnement est fermée par défaut : elle ajoute un aller-retour,
+    // c'est un choix éditorial et non un réglage technique.
+    requireFollow: false,
+    askFollowTemplate: dmTriggerSettingsSchema.shape.askFollowTemplate.parse(undefined),
+    thanksTemplate: dmTriggerSettingsSchema.shape.thanksTemplate.parse(undefined),
+    remindTemplate: dmTriggerSettingsSchema.shape.remindTemplate.parse(undefined),
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });

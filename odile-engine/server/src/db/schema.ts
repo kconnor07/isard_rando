@@ -231,7 +231,7 @@ export const comments = sqliteTable(
     createdTime: text('created_time'),
     matchedKeyword: text('matched_keyword'),
     dmStatus: text('dm_status', {
-      enum: ['none', 'pending', 'sent', 'failed', 'manual_suggested', 'handled'],
+      enum: ['none', 'pending', 'awaiting_follow', 'sent', 'failed', 'manual_suggested', 'handled'],
     })
       .notNull()
       .default('none'),

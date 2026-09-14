@@ -75,6 +75,24 @@ d'Instagram : ajoutez-la aux autorisations de l'app (ou de la configuration
 Login for Business), puis reconnectez le compte. Sans elle, la recopie est
 refusée avec un message explicite et la publication Instagram reste intacte.
 
+## 2 quater. Commentaire → DM : ce que Meta permet, et ce qu'il ne permet pas
+
+Instagram **n'émet aucun événement d'abonnement** et n'expose pas la liste des
+abonnés : envoyer un message dès qu'une personne s'abonne est impossible avec
+l'API officielle, quel que soit l'outil. L'état d'abonnement n'est lisible que
+pour une personne qui a déjà écrit au compte (`is_user_follow_business`).
+
+D'où le parcours en deux temps proposé par Réglages → Commentaire → DM →
+« Demander l'abonnement avant d'envoyer le lien » :
+
+1. commentaire avec le mot-clé → message privé qui invite à s'abonner **sans
+   donner le lien** ;
+2. la personne répond → son abonnement est vérifié → remerciement + lien ;
+   si elle n'est pas abonnée, une relance part à la place.
+
+Le webhook doit alors être abonné aux champs **`comments`** et **`messages`**
+(App Meta → Webhooks → Instagram), et l'app installée sur la Page.
+
 ## 3. Connecter le compte depuis le dashboard
 
 ⚠️ Si Facebook répond « **Invalid Scopes** » en listant `pages_manage_metadata`,
