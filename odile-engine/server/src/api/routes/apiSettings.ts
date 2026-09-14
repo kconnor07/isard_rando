@@ -33,6 +33,8 @@ import {
   getLlmRouting,
   getFbMirror,
   getLlmBudget,
+  getSettingRaw,
+  THEME_DERNIER,
   getPublishSlots,
   getTone,
   getVisualAgent,
@@ -58,8 +60,9 @@ const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> =
   visual_agent: { schema: visualAgentSettingsSchema, read: getVisualAgent },
   llm_routing: { schema: llmRoutingSchema, read: getLlmRouting },
   default_theme: {
-    schema: themeIdSchema.refine(themeExists, { message: 'Thème introuvable' }),
-    read: getDefaultTheme,
+    // « dernier » n'est pas un thème mais une règle : suivre le dernier template créé.
+    schema: z.union([z.literal(THEME_DERNIER), themeIdSchema.refine(themeExists, { message: 'Thème introuvable' })]),
+    read: () => getSettingRaw('default_theme') ?? THEME_DERNIER,
   },
   default_format: { schema: z.enum(['carousel', 'static', 'li_image']), read: getDefaultFormat },
 };

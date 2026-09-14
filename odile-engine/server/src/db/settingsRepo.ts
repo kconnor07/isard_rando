@@ -109,9 +109,19 @@ export const getLlmRouting = () =>
 /** Valeur de réglage qui suit le dernier template créé plutôt qu'un thème figé. */
 export const THEME_DERNIER = 'dernier';
 
-/** Le template maison le plus récemment créé, s'il en existe un. */
-export const dernierTemplate = (): string | null =>
-  db.select({ id: schema.customThemes.id }).from(schema.customThemes).orderBy(desc(schema.customThemes.createdAt)).limit(1).get()?.id ?? null;
+/**
+ * Le template maison le plus récemment créé, sous sa forme utilisable comme
+ * thème : « custom:<slug> ». L'identifiant nu ne désigne rien pour le rendu.
+ */
+export const dernierTemplate = (): string | null => {
+  const slug = db
+    .select({ id: schema.customThemes.id })
+    .from(schema.customThemes)
+    .orderBy(desc(schema.customThemes.createdAt))
+    .limit(1)
+    .get()?.id;
+  return slug ? `custom:${slug}` : null;
+};
 
 /**
  * Thème des posts générés. Par défaut — et tant qu'aucun thème n'est épinglé —

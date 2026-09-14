@@ -23,8 +23,9 @@ describe('thème des posts générés', async () => {
     setSetting('default_theme', THEME_DERNIER);
     creer(ancien, iso(0));
     creer(recent, iso(60_000));
-    expect(dernierTemplate()).toBe(recent);
-    expect(getDefaultTheme()).toBe(recent);
+    // Le thème se désigne par « custom:<slug> » : l'identifiant nu ne rend rien.
+    expect(dernierTemplate()).toBe(`custom:${recent}`);
+    expect(getDefaultTheme()).toBe(`custom:${recent}`);
   });
 
   it('respecte un thème épinglé', () => {
