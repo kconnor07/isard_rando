@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Check, Copy, ExternalLink, Stethoscope } from 'lucide-react';
-import { api } from '../api/client';
+import { api, humanizeError } from '../api/client';
 import { toast } from '../components/Toaster';
 import type { CommentDto, MessagerieDiagDto } from '../api/types';
 import { Empty, fmtDate, PageTitle } from '../components/shared';
@@ -45,6 +45,19 @@ export default function Comments() {
       if (r.ok) toast.success('Message privé envoyé');
       else toast.error(r.cause ?? r.error ?? 'Envoi toujours refusé par Meta');
     },
+  });
+  /**
+   * Rejoue l'abonnement de la Page. Le résultat est lui-même un test : si Meta
+   * accepte le champ « messages », l'app a bien la capacité messagerie ; si le
+   * moteur retombe sur « feed », c'est qu'elle ne l'a pas.
+   */
+  const reinstallerWebhook = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; detail: string }>('/api/oauth/meta/subscribe'),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['messagerie-diag'] });
+      toast.success(r.detail);
+    },
+    onError: (err) => toast.error(humanizeError(err)),
   });
   const markHandled = useMutation({
     mutationFn: (id: number) => api.post(`/api/comments/${id}/mark-handled`),
@@ -91,6 +104,15 @@ export default function Comments() {
                   <br />
                   Webhooks abonnés sur la Page : {diag.abonnementPage.champs.join(', ') || '—'}
                 </p>
+                {!diag.abonnementPage.champs.includes('messages') && (
+                  <button
+                    className="btn-ghost mt-2 !py-1.5 text-xs"
+                    disabled={reinstallerWebhook.isPending}
+                    onClick={() => reinstallerWebhook.mutate()}
+                  >
+                    {reinstallerWebhook.isPending ? 'Abonnement…' : 'Abonner la Page aux messages'}
+                  </button>
+                )}
               </>
             )}
           </div>
