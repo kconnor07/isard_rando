@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[] };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
-  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[] };
+  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string };
   fb_mirror: { enabled: boolean };
   llm_budget: { enabled: boolean; dailyEuros: number };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
@@ -138,6 +138,14 @@ export default function Settings() {
   });
   const savingKeys = save.isPending ? (Array.isArray(save.variables) ? save.variables : [save.variables]).map((v) => v?.key) : [];
   const savingOf = (...keys: string[]) => keys.some((k) => savingKeys.includes(k));
+  /** Remplit les messages privés avec les textes proposés (sans enregistrer). */
+  const textesProposes = useMutation({
+    mutationFn: () => api.get<Record<string, string | string[]>>('/api/settings/dm-textes-proposes'),
+    onSuccess: (t) => {
+      setForm((f) => (f ? { ...f, dm_triggers: { ...f.dm_triggers, ...t } } : f));
+      toast.info('Textes proposés chargés — relis-les puis enregistre.');
+    },
+  });
   const testEmail = useMutation({
     mutationFn: () => api.post<{ ok: boolean; to: string }>('/api/settings/test-email'),
     onSuccess: (r) => toast.success(`Email de test envoyé à ${r.to}`),
@@ -406,6 +414,9 @@ export default function Settings() {
             onChange={(e) => set('dm_triggers', { ...form.dm_triggers, enabled: e.target.checked })} />
           Activer l'envoi automatique de DM Instagram sur mot-clé
         </label>
+        <button className="btn-ghost mb-4 !py-1.5 text-xs" disabled={textesProposes.isPending} onClick={() => textesProposes.mutate()}>
+          {textesProposes.isPending ? 'Chargement…' : 'Revenir aux textes proposés'}
+        </button>
         <div className="grid grid-cols-1 gap-4">
           <div>
             <label className="label">Mots-clés déclencheurs (séparés par des virgules)</label>
@@ -416,6 +427,34 @@ export default function Settings() {
             <label className="label">Message envoyé ({'{{link}}'} = lien tracké du post)</label>
             <textarea className="input" rows={3} value={form.dm_triggers.replyTemplate}
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, replyTemplate: e.target.value })} />
+          </div>
+          <div className="rounded-xl border border-line p-4">
+            <label className="label !mb-1">Lien envoyé en message privé</label>
+            <select className="input" value={form.dm_triggers.linkTarget ?? 'article'}
+              onChange={(e) => set('dm_triggers', { ...form.dm_triggers, linkTarget: e.target.value as 'article' | 'fixe' })}>
+              <option value="article">L'article source du post</option>
+              <option value="fixe">Une adresse à moi (contact, prise de rendez-vous…)</option>
+            </select>
+            <p className="mt-2 text-xs text-muted">
+              Le rédacteur en est informé : la promesse de la dernière slide désigne ce que la personne reçoit
+              vraiment, et jamais un guide ou une checklist que le moteur n'envoie pas.
+            </p>
+            {form.dm_triggers.linkTarget === 'fixe' && (
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <label className="label">Adresse</label>
+                  <input className="input" placeholder="https://odileai.com/cartographie"
+                    value={form.dm_triggers.fixedUrl ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, fixedUrl: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Ce qu'on y trouve (la promesse annoncée dans le post)</label>
+                  <input className="input" placeholder="la cartographie gratuite de tes tâches répétitives"
+                    value={form.dm_triggers.fixedLabel ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, fixedLabel: e.target.value })} />
+                </div>
+              </div>
+            )}
           </div>
           <div className="rounded-xl border border-line p-4">
             <label className="flex items-start gap-2 text-sm">
@@ -454,9 +493,9 @@ export default function Settings() {
               <span>
                 Demander l'abonnement avant d'envoyer le lien
                 <span className="mt-1 block text-xs text-muted">
-                  Le premier message invite à s'abonner puis à répondre. Dès que la personne répond, son abonnement est
-                  vérifié et le lien part. Instagram n'émet aucun événement d'abonnement et n'expose pas la liste des
-                  abonnés : cette réponse est le seul moment où l'information devient lisible.
+                  La porte ne se ferme que sur un abonnement <b>constaté absent</b>. Au premier commentaire, Instagram ne
+                  sait pas répondre — l'état d'abonnement n'est lisible qu'une fois la conversation ouverte — et dans le
+                  doute le lien part quand même : demander de s'abonner à quelqu'un qui l'est déjà le vexe pour rien.
                 </span>
               </span>
             </label>

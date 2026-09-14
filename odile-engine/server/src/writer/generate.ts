@@ -202,13 +202,24 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   N+1. kind "cta" — l'appel à l'action final`
     : `exactement 1 slide kind "hook" : le visuel unique du post (titre percutant, accentWord, body court)`;
 
+  // Ce que la personne recevra vraiment : le rédacteur doit promettre cela et rien d'autre.
+  const lienFixe = dm.linkTarget === 'fixe' && dm.fixedUrl.trim() ? dm.fixedUrl.trim() : '';
+  const cibleDuLien = lienFixe || news.url;
+  const promesseDuLien = lienFixe
+    ? dm.fixedLabel.trim() || 'la page vers laquelle nous envoyons les gens'
+    : 'l’article source qui a inspiré ce post (son analyse complète)';
+
   const ctaSpec =
     platform === 'instagram' && dm.enabled
       ? `CTA Instagram : le déclencheur commentaire→DM. Choisis un mot-clé simple en majuscules
 (par ex. ${dm.keywords.join(', ')}) et construis le CTA autour de « Commente [MOT-CLÉ] » pour recevoir
-le lien en message privé. Renseigne commentTrigger {enabled: true, keyword}. AUCUN lien dans la caption.`
+le lien en message privé. Renseigne commentTrigger {enabled: true, keyword}. AUCUN lien dans la caption.
+CE QUE LA PERSONNE RECEVRA EN PRIVÉ : ${promesseDuLien}. La promesse du CTA doit désigner
+EXACTEMENT cela — n'annonce jamais un guide, un modèle, une checklist ou un audit que nous
+n'envoyons pas : la personne recevrait autre chose que ce qu'on lui a promis.`
       : `CTA LinkedIn : pousse vers la ressource. Utilise le placeholder {{link}} dans la caption
-(il sera remplacé par un lien court tracké). commentTrigger.enabled = false.`;
+(il sera remplacé par un lien court tracké vers ${promesseDuLien}). Ne promets rien d'autre que
+cela. commentTrigger.enabled = false.`;
 
   const prompt = `ACTUALITÉ SOURCE (à transformer en post ${platform === 'instagram' ? 'Instagram' : 'LinkedIn'}) :
 Titre : ${news.title}
@@ -254,7 +265,7 @@ CONTRAINTES :
     { attempts: 3 },
   );
 
-  return persistDraft({ news, channel, platform, format, theme, tone, generated });
+  return persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien });
 }
 
 function persistDraft(args: {
@@ -265,8 +276,10 @@ function persistDraft(args: {
   theme: string;
   tone: ReturnType<typeof getTone>;
   generated: GeneratedPost;
+  /** cible du lien court : l'article source, ou l'adresse fixe des réglages */
+  cibleDuLien: string;
 }): DraftResult {
-  const { news, channel, platform, format, theme, tone, generated } = args;
+  const { news, channel, platform, format, theme, tone, generated, cibleDuLien } = args;
 
   const archetype = ARCHETYPES.some((a) => a.id === generated.archetype)
     ? generated.archetype!
@@ -293,9 +306,10 @@ function persistDraft(args: {
     .returning({ id: schema.posts.id })
     .get();
 
-  // Lien court tracké vers la source, remplace {{link}} (LinkedIn) — créé dans tous
-  // les cas : il sert aussi de lien envoyé en DM Instagram.
-  const link = createLink(news.url, {
+  // Lien court tracké, remplace {{link}} (LinkedIn) — créé dans tous les cas : il sert
+  // aussi de lien envoyé en DM Instagram. Sa cible suit le réglage « lien envoyé en
+  // privé » : l'article source, ou une adresse à soi (contact, prise de rendez-vous).
+  const link = createLink(cibleDuLien, {
     postId: post.id,
     label: `post-${post.id}`,
     utm: { utm_source: platform, utm_medium: 'social', utm_campaign: `post-${post.id}` },

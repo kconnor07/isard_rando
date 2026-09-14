@@ -192,7 +192,11 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
   // Porte d'abonnement : on demande d'abord de s'abonner, et la réponse de la
   // personne permettra de vérifier puis d'envoyer le lien (voir handleInstagramMessage).
   const abonne = settings.requireFollow ? await estAbonne(comment.authorExternalId ?? '') : true;
-  const porteFermee = settings.requireFollow && abonne !== true;
+  // La porte ne se ferme que sur un « non » constaté. Au premier commentaire, Meta ne
+  // sait pas répondre (`is_user_follow_business` n'est lisible qu'en conversation) :
+  // demander l'abonnement à quelqu'un qui est déjà abonné le vexe pour rien, et le
+  // moteur n'a aucun moyen de le savoir. Dans le doute, le lien part.
+  const porteFermee = settings.requireFollow && abonne === false;
   const message = porteFermee
     ? buildReply(settings.askFollowTemplate, lien)
     : buildReply(settings.replyTemplate, lien);

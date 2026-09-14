@@ -74,6 +74,17 @@ export const dmTriggerSettingsSchema = z.object({
   /** message qui porte le lien ({{link}}) */
   replyTemplate: z.string().min(1).max(900),
   /**
+   * Ce vers quoi pointe le lien envoyé en privé. « article » = la source du post ;
+   * « fixe » = une adresse à soi (page de contact, prise de rendez-vous…). Le
+   * rédacteur en est informé : la promesse de la dernière slide doit correspondre
+   * à ce que la personne reçoit, sans quoi le DM déçoit.
+   */
+  linkTarget: z.enum(['article', 'fixe']).default('article'),
+  /** adresse visée quand linkTarget vaut « fixe » */
+  fixedUrl: z.string().max(400).default(''),
+  /** ce que cette adresse offre, en quelques mots — sert de promesse au rédacteur */
+  fixedLabel: z.string().max(80).default(''),
+  /**
    * Exiger l'abonnement avant d'envoyer le lien. Meta ne prévient pas d'un
    * nouvel abonné et n'expose pas la liste des abonnés : l'état d'abonnement
    * n'est lisible que pour une personne qui a écrit au compte. Le parcours se
@@ -83,13 +94,15 @@ export const dmTriggerSettingsSchema = z.object({
   requireFollow: z.boolean().default(false),
   /** premier message : demande de s'abonner puis de répondre */
   askFollowTemplate: z.string().max(900).default(
-    'Merci pour ton commentaire ! Abonne-toi au compte, puis réponds « OK » à ce message : je t’envoie le lien juste après.',
+    'Coucou ☀️ merci pour ton message ! Si ce n’est pas déjà fait, abonne-toi — et réponds-moi un petit mot, je t’envoie tout de suite ce que tu cherches 💛',
   ),
   /** message envoyé une fois l'abonnement constaté, avec le lien */
-  thanksTemplate: z.string().max(900).default('Merci pour ton abonnement ! Voici ce que je t’avais promis : {{link}}'),
+  thanksTemplate: z.string().max(900).default(
+    'Merci d’être là, ça compte beaucoup ☀️ Voilà ce que je t’avais promis : {{link}} — bonne lecture, et dis-moi ce que tu en penses 💛',
+  ),
   /** relance quand la personne répond sans s'être abonnée */
   remindTemplate: z.string().max(900).default(
-    'Je ne te vois pas encore dans les abonnés — abonne-toi et réponds-moi, et le lien part aussitôt.',
+    'Il me manque juste ton abonnement pour t’envoyer le lien 💛 un petit clic, un mot ici, et il part dans la foulée ☀️',
   ),
   /**
    * Réponse publique sous le commentaire. Elle ne dépend que de

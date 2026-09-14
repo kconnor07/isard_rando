@@ -78,6 +78,9 @@ export const getDmTriggers = () =>
     publicReply: true,
     publicReplyVariants: dmTriggerSettingsSchema.shape.publicReplyVariants.parse(undefined),
     publicReplyFallbackVariants: dmTriggerSettingsSchema.shape.publicReplyFallbackVariants.parse(undefined),
+    linkTarget: 'article',
+    fixedUrl: '',
+    fixedLabel: '',
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });

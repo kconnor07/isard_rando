@@ -71,3 +71,26 @@ describe('réponse publique sous le commentaire', async () => {
     expect(choisirVariante(['  ', 'une phrase'], 7)).toBe('une phrase');
   });
 });
+
+describe('ton des messages privés et porte d’abonnement', async () => {
+  const { dmTriggerSettingsSchema } = await import('@odile/shared');
+  const reglages = dmTriggerSettingsSchema.parse({ keywords: ['OUTIL'], replyTemplate: 'lien : {{link}}' });
+
+  it('les messages du parcours sont chaleureux et solaires', () => {
+    const emoji = /\p{Extended_Pictographic}/u;
+    for (const texte of [reglages.askFollowTemplate, reglages.thanksTemplate, reglages.remindTemplate]) {
+      expect(texte).toMatch(emoji);
+      // Aucun message ne doit sonner comme un refus ni un reproche
+      expect(texte).not.toMatch(/je ne te vois pas|tu dois|obligatoire/i);
+    }
+  });
+
+  it('la demande d’abonnement ne présume pas que la personne ne suit pas', () => {
+    expect(reglages.askFollowTemplate).toMatch(/si ce n’est pas déjà fait/i);
+  });
+
+  it('le lien privé vise l’article source par défaut', () => {
+    expect(reglages.linkTarget).toBe('article');
+    expect(reglages.fixedUrl).toBe('');
+  });
+});

@@ -3,6 +3,7 @@ import { desc, eq, isNotNull } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
+  DEFAULTS,
   approvalEmailSettingsSchema,
   brandSettingsSchema,
   cadenceSettingsSchema,
@@ -70,6 +71,26 @@ const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> =
 export function registerSettingsRoutes(app: FastifyInstance): void {
   app.get('/api/settings', async () => {
     return Object.fromEntries(Object.entries(SETTINGS_MAP).map(([k, v]) => [k, v.read()]));
+  });
+
+  /**
+   * Textes proposés pour les messages privés. Les réglages enregistrés priment
+   * toujours : cette route sert au bouton « revenir aux textes proposés », qui
+   * remplit le formulaire sans rien écrire tant que l'humain n'enregistre pas.
+   */
+  app.get('/api/settings/dm-textes-proposes', async () => {
+    const base = dmTriggerSettingsSchema.parse({
+      keywords: [...DEFAULTS.dmTriggers.keywords],
+      replyTemplate: DEFAULTS.dmTriggers.replyTemplate,
+    });
+    return {
+      replyTemplate: base.replyTemplate,
+      askFollowTemplate: base.askFollowTemplate,
+      thanksTemplate: base.thanksTemplate,
+      remindTemplate: base.remindTemplate,
+      publicReplyVariants: base.publicReplyVariants,
+      publicReplyFallbackVariants: base.publicReplyFallbackVariants,
+    };
   });
 
   app.get<{ Params: { key: string } }>('/api/settings/:key', async (request, reply) => {
