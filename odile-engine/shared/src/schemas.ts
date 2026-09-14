@@ -283,6 +283,36 @@ export const slideContentSchema = z.object({
 });
 export type SlideContent = z.infer<typeof slideContentSchema>;
 
+/** Ce que le post promet en message privé, et que le moteur doit livrer. */
+export const ressourcePromiseSchema = z.object({
+  kind: z.enum(['article', 'guide', 'outil']),
+  /** titre de la ressource, tel qu'annoncé dans le post */
+  title: z.string().max(120),
+  /** adresse officielle de l'outil (kind « outil » uniquement) */
+  toolUrl: z.string().max(400).nullable().optional(),
+});
+export type RessourcePromise = z.infer<typeof ressourcePromiseSchema>;
+
+/** Guide livré en PDF : structure imposée au rédacteur. */
+export const guideSchema = z.object({
+  title: z.string().max(120),
+  subtitle: z.string().max(200),
+  intro: z.string().max(900),
+  sections: z
+    .array(
+      z.object({
+        title: z.string().max(120),
+        body: z.string().max(1400),
+        steps: z.array(z.string().max(240)).max(6).default([]),
+      }),
+    )
+    .min(3)
+    .max(7),
+  checklist: z.array(z.string().max(160)).min(3).max(8),
+  closing: z.string().max(500),
+});
+export type Guide = z.infer<typeof guideSchema>;
+
 export const generatedPostSchema = z.object({
   /** archétype de composition choisi (id du registre ARCHETYPES) */
   archetype: z.string().max(40).optional(),
@@ -296,6 +326,12 @@ export const generatedPostSchema = z.object({
   commentTrigger: z
     .object({ enabled: z.boolean(), keyword: z.string().max(40) })
     .optional(),
+  /**
+   * La ressource promise par le CTA, que le moteur devra livrer vraiment :
+   * « guide » = un PDF qu'il fabrique, « outil » = l'adresse officielle de l'outil
+   * dont parle le post, « article » = la source elle-même.
+   */
+  resource: ressourcePromiseSchema.optional(),
 });
 export type GeneratedPost = z.infer<typeof generatedPostSchema>;
 

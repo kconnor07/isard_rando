@@ -103,6 +103,13 @@ export const posts = sqliteTable(
     externalUrl: text('external_url'),
     /** étape de fabrication en cours (« rendu 3/7 ») : rend l'attente lisible */
     pipelineStep: text('pipeline_step'),
+    /** ressource promise par le CTA et livrée en message privé */
+    resourceKind: text('resource_kind', { enum: ['article', 'guide', 'outil'] }).notNull().default('article'),
+    resourceTitle: text('resource_title'),
+    /** adresse finale servie : PDF du guide, site de l'outil, ou article source */
+    resourceUrl: text('resource_url'),
+    resourceAssetId: text('resource_asset_id'),
+    resourceError: text('resource_error'),
     /** recopie sur la Page Facebook : identifiant, lien, ou motif d'échec (n'invalide pas le post Instagram) */
     fbMirrorPostId: text('fb_mirror_post_id'),
     fbMirrorUrl: text('fb_mirror_url'),
@@ -140,7 +147,7 @@ export const slides = sqliteTable(
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
   kind: text('kind', {
-    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate'],
+    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide'],
   }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),

@@ -37,6 +37,24 @@ function buildMockText(req: LlmRequest): string {
       return JSON.stringify({ scores: ids.map(score) });
     }
     case 'writing': {
+      // Guide livré en message privé : le mock en produit un complet, pour que la
+      // chaîne « promesse → PDF » se vérifie sans appeler un modèle.
+      if (/Tu rédiges un guide PDF/.test(req.prompt)) {
+        const titre = /TITRE PROMIS : (.*)/.exec(req.prompt)?.[1]?.trim() || 'Guide (mock)';
+        const section = (n: number) => ({
+          title: `Étape ${n} — ce qu'il faut regarder`,
+          body: 'Mock : description concrète de l’étape, avec ce qu’on observe chez une PME et l’ordre de grandeur du temps gagné.',
+          steps: [`Mock : première action de l’étape ${n}`, `Mock : seconde action de l’étape ${n}`],
+        });
+        return JSON.stringify({
+          title: titre,
+          subtitle: 'Mock : la méthode en quelques étapes, applicable dès lundi matin.',
+          intro: 'Mock : ce guide part d’un constat simple et donne la marche à suivre, sans jargon.',
+          sections: [section(1), section(2), section(3)],
+          checklist: ['Mock : premier point à vérifier', 'Mock : deuxième point', 'Mock : troisième point'],
+          closing: 'Mock : ce que l’agence peut faire ensuite, en deux phrases.',
+        });
+      }
       // Régénération d'une caption
       const cap = /Caption actuelle :\n([\s\S]*?)\n\nCTA actuel : (.*)/.exec(req.prompt);
       if (cap) {

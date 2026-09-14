@@ -54,6 +54,13 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     error: post.error,
     /** étape de fabrication en cours, quand le post est encore en chantier */
     pipelineStep: post.pipelineStep,
+    resource: {
+      kind: post.resourceKind,
+      title: post.resourceTitle,
+      url: post.resourceUrl,
+      assetId: post.resourceAssetId,
+      error: post.resourceError,
+    },
     createdAt: post.createdAt,
     commentTriggerKeyword: post.commentTriggerKeyword,
     reviewSummary: post.reviewSummary ? JSON.parse(post.reviewSummary) : null,

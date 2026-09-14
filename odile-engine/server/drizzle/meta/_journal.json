@@ -134,6 +134,13 @@
       "when": 1789394624784,
       "tag": "0018_reponse-publique",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1789412282180,
+      "tag": "0019_ressource-promise",
+      "breakpoints": true
     }
   ]
 }

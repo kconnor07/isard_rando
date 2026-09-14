@@ -38,6 +38,27 @@ export function registerPublicRoutes(app: FastifyInstance): void {
   }
 
   // ----- Raccourcisseur de liens tracké -------------------------------------
+  /**
+   * Guide livré en message privé. Route PUBLIQUE et sans session : la personne qui
+   * reçoit le lien n'a pas de compte sur le moteur, elle doit ouvrir le PDF
+   * directement. Seuls les assets de type « guide » sont servis ici.
+   */
+  app.get<{ Params: { id: string } }>('/guide/:id', async (request, reply) => {
+    const asset = db.select().from(schema.assets).where(eq(schema.assets.id, request.params.id)).get();
+    if (!asset || asset.kind !== 'guide' || !fs.existsSync(asset.path)) {
+      return reply.status(404).type('text/plain').send('Guide introuvable');
+    }
+    const post = asset.postId
+      ? db.select().from(schema.posts).where(eq(schema.posts.id, asset.postId)).get()
+      : null;
+    const nom = (post?.resourceTitle ?? 'guide').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'guide';
+    return reply
+      .type('application/pdf')
+      .header('content-disposition', `inline; filename="${nom}.pdf"`)
+      .header('cache-control', 'public, max-age=86400')
+      .send(fs.createReadStream(asset.path));
+  });
+
   app.get<{ Params: { code: string } }>('/r/:code', async (request, reply) => {
     const link = resolveLink(request.params.code);
     if (!link) return reply.status(404).send('Lien inconnu');

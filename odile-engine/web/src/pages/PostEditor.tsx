@@ -448,6 +448,23 @@ export default function PostEditor() {
         </div>
       )}
 
+      {post.resource && post.resource.kind !== 'article' && (
+        <div className="card mb-4 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {post.resource.kind === 'guide' ? 'Guide livré en message privé' : 'Outil envoyé en message privé'}
+          </div>
+          <p className="mt-1 text-sm font-semibold">{post.resource.title ?? '—'}</p>
+          {post.resource.url && (
+            <a href={post.resource.url} target="_blank" rel="noreferrer" className="btn-ghost mt-3 !py-1.5 text-xs">
+              {post.resource.kind === 'guide' ? 'Ouvrir le PDF' : 'Ouvrir la page'}
+            </a>
+          )}
+          {post.resource.error && (
+            <p className="mt-2 text-xs text-muted">Fabrication en échec : {post.resource.error} — le lien retombe sur l’article source.</p>
+          )}
+        </div>
+      )}
+
       {inProgress && (
         <div className="card mb-4 flex items-center gap-3 border-accent/40 p-4 text-sm">
           <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />

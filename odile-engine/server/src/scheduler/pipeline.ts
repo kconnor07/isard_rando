@@ -78,6 +78,7 @@ export async function refabriquerPost(postId: number): Promise<PipelineSummary> 
  * n'existe en base qu'une fois le texte écrit, il n'y a donc rien à afficher avant.
  */
 const ETAPES = [
+  'Ressource promise',
   'Capture d’écran',
   'Illustrations',
   'Agent visuel',
@@ -103,6 +104,26 @@ function etapeCourante(postId: number): string | null {
 
 /** Les étapes qui suivent la rédaction : capture, illustrations, rendu, relecture, email. */
 async function fabriquer(draft: { postId: number; screenshotUrl: string | null }, _opts: DraftOptions): Promise<PipelineSummary> {
+  // Ce que le post promet doit exister avant d'être promis : guide rédigé et mis en
+  // PDF, ou adresse de l'outil. Le lien court garde son code, seule sa cible change —
+  // la légende déjà écrite reste donc valable.
+  etape(draft.postId, 'Ressource promise');
+  const { livrerRessource } = await import('../resources/guide.js');
+  const ressource = await livrerRessource(draft.postId).catch((err) => {
+    logger.error({ postId: draft.postId, err: String(err) }, 'ressource promise en échec (non bloquant)');
+    return null;
+  });
+  if (ressource) {
+    db.update(schema.posts)
+      .set({ resourceKind: ressource.kind, resourceTitle: ressource.title, resourceUrl: ressource.url, resourceAssetId: ressource.assetId ?? null })
+      .where(eq(schema.posts.id, draft.postId))
+      .run();
+    const post = db.select().from(schema.posts).where(eq(schema.posts.id, draft.postId)).get();
+    if (post?.linkId) {
+      db.update(schema.links).set({ targetUrl: ressource.url }).where(eq(schema.links.id, post.linkId)).run();
+    }
+  }
+
   etape(draft.postId, 'Capture d’écran');
   const capture = await captureForPost(draft.postId, draft.screenshotUrl);
   // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose

@@ -389,10 +389,10 @@ function assetInfo(assetId: string | null): { dataUri: string; cutout: boolean; 
 
 export function saveAsset(
   data: Buffer,
-  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage' | 'library' | 'candidate',
+  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage' | 'library' | 'candidate' | 'guide',
   meta: { postId?: number | null; slideId?: number | null; extraMeta?: Record<string, unknown> },
   size?: { width?: number; height?: number },
-  format: { ext: 'png' | 'jpg'; mime: string } = { ext: 'png', mime: 'image/png' },
+  format: { ext: 'png' | 'jpg' | 'pdf'; mime: string } = { ext: 'png', mime: 'image/png' },
 ): string {
   const id = nanoAsset();
   const filePath = path.join(config.assetsDir, `${id}.${format.ext}`);

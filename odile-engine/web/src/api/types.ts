@@ -16,6 +16,14 @@ export interface PostSummaryDto {
   error?: string | null;
   /** étape de fabrication en cours, ex. « 4/6 · Rendu des slides » */
   pipelineStep?: string | null;
+  /** ce que le post promet et que le moteur livre en message privé */
+  resource?: {
+    kind: 'article' | 'guide' | 'outil';
+    title: string | null;
+    url: string | null;
+    assetId: string | null;
+    error: string | null;
+  };
   createdAt: string;
   commentTriggerKeyword: string | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;

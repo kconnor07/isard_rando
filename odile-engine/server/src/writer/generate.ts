@@ -214,9 +214,13 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
       ? `CTA Instagram : le déclencheur commentaire→DM. Choisis un mot-clé simple en majuscules
 (par ex. ${dm.keywords.join(', ')}) et construis le CTA autour de « Commente [MOT-CLÉ] » pour recevoir
 le lien en message privé. Renseigne commentTrigger {enabled: true, keyword}. AUCUN lien dans la caption.
-CE QUE LA PERSONNE RECEVRA EN PRIVÉ : ${promesseDuLien}. La promesse du CTA doit désigner
-EXACTEMENT cela — n'annonce jamais un guide, un modèle, une checklist ou un audit que nous
-n'envoyons pas : la personne recevrait autre chose que ce qu'on lui a promis.`
+CE QUE LA PERSONNE RECEVRA EN PRIVÉ, et que tu dois déclarer dans "resource" :
+— "guide" si la promesse mérite un document à part (méthode, pas-à-pas, modèle) : le moteur
+  le RÉDIGERA et l'enverra en PDF, donne-lui son titre exact dans resource.title ;
+— "outil" si le post parle d'un outil précis et que la personne veut y accéder : mets son
+  adresse officielle dans resource.toolUrl (celle du site de l'outil, pas celle de l'article) ;
+— "article" sinon : elle recevra ${promesseDuLien}.
+La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`
       : `CTA LinkedIn : pousse vers la ressource. Utilise le placeholder {{link}} dans la caption
 (il sera remplacé par un lien court tracké vers ${promesseDuLien}). Ne promets rien d'autre que
 cela. commentTrigger.enabled = false.`;
@@ -301,6 +305,10 @@ function persistDraft(args: {
       commentTriggerKeyword: generated.commentTrigger?.enabled
         ? generated.commentTrigger.keyword.toUpperCase()
         : null,
+      // Ce que le post promet : le pipeline le fabriquera (guide) ou le pointera (outil).
+      resourceKind: generated.resource?.kind ?? 'article',
+      resourceTitle: generated.resource?.title ?? null,
+      resourceUrl: generated.resource?.kind === 'outil' ? (generated.resource.toolUrl ?? null) : null,
       toneSnapshot: JSON.stringify(tone),
     })
     .returning({ id: schema.posts.id })
