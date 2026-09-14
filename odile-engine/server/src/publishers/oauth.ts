@@ -475,6 +475,28 @@ export function registerOauthRoutes(app: FastifyInstance): void {
           expiresAt,
           meta: { name: me.name ?? '', candidates, pagesTotal: pages.length, connectedAt: new Date().toISOString() },
         });
+        // Une Page déjà rattachée (souvent saisie par son identifiant, car absente de
+        // /me/accounts) doit être re-dérivée à chaque reconnexion : le jeton de Page
+        // porte les permissions du jeton utilisateur au moment où il est fabriqué.
+        // Sans cela, ajouter une permission puis reconnecter ne changeait rien.
+        const dejaRattachee = (getStoredToken('meta', 'ig_user')?.meta.pageId ?? getStoredToken('meta', 'fb_page')?.externalId) as string | undefined;
+        if (candidates.length === 0 && dejaRattachee) {
+          try {
+            const repris = await deriveMetaPage(longTok.access_token, dejaRattachee, granted);
+            logger.info({ ig: repris.igUsername, page: repris.pageName }, 'Page déjà rattachée reprise à la reconnexion');
+            return reply.type('text/html').send(
+              resultPage(
+                true,
+                `Compte Instagram @${repris.igUsername} reconnecté (Page « ${repris.pageName} »).`,
+                `<p>Les permissions accordées ont été reportées sur le jeton de la Page.${
+                  repris.webhook.ok ? ' Webhook commentaires installé.' : ` Webhook : ${escapeHtml(repris.webhook.detail)}`
+                }</p>`,
+              ),
+            );
+          } catch (err) {
+            logger.warn({ err: String(err) }, 'reprise de la Page rattachée impossible');
+          }
+        }
         if (pages.length === 0) {
           return reply.type('text/html').send(
             resultPage(
