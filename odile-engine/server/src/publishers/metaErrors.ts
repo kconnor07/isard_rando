@@ -17,14 +17,14 @@ export interface CauseMeta {
 
 const TABLE: { test: RegExp; cause: CauseMeta }[] = [
   {
-    // Le cas le plus courant sur la messagerie : l'app n'a pas de produit Messenger,
-    // donc aucun appel de messagerie ne lui est autorisé, permissions accordées ou non.
+    // Refus au niveau de l'app, pas du jeton : la permission peut être accordée et
+    // l'appel refusé quand même. Deux causes réelles, invisibles depuis le jeton.
     test: /\(#3\)|does not have the capability/i,
     cause: {
       cause:
-        'L’app Meta n’a pas la capacité « messagerie » : le produit Messenger n’y est pas ajouté, ou le compte Instagram n’y est pas rattaché. Les permissions accordées n’y changent rien tant que le produit manque.',
+        'L’app Meta n’a pas la capacité « messagerie » pour ce compte. Deux causes possibles : la permission instagram_manage_messages est en accès standard (elle ne vaut alors que pour les personnes ayant un rôle dans l’app), ou le compte Instagram refuse l’accès à ses messages aux applications tierces.',
       remede:
-        'developers.facebook.com → ton app → Ajouter un produit → Messenger → Paramètres Instagram → rattacher le compte Instagram et sa Page, puis reconnecter le compte dans Connexions & santé.',
+        'App Meta → Cas d’utilisation → « Gérer les messages et les contenus sur Instagram » : vérifie que instagram_manage_messages est en accès AVANCÉ (l’accès avancé passe par la vérification de l’app). Côté Instagram : autorise l’accès aux messages — app Instagram → Paramètres → Confidentialité des messages (compte professionnel « Entreprise », la section n’apparaît pas pour un compte « Créateur »), ou depuis Meta Business Suite → Boîte de réception.',
       cotePlateforme: true,
     },
   },

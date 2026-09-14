@@ -8,7 +8,9 @@ describe('refus Meta traduits en marche à suivre', async () => {
       'HTTP 400 sur https://graph.facebook.com/v21.0/17841413031371776/messages: {"error":{"message":"(#3) Application does not have the capability to make this API call.","type":"OAuthException","code":3}}';
     const cause = expliquerErreurMeta(brut);
     expect(cause?.cause).toMatch(/messagerie/i);
-    expect(cause?.remede).toMatch(/Messenger/);
+    // La marche à suivre vise la console « cas d'utilisation », seule en vigueur.
+    expect(cause?.remede).toMatch(/Cas d’utilisation/);
+    expect(cause?.remede).toMatch(/AVANCÉ/);
     // La correction est côté app Meta : le moteur ne peut rien y faire seul.
     expect(cause?.cotePlateforme).toBe(true);
   });
