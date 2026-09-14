@@ -310,6 +310,14 @@ export default function PostEditor() {
     void qc.invalidateQueries({ queryKey: ['posts'] });
     void qc.invalidateQueries({ queryKey: ['summary'] });
   };
+  /** Relance la fabrication d'un post bloqué ou en échec (le texte rédigé est conservé). */
+  const retryFabrication = useMutation({
+    mutationFn: () => api.post<{ started: boolean }>(`/api/posts/${id}/retry-fabrication`),
+    onSuccess: () => {
+      toast.success('Fabrication relancée');
+      void qc.invalidateQueries({ queryKey: ['post', id] });
+    },
+  });
   /** Recopie manuelle sur la Page Facebook (le miroir automatique ne vaut que pour les publications à venir). */
   const mirrorFacebook = useMutation({
     mutationFn: () => api.post<{ ok: boolean; url: string | null }>(`/api/posts/${id}/mirror-facebook`),
@@ -429,6 +437,16 @@ export default function PostEditor() {
           </div>
         }
       />
+
+      {post.error && post.status !== 'published' && (
+        <div className="card mb-4 border-white/25 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted">Fabrication interrompue</div>
+          <p className="mt-1 text-sm">{post.error}</p>
+          <button className="btn-primary mt-3 !py-1.5 text-xs" disabled={retryFabrication.isPending} onClick={() => retryFabrication.mutate()}>
+            {retryFabrication.isPending ? 'Relance…' : 'Relancer la fabrication'}
+          </button>
+        </div>
+      )}
 
       {inProgress && (
         <div className="card mb-4 flex items-center gap-3 border-accent/40 p-4 text-sm">

@@ -26,7 +26,44 @@ export interface PipelineSummary {
 export async function runDraftPipeline(opts: DraftOptions = {}): Promise<PipelineSummary> {
   const draft = await draftPost(opts);
   logger.info({ postId: draft.postId }, 'brouillon généré');
+  try {
+    return await fabriquer(draft, opts);
+  } catch (err) {
+    // Sans cela, une étape qui échoue (rendu, capture, agent visuel) laissait le
+    // post figé sur « en fabrication », sans motif et sans moyen de le relancer.
+    const message = err instanceof Error ? err.message : String(err);
+    db.update(schema.posts)
+      .set({ status: 'failed', error: `Fabrication interrompue : ${message.slice(0, 700)}`, updatedAt: new Date().toISOString() })
+      .where(eq(schema.posts.id, draft.postId))
+      .run();
+    logger.error({ postId: draft.postId, err: message }, 'fabrication interrompue');
+    throw err;
+  }
+}
 
+/**
+ * Reprend la fabrication d'un post déjà rédigé (rendu, relecture, email), après
+ * un échec ou un réglage corrigé. La rédaction, elle, n'est pas rejouée : le
+ * texte validé est conservé.
+ */
+export async function refabriquerPost(postId: number): Promise<PipelineSummary> {
+  const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  if (!post) throw new Error(`Post ${postId} introuvable`);
+  db.update(schema.posts).set({ status: 'reviewing', error: null }).where(eq(schema.posts.id, postId)).run();
+  try {
+    return await fabriquer({ postId, screenshotUrl: null }, {});
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    db.update(schema.posts)
+      .set({ status: 'failed', error: `Fabrication interrompue : ${message.slice(0, 700)}` })
+      .where(eq(schema.posts.id, postId))
+      .run();
+    throw err;
+  }
+}
+
+/** Les étapes qui suivent la rédaction : capture, illustrations, rendu, relecture, email. */
+async function fabriquer(draft: { postId: number; screenshotUrl: string | null }, _opts: DraftOptions): Promise<PipelineSummary> {
   const capture = await captureForPost(draft.postId, draft.screenshotUrl);
   // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose
   // (idée d'image de l'accroche comprise) et l'humain la pose s'il la veut.

@@ -13,6 +13,7 @@ import { executeApprovalAction, schedulePost, unschedulePost } from '../../appro
 import { getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
+import { runJob } from '../../lib/jobRunner.js';
 import { mirrorToFacebookPage } from '../../publishers/facebook.js';
 import { buildCaption, collectPublishImages } from '../../publishers/types.js';
 import { runDesignReview } from '../../design-studio/index.js';
@@ -49,6 +50,8 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     // Publication simulée (PUBLISH_MODE=dry) : le statut dit « publié » alors que
     // rien n'est parti. Le dashboard doit pouvoir le dire sans ambiguïté.
     simulated: Boolean(post.externalPostId?.startsWith('dry-')),
+    /** motif du dernier échec (fabrication ou publication) */
+    error: post.error,
     createdAt: post.createdAt,
     commentTriggerKeyword: post.commentTriggerKeyword,
     reviewSummary: post.reviewSummary ? JSON.parse(post.reviewSummary) : null,
@@ -331,6 +334,17 @@ export function registerPostRoutes(app: FastifyInstance): void {
       db.update(schema.posts).set({ fbMirrorError: message.slice(0, 500) }).where(eq(schema.posts.id, post.id)).run();
       return reply.status(502).send({ error: message.slice(0, 300) });
     }
+  });
+
+  /** Relance la fabrication (rendu, relecture, email) d'un post bloqué ou en échec. */
+  app.post<{ Params: { id: string } }>('/api/posts/:id/retry-fabrication', async (request, reply) => {
+    const id = Number(request.params.id);
+    const post = db.select().from(schema.posts).where(eq(schema.posts.id, id)).get();
+    if (!post) return reply.status(404).send({ error: 'Post introuvable' });
+    if (post.status === 'published') return reply.status(409).send({ error: 'Ce post est déjà publié' });
+    const { refabriquerPost } = await import('../../scheduler/pipeline.js');
+    void runJob('refabrication', () => refabriquerPost(id)).catch(() => undefined);
+    return { started: true };
   });
 
   app.post<{ Params: { id: string } }>('/api/posts/:id/review', async (request) => {

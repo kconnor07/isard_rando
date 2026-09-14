@@ -13,6 +13,7 @@ export interface PostSummaryDto {
   publishedAt: string | null;
   externalUrl: string | null;
   simulated?: boolean;
+  error?: string | null;
   createdAt: string;
   commentTriggerKeyword: string | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;
