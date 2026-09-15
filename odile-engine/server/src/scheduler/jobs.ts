@@ -16,9 +16,24 @@ const TZ = 'Europe/Paris';
 
 /** Enregistre tous les crons du moteur (idempotent au démarrage du process). */
 export function registerJobs(): void {
-  // Veille : toutes les heures à h+15 (scrape incrémental + scoring des nouveaux items)
+  // Collecte de la veille : toutes les heures. Elle ne coûte rien (lecture de flux
+  // RSS), et garder le fil frais permet de noter des articles encore chauds.
   cron.schedule('15 * * * *', () => {
-    void runJob('scrape', runScrape).then(() => runJob('score', () => runScore()));
+    void runJob('scrape', runScrape);
+  }, { timezone: TZ });
+
+  /**
+   * Notation de la veille : trois fois par jour, pas à chaque heure.
+   *
+   * C'était le seul poste qui consommait des modèles en continu, sans que personne
+   * ne l'ait demandé — jusqu'à 144 appels par jour pour trier des articles qu'une
+   * seule shortlist quotidienne utilise. La shortlist retient les articles des
+   * 24 dernières heures : les noter trois fois par jour ne lui en fait perdre
+   * aucun. Le passage de 6 h 05 précède celui de 6 h 30 qui construit la shortlist.
+   */
+  cron.schedule('5 6,12,18 * * *', () => {
+    // Plafond relevé puisque les passages sont plus espacés : le retard se rattrape.
+    void runJob('score', () => runScore(150));
   }, { timezone: TZ });
 
   // Collecte par recherche web IA (hors flux RSS), puis scoring des nouveaux items
