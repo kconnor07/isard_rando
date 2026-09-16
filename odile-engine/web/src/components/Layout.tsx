@@ -11,6 +11,7 @@ import {
   Palette,
   Settings as SettingsIcon,
   Wrench,
+  PenSquare,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { api } from '../api/client';
@@ -34,6 +35,7 @@ const NAV_GROUPS: {
       { to: '/templates', label: 'Templates', icon: Palette },
       { to: '/images', label: 'Images', icon: ImagesIcon },
       { to: '/comments', label: 'Commentaires & DM', icon: MessageCircle },
+      { to: '/blog', label: 'Blog du site', icon: PenSquare },
     ],
   },
   {

@@ -98,6 +98,14 @@ async function main() {
       const { checkConnections } = await import('./publishers/refresh.js');
       return runJob('check-connections', checkConnections);
     }
+    case 'blog-draft': {
+      const { runBlogPipeline } = await import('./blog/pipeline.js');
+      return runJob('blog-draft', () => runBlogPipeline({ newsItemId: Number(arg('news')) || undefined }));
+    }
+    case 'blog-publish': {
+      const { publierArticlesDus } = await import('./blog/pipeline.js');
+      return runJob('blog-publish-due', () => publierArticlesDus());
+    }
     case 'poll-li-comments': {
       const { pollLinkedInComments } = await import('./webhooks/linkedinPoller.js');
       return runJob('poll-li-comments', pollLinkedInComments);

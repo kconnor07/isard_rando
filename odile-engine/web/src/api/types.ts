@@ -298,6 +298,7 @@ export interface VisualCandidateDto {
 export interface OauthAppsDto {
   linkedin: { clientId: string; secretSet: boolean; source: 'dashboard' | 'env' | 'aucune'; configured: boolean };
   meta: { appId: string; secretSet: boolean; verifyToken: string; configId: string; source: 'dashboard' | 'env' | 'aucune'; configured: boolean };
+  framer: { projectUrl: string; secretSet: boolean; configured: boolean };
   updatedAt: string | null;
   urls: { linkedinRedirect: string; metaRedirect: string; metaWebhook: string };
 }

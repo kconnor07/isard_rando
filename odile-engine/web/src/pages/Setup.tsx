@@ -83,10 +83,12 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
     metaAppSecret: '',
     metaVerifyToken: apps.meta.verifyToken,
     metaConfigId: apps.meta.configId ?? '',
+    framerProjectUrl: apps.framer?.projectUrl ?? '',
+    framerApiKey: '',
   });
   const [form, setForm] = useState(blank);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => setForm(blank()), [apps.linkedin.clientId, apps.meta.appId, apps.meta.verifyToken, apps.meta.configId]);
+  useEffect(() => setForm(blank()), [apps.linkedin.clientId, apps.meta.appId, apps.meta.verifyToken, apps.meta.configId, apps.framer?.projectUrl]);
   const save = useMutation({
     mutationFn: () => api.put<{ ok: boolean }>('/api/settings/oauth-apps', form),
     onSuccess: () => {
@@ -191,6 +193,24 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
                 </button>
               </div>
             </div>
+          </div>
+          <div className="mt-2 rounded-2xl border border-line p-3">
+            <h3 className="text-sm font-bold">Framer (blog du site)</h3>
+            <p className="mt-1 text-[11px] leading-snug text-muted">
+              Réglages du site Framer → <i>Général</i> → <i>API keys</i> : crée une clé, puis colle ici l’adresse du projet (celle de l’éditeur,
+              https://framer.com/projects/…) et la clé. Le moteur dépose les articles dans la collection choisie sur la page Blog.
+            </p>
+            <label className="label mt-3">Adresse du projet Framer</label>
+            <input className="input" value={form.framerProjectUrl} onChange={(e) => set('framerProjectUrl', e.target.value)} placeholder="https://framer.com/projects/Odile--abcd1234" autoComplete="off" />
+            <label className="label mt-3">Clé d’API Framer</label>
+            <input
+              className="input"
+              type="password"
+              value={form.framerApiKey}
+              onChange={(e) => set('framerApiKey', e.target.value)}
+              placeholder={apps.framer?.secretSet ? '•••••••• enregistrée — laisser vide pour conserver' : 'fk_…'}
+              autoComplete="new-password"
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="label !mb-0">À coller dans les portails</div>

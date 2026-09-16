@@ -14,6 +14,7 @@ import {
   toneSettingsSchema,
   visualAgentSettingsSchema,
   fbMirrorSettingsSchema,
+  blogSettingsSchema,
   llmBudgetSettingsSchema,
 } from '@odile/shared';
 import { config } from '../config.js';
@@ -86,6 +87,8 @@ export const getDmTriggers = () =>
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });
+/** Blog du site Framer : désactivé tant que la collection n'est pas choisie. */
+export const getBlog = () => getSetting('blog', blogSettingsSchema, blogSettingsSchema.parse({}));
 /** Recopie des publications Instagram sur la Page Facebook (désactivée par défaut). */
 export const getFbMirror = () => getSetting('fb_mirror', fbMirrorSettingsSchema, { enabled: false });
 export const getApprovalEmail = () =>

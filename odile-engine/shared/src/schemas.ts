@@ -435,8 +435,12 @@ export const regenerateSchema = z.object({
 
 export const rejectSchema = z.object({ reason: z.string().max(500).optional() });
 
-/** Clés des apps LinkedIn / Meta saisies depuis le dashboard (un secret vide conserve l'existant) */
+/** Clés des apps LinkedIn / Meta (et l'accès Framer) saisies depuis le dashboard — un secret vide conserve l'existant */
 export const oauthAppsSchema = z.object({
+  /** Adresse du projet Framer (https://framer.com/projects/…) — l'API serveur s'y connecte */
+  framerProjectUrl: z.string().trim().max(300).default(''),
+  /** Clé d'API Framer : réglages du site → Général → API keys */
+  framerApiKey: z.string().trim().max(400).optional(),
   linkedinClientId: z.string().trim().max(200).default(''),
   linkedinClientSecret: z.string().trim().max(400).optional(),
   metaAppId: z.string().trim().max(200).default(''),
@@ -501,3 +505,78 @@ export type CommentRow = {
   externalPostUrl: string | null;
   createdTime: string;
 };
+
+
+// ---------------------------------------------------------------------------
+// Blog du site (Framer) — articles SEO/GEO
+// ---------------------------------------------------------------------------
+
+/** Correspondance entre ce que le moteur produit et les champs de la collection Framer (ids de champs). */
+export const blogFieldMapSchema = z.object({
+  title: z.string().default(''),
+  body: z.string().default(''),
+  excerpt: z.string().default(''),
+  cover: z.string().default(''),
+  date: z.string().default(''),
+  metaTitle: z.string().default(''),
+  metaDescription: z.string().default(''),
+  keywords: z.string().default(''),
+  /** champ texte où déposer le JSON-LD (à injecter côté site par un composant) */
+  jsonLd: z.string().default(''),
+  author: z.string().default(''),
+});
+
+export const blogSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** un article tous les N jours */
+  everyDays: z.number().int().min(1).max(60).default(7),
+  /** ancrage local : la ville et ses zones, tissées dans chaque article */
+  ville: z.string().max(60).default('Toulouse'),
+  zones: z.array(z.string().max(60)).max(20).default(['Toulouse', 'Blagnac', 'Colomiers', 'Labège', 'Haute-Garonne', 'Occitanie']),
+  /** cibles : qui doit se reconnaître dans l'article */
+  cibles: z.array(z.string().max(80)).max(20).default(['artisans et TPE', 'commerces', 'cabinets (comptables, avocats, santé)', 'PME industrielles', 'sociétés de services']),
+  authorName: z.string().max(80).default('Alexis Duquenoy'),
+  /** pages du site vers lesquelles tisser des liens internes */
+  sitePages: z.array(z.object({ label: z.string().max(80), path: z.string().max(200) })).max(20).default([]),
+  /** collection Framer visée et correspondance des champs */
+  collectionId: z.string().max(100).default(''),
+  fields: blogFieldMapSchema.prefault({}),
+  /** déposer l'article en brouillon dans Framer (à publier depuis Framer) plutôt que publié et déployé */
+  publishAsDraft: z.boolean().default(false),
+});
+export type BlogSettings = z.infer<typeof blogSettingsSchema>;
+
+/** Article rédigé par le modèle : structure pensée pour le référencement naturel ET les moteurs génératifs. */
+export const articleSchema = z.object({
+  title: z.string().min(10).max(90),
+  slug: z.string().min(3).max(90).regex(/^[a-z0-9-]+$/),
+  metaTitle: z.string().min(10).max(65),
+  metaDescription: z.string().min(50).max(160),
+  excerpt: z.string().min(40).max(320),
+  /** titre court de l'image de couverture (≤ 8 mots) et son mot fort */
+  coverTitle: z.string().min(4).max(70),
+  coverAccentWord: z.string().max(30).default(''),
+  /** la réponse directe, en tête d'article : ce que les moteurs génératifs citent */
+  keyTakeaways: z.array(z.string().min(10).max(220)).min(3).max(6),
+  sections: z
+    .array(
+      z.object({
+        h2: z.string().min(4).max(120),
+        paragraphs: z.array(z.string().min(20).max(1400)).min(1).max(6),
+        bullets: z.array(z.string().min(3).max(240)).max(8).default([]),
+        h3s: z
+          .array(z.object({ h3: z.string().min(3).max(120), paragraphs: z.array(z.string().min(20).max(1200)).min(1).max(4) }))
+          .max(5)
+          .default([]),
+      }),
+    )
+    .min(3)
+    .max(9),
+  faq: z.array(z.object({ question: z.string().min(8).max(200), answer: z.string().min(30).max(700) })).min(3).max(7),
+  sources: z.array(z.object({ title: z.string().min(3).max(160), url: z.string().url() })).max(8).default([]),
+  keywords: z.array(z.string().min(2).max(60)).min(3).max(10),
+  /** comment l'ancrage local est tissé (pour relecture) */
+  localAngle: z.string().max(400).default(''),
+  internalLinks: z.array(z.object({ label: z.string().max(80), path: z.string().max(200) })).max(5).default([]),
+});
+export type Article = z.infer<typeof articleSchema>;

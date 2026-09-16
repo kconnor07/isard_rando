@@ -67,6 +67,26 @@ export function registerJobs(): void {
     });
   }, { timezone: TZ });
 
+  // Blog du site : un article quand la cadence l'exige (rédaction → validation dans le dashboard)
+  cron.schedule('30 6 * * *', () => {
+    void (async () => {
+      const { blogDue, runBlogPipeline } = await import('../blog/pipeline.js');
+      await runJob('blog-if-due', async () => {
+        const check = blogDue();
+        if (!check.due) return { skipped: true, reason: check.reason };
+        return runBlogPipeline();
+      });
+    })().catch((err) => logger.error({ err: String(err) }, 'blog-if-due en échec'));
+  }, { timezone: TZ });
+
+  // Articles programmés : publication dans Framer à l'heure dite
+  cron.schedule('*/10 * * * *', () => {
+    void (async () => {
+      const { publierArticlesDus } = await import('../blog/pipeline.js');
+      await runJob('blog-publish-due', () => publierArticlesDus());
+    })().catch((err) => logger.error({ err: String(err) }, 'blog-publish-due en échec'));
+  }, { timezone: TZ });
+
   // Publications dues (+ suivi des containers Instagram en cours)
   cron.schedule('*/5 * * * *', () => {
     void (async () => {

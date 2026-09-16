@@ -157,7 +157,7 @@ export const slides = sqliteTable(
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
   kind: text('kind', {
-    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide'],
+    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide', 'cover'],
   }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),
@@ -580,3 +580,41 @@ export const customThemes = sqliteTable('custom_themes', {
   createdAt: text('created_at').notNull().$defaultFn(now),
   updatedAt: text('updated_at').notNull().$defaultFn(now),
 });
+
+
+/**
+ * Articles du blog du site (publiés dans une collection Framer). Chaque article est
+ * rédigé pour le référencement local et les moteurs génératifs, avec sa couverture
+ * aux couleurs du template.
+ */
+export const articles = sqliteTable(
+  'articles',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    newsItemId: integer('news_item_id').references(() => newsItems.id),
+    /** sujet de départ (actualité transposée ou intention de recherche locale) */
+    brief: text('brief').notNull().default(''),
+    status: text('status', { enum: ['drafting', 'awaiting_approval', 'scheduled', 'publishing', 'published', 'rejected', 'failed'] })
+      .notNull()
+      .default('drafting'),
+    title: text('title').notNull().default(''),
+    slug: text('slug').notNull().default(''),
+    metaTitle: text('meta_title').notNull().default(''),
+    metaDescription: text('meta_description').notNull().default(''),
+    excerpt: text('excerpt').notNull().default(''),
+    /** l'article structuré (JSON Article) — source de vérité, le HTML en découle */
+    content: text('content').notNull().default('{}'),
+    bodyHtml: text('body_html').notNull().default(''),
+    jsonLd: text('json_ld').notNull().default(''),
+    keywords: text('keywords').notNull().default('[]'),
+    coverAssetId: text('cover_asset_id'),
+    framerItemId: text('framer_item_id'),
+    publishedUrl: text('published_url'),
+    scheduledAt: text('scheduled_at'),
+    publishedAt: text('published_at'),
+    error: text('error'),
+    createdAt: text('created_at').notNull().$defaultFn(now),
+    updatedAt: text('updated_at').notNull().$defaultFn(now),
+  },
+  (t) => [index('articles_status_idx').on(t.status), uniqueIndex('articles_slug_idx').on(t.slug)],
+);

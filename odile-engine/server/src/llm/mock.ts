@@ -55,6 +55,40 @@ function buildMockText(req: LlmRequest): string {
           closing: 'Mock : ce que l’agence peut faire ensuite, en deux phrases.',
         });
       }
+      // Article de blog : le mock en produit un complet, structuré comme le vrai.
+      if (/Tu rédiges un article de blog/.test(req.prompt)) {
+        const sujet = /SUJET : (.*)/.exec(req.prompt)?.[1]?.trim() || 'Automatisation IA pour PME';
+        const ville = /installée à ([^.\n]+)\./.exec(req.prompt)?.[1]?.trim() || 'Toulouse';
+        const section = (n: number) => ({
+          h2: `Étape ${n} : ce qu'une PME de ${ville} peut faire dès lundi`,
+          paragraphs: [
+            `Mock : premier paragraphe de la section ${n}, avec une explication simple et un exemple type d'entreprise locale.`,
+            `Mock : second paragraphe, avec un ordre de grandeur attribué (« selon une étude Bpifrance ») et une définition nette.`,
+          ],
+          bullets: n === 2 ? ['Mock : premier point', 'Mock : second point', 'Mock : troisième point'] : [],
+          h3s: n === 1 ? [{ h3: 'Mock : sous-question', paragraphs: ['Mock : réponse courte à la sous-question, en trois phrases claires et concrètes.'] }] : [],
+        });
+        return JSON.stringify({
+          title: `${sujet.slice(0, 60)} : le guide pour les PME de ${ville}`.slice(0, 90),
+          slug: `automatisation-ia-pme-${ville.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '')}`,
+          metaTitle: `Automatisation IA PME ${ville} : par où commencer`.slice(0, 65),
+          metaDescription: `Ce qu'une PME de ${ville} peut automatiser avec l'IA, combien ça coûte et par où commencer — le guide pratique d'une agence locale.`,
+          excerpt: `Mock : un résumé de l'article en deux phrases, qui donne envie de lire la suite et cite ${ville}.`,
+          coverTitle: `L'IA au travail dans les PME de ${ville}`,
+          coverAccentWord: 'travail',
+          keyTakeaways: ['Mock : première réponse directe, citable telle quelle.', 'Mock : deuxième réponse directe, avec un ordre de grandeur.', 'Mock : troisième réponse directe, orientée action.'],
+          sections: [section(1), section(2), section(3), { h2: `Ce que fait l'agence pour les entreprises de ${ville}`, paragraphs: ['Mock : diagnostic gratuit, exemples de ce qui se met en place, sans discours commercial creux.'], bullets: [], h3s: [] }],
+          faq: [
+            { question: `Combien coûte l'automatisation IA pour une PME de ${ville} ?`, answer: 'Mock : une fourchette réaliste, ce qui la fait varier, et par quoi commencer pour limiter le risque.' },
+            { question: 'Est-ce que mes données restent en France ?', answer: 'Mock : ce qui dépend de l\'outil, ce qu\'il faut vérifier, et ce que prévoit le RGPD pour une PME.' },
+            { question: 'Combien de temps avant de voir un résultat ?', answer: 'Mock : quelques semaines pour un premier process, avec un exemple concret et mesurable.' },
+          ],
+          sources: [{ title: 'Bpifrance — baromètre IA dans les PME', url: 'https://www.bpifrance.fr/' }],
+          keywords: ['automatisation IA', `PME ${ville}`, 'agence IA', 'gain de temps'],
+          localAngle: `Mock : ${ville}, ses zones d'activité et son tissu de PME.`,
+          internalLinks: [{ label: 'Prendre rendez-vous', path: '/contact' }],
+        });
+      }
       // Régénération d'une caption
       const cap = /Caption actuelle :\n([\s\S]*?)\n\nCTA actuel : (.*)/.exec(req.prompt);
       if (cap) {

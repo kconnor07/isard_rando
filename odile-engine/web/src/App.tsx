@@ -4,6 +4,7 @@ import { api } from './api/client';
 import Layout from './components/Layout';
 import Analytics from './pages/Analytics';
 import Approvals from './pages/Approvals';
+import Blog from './pages/Blog';
 import Calendar from './pages/Calendar';
 import Comments from './pages/Comments';
 import Dashboard from './pages/Dashboard';
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/templates" element={<Templates />} />
         <Route path="/images" element={<Images />} />
         <Route path="/comments" element={<Comments />} />
+        <Route path="/blog" element={<Blog />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/setup" element={<Setup />} />
