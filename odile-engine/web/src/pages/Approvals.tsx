@@ -98,7 +98,10 @@ export default function Approvals() {
       <PageTitle title="Posts à valider" subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez." />
       {posts && posts.length === 0 && <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>}
       <div className="flex flex-col gap-4">
-        {posts?.map((post) => {
+        {posts
+          // Diffusion simultanée : une seule carte par sujet — la décision vaut pour toutes les copies.
+          ?.filter((post, i, liste) => !post.broadcast || liste.findIndex((p) => p.broadcast?.group === post.broadcast!.group) === i)
+          .map((post) => {
           const busy = pendingId === post.id;
           const inProgress = post.status === 'draft' || post.status === 'reviewing';
           return (
@@ -119,6 +122,12 @@ export default function Approvals() {
                 {post.hook || '(sans titre)'}
               </Link>
               {post.newsTitle && <p className="mt-1 text-xs text-muted">Source : {post.newsTitle}</p>}
+              {post.broadcast && (
+                <p className="mt-1 text-xs text-muted">
+                  📣 {post.broadcast.surface}
+                  {post.broadcast.others.length > 0 ? ` · partira aussi sur ${post.broadcast.others.join(', ')} avec la même validation` : ''}
+                </p>
+              )}
               <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{post.caption}</p>
               {inProgress ? (
                 <p className="mt-4 flex items-center gap-2 text-xs text-muted">

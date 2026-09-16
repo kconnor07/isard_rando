@@ -8,6 +8,7 @@ import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getBrand } from '../db/settingsRepo.js';
 import { createToken } from '../lib/signedToken.js';
 import { TEMPLATES_DIR } from '../render/themes.js';
+import { freresDuGroupe, surfaceDuPost } from '../scheduler/broadcast.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
 import { sendMail } from './smtp.js';
 
@@ -110,7 +111,9 @@ export async function sendApprovalEmail(
         .join(' · ')} ${review.passed ? '✔ validé' : '⚠ seuil non atteint (à vérifier)'}</p>`
     : '';
 
-  const subject = `${settings.subjectPrefix}${opts.reminder ? ' [RELANCE]' : ''} Post à valider · ${CHANNEL_LABELS[post.channel] ?? post.channel} · ${post.hook.slice(0, 60)}`;
+  // Diffusion simultanée : l'email le dit, pour que la validation soit donnée en connaissance de cause.
+  const autresSurfaces = freresDuGroupe(post).map((f) => surfaceDuPost(f).label);
+  const subject = `${settings.subjectPrefix}${opts.reminder ? ' [RELANCE]' : ''} Post à valider · ${CHANNEL_LABELS[post.channel] ?? post.channel}${autresSurfaces.length ? ` +${autresSurfaces.length}` : ''} · ${post.hook.slice(0, 60)}`;
 
   const html = `<!doctype html><html><body style="margin:0;background:#f2f4f8;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px">
@@ -129,6 +132,7 @@ export async function sendApprovalEmail(
     ${news ? `<p style="margin:4px 0;color:#556;font-size:13px">📰 Source : <a href="${news.url}" style="color:#0077cc">${escapeHtml(news.title)}</a><br/><span style="color:#8899aa">${escapeHtml(news.scoreReason ?? '')}</span></p>` : ''}
     ${reviewLine}
     <p style="margin:10px 0 2px;color:#556;font-size:13px">🕒 Si tu approuves, publication programmée : <b>${fmtParis(slot)}</b> (heure de Paris)</p>
+    ${autresSurfaces.length ? `<p style="margin:6px 0 2px;color:#556;font-size:13px">📣 Partira aussi, avec la même validation, sur : <b>${escapeHtml(autresSurfaces.join(', '))}</b></p>` : ''}
   </td></tr>
   <tr><td align="center" style="padding:10px 20px">
     <table role="presentation" cellpadding="0" cellspacing="0">${slideRows.join('')}</table>

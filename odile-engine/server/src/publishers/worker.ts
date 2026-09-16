@@ -19,7 +19,8 @@ import { buildCaption, collectPublishImages, DryRunPublisher, type Publisher } f
  * publication, ni statut « échec ».
  */
 async function mirrorOnFacebook(post: typeof schema.posts.$inferSelect, input: Parameters<Publisher['publish']>[0]): Promise<void> {
-  if (post.platform !== 'instagram' || !getFbMirror().enabled) return;
+  // Miroir activé, ou diffusion sur tous les comptes : « tous », c'est aussi Facebook.
+  if (post.platform !== 'instagram' || !(getFbMirror().enabled || post.broadcastGroup)) return;
   try {
     if (config.PUBLISH_MODE === 'dry') {
       const payload = facebookMirrorDryPayload(input);

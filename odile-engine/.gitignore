@@ -12,3 +12,4 @@ var/
 
 # Base de données du serveur mock de QA
 server/var-qa/
+var-*/

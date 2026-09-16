@@ -3,6 +3,7 @@ import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import type { TokenPayload } from '../lib/signedToken.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
+import { freresDuGroupe } from '../scheduler/broadcast.js';
 
 export interface ActionContext {
   ip?: string;
@@ -24,6 +25,8 @@ export function getApprovalByJti(jti: string) {
 }
 
 /** Exécute une action d'approbation (appelée uniquement depuis un POST confirmé). */
+type Post = typeof schema.posts.$inferSelect;
+
 export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext): ActionOutcome {
   const approval = getApprovalByJti(payload.jti);
   if (!approval) return { ok: false, message: 'Lien inconnu ou révoqué.', postId: payload.pid };
@@ -67,6 +70,7 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     }
     markActed(approval.id, 'approve', ctx.ip);
     logger.info({ postId: post.id, scheduledAt }, 'post approuvé');
+    cascaderApprobation(post, scheduledAt, now, Boolean(ctx.publishNow));
     return {
       ok: true,
       message: ctx.publishNow ? 'Approuvé — publication dans une minute.' : chosen ? 'Approuvé et programmé à la date choisie.' : 'Approuvé et programmé au prochain créneau.',
@@ -96,11 +100,49 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     }
     markActed(approval.id, 'reject', ctx.ip);
     logger.info({ postId: post.id }, 'post rejeté');
+    cascaderRejet(post, ctx.reason ?? null, now);
     return { ok: true, message: 'Post rejeté. L’actualité suivante sera proposée au prochain cycle.', postId: post.id };
   }
 
   // 'edit' : ne consomme pas le jeton (le lien Approuver doit rester valide)
   return { ok: true, message: 'Ouverture de l’éditeur…', postId: post.id };
+}
+
+/**
+ * Diffusion simultanée : approuver l'original approuve ses copies. Même créneau
+ * sur la même plateforme (le même sujet part au même moment sur chaque compte) ;
+ * prochain créneau de l'autre plateforme sinon. Une copie déjà publiée ou déjà
+ * programmée à la main n'est pas touchée.
+ */
+function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeSuite = false): void {
+  // Un seul créneau par plateforme, calculé une fois : les copies d'un même sujet
+  // partent ensemble. Recalculer pour chacune les aurait étalées sur plusieurs
+  // jours, le calcul des créneaux évitant deux posts à la même heure.
+  const creneaux = new Map<string, Date>();
+  for (const frere of freresDuGroupe(post)) {
+    if (!['draft', 'reviewing', 'awaiting_approval', 'rejected', 'failed'].includes(frere.status)) continue;
+    // « Publier maintenant » vaut pour tout le groupe ; sinon l'autre plateforme prend son prochain créneau.
+    let quand = toutDeSuite || frere.platform === post.platform ? scheduledAt : creneaux.get(frere.platform);
+    if (!quand) {
+      quand = nextPublishSlot(frere.platform as 'linkedin' | 'instagram', scheduledAt);
+      creneaux.set(frere.platform, quand);
+    }
+    db.insert(schema.publishJobs).values({ postId: frere.id, scheduledAt: quand.toISOString() }).run();
+    db.update(schema.posts)
+      .set({ status: 'scheduled', approvedAt: now, scheduledAt: quand.toISOString(), rejectReason: null, error: null, updatedAt: now })
+      .where(eq(schema.posts.id, frere.id))
+      .run();
+    logger.info({ postId: frere.id, avec: post.id, scheduledAt: quand }, 'copie approuvée avec l’original');
+  }
+}
+
+/** Rejeter l'original rejette ses copies encore en attente. */
+function cascaderRejet(post: Post, reason: string | null, now: string): void {
+  for (const frere of freresDuGroupe(post)) {
+    if (['published', 'publishing'].includes(frere.status)) continue;
+    db.update(schema.posts).set({ status: 'rejected', rejectReason: reason, updatedAt: now }).where(eq(schema.posts.id, frere.id)).run();
+    db.update(schema.publishJobs).set({ state: 'canceled', finishedAt: now }).where(eq(schema.publishJobs.postId, frere.id)).run();
+  }
 }
 
 /**
@@ -130,6 +172,7 @@ export function schedulePost(postId: number, at: string): ActionOutcome {
     db.update(schema.newsItems).set({ status: 'used' }).where(eq(schema.newsItems.id, post.newsItemId)).run();
   }
   logger.info({ postId, scheduledAt: when }, post.status === 'scheduled' ? 'post reprogrammé' : 'post programmé');
+  cascaderApprobation(post, when, now);
   return { ok: true, message: post.status === 'scheduled' ? 'Créneau modifié.' : 'Post programmé.', postId, scheduledAt: when.toISOString() };
 }
 
@@ -145,6 +188,17 @@ export function unschedulePost(postId: number): ActionOutcome {
     .set({ state: 'canceled', finishedAt: now })
     .where(and(eq(schema.publishJobs.postId, postId), eq(schema.publishJobs.state, 'pending')))
     .run();
+  for (const frere of freresDuGroupe(post)) {
+    if (frere.status !== 'scheduled') continue;
+    db.update(schema.publishJobs)
+      .set({ state: 'canceled', finishedAt: now })
+      .where(and(eq(schema.publishJobs.postId, frere.id), eq(schema.publishJobs.state, 'pending')))
+      .run();
+    db.update(schema.posts)
+      .set({ status: 'awaiting_approval', scheduledAt: null, approvedAt: null, updatedAt: now })
+      .where(eq(schema.posts.id, frere.id))
+      .run();
+  }
   db.update(schema.posts)
     .set({ status: 'awaiting_approval', scheduledAt: null, approvedAt: null, updatedAt: now })
     .where(eq(schema.posts.id, postId))

@@ -9,7 +9,7 @@ import type { LibraryImageDto } from '../api/types';
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
-  cadence: { days: number; rotation: string[] };
+  cadence: { days: number; rotation: string[]; broadcast?: boolean };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string };
   fb_mirror: { enabled: boolean };
@@ -360,6 +360,16 @@ export default function Settings() {
             </div>
           </div>
         </div>
+        <label className="mb-1 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.cadence.broadcast ?? false}
+            onChange={(e) => set('cadence', { ...form.cadence, broadcast: e.target.checked })} />
+          Publier chaque post sur tous les comptes connectés
+        </label>
+        <p className="mb-4 text-xs text-muted">
+          Un seul sujet, une seule validation : le post part sur chaque profil LinkedIn de l’équipe, sur la page entreprise, sur Instagram — et sur la Page Facebook
+          dans la foulée. Mêmes visuels partout ; le texte est réécrit court et sans lien pour LinkedIn, plus chaleureux pour Instagram. La rotation ci-dessus ne
+          sert alors qu’à choisir le texte de départ.
+        </p>
         <div className="grid gap-6 sm:grid-cols-2">
           <div><label className="label">Créneaux Instagram</label>
             <SlotsEditor slots={form.publish_slots.ig} onChange={(ig) => set('publish_slots', { ...form.publish_slots, ig })} /></div>

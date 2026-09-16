@@ -58,6 +58,7 @@ export const getCadence = () =>
   getSetting('cadence', cadenceSettingsSchema, {
     days: DEFAULTS.cadenceDays,
     rotation: ['ig', 'li_personal'],
+    broadcast: false,
   });
 export const getPublishSlots = () =>
   getSetting('publish_slots', publishSlotsSchema, {

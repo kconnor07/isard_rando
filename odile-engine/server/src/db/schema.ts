@@ -73,6 +73,12 @@ export const posts = sqliteTable(
     liAccountKey: text('li_account_key'),
     /** JSON [{nom, type, vanityName}] : qui identifier dans le texte (LinkedIn). */
     mentions: text('mentions'),
+    /**
+     * Diffusion simultanée : les posts d'un même groupe sont le même sujet publié
+     * sur chaque compte connecté. Une décision (approuver, rejeter, programmer)
+     * prise sur l'un vaut pour tous.
+     */
+    broadcastGroup: text('broadcast_group'),
     format: text('format', { enum: ['carousel', 'static', 'li_image'] }).notNull(),
     theme: text('theme').notNull(),
     language: text('language').notNull().default('fr'),
@@ -125,7 +131,7 @@ export const posts = sqliteTable(
     createdAt: text('created_at').notNull().$defaultFn(now),
     updatedAt: text('updated_at').notNull().$defaultFn(now),
   },
-  (t) => [index('posts_status_idx').on(t.status), index('posts_created_idx').on(t.createdAt)],
+  (t) => [index('posts_status_idx').on(t.status), index('posts_broadcast_idx').on(t.broadcastGroup), index('posts_created_idx').on(t.createdAt)],
 );
 
 export const slides = sqliteTable(

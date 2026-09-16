@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import { runDesignReview } from '../design-studio/index.js';
@@ -8,6 +8,7 @@ import { renderPost } from '../render/renderer.js';
 import { captureForPost } from '../screenshot/capture.js';
 import { runVisualAgentForPipeline, type VisualRunSummary } from '../visuals/agent.js';
 import { draftPost, type DraftOptions } from '../writer/generate.js';
+import { diffuserPartout, diffusionActive } from './broadcast.js';
 
 export interface PipelineSummary {
   postId: number;
@@ -151,6 +152,14 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
     return { postId: draft.postId, iterations: 0, passed: false, finalScores: {}, unavailable: true };
   });
 
+  // Diffusion simultanée : les copies pour les autres comptes naissent ici, une
+  // fois les slides rendues et relues — elles les réutilisent telles quelles.
+  if (diffusionActive()) {
+    await diffuserPartout(draft.postId).catch((err) => {
+      logger.error({ postId: draft.postId, err: String(err) }, 'diffusion sur les autres comptes en échec (non bloquant)');
+    });
+  }
+
   etape(draft.postId, 'Email de validation');
   let emailed = false;
   try {
@@ -165,6 +174,14 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
     .set({ status: 'awaiting_approval', pipelineStep: null, updatedAt: new Date().toISOString() })
     .where(eq(schema.posts.id, draft.postId))
     .run();
+  // Les copies attendent la même validation que l'original.
+  const parent = db.select({ groupe: schema.posts.broadcastGroup }).from(schema.posts).where(eq(schema.posts.id, draft.postId)).get();
+  if (parent?.groupe) {
+    db.update(schema.posts)
+      .set({ status: 'awaiting_approval', updatedAt: new Date().toISOString() })
+      .where(and(eq(schema.posts.broadcastGroup, parent.groupe), eq(schema.posts.status, 'reviewing')))
+      .run();
+  }
 
   return {
     postId: draft.postId,

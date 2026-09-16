@@ -26,6 +26,8 @@ export interface PostSummaryDto {
   };
   createdAt: string;
   commentTriggerKeyword: string | null;
+  /** diffusion simultanée : ce post et ses copies sur les autres comptes */
+  broadcast?: { group: string; surface: string; others: string[] } | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;
   newsTitle: string | null;
   newsUrl: string | null;

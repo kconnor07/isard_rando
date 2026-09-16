@@ -65,6 +65,13 @@ export const cadenceSettingsSchema = z.object({
   days: z.number().int().min(1).max(14),
   /** rotation des canaux pour les brouillons automatiques */
   rotation: z.array(z.enum(CHANNELS)).min(1),
+  /**
+   * Publier chaque post sur tous les comptes connectés à la fois : chaque profil
+   * LinkedIn de l'équipe, la page entreprise, Instagram — et la Page Facebook dans
+   * la foulée. Un seul sujet, une seule validation, autant de publications que de
+   * comptes. La rotation ne sert alors qu'à choisir le texte de départ.
+   */
+  broadcast: z.boolean().default(false),
 });
 export type CadenceSettings = z.infer<typeof cadenceSettingsSchema>;
 

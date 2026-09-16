@@ -13,6 +13,7 @@ import { executeApprovalAction, schedulePost, unschedulePost } from '../../appro
 import { getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
+import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { mirrorToFacebookPage } from '../../publishers/facebook.js';
 import { buildCaption, collectPublishImages } from '../../publishers/types.js';
@@ -54,6 +55,10 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     error: post.error,
     /** étape de fabrication en cours, quand le post est encore en chantier */
     pipelineStep: post.pipelineStep,
+    /** diffusion simultanée : la surface de ce post et celles de ses copies */
+    broadcast: post.broadcastGroup
+      ? { group: post.broadcastGroup, surface: surfaceDuPost(post).label, others: freresDuGroupe(post).map((f) => surfaceDuPost(f).label) }
+      : null,
     resource: {
       kind: post.resourceKind,
       title: post.resourceTitle,
