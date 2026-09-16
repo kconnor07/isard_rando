@@ -145,6 +145,25 @@ export const dmTriggerSettingsSchema = z.object({
       'Un mot en privé et je te réponds tout de suite 🤍',
       'Glisse-moi un DM, j’ai tout préparé 🎁',
     ]),
+  /**
+   * LinkedIn n'ouvre sa messagerie à aucune app : pas de DM possible, ni pour nous
+   * ni pour personne. Le lien de la ressource promise part donc SOUS le commentaire,
+   * en réponse à la personne — seul canal automatisable — et un message privé prêt
+   * à coller est proposé par email pour qui veut ajouter la touche personnelle.
+   * `{{prenom}}` est remplacé par le prénom quand LinkedIn le donne, retiré sinon.
+   */
+  linkedinReplyVariants: z
+    .array(z.string().min(1).max(400))
+    .max(30)
+    .default([
+      'Avec plaisir {{prenom}} ☀️ voilà ce que je t’avais promis : {{link}} — dis-moi ce que tu en penses !',
+      'Merci {{prenom}} 🙌 c’est par ici : {{link}} bonne lecture !',
+      'Le voilà {{prenom}} ✨ {{link}} — n’hésite pas si tu as des questions.',
+      'Hop, comme promis {{prenom}} 🎁 {{link}}',
+      'Ravi que ça te parle {{prenom}} 💛 tout est là : {{link}}',
+      'C’est cadeau {{prenom}} 🚀 {{link}} — je suis curieux de ton retour.',
+      'Avec grand plaisir {{prenom}} 🌞 {{link}} bonne découverte !',
+    ]),
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 
@@ -332,6 +351,23 @@ export const generatedPostSchema = z.object({
    * dont parle le post, « article » = la source elle-même.
    */
   resource: ressourcePromiseSchema.optional(),
+  /**
+   * Entreprises ou personnes de notoriété nommées dans le texte, quand l'actualité
+   * s'y prête — jamais obligatoire. Les entreprises portent leur `vanityName`
+   * LinkedIn (la fin de l'URL de leur page) : c'est ce qui permet de les identifier
+   * pour de vrai. Les personnes restent nommées en clair : LinkedIn n'offre aucune
+   * recherche de profil aux applications.
+   */
+  mentions: z
+    .array(
+      z.object({
+        nom: z.string().min(2).max(80),
+        type: z.enum(['entreprise', 'personne']).default('entreprise'),
+        vanityName: z.string().max(100).optional(),
+      }),
+    )
+    .max(4)
+    .optional(),
 });
 export type GeneratedPost = z.infer<typeof generatedPostSchema>;
 

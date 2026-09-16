@@ -75,7 +75,7 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'publish-due en échec'));
   }, { timezone: TZ });
 
-  // Fallback LinkedIn : détection des commentaires (pas d'API DM)
+  // LinkedIn : lecture des commentaires de chaque profil et de la page, réponse sous le commentaire (pas d'API DM, pas de webhook)
   cron.schedule('*/30 * * * *', () => {
     void (async () => {
       const { pollLinkedInComments } = await import('../webhooks/linkedinPoller.js');

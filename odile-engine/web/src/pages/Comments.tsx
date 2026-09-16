@@ -68,7 +68,7 @@ export default function Comments() {
     <div>
       <PageTitle
         title="Commentaires & DM"
-        subtitle="Instagram : DM automatique sur mot-clé. LinkedIn : l'API n'autorise pas les DM — copie la réponse pré-rédigée en un clic."
+        subtitle="Instagram : DM automatique sur mot-clé. LinkedIn : la réponse part sous le commentaire avec le lien, sur chaque profil et sur la page (LinkedIn n'ouvre sa messagerie à aucune app) — un DM prêt à coller est proposé en plus."
       />
       <div className="mb-4">
         <button className="btn-ghost !py-1.5 text-xs" onClick={() => setDiagOuvert((v) => !v)}>
@@ -162,7 +162,9 @@ export default function Comments() {
               {comment.suggestedReply && comment.dmStatus === 'manual_suggested' && (
                 <div className="mt-3 rounded-2xl border border-line bg-white/[0.03] p-3">
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">
-                    Réponse pré-rédigée (à envoyer en message privé LinkedIn)
+                    {comment.publicReplyStatus === 'sent'
+                      ? 'Lien envoyé sous le commentaire · message privé prêt à coller, pour la touche personnelle'
+                      : 'Réponse pré-rédigée (à envoyer en message privé LinkedIn)'}
                   </div>
                   <p className="text-sm">{comment.suggestedReply}</p>
                   <div className="mt-2 flex gap-2">

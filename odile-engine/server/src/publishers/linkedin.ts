@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { config } from '../config.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
-import { getStoredToken } from './tokens.js';
+import { compteDuPost, jetonDuCompte, mentionsConnues } from './linkedinAccounts.js';
 import type { Publisher, PublishInput, PublishResult } from './types.js';
 
 export const API = 'https://api.linkedin.com';
@@ -22,13 +22,65 @@ function headers(token: string): Record<string, string> {
   };
 }
 
+/** Une entité LinkedIn à identifier dans le texte : son nom tel qu'il y apparaît, son URN. */
+export interface MentionLinkedIn {
+  nom: string;
+  urn: string;
+}
+
+function escapeLittle(text: string): string {
+  return text.replace(/([\\|{}@[\]()<>*_~])/g, '\\$1');
+}
+
 /**
  * Commentaire (texte du post), format « little text » de LinkedIn — 3 000 caractères max.
  * Les caractères réservés sont échappés ; le « # » ne l'est pas : un « #motclé » en clair
  * devient un hashtag cliquable (l'API le convertit elle-même en {hashtag|\#|motclé}).
+ *
+ * Les `mentions` transforment un nom écrit en clair en identification cliquable —
+ * `@[Odile AI](urn:li:organization:…)` — la première fois qu'il apparaît. C'est ainsi
+ * qu'un post personnel identifie la page entreprise, ou un collègue dont le profil
+ * est connecté au moteur.
  */
-export function commentary(caption: string): string {
-  return caption.slice(0, 2990).replace(/([\\|{}@[\]()<>*_~])/g, '\\$1');
+export function commentary(caption: string, mentions: MentionLinkedIn[] = []): string {
+  const texte = caption.slice(0, 2990);
+  const utiles = mentions.filter((m) => m.nom.trim().length >= 2 && m.urn.startsWith('urn:li:'));
+  if (utiles.length === 0) return escapeLittle(texte);
+
+  // Chaque nom n'est identifié qu'une fois, à sa première apparition ; les plages
+  // sont posées du début à la fin sans se chevaucher.
+  const plages: { debut: number; fin: number; urn: string }[] = [];
+  const bas = texte.toLowerCase();
+  for (const m of utiles) {
+    const nom = m.nom.trim().toLowerCase();
+    let depuis = 0;
+    while (depuis <= bas.length) {
+      const pos = bas.indexOf(nom, depuis);
+      if (pos === -1) break;
+      const fin = pos + nom.length;
+      const libre = !plages.some((p) => pos < p.fin && fin > p.debut);
+      // Mot entier seulement : « Odile » ne doit pas identifier « Odilette ».
+      const avant = pos === 0 ? ' ' : bas[pos - 1]!;
+      const apres = fin >= bas.length ? ' ' : bas[fin]!;
+      if (libre && !/[\p{L}\p{N}]/u.test(avant) && !/[\p{L}\p{N}]/u.test(apres)) {
+        plages.push({ debut: pos, fin, urn: m.urn });
+        break;
+      }
+      depuis = fin;
+    }
+  }
+  if (plages.length === 0) return escapeLittle(texte);
+  plages.sort((a, b) => a.debut - b.debut);
+
+  let sortie = '';
+  let curseur = 0;
+  for (const p of plages) {
+    sortie += escapeLittle(texte.slice(curseur, p.debut));
+    sortie += `@[${escapeLittle(texte.slice(p.debut, p.fin))}](${p.urn})`;
+    curseur = p.fin;
+  }
+  sortie += escapeLittle(texte.slice(curseur));
+  return sortie;
 }
 
 async function uploadImage(token: string, owner: string, filePath: string): Promise<string> {
@@ -50,6 +102,49 @@ async function uploadImage(token: string, owner: string, filePath: string): Prom
   return init.value.image;
 }
 
+interface MentionDeclaree {
+  nom: string;
+  type?: 'entreprise' | 'personne';
+  vanityName?: string;
+}
+
+/**
+ * Qui identifier dans le texte d'un post.
+ *
+ * Toujours : la page entreprise et les profils connectés au moteur (URN connus).
+ * Quand le rédacteur l'a demandé : une entreprise de notoriété, retrouvée par son
+ * `vanityName` — cette recherche exige le droit `rw_organization_admin` ; s'il manque,
+ * LinkedIn refuse et le nom reste écrit en clair, ce qui n'abîme rien. Les personnes
+ * restent du texte : LinkedIn n'offre aucune recherche de profil aux applications.
+ */
+export async function mentionsDuPost(
+  post: { mentions?: string | null },
+  token: string,
+): Promise<MentionLinkedIn[]> {
+  const mentions = mentionsConnues();
+  let declarees: MentionDeclaree[] = [];
+  try {
+    declarees = post.mentions ? (JSON.parse(post.mentions) as MentionDeclaree[]) : [];
+  } catch {
+    declarees = [];
+  }
+  for (const m of declarees.slice(0, 4)) {
+    const vanity = m.vanityName?.trim().replace(/^.*\/company\//, '').replace(/\/.*$/, '');
+    if ((m.type ?? 'entreprise') !== 'entreprise' || !vanity || !m.nom?.trim()) continue;
+    try {
+      const res = await fetchJson<{ elements?: { id?: number | string }[] }>(
+        `${API}/rest/organizations?q=vanityName&vanityName=${encodeURIComponent(vanity)}`,
+        { headers: headers(token) },
+      );
+      const id = res.elements?.[0]?.id;
+      if (id) mentions.push({ nom: m.nom.trim(), urn: `urn:li:organization:${id}` });
+    } catch (err) {
+      logger.debug({ vanity, err: String(err).slice(0, 120) }, 'entreprise non identifiable — nom laissé en clair');
+    }
+  }
+  return mentions;
+}
+
 /**
  * Publie sur LinkedIn (profil personnel ou page entreprise selon le canal).
  * 1 image (li_image) ou multi-images (carrousel LinkedIn).
@@ -59,24 +154,29 @@ export class LinkedInPublisher implements Publisher {
 
   async publish(input: PublishInput): Promise<PublishResult> {
     const isOrg = input.post.channel === 'li_org';
-    const stored = getStoredToken('linkedin', isOrg ? 'li_org' : 'li_person');
-    if (!stored) {
+    // Le post sait sur quel compte il part : celui choisi à la rédaction, ou le
+    // premier compte actif du canal si la clé est vide ou périmée.
+    const compte = compteDuPost(input.post);
+    const stored = compte ? jetonDuCompte(compte) : null;
+    if (!compte || !stored) {
       throw new Error(
         `Aucun jeton LinkedIn ${isOrg ? 'page entreprise' : 'personnel'} — connecte le compte dans Réglages → Connexions`,
       );
     }
-    const owner = isOrg
-      ? `urn:li:organization:${stored.externalId}`
-      : `urn:li:person:${stored.externalId}`;
+    const owner = compte.actor;
 
     const imageUrns: string[] = [];
     for (const image of input.images) {
       imageUrns.push(await uploadImage(stored.accessToken, owner, image.path));
     }
 
+    // Identifications réelles : la page entreprise, les collègues connectés, et les
+    // entreprises de notoriété que le rédacteur a désignées — jamais soi-même. Les noms
+    // écrits en clair deviennent des liens cliquables ; les autres restent du texte.
+    const mentions = (await mentionsDuPost(input.post, stored.accessToken)).filter((m) => m.urn !== owner);
     const body: Record<string, unknown> = {
       author: owner,
-      commentary: commentary(input.caption),
+      commentary: commentary(input.caption, mentions),
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
       lifecycleState: 'PUBLISHED',
@@ -98,7 +198,7 @@ export class LinkedInPublisher implements Publisher {
     const text = await res.text();
     if (!res.ok) throw new HttpError(res.status, `${API}/rest/posts`, text);
     const postUrn = res.headers.get('x-restli-id') ?? '';
-    logger.info({ postUrn }, 'post LinkedIn publié');
+    logger.info({ postUrn, compte: compte.name, acteur: owner }, 'post LinkedIn publié');
     return {
       externalPostId: postUrn,
       externalUrl: postUrn ? `https://www.linkedin.com/feed/update/${encodeURIComponent(postUrn)}/` : null,

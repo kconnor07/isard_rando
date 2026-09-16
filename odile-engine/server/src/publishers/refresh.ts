@@ -5,7 +5,8 @@ import { logger } from '../lib/logger.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
 import { deriveMetaPage } from './oauth.js';
-import { getStoredToken, storeToken, updateTokenMeta, type TokenSubject } from './tokens.js';
+import { comptesLinkedIn } from './linkedinAccounts.js';
+import { getStoredToken, listStoredTokens, storeToken, updateTokenMeta, type StoredToken, type TokenSubject } from './tokens.js';
 
 const DAY = 86400000;
 
@@ -39,8 +40,25 @@ export async function refreshTokens(now = new Date()): Promise<RefreshSummary> {
   return { linkedin: await refreshLinkedIn(now), meta: await refreshMeta(now) };
 }
 
+/**
+ * Renouvelle chaque profil LinkedIn connecté, puis les pages entreprise adossées.
+ *
+ * Un compte à court de jeton ne doit pas empêcher les autres de se renouveler :
+ * chaque profil est traité pour lui-même et le compte rendu les résume tous.
+ */
 async function refreshLinkedIn(now: Date): Promise<string> {
-  const person = getStoredToken('linkedin', 'li_person');
+  const comptes = comptesLinkedIn('li_person');
+  if (comptes.length === 0) return 'non connecté';
+  const rendus: string[] = [];
+  for (const compte of comptes) {
+    const etat = await refreshCompteLinkedIn(compte.key, now);
+    rendus.push(comptes.length > 1 ? `${compte.name} : ${etat}` : etat);
+  }
+  return rendus.join(' · ');
+}
+
+async function refreshCompteLinkedIn(accountKey: string, now: Date): Promise<string> {
+  const person = getStoredToken('linkedin', 'li_person', accountKey);
   if (!person) return 'non connecté';
   const left = daysLeft(person.expiresAt, now.getTime());
   if (left === null) return 'jeton sans expiration';
@@ -72,6 +90,7 @@ async function refreshLinkedIn(now: Date): Promise<string> {
     storeToken({
       provider: 'linkedin',
       subject: 'li_person',
+      accountKey: person.accountKey,
       externalId: person.externalId,
       accessToken: token.access_token,
       refreshToken: token.refresh_token ?? person.refreshToken,
@@ -79,11 +98,15 @@ async function refreshLinkedIn(now: Date): Promise<string> {
       expiresAt,
       meta,
     });
-    const org = getStoredToken('linkedin', 'li_org');
-    if (org) {
+    // Les pages entreprise adossées à CE profil suivent son jeton ; celles d'un
+    // autre profil attendent le renouvellement du leur.
+    for (const org of listStoredTokens('linkedin', 'li_org')) {
+      const via = (org.meta.viaCompte as string | undefined) ?? person.accountKey;
+      if (via !== person.accountKey) continue;
       storeToken({
         provider: 'linkedin',
         subject: 'li_org',
+        accountKey: org.accountKey,
         externalId: org.externalId,
         accessToken: token.access_token,
         refreshToken: token.refresh_token ?? person.refreshToken,
@@ -92,12 +115,12 @@ async function refreshLinkedIn(now: Date): Promise<string> {
         meta: org.meta,
       });
     }
-    logger.info({ expiresAt }, 'jeton LinkedIn renouvelé');
+    logger.info({ expiresAt, compte: person.accountKey }, 'jeton LinkedIn renouvelé');
     return 'renouvelé';
   } catch (err) {
     const detail = errorHint(err);
-    updateTokenMeta('linkedin', 'li_person', { refreshError: detail, refreshErrorAt: now.toISOString() });
-    logger.warn({ err: detail }, 'renouvellement LinkedIn impossible');
+    updateTokenMeta('linkedin', 'li_person', { refreshError: detail, refreshErrorAt: now.toISOString() }, person.accountKey);
+    logger.warn({ err: detail, compte: person.accountKey }, 'renouvellement LinkedIn impossible');
     return `échec : ${detail}`;
   }
 }
@@ -148,6 +171,8 @@ async function refreshMeta(now: Date): Promise<string> {
 export interface ConnectionCheck {
   provider: 'linkedin' | 'meta';
   subject: TokenSubject;
+  /** Quelle connexion, quand il y en a plusieurs du même type (profils LinkedIn). */
+  accountKey?: string;
   label: string;
   ok: boolean;
   detail: string;
@@ -158,55 +183,71 @@ async function check(
   provider: 'linkedin' | 'meta',
   subject: TokenSubject,
   label: string,
-  fn: () => Promise<{ detail: string; meta?: Record<string, unknown> }>,
+  fn: (token: StoredToken) => Promise<{ detail: string; meta?: Record<string, unknown> }>,
+  accountKey?: string,
 ): Promise<ConnectionCheck | null> {
-  if (!getStoredToken(provider, subject)) return null;
+  const token = getStoredToken(provider, subject, accountKey);
+  if (!token) return null;
   const checkedAt = new Date().toISOString();
   try {
-    const result = await fn();
-    updateTokenMeta(provider, subject, { ...(result.meta ?? {}), lastCheck: { at: checkedAt, ok: true, detail: result.detail } });
-    return { provider, subject, label, ok: true, detail: result.detail, checkedAt };
+    const result = await fn(token);
+    updateTokenMeta(provider, subject, { ...(result.meta ?? {}), lastCheck: { at: checkedAt, ok: true, detail: result.detail } }, accountKey);
+    return { provider, subject, accountKey, label, ok: true, detail: result.detail, checkedAt };
   } catch (err) {
     const detail = errorHint(err);
-    updateTokenMeta(provider, subject, { lastCheck: { at: checkedAt, ok: false, detail } });
-    return { provider, subject, label, ok: false, detail, checkedAt };
+    updateTokenMeta(provider, subject, { lastCheck: { at: checkedAt, ok: false, detail } }, accountKey);
+    return { provider, subject, accountKey, label, ok: false, detail, checkedAt };
   }
 }
 
 /** Appelle chaque plateforme avec le jeton stocké : la vérité du terrain, pas la date d'expiration théorique. */
 export async function checkConnections(): Promise<ConnectionCheck[]> {
   const results: (ConnectionCheck | null)[] = [];
+  // Chaque profil LinkedIn connecté est interrogé pour lui-même : un jeton grillé
+  // chez l'un ne doit pas passer pour une panne générale.
+  for (const compte of comptesLinkedIn('li_person')) {
+    results.push(
+      await check(
+        'linkedin',
+        'li_person',
+        `LinkedIn — ${compte.name}`,
+        async (token) => {
+          const me = await fetchJson<{ name?: string; sub: string }>(`${API}/v2/userinfo`, {
+            headers: { authorization: `Bearer ${token.accessToken}` },
+          });
+          return { detail: `profil ${me.name ?? me.sub} joignable`, meta: me.name ? { name: me.name } : {} };
+        },
+        compte.key,
+      ),
+    );
+  }
+  for (const compte of comptesLinkedIn('li_org')) {
+    results.push(
+      await check(
+        'linkedin',
+        'li_org',
+        `LinkedIn — page ${compte.name}`,
+        async (token) => {
+          if (!token.scopes.includes('w_organization_social')) {
+            throw new Error('droit w_organization_social absent — reconnecte LinkedIn avec l’option « page entreprise »');
+          }
+          const org = await fetchJson<{ localizedName?: string }>(`${API}/rest/organizations/${token.externalId}`, {
+            headers: linkedInHeaders(token.accessToken),
+          });
+          return { detail: `page « ${org.localizedName ?? token.externalId} » joignable`, meta: org.localizedName ? { name: org.localizedName } : {} };
+        },
+        compte.key,
+      ),
+    );
+  }
   results.push(
-    await check('linkedin', 'li_person', 'LinkedIn — profil', async () => {
-      const token = getStoredToken('linkedin', 'li_person')!;
-      const me = await fetchJson<{ name?: string; sub: string }>(`${API}/v2/userinfo`, {
-        headers: { authorization: `Bearer ${token.accessToken}` },
-      });
-      return { detail: `profil ${me.name ?? me.sub} joignable`, meta: me.name ? { name: me.name } : {} };
-    }),
-  );
-  results.push(
-    await check('linkedin', 'li_org', 'LinkedIn — page entreprise', async () => {
-      const token = getStoredToken('linkedin', 'li_org')!;
-      if (!token.scopes.includes('w_organization_social')) {
-        throw new Error('droit w_organization_social absent — reconnecte LinkedIn avec l’option « page entreprise »');
-      }
-      const org = await fetchJson<{ localizedName?: string }>(`${API}/rest/organizations/${token.externalId}`, {
-        headers: linkedInHeaders(token.accessToken),
-      });
-      return { detail: `page « ${org.localizedName ?? token.externalId} » joignable`, meta: org.localizedName ? { name: org.localizedName } : {} };
-    }),
-  );
-  results.push(
-    await check('meta', 'fb_user', 'Meta — utilisateur', async () => {
-      const token = getStoredToken('meta', 'fb_user')!;
+    await check('meta', 'fb_user', 'Meta — utilisateur', async (token) => {
       const me = await fetchJson<{ id: string; name?: string }>(`${GRAPH}/me?fields=id,name&access_token=${encodeURIComponent(token.accessToken)}`);
       return { detail: `compte ${me.name ?? me.id} joignable` };
     }),
   );
   results.push(
-    await check('meta', 'fb_page', 'Facebook — Page', async () => {
-      const token = getStoredToken('meta', 'fb_page')!;
+    await check('meta', 'fb_page', 'Facebook — Page', async (token) => {
       const page = await fetchJson<{ name?: string }>(`${GRAPH}/${token.externalId}?fields=name&access_token=${encodeURIComponent(token.accessToken)}`);
       let webhookInstalled: boolean | null = null;
       try {
@@ -224,8 +265,7 @@ export async function checkConnections(): Promise<ConnectionCheck[]> {
     }),
   );
   results.push(
-    await check('meta', 'ig_user', 'Instagram — compte pro', async () => {
-      const token = getStoredToken('meta', 'ig_user')!;
+    await check('meta', 'ig_user', 'Instagram — compte pro', async (token) => {
       const ig = await fetchJson<{ username?: string; followers_count?: number; media_count?: number }>(
         `${GRAPH}/${token.externalId}?fields=username,followers_count,media_count&access_token=${encodeURIComponent(token.accessToken)}`,
       );

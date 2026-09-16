@@ -141,6 +141,13 @@
       "when": 1789412282180,
       "tag": "0019_ressource-promise",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1789567135195,
+      "tag": "0020_comptes-linkedin",
+      "breakpoints": true
     }
   ]
 }

@@ -78,6 +78,7 @@ export const getDmTriggers = () =>
     publicReply: true,
     publicReplyVariants: dmTriggerSettingsSchema.shape.publicReplyVariants.parse(undefined),
     publicReplyFallbackVariants: dmTriggerSettingsSchema.shape.publicReplyFallbackVariants.parse(undefined),
+    linkedinReplyVariants: dmTriggerSettingsSchema.shape.linkedinReplyVariants.parse(undefined),
     linkTarget: 'article',
     fixedUrl: '',
     fixedLabel: '',

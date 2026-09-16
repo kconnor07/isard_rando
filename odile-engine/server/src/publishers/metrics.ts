@@ -5,6 +5,7 @@ import { logger } from '../lib/logger.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
 import { getStoredToken } from './tokens.js';
+import { compteDuPost, jetonDuCompte } from './linkedinAccounts.js';
 
 type Post = typeof schema.posts.$inferSelect;
 export type MetricsRow = typeof schema.postMetrics.$inferSelect;
@@ -178,7 +179,9 @@ export async function fetchPostMetrics(post: Post): Promise<MetricsSnapshot | nu
     return fetchInstagramMetrics(post.externalPostId, token.accessToken);
   }
   const isOrg = post.channel === 'li_org';
-  const token = getStoredToken('linkedin', isOrg ? 'li_org' : 'li_person');
+  // Les statistiques se lisent avec le jeton du compte qui a publié, pas avec « un » jeton.
+  const compte = compteDuPost(post);
+  const token = compte ? jetonDuCompte(compte) : null;
   if (!token) return null;
   return fetchLinkedInMetrics(post, token.accessToken, isOrg ? token.externalId : null);
 }

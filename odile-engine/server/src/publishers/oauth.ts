@@ -12,6 +12,7 @@ import { getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
 import { db, schema } from '../db/client.js';
 import { expliquerErreurMeta } from './metaErrors.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
+import { droitCommentaire, toutesLesSurfaces } from './linkedinAccounts.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
 
@@ -77,15 +78,22 @@ export async function listLinkedInOrgs(accessToken: string): Promise<LinkedInOrg
   return orgs;
 }
 
-/** Associe une page entreprise au jeton personnel (même jeton, même renouvellement). */
-export function linkLinkedInOrganization(orgId: string): LinkedInOrg {
-  const person = getStoredToken('linkedin', 'li_person');
+/**
+ * Associe une page entreprise à un jeton personnel (même jeton, même renouvellement).
+ *
+ * Avec plusieurs profils connectés, la page s'adosse à celui qui l'administre —
+ * `viaCompte` — et retient lequel : c'est ce compte-là qui la renouvellera.
+ */
+export function linkLinkedInOrganization(orgId: string, viaCompte?: string): LinkedInOrg {
+  const person = getStoredToken('linkedin', 'li_person', viaCompte) ?? getStoredToken('linkedin', 'li_person');
   if (!person) throw new Error('Connecte d’abord le profil LinkedIn personnel');
   const known = (person.meta.orgs as LinkedInOrg[] | undefined)?.find((o) => o.id === orgId);
   const org: LinkedInOrg = { id: orgId, name: known?.name ?? `Organisation ${orgId}` };
+  const ancien = getStoredToken('linkedin', 'li_org', orgId);
   storeToken({
     provider: 'linkedin',
     subject: 'li_org',
+    accountKey: orgId,
     externalId: orgId,
     accessToken: person.accessToken,
     refreshToken: person.refreshToken,
@@ -93,6 +101,9 @@ export function linkLinkedInOrganization(orgId: string): LinkedInOrg {
     expiresAt: person.expiresAt,
     meta: {
       name: org.name,
+      actif: ancien ? ancien.meta.actif !== false : true,
+      /** Profil qui porte le jeton : c'est lui qui renouvellera celui de la page. */
+      viaCompte: person.accountKey || person.externalId,
       orgScopes: person.scopes.includes('w_organization_social'),
       note: person.scopes.includes('w_organization_social')
         ? 'Droits page entreprise accordés'
@@ -352,9 +363,15 @@ export function registerOauthRoutes(app: FastifyInstance): void {
             meta.orgsError = String(err).slice(0, 200);
           }
         }
+        // La clé du compte est le `sub` LinkedIn : reconnecter le même profil le met
+        // à jour, connecter celui d'un collègue en ajoute un à côté.
+        const dejaConnu = getStoredToken('linkedin', 'li_person', userinfo.sub);
+        if (dejaConnu) meta.actif = dejaConnu.meta.actif !== false;
+        if (dejaConnu?.meta.role) meta.role = dejaConnu.meta.role;
         storeToken({
           provider: 'linkedin',
           subject: 'li_person',
+          accountKey: userinfo.sub,
           externalId: userinfo.sub,
           accessToken: token.access_token,
           refreshToken: token.refresh_token ?? null,
@@ -366,13 +383,13 @@ export function registerOauthRoutes(app: FastifyInstance): void {
         const orgs = meta.orgs as LinkedInOrg[];
         const existingOrg = getStoredToken('linkedin', 'li_org');
         let orgNote = '';
-        if (existingOrg) {
-          const org = linkLinkedInOrganization(existingOrg.externalId);
+        if (existingOrg && orgScopes) {
+          const org = linkLinkedInOrganization(existingOrg.externalId, userinfo.sub);
           orgNote = ` Page entreprise « ${org.name} » mise à jour.`;
-        } else if (orgs.length === 1) {
-          const org = linkLinkedInOrganization(orgs[0]!.id);
+        } else if (!existingOrg && orgs.length === 1) {
+          const org = linkLinkedInOrganization(orgs[0]!.id, userinfo.sub);
           orgNote = ` Page entreprise « ${org.name} » liée automatiquement.`;
-        } else if (orgs.length > 1) {
+        } else if (!existingOrg && orgs.length > 1) {
           orgNote = ` ${orgs.length} pages entreprise administrées : choisis-en une dans Connexions & santé.`;
         } else if (st.org && !orgScopes) {
           orgNote = ' Les droits « page entreprise » n’ont pas été accordés (Community Management API).';
@@ -395,8 +412,10 @@ export function registerOauthRoutes(app: FastifyInstance): void {
   );
 
   /** Organisations administrées (mémorisées à la connexion ; `live=1` les recharge depuis LinkedIn). */
-  app.get<{ Querystring: { live?: string } }>('/api/oauth/linkedin/orgs', { preHandler: requireSession }, async (request, reply) => {
-    const person = getStoredToken('linkedin', 'li_person');
+  app.get<{ Querystring: { live?: string; compte?: string } }>('/api/oauth/linkedin/orgs', { preHandler: requireSession }, async (request, reply) => {
+    const person = request.query.compte
+      ? getStoredToken('linkedin', 'li_person', request.query.compte)
+      : getStoredToken('linkedin', 'li_person');
     if (!person) return reply.status(400).send({ error: 'Profil LinkedIn non connecté' });
     const orgScopes = person.scopes.includes('w_organization_social');
     let orgs = (person.meta.orgs as LinkedInOrg[] | undefined) ?? [];
@@ -408,20 +427,61 @@ export function registerOauthRoutes(app: FastifyInstance): void {
       } catch (err) {
         error = String(err).slice(0, 200);
       }
-      updateTokenMeta('linkedin', 'li_person', { orgs, orgsError: error });
+      updateTokenMeta('linkedin', 'li_person', { orgs, orgsError: error }, person.accountKey);
     }
     const linked = getStoredToken('linkedin', 'li_org');
     return { orgScopes, orgs, error, linkedOrgId: linked?.externalId ?? null };
   });
 
-  app.post<{ Body: { orgId: string } }>('/api/oauth/linkedin/org', { preHandler: requireSession }, async (request, reply) => {
+  app.post<{ Body: { orgId: string; compte?: string } }>('/api/oauth/linkedin/org', { preHandler: requireSession }, async (request, reply) => {
     const orgId = request.body?.orgId?.replace(/\D/g, '');
     if (!orgId) return reply.status(400).send({ error: 'orgId requis (ex: 115786063)' });
     if (!getStoredToken('linkedin', 'li_person')) {
       return reply.status(400).send({ error: 'Connecte d’abord le profil LinkedIn personnel' });
     }
-    const org = linkLinkedInOrganization(orgId);
+    const org = linkLinkedInOrganization(orgId, request.body?.compte);
     return { ok: true, org };
+  });
+
+  /**
+   * Les comptes LinkedIn de l'équipe : chaque profil personnel connecté, puis la page.
+   * Connecter un collègue, c'est relancer `/api/oauth/linkedin/start` depuis SA session
+   * LinkedIn — le `sub` renvoyé diffère, un compte de plus apparaît ici.
+   */
+  app.get('/api/oauth/linkedin/comptes', { preHandler: requireSession }, async () => ({
+    comptes: toutesLesSurfaces().map((c) => ({
+      key: c.key,
+      subject: c.subject,
+      name: c.name,
+      role: c.role,
+      actif: c.actif,
+      expiresAt: c.expiresAt,
+      connectedAt: c.connectedAt,
+      peutRepondre: droitCommentaire(c).peutRepondre,
+      manque: droitCommentaire(c).manque,
+    })),
+  }));
+
+  /** Étiquette et mise en sommeil d'un compte (un compte inactif reste connecté mais ne publie plus). */
+  app.patch<{ Params: { key: string }; Body: { actif?: boolean; role?: string } }>(
+    '/api/oauth/linkedin/comptes/:key',
+    { preHandler: requireSession },
+    async (request, reply) => {
+      const compte = toutesLesSurfaces().find((c) => c.key === request.params.key);
+      if (!compte) return reply.status(404).send({ error: 'Compte LinkedIn inconnu' });
+      const patch: Record<string, unknown> = {};
+      if (typeof request.body?.actif === 'boolean') patch.actif = request.body.actif;
+      if (typeof request.body?.role === 'string') patch.role = request.body.role.slice(0, 80);
+      updateTokenMeta('linkedin', compte.subject, patch, compte.key);
+      return { ok: true };
+    },
+  );
+
+  app.delete<{ Params: { key: string } }>('/api/oauth/linkedin/comptes/:key', { preHandler: requireSession }, async (request, reply) => {
+    const compte = toutesLesSurfaces().find((c) => c.key === request.params.key);
+    if (!compte) return reply.status(404).send({ error: 'Compte LinkedIn inconnu' });
+    deleteToken('linkedin', compte.subject, compte.key);
+    return { ok: true };
   });
 
   app.delete('/api/oauth/linkedin/org', { preHandler: requireSession }, async () => {

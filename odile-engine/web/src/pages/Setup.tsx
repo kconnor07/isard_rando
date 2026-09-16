@@ -19,6 +19,17 @@ interface HealthDto {
   lastWebhookCommentAt: string | null;
   lastJobRuns: { job: string; ok: boolean | null; finishedAt: string | null; summary: unknown }[];
 }
+interface CompteLinkedInDto {
+  key: string;
+  subject: 'li_person' | 'li_org';
+  name: string;
+  role: string;
+  actif: boolean;
+  expiresAt: string | null;
+  connectedAt: string | null;
+  peutRepondre: boolean;
+  manque: string;
+}
 interface OrgsDto {
   orgScopes: boolean;
   orgs: { id: string; name: string }[];
@@ -247,6 +258,47 @@ export default function Setup() {
   const fbPage = health?.oauth.tokens.find((t) => t.subject === 'fb_page');
   const igToken = health?.oauth.tokens.find((t) => t.subject === 'ig_user');
 
+  const { data: comptes } = useQuery({
+    queryKey: ['oauth', 'linkedin', 'comptes'],
+    queryFn: () => api.get<{ comptes: CompteLinkedInDto[] }>('/api/oauth/linkedin/comptes'),
+    enabled: Boolean(liToken),
+  });
+  const profils = (comptes?.comptes ?? []).filter((c) => c.subject === 'li_person');
+  const majCompte = useMutation({
+    mutationFn: (args: { key: string; actif?: boolean; role?: string }) =>
+      api.patch<{ ok: boolean }>(`/api/oauth/linkedin/comptes/${encodeURIComponent(args.key)}`, { actif: args.actif, role: args.role }),
+    onSuccess: () => {
+      refreshAll();
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const retirerCompte = useMutation({
+    mutationFn: (key: string) => api.delete(`/api/oauth/linkedin/comptes/${encodeURIComponent(key)}`),
+    onSuccess: () => {
+      refreshAll();
+      toast.success('Profil retiré');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const retirerCompteAsk = async (c: CompteLinkedInDto) => {
+    const ok = await dialog.confirm({
+      title: `Retirer le profil de ${c.name} ?`,
+      message: 'Son jeton est supprimé du serveur : ses posts programmés partiront sur un autre profil actif, ou échoueront s’il n’y en a pas.',
+      confirmLabel: 'Retirer',
+      danger: true,
+    });
+    if (ok) retirerCompte.mutate(c.key);
+  };
+  const etiquetterCompte = async (c: CompteLinkedInDto) => {
+    const role = await dialog.prompt({
+      title: `Étiquette de ${c.name}`,
+      message: 'Un mot pour s’y retrouver : « cofondateur », « commerciale », « stagiaire »…',
+      initial: c.role,
+      optional: true,
+      confirmLabel: 'Enregistrer',
+    });
+    if (role !== null) majCompte.mutate({ key: c.key, role });
+  };
   const { data: orgs } = useQuery({
     queryKey: ['oauth', 'linkedin', 'orgs'],
     queryFn: () => api.get<OrgsDto>('/api/oauth/linkedin/orgs'),
@@ -409,6 +461,41 @@ export default function Setup() {
                   LinkedIn ne fournit pas de renouvellement automatique à cette app : un email prévient 7 jours avant l’expiration, un clic « Reconnecter » suffit.
                 </div>
               )}
+              {profils.length > 0 && (
+                <div className="mt-3 flex flex-col gap-1.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                    Profils de l’équipe ({profils.length}) — les posts « LinkedIn perso » tournent entre les profils actifs
+                  </div>
+                  {profils.map((c) => (
+                    <div key={c.key} className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/[0.03] px-3 py-2 text-xs">
+                      <Dot ok={c.actif} warn={c.actif && !c.peutRepondre} />
+                      <span className="font-semibold">{c.name}</span>
+                      {c.role && <span className="text-muted">· {c.role}</span>}
+                      {!c.peutRepondre && <span className="text-muted">· droit {c.manque} absent : reconnecte ce profil</span>}
+                      <span className="ml-auto flex items-center gap-1">
+                        <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => void etiquetterCompte(c)} title="Étiquette">
+                          Étiquette
+                        </button>
+                        <button
+                          className="btn-ghost !px-2 !py-1 text-[11px]"
+                          disabled={majCompte.isPending}
+                          onClick={() => majCompte.mutate({ key: c.key, actif: !c.actif })}
+                          title={c.actif ? 'Sortir de la rotation (le profil reste connecté)' : 'Remettre dans la rotation'}
+                        >
+                          {c.actif ? 'Mettre en pause' : 'Réactiver'}
+                        </button>
+                        <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => void retirerCompteAsk(c)} title="Retirer ce profil">
+                          <Unplug size={12} />
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                  <p className="text-[11px] leading-snug text-muted">
+                    Pour ajouter Alexis ou une recrue : la personne ouvre ce dashboard depuis son navigateur (connectée à LinkedIn avec son propre compte)
+                    et clique « Connecter un autre profil ». Le sien vient s’ajouter ici, sans toucher aux autres.
+                  </p>
+                </div>
+              )}
               <label className="mt-2 flex items-center gap-2 text-xs text-muted">
                 <input type="checkbox" checked={withOrg} onChange={(e) => setWithOrg(e.target.checked)} />
                 Demander aussi les droits « page entreprise » (exige le produit Community Management API sur l’app LinkedIn — sinon la connexion est refusée)
@@ -421,10 +508,10 @@ export default function Setup() {
                 disabled={!health.oauth.linkedinConfigured || connectLinkedIn.isPending}
                 onClick={() => connectLinkedIn.mutate()}
               >
-                {liToken ? 'Reconnecter' : 'Connecter'}
+                {liToken ? 'Connecter un autre profil' : 'Connecter'}
               </button>
               {liToken && (
-                <button className="btn-ghost !py-1.5 text-xs" onClick={() => void disconnectAsk('linkedin')} title="Supprimer les jetons LinkedIn">
+                <button className="btn-ghost !py-1.5 text-xs" onClick={() => void disconnectAsk('linkedin')} title="Supprimer tous les jetons LinkedIn">
                   <Unplug size={13} />
                 </button>
               )}

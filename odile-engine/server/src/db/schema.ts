@@ -69,6 +69,10 @@ export const posts = sqliteTable(
     newsItemId: integer('news_item_id').references(() => newsItems.id),
     platform: text('platform', { enum: ['linkedin', 'instagram'] }).notNull(),
     channel: text('channel', { enum: ['li_personal', 'li_org', 'ig'] }).notNull(),
+    /** Compte LinkedIn qui publie (clé de `oauth_tokens`) — vide : le premier compte actif. */
+    liAccountKey: text('li_account_key'),
+    /** JSON [{nom, type, vanityName}] : qui identifier dans le texte (LinkedIn). */
+    mentions: text('mentions'),
     format: text('format', { enum: ['carousel', 'static', 'li_image'] }).notNull(),
     theme: text('theme').notNull(),
     language: text('language').notNull().default('fr'),
@@ -329,6 +333,12 @@ export const oauthTokens = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     provider: text('provider', { enum: ['linkedin', 'meta'] }).notNull(),
     subject: text('subject', { enum: ['li_person', 'li_org', 'fb_user', 'fb_page', 'ig_user'] }).notNull(),
+    /**
+     * Distingue deux connexions de même nature : le profil de l'un et celui de l'autre.
+     * Vide pour les sujets uniques (Meta) ; pour LinkedIn, c'est l'identifiant du membre
+     * ou de l'organisation — ce qui permet d'en connecter autant qu'on veut.
+     */
+    accountKey: text('account_key').notNull().default(''),
     externalId: text('external_id').notNull().default(''),
     accessTokenEnc: text('access_token_enc').notNull(),
     refreshTokenEnc: text('refresh_token_enc'),
@@ -337,7 +347,7 @@ export const oauthTokens = sqliteTable(
     meta: text('meta'), // JSON: {pageName, igUsername, orgUrn, personUrn…}
     updatedAt: text('updated_at').notNull().$defaultFn(now),
   },
-  (t) => [uniqueIndex('oauth_subject_idx').on(t.provider, t.subject)],
+  (t) => [uniqueIndex('oauth_subject_idx').on(t.provider, t.subject, t.accountKey)],
 );
 
 export const emailLog = sqliteTable('email_log', {

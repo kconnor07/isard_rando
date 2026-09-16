@@ -18,6 +18,7 @@ import {
   getImageGen,
   getTone,
 } from '../db/settingsRepo.js';
+import { comptesLinkedIn, prochainComptePersonnel } from '../publishers/linkedinAccounts.js';
 import { completeJson } from '../llm/router.js';
 import { ICON_IDS } from '../render/icons.js';
 import { nextShortlistedItem } from '../scorer/shortlist.js';
@@ -221,9 +222,46 @@ CE QUE LA PERSONNE RECEVRA EN PRIVÉ, et que tu dois déclarer dans "resource" :
   adresse officielle dans resource.toolUrl (celle du site de l'outil, pas celle de l'article) ;
 — "article" sinon : elle recevra ${promesseDuLien}.
 La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`
-      : `CTA LinkedIn : pousse vers la ressource. Utilise le placeholder {{link}} dans la caption
-(il sera remplacé par un lien court tracké vers ${promesseDuLien}). Ne promets rien d'autre que
-cela. commentTrigger.enabled = false.`;
+      : `CTA LinkedIn : même mécanique que sur Instagram — un mot-clé simple en majuscules
+(par ex. ${dm.keywords.join(', ')}), et le CTA se construit autour de « Commente [MOT-CLÉ] ».
+La personne reçoit ce qu'on lui promet en réponse sous son commentaire, au nom du compte qui
+publie (LinkedIn n'ouvre sa messagerie à aucune application). Renseigne commentTrigger
+{enabled: true, keyword}. AUCUN lien, AUCUNE URL dans la caption : un lien externe dans le
+texte fait chuter la portée du post.
+CE QUE LA PERSONNE RECEVRA, et que tu dois déclarer dans "resource" :
+— "guide" si la promesse mérite un document à part (méthode, pas-à-pas, modèle) : le moteur
+  le RÉDIGERA et l'enverra en PDF, donne-lui son titre exact dans resource.title ;
+— "outil" si le post parle d'un outil précis et que la personne veut y accéder : mets son
+  adresse officielle dans resource.toolUrl (celle du site de l'outil, pas celle de l'article) ;
+— "article" sinon : elle recevra ${promesseDuLien}.
+La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`;
+
+  // Ce qui fait performer un post LinkedIn : court, sourcé, les acteurs nommés.
+  const sourceNom = news.sourceId
+    ? (db.select({ name: schema.newsSources.name }).from(schema.newsSources).where(eq(schema.newsSources.id, news.sourceId)).get()?.name ?? '')
+    : '';
+  const strategieLinkedIn =
+    platform === 'linkedin'
+      ? `
+STRATÉGIE LINKEDIN (le texte du post, « caption ») :
+- COURT : entre 500 et 1 000 caractères, jamais plus de 1 200. Une idée par ligne, lignes
+  aérées, phrases brèves. Un post long n'est pas lu ; un post court est partagé.
+- Les 200 PREMIERS caractères sont les seuls visibles avant « …voir plus » : l'accroche y
+  tient tout entière, avec son chiffre ou sa tension. Pas d'introduction, pas de préambule.
+- SOURCER, toujours : nomme en clair d'où vient l'information (média${sourceNom ? ` — ici « ${sourceNom} »` : ''},
+  et l'auteur ou l'auteure si l'article le donne). Une ligne « Source : … » en fin de post.
+  Un post sourcé est un post crédible.
+- IDENTIFIER, quand l'actualité s'y prête — pas à chaque post : si une entreprise ou une
+  personne de notoriété est au cœur de l'info (le fondateur qui l'annonce, la grande marque
+  qui l'a mis en place), nomme-la en clair dans le texte et déclare-la dans "mentions"
+  (nom exact ; pour une entreprise, son vanityName LinkedIn = la fin de l'URL de sa page,
+  ex. « openai », « microsoft », « les-echos »). Le moteur transformera en identification
+  cliquable ce qu'il parvient à retrouver ; le reste restera du texte, ce n'est pas grave.
+  Une identification n'a de valeur que si elle est justifiée : jamais de tag gratuit.
+- Nomme ${brand.name} une fois, naturellement, dans la dernière ligne (le moteur l'identifiera).
+- hashtags : 3 à 5, pas davantage — LinkedIn n'en tient pas compte au-delà.
+- Termine par le CTA « Commente [MOT-CLÉ] » — c'est lui qui déclenche l'envoi.`
+      : '';
 
   const prompt = `ACTUALITÉ SOURCE (à transformer en post ${platform === 'instagram' ? 'Instagram' : 'LinkedIn'}) :
 Titre : ${news.title}
@@ -247,10 +285,10 @@ ${buildArchetypeSpec(isCarousel, imagesAllowed)}
 FORMAT DEMANDÉ : ${slideSpec}
 
 ${ctaSpec}
-
+${strategieLinkedIn}
 CONTRAINTES :
 - Tout en français (traduis et adapte si la source est en anglais). Marque : ${brand.name} (${brand.handle}).
-- caption : le texte du post (2 200 caractères max pour Instagram, aéré, sauts de ligne).
+- caption : le texte du post (${platform === 'instagram' ? '2 200 caractères max pour Instagram' : '1 200 caractères max pour LinkedIn'}, aéré, sauts de ligne).
   Structure AIDA aussi dans la caption. Termine par le CTA.
 - hashtags : 5 à 8, ciblés PME/automatisation/IA, sans doublon avec le texte.
 - hook : reprend le titre de la slide 1 (pour l'objet de l'email de validation).
@@ -272,6 +310,17 @@ CONTRAINTES :
   return persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien });
 }
 
+/** Retire placeholder et URL d'un texte destiné à LinkedIn, sans laisser de trou. */
+export function sansLien(texte: string): string {
+  return texte
+    .replaceAll('{{link}}', '')
+    .replace(/https?:\/\/\S+/gi, '')
+    .replace(/[ \t]+([.,!?])/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/ +\n/g, '\n')
+    .trim();
+}
+
 function persistDraft(args: {
   news: typeof schema.newsItems.$inferSelect;
   channel: Channel;
@@ -288,12 +337,22 @@ function persistDraft(args: {
   const archetype = ARCHETYPES.some((a) => a.id === generated.archetype)
     ? generated.archetype!
     : null;
+  // Qui publie : tour de rôle entre les profils personnels connectés (le tien, celui
+  // d'Alexis, les recrues), ou la page entreprise. Vide si LinkedIn n'est pas connecté —
+  // la publication retombera alors sur le premier compte disponible.
+  const compte =
+    channel === 'li_personal'
+      ? prochainComptePersonnel()
+      : channel === 'li_org'
+        ? (comptesLinkedIn('li_org').find((c) => c.actif) ?? null)
+        : null;
   const post = db
     .insert(schema.posts)
     .values({
       newsItemId: news.id,
       platform,
       channel,
+      liAccountKey: compte?.key ?? null,
       format,
       theme,
       status: 'draft',
@@ -309,6 +368,7 @@ function persistDraft(args: {
       resourceKind: generated.resource?.kind ?? 'article',
       resourceTitle: generated.resource?.title ?? null,
       resourceUrl: generated.resource?.kind === 'outil' ? (generated.resource.toolUrl ?? null) : null,
+      mentions: generated.mentions?.length ? JSON.stringify(generated.mentions) : null,
       toneSnapshot: JSON.stringify(tone),
     })
     .returning({ id: schema.posts.id })
@@ -322,8 +382,11 @@ function persistDraft(args: {
     label: `post-${post.id}`,
     utm: { utm_source: platform, utm_medium: 'social', utm_campaign: `post-${post.id}` },
   });
-  const caption = generated.caption.replaceAll('{{link}}', link.shortUrl);
-  const cta = generated.cta.replaceAll('{{link}}', link.shortUrl);
+  // Sur LinkedIn, aucun lien dans le texte : le lien part sous le commentaire. Un
+  // `{{link}}` ou une URL glissés par le modèle sont retirés plutôt que remplacés.
+  const caption =
+    platform === 'linkedin' ? sansLien(generated.caption) : generated.caption.replaceAll('{{link}}', link.shortUrl);
+  const cta = platform === 'linkedin' ? sansLien(generated.cta) : generated.cta.replaceAll('{{link}}', link.shortUrl);
   db.update(schema.posts)
     .set({ caption, cta, linkId: link.id })
     .where(eq(schema.posts.id, post.id))

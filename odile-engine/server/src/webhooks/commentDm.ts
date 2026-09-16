@@ -129,8 +129,11 @@ export async function repondreEnPublic(commentId: number, dmParti: boolean, lien
   }
 }
 
-/** Lien de valeur à envoyer : le lien court tracké du post, sinon le site. */
-function linkForPost(postId: number | null): string {
+/**
+ * Lien de valeur à envoyer : le lien court tracké du post, sinon le site.
+ * Sa cible est la ressource promise (guide PDF, outil, article) — voir le pipeline.
+ */
+export function linkForPost(postId: number | null): string {
   if (postId) {
     const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
     if (post?.linkId) {
