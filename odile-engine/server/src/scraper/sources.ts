@@ -2,7 +2,7 @@ import { db, schema } from '../db/client.js';
 
 export interface SeedSource {
   name: string;
-  kind: 'rss' | 'hn' | 'youtube' | 'reddit';
+  kind: 'rss' | 'hn' | 'youtube' | 'reddit' | 'github';
   url: string;
   lang: 'fr' | 'en';
   weight: number;
@@ -41,6 +41,13 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'YouTube · Micode', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCYnvxJ-PKiGXo_tYXpWAC-w', lang: 'fr', weight: 0.9 },
   // Veille v3 — Reddit top quotidien (nécessite REDDIT_CLIENT_ID/SECRET, sinon ignoré)
   { name: 'Reddit · IA & automatisation', kind: 'reddit', url: 'r/artificial+OpenAI+automation+nocode/top?t=day&limit=25', lang: 'en', weight: 1.1 },
+  // Veille GitHub — les dépôts qui prennent sur nos sujets. L'URL est la requête de
+  // recherche ; « {60d} » devient la date d'il y a 60 jours au moment du passage.
+  // Ce n'est pas de l'actu outil : c'est une capacité nouvelle qu'une PME peut mettre au travail.
+  { name: 'GitHub · agents IA', kind: 'github', url: 'topic:ai-agents created:>{60d} stars:>150', lang: 'en', weight: 1.0 },
+  { name: 'GitHub · automatisation & workflows', kind: 'github', url: 'topic:automation topic:ai created:>{90d} stars:>100', lang: 'en', weight: 1.1 },
+  { name: 'GitHub · compétences & MCP (skills)', kind: 'github', url: 'topic:mcp created:>{60d} stars:>100', lang: 'en', weight: 1.0 },
+  { name: 'GitHub · skills d’agents', kind: 'github', url: 'skills agent in:name,description,topics created:>{60d} stars:>60', lang: 'en', weight: 0.9 },
 ];
 
 /**

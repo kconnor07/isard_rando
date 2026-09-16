@@ -60,6 +60,74 @@ clés et TOUS ses chiffres (c'est la matière première de notre réécriture), 
 fait marcher ce post (le hook, la structure, l'émotion) et l'engagement constaté.`,
 };
 
+const LINKEDIN_FR_HARVEST: HarvestSpec = {
+  sourceName: 'LinkedIn FR (posts qui performent)',
+  weight: 1.3,
+  lang: 'fr',
+  prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
+LinkedIn n'offre aucune API de lecture des posts : c'est toi qui cherches sur le web.
+
+Cherche des posts LinkedIn EN FRANÇAIS des 7 derniers jours à fort engagement (centaines de
+réactions ou plus, nombreux commentaires, repris ailleurs) sur : l'IA et l'automatisation dans
+les PME/TPE françaises, des dirigeants qui racontent ce qu'ils ont mis en place et ce que ça a
+donné, des méthodes concrètes, des chiffres. Les créateurs francophones du sujet sont de bons
+points de départ, mais tout post qui performe compte — et les auteurs ou entreprises de
+notoriété sont à nommer précisément (on pourra les identifier dans nos posts).
+
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 2 à 5 items —
+"title" = l'idée du post, "url" = l'URL du post (linkedin.com/posts/…) ou de l'article qui le
+reprend, "summary" = le contenu détaillé du post avec son auteur ou son entreprise et TOUS ses
+chiffres, "why" = ce qui a fait marcher ce post (hook, structure, émotion) et l'engagement constaté.`,
+};
+
+const YOUTUBE_HARVEST: HarvestSpec = {
+  sourceName: 'YouTube (vidéos du moment)',
+  weight: 1.1,
+  lang: 'fr',
+  prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
+Au-delà des chaînes que nous suivons déjà par flux, cherche sur le web les vidéos YouTube des
+7 derniers jours (français ou anglais) qui font le plus de vues sur : l'IA appliquée au business,
+l'automatisation pour les petites entreprises, des démonstrations concrètes (un process automatisé
+de bout en bout, un cas client chiffré), des tutoriels qu'un dirigeant peut suivre.
+Ignore : actus produit sans application, débats généraux, vidéos de plus de 7 jours.
+
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 2 à 5 items —
+"title" en français, "url" = l'URL de la vidéo (youtube.com/watch?v=…), "summary" = ce que
+montre la vidéo, ses étapes et ses chiffres, avec le nom de la chaîne, "why" = pourquoi ça fera
+un bon post pour une PME française.`,
+};
+
+const SKILLS_HARVEST: HarvestSpec = {
+  sourceName: 'Compétences & skills IA',
+  weight: 1.2,
+  lang: 'fr',
+  prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
+Axe « compétences » : ce qu'un dirigeant, une équipe ou un agent IA doit savoir faire demain.
+Cherche sur le web (14 derniers jours) : les nouvelles capacités des assistants et agents IA
+(skills, connecteurs MCP, actions, modèles de workflows n8n/Make/Zapier) qui changent quelque
+chose pour une petite entreprise ; les compétences humaines qui montent (prompting métier,
+supervision d'agents, données propres) avec des études ou des offres d'emploi qui les citent ;
+des formations ou guides concrets. Toujours avec l'angle « voilà ce que ça permet de faire lundi
+matin », jamais l'annonce pour elle-même.
+
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 2 à 5 items —
+"title" en français (la compétence ou la capacité, formulée comme un bénéfice), "url" = la
+source précise, "summary" = ce que c'est, ce que ça permet, les chiffres s'il y en a, "why" =
+pourquoi une PME française devrait s'y intéresser maintenant.`,
+};
+
+/**
+ * Les axes élargis tournent : un seul par jour (LinkedIn FR, puis YouTube, puis
+ * compétences), pour couvrir les trois en trois jours sans tripler la dépense —
+ * chaque récolte est un appel avec recherches web. Chacun est désactivable depuis
+ * le dashboard (sa source « websearch » porte le réglage).
+ */
+export function axeElargiDuJour(now = new Date()): HarvestSpec {
+  const axes = [LINKEDIN_FR_HARVEST, YOUTUBE_HARVEST, SKILLS_HARVEST];
+  const jour = Math.floor(now.getTime() / 86400000);
+  return axes[jour % axes.length]!;
+}
+
 const resultSchema = z.object({
   items: z
     .array(
@@ -153,10 +221,11 @@ async function harvest(client: Anthropic, spec: HarvestSpec): Promise<WebsearchS
 
 /**
  * Collecte quotidienne par recherche web (Claude + outil serveur web_search),
- * en deux passes : veille générale (cas d'entreprises, social US, études)
- * puis récolte dédiée aux posts LinkedIn anglophones performants à recycler.
- * Les items stockent titre + URL + un résumé original écrit par le modèle,
- * puis suivent le circuit normal (scoring → shortlist → réécriture).
+ * en trois passes : veille générale (cas d'entreprises, social US, études),
+ * posts LinkedIn anglophones performants à recycler, puis l'axe élargi du jour
+ * (LinkedIn FR, YouTube ou compétences, à tour de rôle). Les items stockent
+ * titre + URL + un résumé original écrit par le modèle, puis suivent le circuit
+ * normal (scoring → shortlist → réécriture).
  */
 export async function runWebsearch(): Promise<WebsearchSummary> {
   if (config.LLM_MODE === 'mock') return { skipped: 'mode mock', found: 0, inserted: 0 };
@@ -164,7 +233,7 @@ export async function runWebsearch(): Promise<WebsearchSummary> {
 
   const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
   const total: WebsearchSummary = { found: 0, inserted: 0 };
-  for (const spec of [GENERAL_HARVEST, LINKEDIN_HARVEST]) {
+  for (const spec of [GENERAL_HARVEST, LINKEDIN_HARVEST, axeElargiDuJour()]) {
     const result = await harvest(client, spec);
     total.found += result.found;
     total.inserted += result.inserted;

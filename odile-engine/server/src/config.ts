@@ -18,6 +18,8 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   REDDIT_CLIENT_ID: z.string().optional(),
   REDDIT_CLIENT_SECRET: z.string().optional(),
+  /** facultatif : relève le plafond de la recherche GitHub (10 req/min sans clé suffisent à la veille) */
+  GITHUB_TOKEN: z.string().optional(),
   ANTHROPIC_MODEL_WRITER: z.string().default('claude-sonnet-5'),
   ANTHROPIC_MODEL_FAST: z.string().default('claude-haiku-4-5'),
   GEMINI_MODEL_SCORING: z.string().default('gemini-3.5-flash-lite'),

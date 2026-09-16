@@ -64,6 +64,9 @@ async function processSource(
       items = await fetchRedditTop(source.url);
     } else if (source.kind === 'hn') {
       items = await fetchHackerNews(source.url);
+    } else if (source.kind === 'github') {
+      const { fetchGithubRepos } = await import('./github.js');
+      items = await fetchGithubRepos(source.url);
     } else {
       const result = await fetchRss(source.url, source.etag, source.lastModified);
       if (result.notModified) {
