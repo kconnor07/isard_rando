@@ -392,7 +392,7 @@ function assetInfo(assetId: string | null): { dataUri: string; cutout: boolean; 
 
 export function saveAsset(
   data: Buffer,
-  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage' | 'library' | 'candidate' | 'guide' | 'cover' | 'video',
+  kind: 'render' | 'screenshot' | 'logo' | 'upload' | 'genimage' | 'library' | 'candidate' | 'guide' | 'cover' | 'video' | 'document',
   meta: { postId?: number | null; slideId?: number | null; extraMeta?: Record<string, unknown> },
   size?: { width?: number; height?: number },
   format: { ext: 'png' | 'jpg' | 'pdf' | 'mp4'; mime: string } = { ext: 'png', mime: 'image/png' },

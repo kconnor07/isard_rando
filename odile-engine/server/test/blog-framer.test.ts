@@ -123,3 +123,50 @@ describe('chaîne du blog en mode mock', async () => {
     expect(db.select().from(schema.articles).where(eq(schema.articles.id, row.id)).get()!.status).toBe('published');
   }, 60_000);
 });
+
+describe('le blog est nourri par la veille', async () => {
+  const { db, schema } = await import('../src/db/client.js');
+  const { choisirSujet, dossierDeVeille, sujetDepuisArticle } = await import('../src/blog/writer.js');
+
+  const reglages = {
+    enabled: true, everyDays: 7, ville: 'Toulouse', zones: ['Haute-Garonne', 'Occitanie'],
+    cibles: ['artisans', 'PME'], authorName: 'Odile', sitePages: [], collectionId: 'col-1',
+    fields: { title: 'f1', body: 'f2' },
+  } as unknown as Parameters<typeof choisirSujet>[0];
+
+  it('réunit les meilleures actualités récentes, celles du même sujet en tête, et écarte les trop vieilles', () => {
+    const source = db.insert(schema.newsSources).values({ name: 'Les Échos', kind: 'rss', url: 'https://echos.fr/rss' }).returning().get();
+    const ajoute = (t: string, score: number, topics: string[], jours: number, statut: 'new' | 'shortlisted' | 'discarded' = 'new') =>
+      db.insert(schema.newsItems).values({
+        sourceId: source.id, url: `https://echos.fr/${t}`, canonicalUrl: `https://echos.fr/${t}`, title: t,
+        summary: `Résumé de ${t}`, contentHash: `${t}-${Date.now()}`, lang: 'fr', scoreFinal: score,
+        topics: JSON.stringify(topics), status: statut,
+        fetchedAt: new Date(Date.now() - jours * 86400000).toISOString(),
+      }).returning().get();
+
+    const principal = ajoute('facturation-ia', 90, ['facturation', 'automatisation'], 1, 'shortlisted');
+    ajoute('devis-automatiques', 70, ['facturation'], 2);
+    ajoute('chatbot-support', 85, ['chatbot'], 3);
+    ajoute('vieille-actu', 99, ['facturation'], 40);
+    ajoute('ecartee', 95, ['facturation'], 1, 'discarded');
+
+    const dossier = dossierDeVeille(principal, 3);
+    expect(dossier[0]!.title).toBe('facturation-ia');
+    // Sujet partagé d'abord, même avec une note plus basse que le chatbot.
+    expect(dossier[1]!.title).toBe('devis-automatiques');
+    expect(dossier.map((d) => d.title)).not.toContain('vieille-actu');
+    expect(dossier.map((d) => d.title)).not.toContain('ecartee');
+  });
+
+  it('la matière donnée au rédacteur porte les URL réelles, datées et sourcées', () => {
+    const sujet = choisirSujet(reglages);
+    expect(sujet.dossier.length).toBeGreaterThan(1);
+    expect(sujet.matiere).toContain('Les Échos');
+    expect(sujet.matiere).toContain('URL : https://echos.fr/');
+    expect(sujet.matiere).toMatch(/\[1\] .+ \(\d{4}-\d{2}-\d{2}\)/);
+    // Régénérer un article reprend son brief et rafraîchit le dossier.
+    const repris = sujetDepuisArticle({ brief: 'Un brief déjà écrit', newsItemId: null });
+    expect(repris.brief).toBe('Un brief déjà écrit');
+    expect(repris.matiere).toContain('URL : https://echos.fr/');
+  });
+});

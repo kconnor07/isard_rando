@@ -62,6 +62,7 @@ export const getCadence = () =>
     days: DEFAULTS.cadenceDays,
     rotation: ['ig', 'li_personal'],
     broadcast: false,
+    docEveryNPosts: 3,
   });
 export const getPublishSlots = () =>
   getSetting('publish_slots', publishSlotsSchema, {

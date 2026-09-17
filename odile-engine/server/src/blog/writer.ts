@@ -13,7 +13,7 @@
  *   à un assistant, des entités nommées, un auteur identifié, des données
  *   structurées (JSON-LD : Article + FAQPage + Organisation locale).
  */
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gte, ne } from 'drizzle-orm';
 import { articleSchema, type Article, type BlogSettings } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { getBrand } from '../db/settingsRepo.js';
@@ -27,7 +27,16 @@ export interface SujetArticle {
   /** actualité de départ, s'il y en a une */
   newsItemId: number | null;
   matiere: string;
+  /** les actualités du dossier de veille qui nourrissent l'article (traçabilité) */
+  dossier: { id: number; titre: string; url: string }[];
 }
+
+type NewsRow = typeof schema.newsItems.$inferSelect;
+
+/** Fenêtre de veille exploitable par un article : au-delà, ce n'est plus de l'actualité. */
+const FENETRE_VEILLE_JOURS = 21;
+/** Nombre d'actualités réunies pour nourrir un article. */
+const TAILLE_DOSSIER = 5;
 
 /**
  * Intentions de recherche locales, à faire tourner quand aucune actualité ne
@@ -60,30 +69,130 @@ function titresRecents(): string[] {
     .filter(Boolean);
 }
 
-/** Choisit le sujet du prochain article : une actualité shortlistée, sinon une intention locale à tour de rôle. */
+/** Les sujets d'une actualité, tels que le rescoring les a posés. */
+function sujetsDe(item: Pick<NewsRow, 'topics'>): string[] {
+  if (!item.topics) return [];
+  try {
+    const brut = JSON.parse(item.topics) as unknown;
+    return Array.isArray(brut) ? brut.filter((t): t is string => typeof t === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Nom lisible de la source d'une actualité (« Les Échos »), vide si inconnue. */
+function nomDeLaSource(item: NewsRow): string {
+  if (!item.sourceId) return '';
+  return (
+    db.select({ name: schema.newsSources.name }).from(schema.newsSources).where(eq(schema.newsSources.id, item.sourceId)).get()?.name ?? ''
+  );
+}
+
+/**
+ * Le dossier de veille qui nourrit un article.
+ *
+ * Un article de blog vaut par ce qu'il apporte de vérifiable : des faits récents,
+ * datés, sourcés. Plutôt qu'une seule actualité, on réunit les meilleures des trois
+ * dernières semaines, en tête celles qui partagent les sujets de l'article. Leurs URL
+ * sont réelles — ce sont les seules que le rédacteur a le droit de citer, ce qui règle
+ * du même coup le problème des adresses inventées.
+ */
+export function dossierDeVeille(principal: NewsRow | null, taille = TAILLE_DOSSIER): NewsRow[] {
+  const depuis = new Date(Date.now() - FENETRE_VEILLE_JOURS * 86400000).toISOString();
+  const candidats = db
+    .select()
+    .from(schema.newsItems)
+    .where(
+      and(
+        gte(schema.newsItems.fetchedAt, depuis),
+        ne(schema.newsItems.status, 'discarded'),
+        principal ? ne(schema.newsItems.id, principal.id) : undefined,
+      ),
+    )
+    .orderBy(desc(schema.newsItems.scoreFinal), desc(schema.newsItems.scoreTotal))
+    .limit(60)
+    .all();
+
+  // Les actualités qui partagent les sujets de l'article passent devant : un dossier
+  // cohérent fait un article qui creuse, une pile d'actus sans lien fait une revue de presse.
+  const sujetsPrincipaux = new Set(principal ? sujetsDe(principal) : []);
+  const proximite = (item: NewsRow) => sujetsDe(item).filter((t) => sujetsPrincipaux.has(t)).length;
+  const note = (item: NewsRow) => item.scoreFinal ?? item.scoreTotal ?? 0;
+  const tries = sujetsPrincipaux.size
+    ? candidats.slice().sort((a, b) => proximite(b) - proximite(a) || note(b) - note(a))
+    : candidats;
+  return [...(principal ? [principal] : []), ...tries].slice(0, taille);
+}
+
+/** Le dossier mis en forme pour le rédacteur : chaque pièce datée, sourcée, avec son extrait. */
+function matiereDuDossier(dossier: NewsRow[]): string {
+  return dossier
+    .map((item, i) => {
+      const source = nomDeLaSource(item);
+      const date = (item.publishedAt ?? item.fetchedAt).slice(0, 10);
+      const extrait = (item.contentText ?? item.summary ?? '').slice(0, i === 0 ? 3000 : 1200).trim();
+      const entete = `[${i + 1}] ${item.title}${source ? ` — ${source}` : ''} (${date})`;
+      return [entete, `URL : ${item.url}`, extrait ? ['"""', extrait, '"""'].join('\n') : '']
+        .filter(Boolean)
+        .join('\n');
+    })
+    .join('\n\n');
+}
+
+/**
+ * Choisit le sujet du prochain article.
+ *
+ * L'angle alterne : une actualité transposée pour la fraîcheur, une intention de
+ * recherche locale pour le référencement de fond. Dans les deux cas, l'article est
+ * nourri par le dossier de veille — c'est ce qui le rend daté, sourcé et citable.
+ */
 export function choisirSujet(reglages: BlogSettings, newsItemId?: number): SujetArticle {
-  const news = newsItemId
-    ? db.select().from(schema.newsItems).where(eq(schema.newsItems.id, newsItemId)).get()
-    : db
-        .select()
-        .from(schema.newsItems)
-        .where(eq(schema.newsItems.status, 'shortlisted'))
-        .orderBy(desc(schema.newsItems.scoreFinal))
-        .limit(1)
-        .get();
+  const principal =
+    (newsItemId
+      ? db.select().from(schema.newsItems).where(eq(schema.newsItems.id, newsItemId)).get()
+      : db
+          .select()
+          .from(schema.newsItems)
+          .where(eq(schema.newsItems.status, 'shortlisted'))
+          .orderBy(desc(schema.newsItems.scoreFinal))
+          .limit(1)
+          .get()) ?? null;
   const nb = db.select({ id: schema.articles.id }).from(schema.articles).all().length;
-  // Une fois sur deux, l'article part d'une intention locale plutôt que de l'actualité :
-  // c'est ce qui construit le référencement de fond, l'actualité apporte la fraîcheur.
-  if (news && nb % 2 === 0) {
+  // Une actualité imposée à la main est toujours l'angle ; sinon on alterne.
+  const partDeLActu = Boolean(principal) && (Boolean(newsItemId) || nb % 2 === 0);
+  const dossier = dossierDeVeille(partDeLActu ? principal : null);
+  const matiere = matiereDuDossier(dossier);
+  const trace = dossier.map((d) => ({ id: d.id, titre: d.title, url: d.url }));
+
+  if (partDeLActu && principal) {
     return {
-      brief: `Transposer cette actualité pour les entreprises de ${reglages.ville} : ${news.title}`,
-      newsItemId: news.id,
-      matiere: [news.title, news.summary ?? '', news.contentText?.slice(0, 3000) ?? '', `Source : ${news.url}`].filter(Boolean).join('\n\n'),
+      brief: `Transposer cette actualité pour les entreprises de ${reglages.ville} : ${principal.title}`,
+      newsItemId: principal.id,
+      matiere,
+      dossier: trace,
     };
   }
   const zone = reglages.zones[1 % Math.max(1, reglages.zones.length)] ?? reglages.ville;
   const intention = INTENTIONS_LOCALES[nb % INTENTIONS_LOCALES.length]!.replaceAll('{ville}', reglages.ville).replaceAll('{zone}', zone);
-  return { brief: intention, newsItemId: null, matiere: '' };
+  return { brief: intention, newsItemId: null, matiere, dossier: trace };
+}
+
+/**
+ * Reconstruit le sujet d'un article existant : même brief, même actualité de départ,
+ * mais dossier de veille rafraîchi — régénérer un article doit profiter de ce que le
+ * moteur a collecté depuis.
+ */
+export function sujetDepuisArticle(row: { brief: string; newsItemId: number | null }): SujetArticle {
+  const principal = row.newsItemId
+    ? (db.select().from(schema.newsItems).where(eq(schema.newsItems.id, row.newsItemId)).get() ?? null)
+    : null;
+  const dossier = dossierDeVeille(principal);
+  return {
+    brief: row.brief,
+    newsItemId: row.newsItemId,
+    matiere: matiereDuDossier(dossier),
+    dossier: dossier.map((d) => ({ id: d.id, titre: d.title, url: d.url })),
+  };
 }
 
 /** Rédige l'article structuré. */
@@ -101,7 +210,19 @@ export async function redigerArticle(sujet: SujetArticle, reglages: BlogSettings
 pour PME et TPE installée à ${reglages.ville}. Auteur affiché : ${reglages.authorName}.
 
 SUJET : ${sujet.brief}
-${sujet.matiere ? `\nMATIÈRE PREMIÈRE (à transposer, jamais à recopier) :\n"""\n${sujet.matiere.slice(0, 3500)}\n"""` : ''}
+${
+  sujet.matiere
+    ? `
+DOSSIER DE VEILLE — ce que le moteur a collecté ces trois dernières semaines. C'est ta matière première :
+des faits récents, datés, attribuables. Tu t'en sers pour ancrer l'article dans l'actualité (« depuis … »,
+« selon … »), jamais pour recopier une phrase. Toutes les pièces ne servent pas : garde celles qui éclairent
+le sujet, ignore les autres. LES URL CI-DESSOUS SONT RÉELLES ET VÉRIFIÉES — ce sont les seules que tu peux
+citer avec leur adresse exacte dans "sources".
+
+${sujet.matiere.slice(0, 9000)}
+`
+    : ''
+}
 
 LECTEURS : ${reglages.cibles.join(', ')} — des dirigeants pressés, pas des techniciens.
 ANCRAGE LOCAL : ${reglages.ville} et ses alentours (${reglages.zones.join(', ')}). L'ancrage doit être
@@ -123,9 +244,10 @@ ${pages}
 MOTEURS GÉNÉRATIFS (GEO — ChatGPT, Perplexity, Google AI Overviews, Claude) — règles impératives :
 - keyTakeaways : 3 à 6 phrases autonomes qui répondent directement à la question, citables telles quelles.
 - Définis les notions clés en une phrase nette, une fois. Nomme les entités (outils, organismes, lieux, ${brand.name}).
-- Chaque affirmation chiffrée est attribuée (« selon … »). Sources : 2 à 6 références fiables et récentes
-  (études, organismes publics, éditeurs, presse économique) avec leur URL exacte — jamais d'URL inventée :
-  en cas de doute sur l'adresse exacte, cite le titre sans URL dans le texte et n'ajoute pas la source.
+- Chaque affirmation chiffrée est attribuée (« selon … »). Sources : 2 à 6 références fiables et récentes,
+  prises EN PRIORITÉ dans le dossier de veille ci-dessus (leurs URL sont vérifiées). Toute autre source ne
+  s'ajoute que si tu es certain de son adresse exacte — jamais d'URL inventée : dans le doute, cite le titre
+  dans le texte sans ajouter la source.
 - FAQ : 3 à 7 questions formulées comme on les pose à un assistant (« Combien coûte… ? », « Est-ce que… ? »),
   réponses complètes en 2 à 5 phrases, qui se suffisent à elles-mêmes.
 - Dernière section : ce que ${brand.name} fait concrètement pour ce type d'entreprise, sans discours commercial creux —

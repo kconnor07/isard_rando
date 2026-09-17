@@ -23,6 +23,7 @@ export const FORMAT_LABELS: Record<string, string> = {
   carousel: 'Carrousel',
   static: 'Image unique (Instagram)',
   li_image: 'Image LinkedIn',
+  li_doc: 'Document PDF (LinkedIn)',
   reel: 'Vidéo verticale (Reel)',
 };
 

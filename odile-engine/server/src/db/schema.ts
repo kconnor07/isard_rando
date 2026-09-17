@@ -94,7 +94,7 @@ export const posts = sqliteTable(
      */
     amplifiedAt: text('amplified_at'),
     amplifiedBy: text('amplified_by'),
-    format: text('format', { enum: ['carousel', 'static', 'li_image', 'reel'] }).notNull(),
+    format: text('format', { enum: ['carousel', 'static', 'li_image', 'li_doc', 'reel'] }).notNull(),
     theme: text('theme').notNull(),
     language: text('language').notNull().default('fr'),
     status: text('status', {
@@ -172,7 +172,7 @@ export const slides = sqliteTable(
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
   kind: text('kind', {
-    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide', 'cover', 'video'],
+    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide', 'cover', 'video', 'document'],
   }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),

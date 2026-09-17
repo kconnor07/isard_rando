@@ -72,6 +72,12 @@ export const cadenceSettingsSchema = z.object({
    * comptes. La rotation ne sert alors qu'à choisir le texte de départ.
    */
   broadcast: z.boolean().default(false),
+  /**
+   * Un post LinkedIn sur N part en document PDF — le carrousel natif du réseau,
+   * feuilleté dans le fil. C'est le format qui retient le plus longtemps, donc celui
+   * que l'algorithme pousse le plus. 0 = jamais.
+   */
+  docEveryNPosts: z.number().int().min(0).max(20).default(3),
 });
 export type CadenceSettings = z.infer<typeof cadenceSettingsSchema>;
 

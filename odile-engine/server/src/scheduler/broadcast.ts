@@ -191,7 +191,16 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
   const now = new Date().toISOString();
   for (const surface of aFaire) {
     const texte = textes.get(cleSurface(surface))!;
-    const format = surface.platform === 'linkedin' ? 'li_image' : slides.length > 1 ? 'carousel' : 'static';
+    // Plusieurs slides : sur LinkedIn, leur équivalent natif n'est pas une suite
+    // d'images mais le document PDF, que l'on feuillette sans quitter le fil.
+    const format =
+      surface.platform === 'linkedin'
+        ? slides.length > 1
+          ? 'li_doc'
+          : 'li_image'
+        : slides.length > 1
+          ? 'carousel'
+          : 'static';
     const copie = db
       .insert(schema.posts)
       .values({

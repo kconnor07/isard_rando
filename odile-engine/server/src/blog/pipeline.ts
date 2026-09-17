@@ -15,7 +15,7 @@ import { logger } from '../lib/logger.js';
 import { sendMail } from '../mailer/smtp.js';
 import { fabriquerCouverture } from './cover.js';
 import { publierDansFramer, type ContenuAPublier } from './framer.js';
-import { articleHtml, articleJsonLd, choisirSujet, redigerArticle, slugDisponible } from './writer.js';
+import { articleHtml, articleJsonLd, choisirSujet, redigerArticle, slugDisponible, sujetDepuisArticle } from './writer.js';
 
 type ArticleRow = typeof schema.articles.$inferSelect;
 
@@ -92,15 +92,7 @@ export async function regenererArticle(articleId: number): Promise<BlogPipelineS
   const reglages = getBlog();
   db.update(schema.articles).set({ status: 'drafting', error: null, updatedAt: new Date().toISOString() }).where(eq(schema.articles.id, articleId)).run();
   try {
-    const news = row.newsItemId ? db.select().from(schema.newsItems).where(eq(schema.newsItems.id, row.newsItemId)).get() : null;
-    const article = await redigerArticle(
-      {
-        brief: row.brief,
-        newsItemId: row.newsItemId,
-        matiere: news ? [news.title, news.summary ?? '', news.contentText?.slice(0, 3000) ?? '', `Source : ${news.url}`].filter(Boolean).join('\n\n') : '',
-      },
-      reglages,
-    );
+    const article = await redigerArticle(sujetDepuisArticle(row), reglages);
     await enregistrerRedaction(articleId, article, reglages);
     return { articleId, title: article.title, emailed: false };
   } catch (err) {

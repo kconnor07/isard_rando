@@ -9,7 +9,7 @@ import type { LibraryImageDto } from '../api/types';
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
-  cadence: { days: number; rotation: string[]; broadcast?: boolean };
+  cadence: { days: number; rotation: string[]; broadcast?: boolean; docEveryNPosts?: number };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string };
   fb_mirror: { enabled: boolean };
@@ -368,6 +368,15 @@ export default function Settings() {
               ))}
             </div>
           </div>
+        </div>
+        <div className="mb-4 max-w-xs">
+          <label className="label">Un post LinkedIn sur N en document PDF</label>
+          <input type="number" min={0} max={20} className="input" value={form.cadence.docEveryNPosts ?? 3}
+            onChange={(e) => set('cadence', { ...form.cadence, docEveryNPosts: Number(e.target.value) })} />
+          <p className="mt-1.5 text-xs text-muted">
+            Le document est le carrousel natif de LinkedIn : un PDF que l’on feuillette sans quitter le fil. C’est le format qui retient le plus longtemps, donc celui
+            que l’algorithme pousse le plus — mais un fil qui n’en publierait que serait illisible. 0 = jamais.
+          </p>
         </div>
         <label className="mb-1 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.cadence.broadcast ?? false}
@@ -864,8 +873,8 @@ export default function Settings() {
             </p></div>
           <div><label className="label">Format Instagram par défaut</label>
             <select className="input" value={form.default_format} onChange={(e) => set('default_format', e.target.value)}>
-              {Object.entries(FORMAT_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>{v === 'carousel' ? `${l} (recommandé — meilleur engagement)` : l}</option>
+              {['carousel', 'static'].map((v) => (
+                <option key={v} value={v}>{v === 'carousel' ? `${FORMAT_LABELS[v]} (recommandé — meilleur engagement)` : FORMAT_LABELS[v]}</option>
               ))}
             </select></div>
         </div>

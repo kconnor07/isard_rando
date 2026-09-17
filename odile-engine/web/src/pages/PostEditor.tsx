@@ -505,8 +505,8 @@ export default function PostEditor() {
           <div className="min-w-[11rem]">
             <label className="label !mb-1">Format</label>
             <select className="input" value={post.format} disabled={!!busy} onChange={(e) => patchPost.mutate({ format: e.target.value, render: true })}>
-              {Object.entries(FORMAT_LABELS).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
+              {(post.platform === 'linkedin' ? ['li_image', 'li_doc', 'reel'] : ['carousel', 'static', 'reel']).map((v) => (
+                <option key={v} value={v}>{FORMAT_LABELS[v] ?? v}</option>
               ))}
             </select>
           </div>

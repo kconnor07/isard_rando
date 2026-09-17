@@ -1,9 +1,20 @@
 import fs from 'node:fs';
+import { eq } from 'drizzle-orm';
+import { RENDER_SIZES } from '@odile/shared';
 import { config } from '../config.js';
+import { db, schema } from '../db/client.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { compteDuPost, jetonDuCompte, mentionsConnues } from './linkedinAccounts.js';
+import { envoyerDocumentLinkedIn, fabriquerPdfDocument, titreDocument } from './linkedinDocument.js';
 import type { Publisher, PublishInput, PublishResult } from './types.js';
+
+/** Chemin sur disque d'un asset fraîchement enregistré. */
+function assetPath(assetId: string): string {
+  const asset = db.select().from(schema.assets).where(eq(schema.assets.id, assetId)).get();
+  if (!asset) throw new Error(`Asset ${assetId} introuvable`);
+  return asset.path;
+}
 
 export const API = 'https://api.linkedin.com';
 /** Version d'API LinkedIn (format AAAAMM) : chaque version vit ~1 an — `LINKEDIN_VERSION` dans .env pour avancer sans redéployer le code. */
@@ -233,8 +244,25 @@ export class LinkedInPublisher implements Publisher {
     const videoUrn = input.video
       ? await envoyerVideoLinkedIn({ token: stored.accessToken, owner, fichier: input.video.path })
       : null;
+    // Document : les slides déjà rendues assemblées en PDF feuilletable — le carrousel
+    // natif de LinkedIn, qui n'a rien à voir avec une suite d'images.
+    const documentUrn =
+      !videoUrn && input.post.format === 'li_doc'
+        ? await envoyerDocumentLinkedIn({
+            token: stored.accessToken,
+            owner,
+            fichier: assetPath(
+              await fabriquerPdfDocument({
+                images: input.images,
+                largeur: RENDER_SIZES.li_doc.width,
+                hauteur: RENDER_SIZES.li_doc.height,
+                postId: input.post.id,
+              }),
+            ),
+          })
+        : null;
     const imageUrns: string[] = [];
-    if (!videoUrn) {
+    if (!videoUrn && !documentUrn) {
       for (const image of input.images) {
         imageUrns.push(await uploadImage(stored.accessToken, owner, image.path));
       }
@@ -254,6 +282,10 @@ export class LinkedInPublisher implements Publisher {
     };
     if (videoUrn) {
       body.content = { media: { id: videoUrn, title: input.post.hook.slice(0, 120) } };
+    } else if (documentUrn) {
+      // Le titre du document s'affiche au-dessus de la première page : une seconde
+      // accroche, pas un nom de fichier.
+      body.content = { media: { id: documentUrn, title: titreDocument(input.post.hook) } };
     } else if (imageUrns.length === 1) {
       body.content = { media: { id: imageUrns[0], altText: input.post.hook.slice(0, 120) } };
     } else if (imageUrns.length > 1) {
@@ -294,6 +326,20 @@ export function linkedInDryPayload(input: PublishInput): unknown {
         author: isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>',
         commentary: commentary(input.caption),
         content: { media: { id: 'urn:li:video:<ID>', title: input.post.hook.slice(0, 120) } },
+      },
+    };
+  }
+  if (input.post.format === 'li_doc') {
+    return {
+      endpoint: `${API}/rest/posts`,
+      uploads: [
+        { call: `POST ${API}/rest/documents?action=initializeUpload`, body: { initializeUploadRequest: { owner: '<OWNER>' } } },
+        { call: 'PUT <uploadUrl> — le PDF en une fois', pages: input.images.length },
+      ],
+      body: {
+        author: isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>',
+        commentary: commentary(input.caption),
+        content: { media: { id: 'urn:li:document:<ID>', title: titreDocument(input.post.hook) } },
       },
     };
   }

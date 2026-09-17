@@ -57,7 +57,8 @@ describe('diffusion simultanée', async () => {
     const groupe = db.select().from(schema.posts).where(eq(schema.posts.id, parent.id)).get()!.broadcastGroup;
     expect(groupe).toBeTruthy();
     const freres = freresDuGroupe({ id: parent.id, broadcastGroup: groupe });
-    expect(freres.map((f) => `${f.channel}:${f.liAccountKey ?? ''}:${f.format}`).sort()).toEqual(['li_org:77:li_image', 'li_personal:alexis:li_image', 'li_personal:moi:li_image']);
+    // Un carrousel Instagram devient un document PDF sur LinkedIn : le carrousel natif du réseau.
+    expect(freres.map((f) => `${f.channel}:${f.liAccountKey ?? ''}:${f.format}`).sort()).toEqual(['li_org:77:li_doc', 'li_personal:alexis:li_doc', 'li_personal:moi:li_doc']);
     for (const f of freres) {
       expect(f.broadcastGroup).toBe(groupe);
       expect(f.resourceUrl).toBe(parent.resourceUrl);

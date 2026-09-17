@@ -208,6 +208,17 @@ Kind de slide disponible en plus : "notifications" (pile de 3 cartes de notifica
   }`;
 }
 
+/**
+ * Ce post LinkedIn part-il en document PDF ?
+ *
+ * Un sur N, comme la vidéo : le document est le format qui retient le plus longtemps
+ * sur LinkedIn, mais un fil qui n'en publierait que serait illisible. 0 = jamais.
+ */
+export function documentDue(nbPostsExistants: number): boolean {
+  const tous = getCadence().docEveryNPosts;
+  return tous > 0 && nbPostsExistants % tous === 0;
+}
+
 /** Génère un brouillon de post (copy + slides) depuis une actu shortlistée. */
 export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const news = opts.newsItemId
@@ -221,7 +232,16 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   // touche les gens qui ne suivent pas encore le compte.
   const nbPosts = db.select({ id: schema.posts.id }).from(schema.posts).all().length;
   const format: PostFormat =
-    opts.format ?? (videoDue(nbPosts) ? 'reel' : channel === 'ig' ? (getDefaultFormat() as PostFormat) : 'li_image');
+    opts.format ??
+    (videoDue(nbPosts)
+      ? 'reel'
+      : channel === 'ig'
+        ? (getDefaultFormat() as PostFormat)
+        : // Un post LinkedIn sur N part en document PDF : c'est le format qui retient le
+          // plus longtemps sur le réseau, donc celui que l'algorithme pousse le plus.
+          documentDue(nbPosts)
+          ? 'li_doc'
+          : 'li_image');
   const theme = opts.theme ?? getDefaultTheme();
   const tone = getTone();
   const brand = getBrand();
@@ -232,9 +252,19 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const compte = compteDuCanal(channel);
 
   const isCarousel = format === 'carousel';
+  const isDocument = format === 'li_doc';
   const isReel = format === 'reel';
   const imagesAllowed = imageGen.enabled ? imageGen.imagesPerPost : 0;
-  const slideSpec = isCarousel
+  const slideSpec = isDocument
+    ? `un DOCUMENT LinkedIn de ${DEFAULTS.carouselSlides.min} à ${DEFAULTS.carouselSlides.max} pages — le PDF que
+  le lecteur feuillette dans le fil. Chaque page doit donner envie de passer à la suivante :
+  1. kind "hook" — la couverture : le titre le plus fort du post, accentWord, body très court (c'est elle
+     qui décide si le document est ouvert)
+  2. kind "content" — le problème, tel que le dirigeant le vit
+  3-N. kinds "content" / "screenshot" / "value_prop" — UNE idée par page, jamais deux : l'étape, la preuve,
+     le chiffre (bigNumber), l'outil (kind "screenshot" avec toolName et toolUrl si une capture s'impose)
+  N+1. kind "cta" — la dernière page : ce qu'il faut faire maintenant`
+    : isCarousel
     ? `un carrousel de ${DEFAULTS.carouselSlides.min} à ${DEFAULTS.carouselSlides.max} slides :
   1. kind "hook" — l'accroche (annotation manuscrite optionnelle, titre court, accentWord = LE mot fort du titre)
   2. kind "content" — la promesse / le problème (badge de section, bigNumber si un chiffre frappe)
@@ -365,7 +395,7 @@ seulement comme référence via le lien) :\n"""\n${news.contentText.slice(0, 280
 TON DE LA MARQUE :
 ${toneToPrompt(tone)}
 
-${buildArchetypeSpec(isCarousel, imagesAllowed)}
+${buildArchetypeSpec(isCarousel || isDocument, imagesAllowed)}
 
 FORMAT DEMANDÉ : ${slideSpec}
 

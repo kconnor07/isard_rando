@@ -161,7 +161,15 @@ export async function sendApprovalEmail(
   </td></tr>
   <tr><td style="padding:26px 28px 8px">
     <h1 style="margin:0 0 4px;font-size:20px;color:#0a0a12">Un post ${CHANNEL_LABELS[post.channel] ?? post.channel} attend ta validation</h1>
-    <p style="margin:4px 0;color:#556;font-size:14px">Format : <b>${post.format === 'carousel' ? `carrousel ${slides.length} slides` : 'visuel unique'}</b> · Thème : <b>${post.theme}</b></p>
+    <p style="margin:4px 0;color:#556;font-size:14px">Format : <b>${
+      post.format === 'carousel'
+        ? `carrousel ${slides.length} slides`
+        : post.format === 'li_doc'
+          ? `document PDF ${slides.length} pages`
+          : post.format === 'reel'
+            ? 'vidéo verticale'
+            : 'visuel unique'
+    }</b> · Thème : <b>${post.theme}</b></p>
     ${news ? `<p style="margin:4px 0;color:#556;font-size:13px">📰 Source : <a href="${news.url}" style="color:#0077cc">${escapeHtml(news.title)}</a><br/><span style="color:#8899aa">${escapeHtml(news.scoreReason ?? '')}</span></p>` : ''}
     ${reviewLine}
     <p style="margin:10px 0 2px;color:#556;font-size:13px">🕒 Si tu approuves, publication programmée : <b>${fmtParis(slot)}</b> (heure de Paris)</p>
