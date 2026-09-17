@@ -313,9 +313,23 @@ body {
 /* Variante texte (« Fermer ») dans la même pilule */
 .pill-btn--text {
   width: auto;
+  gap: 5px;
   padding: 0 10px;
   font-size: 11px;
   font-weight: 600;
+}
+/*
+ * Le mot sous l'icône. Une infobulle n'existe pas au doigt : sur un écran tactile,
+ * une rangée d'icônes muettes ne se devine pas. Le mot disparaît sur les très
+ * petites largeurs, où la place manque vraiment — l'aria-label, lui, reste.
+ */
+.pill-mot {
+  white-space: nowrap;
+}
+@media (max-width: 420px) {
+  .pill-mot {
+    display: none;
+  }
 }
 
 /* Damier sous les images détourées (transparence visible) */

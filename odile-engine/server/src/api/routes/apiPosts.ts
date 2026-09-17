@@ -29,11 +29,13 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
   const news = post.newsItemId
     ? db.select().from(schema.newsItems).where(eq(schema.newsItems.id, post.newsItemId)).get()
     : null;
-  const slideCount = db
-    .select({ id: schema.slides.id })
+  const slides = db
+    .select({ id: schema.slides.id, renderAssetId: schema.slides.renderAssetId })
     .from(schema.slides)
     .where(eq(schema.slides.postId, post.id))
-    .all().length;
+    .orderBy(schema.slides.idx)
+    .all();
+  const slideCount = slides.length;
   return {
     id: post.id,
     platform: post.platform,
@@ -65,6 +67,11 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     },
     /** le compte qui publie, en clair : « Alexis Duquenoy », « page Odile AI », « Instagram » */
     surface: surfaceDuPost(post).label,
+    /**
+     * Les visuels rendus, dans l'ordre. Valider sans les voir, c'est signer sans
+     * lire : la liste sert aux vignettes des écrans de validation et du calendrier.
+     */
+    vignettes: slides.map((s) => s.renderAssetId).filter((id): id is string => Boolean(id)),
     /** diffusion simultanée : la surface de ce post et celles de ses copies */
     broadcast: post.broadcastGroup
       ? { group: post.broadcastGroup, surface: surfaceDuPost(post).label, others: freresDuGroupe(post).map((f) => surfaceDuPost(f).label) }

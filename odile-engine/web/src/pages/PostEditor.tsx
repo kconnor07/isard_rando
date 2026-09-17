@@ -168,24 +168,24 @@ function SlideCard({
             >
               {editing ? 'Fermer' : <Pencil size={13} />}
             </button>
-            <button className="pill-btn" disabled={disabled} onClick={() => void regenerate()} title="Régénérer le texte par l'IA" aria-label="Régénérer le texte par l'IA">
-              <RefreshCw size={13} />
+            <button className="pill-btn pill-btn--text" disabled={disabled} onClick={() => void regenerate()} title="Régénérer le texte par l'IA" aria-label="Régénérer le texte par l'IA">
+              <RefreshCw size={13} /> <span className="pill-mot">Texte</span>
             </button>
             <button
-              className={`pill-btn ${slide.heroAssetId ? 'pill-btn--on' : ''}`}
+              className={`pill-btn pill-btn--text ${slide.heroAssetId ? 'pill-btn--on' : ''}`}
               disabled={disabled}
               onClick={() => void generateImage()}
               title={slide.heroAssetId ? "Régénérer l'illustration IA" : 'Générer une illustration IA'}
               aria-label={slide.heroAssetId ? "Régénérer l'illustration IA" : 'Générer une illustration IA'}
             >
-              <ImageIcon size={13} />
+              <ImageIcon size={13} /> <span className="pill-mot">Illustrer</span>
             </button>
-            <button className="pill-btn" disabled={disabled} onClick={() => setPickerOpen(true)} title="Choisir une image de la bibliothèque" aria-label="Choisir une image de la bibliothèque">
-              <LibraryIcon size={13} />
+            <button className="pill-btn pill-btn--text" disabled={disabled} onClick={() => setPickerOpen(true)} title="Choisir une image de la bibliothèque" aria-label="Choisir une image de la bibliothèque">
+              <LibraryIcon size={13} /> <span className="pill-mot">Bibliothèque</span>
             </button>
             <LibraryPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={useLibraryImage} />
-            <button className="pill-btn" disabled={disabled} onClick={() => fileInput.current?.click()} title="Téléverser ma propre image de fond" aria-label="Téléverser ma propre image de fond">
-              <Upload size={13} />
+            <button className="pill-btn pill-btn--text" disabled={disabled} onClick={() => fileInput.current?.click()} title="Téléverser ma propre image de fond" aria-label="Téléverser ma propre image de fond">
+              <Upload size={13} /> <span className="pill-mot">Importer</span>
             </button>
             <input
               ref={fileInput}
@@ -199,8 +199,8 @@ function SlideCard({
               }}
             />
             {slide.heroAssetId && (
-              <button className="pill-btn" disabled={disabled} onClick={() => void removeImage()} title="Retirer l'illustration de fond" aria-label="Retirer l'illustration de fond">
-                <Trash2 size={13} />
+              <button className="pill-btn pill-btn--text" disabled={disabled} onClick={() => void removeImage()} title="Retirer l'illustration de fond" aria-label="Retirer l'illustration de fond">
+                <Trash2 size={13} /> <span className="pill-mot">Retirer</span>
               </button>
             )}
           </div>

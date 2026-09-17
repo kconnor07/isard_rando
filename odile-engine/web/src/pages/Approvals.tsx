@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { CalendarClock, Check, Pencil, X, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
@@ -15,6 +16,8 @@ interface ActionOutcome {
 }
 
 export default function Approvals() {
+  /** visuel agrandi (on valide sur ce qu'on voit, pas sur une vignette de 3 cm) */
+  const [zoom, setZoom] = useState<string | null>(null);
   const qc = useQueryClient();
   const dialog = useDialog();
   const { data: posts } = useQuery({
@@ -92,6 +95,11 @@ export default function Approvals() {
 
   return (
     <div>
+      {zoom && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-6" onClick={() => setZoom(null)}>
+          <img src={`/public-assets/${zoom}.jpg`} alt="" className="max-h-full max-w-full rounded-xl" />
+        </div>
+      )}
       <PageTitle title="Posts à valider" subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez." />
       {posts && posts.length === 0 && <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>}
       <div className="flex flex-col gap-4">
@@ -143,7 +151,28 @@ export default function Approvals() {
                   {post.broadcast.others.length > 0 ? ` · partira aussi sur ${post.broadcast.others.join(', ')} avec la même validation` : ''}
                 </p>
               )}
-              <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm text-muted">{post.caption}</p>
+              {/* Valider sans voir, c'est signer sans lire : les visuels d'abord. */}
+              {post.vignettes && post.vignettes.length > 0 && (
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                  {post.vignettes.slice(0, 8).map((id) => (
+                    <button
+                      key={id}
+                      className="shrink-0 rounded-lg border border-line transition-colors hover:border-accent/60"
+                      onClick={() => setZoom(id)}
+                      title="Agrandir"
+                    >
+                      <img src={`/public-assets/${id}.jpg`} alt="" className="h-36 w-28 rounded-lg object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <p className="mt-3 whitespace-pre-wrap text-sm text-muted">{post.caption}</p>
+              {post.hashtags.length > 0 && <p className="mt-1 text-xs text-muted">{post.hashtags.join(' ')}</p>}
+              {post.commentTriggerKeyword && (
+                <p className="mt-1.5 text-xs text-muted">
+                  Mot à commenter : <span className="mono text-ice">{post.commentTriggerKeyword}</span>
+                </p>
+              )}
               {inProgress ? (
                 <p className="mt-4 flex items-center gap-2 text-xs text-muted">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />

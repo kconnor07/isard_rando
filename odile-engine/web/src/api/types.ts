@@ -36,6 +36,8 @@ export interface PostSummaryDto {
   };
   /** le compte qui publie, en clair : « Alexis Duquenoy », « page Odile AI », « Instagram » */
   surface?: string;
+  /** identifiants des visuels rendus, dans l'ordre (vignettes de validation) */
+  vignettes?: string[];
   /** diffusion simultanée : ce post et ses copies sur les autres comptes */
   broadcast?: { group: string; surface: string; others: string[] } | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;

@@ -1118,7 +1118,7 @@ function Preview({ draft, kind, valid }: { draft: Draft; kind: string; valid: bo
       {zoom && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4" onClick={closeZoom}>
           <img src={zoom} alt="Aperçu en taille réelle" className="max-h-full max-w-full rounded-xl shadow-2xl" />
-          <button className="absolute right-4 top-4 rounded-full bg-ink/80 p-2 text-txt" onClick={closeZoom} title="Fermer">
+          <button className="absolute right-4 top-4 rounded-full bg-ink/80 p-2 text-txt" aria-label="Fermer l'aperçu" onClick={closeZoom} title="Fermer">
             <X size={18} />
           </button>
         </div>

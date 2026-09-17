@@ -44,7 +44,7 @@ export default function LibraryPicker({
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-[15px] font-bold tracking-tight">{title}</h3>
-          <button className="pill-btn" onClick={onClose} title="Fermer">
+          <button className="pill-btn" onClick={onClose} title="Fermer" aria-label="Fermer la bibliothèque">
             <X size={14} />
           </button>
         </div>
