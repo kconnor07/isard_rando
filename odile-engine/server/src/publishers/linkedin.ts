@@ -314,6 +314,11 @@ export class LinkedInPublisher implements Publisher {
 /** Payload « à blanc » pour le mode dry-run (contrôle visuel dans var/outbox). */
 export function linkedInDryPayload(input: PublishInput): unknown {
   const isOrg = input.post.channel === 'li_org';
+  // En simulation, on nomme le compte qui publierait vraiment : c'est précisément
+  // ce qu'on vient vérifier quand plusieurs profils sont connectés.
+  const compte = compteDuPost(input.post);
+  const auteur = compte?.actor ?? (isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>');
+  const nomDuCompte = compte?.name ?? (isOrg ? 'page entreprise (non connectée)' : 'profil (non connecté)');
   if (input.video) {
     return {
       endpoint: `${API}/rest/posts`,
@@ -322,8 +327,9 @@ export function linkedInDryPayload(input: PublishInput): unknown {
         { call: 'PUT <uploadUrl> par tranches de 4 Mo', relever: 'ETag de chaque tranche' },
         { call: `POST ${API}/rest/videos?action=finalizeUpload`, body: { finalizeUploadRequest: { video: 'urn:li:video:<ID>', uploadedPartIds: ['<etags>'] } } },
       ],
+      compte: nomDuCompte,
       body: {
-        author: isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>',
+        author: auteur,
         commentary: commentary(input.caption),
         content: { media: { id: 'urn:li:video:<ID>', title: input.post.hook.slice(0, 120) } },
       },
@@ -336,8 +342,9 @@ export function linkedInDryPayload(input: PublishInput): unknown {
         { call: `POST ${API}/rest/documents?action=initializeUpload`, body: { initializeUploadRequest: { owner: '<OWNER>' } } },
         { call: 'PUT <uploadUrl> — le PDF en une fois', pages: input.images.length },
       ],
+      compte: nomDuCompte,
       body: {
-        author: isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>',
+        author: auteur,
         commentary: commentary(input.caption),
         content: { media: { id: 'urn:li:document:<ID>', title: titreDocument(input.post.hook) } },
       },
@@ -346,8 +353,9 @@ export function linkedInDryPayload(input: PublishInput): unknown {
   return {
     endpoint: `${API}/rest/posts`,
     headers: { 'linkedin-version': LINKEDIN_VERSION, 'x-restli-protocol-version': '2.0.0' },
+    compte: nomDuCompte,
     body: {
-      author: isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>',
+      author: auteur,
       commentary: commentary(input.caption),
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED' },

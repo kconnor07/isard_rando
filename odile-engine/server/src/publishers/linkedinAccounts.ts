@@ -11,7 +11,7 @@
  */
 import { and, desc, eq, isNotNull } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
-import { listStoredTokens, type StoredToken, type TokenSubject } from './tokens.js';
+import { listStoredTokens, updateTokenMeta, type StoredToken, type TokenSubject } from './tokens.js';
 
 export interface CompteLinkedIn {
   /** Clé de la connexion (sub du membre, id de l'organisation). */
@@ -124,10 +124,44 @@ export function compteDuCanal(channel: string): CompteLinkedIn | null {
 }
 
 /** Droits nécessaires pour lire et écrire des commentaires, selon la surface. */
-export function droitCommentaire(compte: CompteLinkedIn): { peutRepondre: boolean; manque: string } {
-  const attendu = compte.subject === 'li_org' ? 'w_organization_social' : 'w_member_social';
-  if (compte.scopes.includes(attendu)) return { peutRepondre: true, manque: '' };
-  return { peutRepondre: false, manque: attendu };
+export function droitCommentaire(compte: CompteLinkedIn): {
+  peutRepondre: boolean;
+  manque: string;
+  /** LinkedIn n'ouvre la LECTURE des commentaires qu'avec un droit à part, qu'il n'accorde pas à toutes les applications. */
+  peutLire: boolean;
+  manqueLecture: string;
+} {
+  const ecriture = compte.subject === 'li_org' ? 'w_organization_social' : 'w_member_social';
+  const lecture = compte.subject === 'li_org' ? 'r_organization_social' : 'r_member_social';
+  return {
+    peutRepondre: compte.scopes.includes(ecriture),
+    manque: compte.scopes.includes(ecriture) ? '' : ecriture,
+    peutLire: compte.scopes.includes(lecture),
+    manqueLecture: compte.scopes.includes(lecture) ? '' : lecture,
+  };
+}
+
+/**
+ * Ce que le dernier passage du lecteur de commentaires a donné, compte par compte.
+ *
+ * Sans cette trace, un refus de LinkedIn (droit de lecture non accordé) ne vivait
+ * que dans les logs du serveur : le tunnel semblait branché alors qu'aucun
+ * commentaire n'était jamais lu.
+ */
+export interface EtatLecture {
+  ok: boolean;
+  detail: string;
+  at: string;
+}
+
+export function noterLecture(compte: CompteLinkedIn, etat: Omit<EtatLecture, 'at'>): void {
+  updateTokenMeta('linkedin', compte.subject, { lectureCommentaires: { ...etat, at: new Date().toISOString() } }, compte.key);
+}
+
+export function etatLecture(compte: CompteLinkedIn): EtatLecture | null {
+  const token = jetonDuCompte(compte);
+  const brut = token?.meta.lectureCommentaires as EtatLecture | undefined;
+  return brut && typeof brut.ok === 'boolean' ? brut : null;
 }
 
 export type { TokenSubject };

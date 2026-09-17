@@ -129,3 +129,53 @@ describe('comptes LinkedIn multiples', async () => {
     deleteToken('linkedin', 'li_org');
   });
 });
+
+describe('santé de la chaîne commentaires (multi-comptes)', async () => {
+  process.env.DATA_DIR ??= `${process.cwd()}/var-test-sante-${process.pid}`;
+  process.env.APP_SECRET ??= 'x'.repeat(48);
+  const { storeToken, deleteToken } = await import('../src/publishers/tokens.js');
+  const { comptesLinkedIn, droitCommentaire, etatLecture, noterLecture } = await import('../src/publishers/linkedinAccounts.js');
+  const { connectionWarnings } = await import('../src/publishers/refresh.js');
+  const { linkedInDryPayload } = await import('../src/publishers/linkedin.js');
+  const { schema } = await import('../src/db/client.js');
+
+  const compte = (cle: string) => comptesLinkedIn('li_person').find((c) => c.key === cle)!;
+
+  it('distingue le droit d’écrire une réponse et celui de lire les commentaires', () => {
+    deleteToken('linkedin', 'li_person');
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'complet', externalId: 'P1', accessToken: 't', scopes: 'w_member_social,r_member_social', meta: { name: 'Complet' } });
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'ecriture', externalId: 'P2', accessToken: 't', scopes: 'w_member_social', meta: { name: 'Écriture seule' } });
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'muet', externalId: 'P3', accessToken: 't', scopes: 'openid,profile', meta: { name: 'Muet' } });
+
+    expect(droitCommentaire(compte('complet'))).toMatchObject({ peutRepondre: true, peutLire: true });
+    expect(droitCommentaire(compte('ecriture'))).toMatchObject({ peutRepondre: true, peutLire: false, manqueLecture: 'r_member_social' });
+    expect(droitCommentaire(compte('muet'))).toMatchObject({ peutRepondre: false, manque: 'w_member_social', peutLire: false });
+  });
+
+  it('un refus de lecture est consigné sur le compte et remonte en avertissement', () => {
+    noterLecture(compte('ecriture'), { ok: false, detail: 'droit r_member_social non accordé par LinkedIn' });
+    const etat = etatLecture(compte('ecriture'));
+    expect(etat?.ok).toBe(false);
+    expect(etat?.detail).toContain('r_member_social');
+    expect(etat?.at).toBeTruthy();
+
+    const alerte = connectionWarnings().find((w) => w.message.includes('Écriture seule'));
+    expect(alerte?.message).toContain('commentaires illisibles');
+    expect(alerte?.message).toContain('aucune réponse automatique');
+
+    // Un passage réussi efface l'alerte.
+    noterLecture(compte('ecriture'), { ok: true, detail: '' });
+    expect(etatLecture(compte('ecriture'))?.ok).toBe(true);
+    expect(connectionWarnings().some((w) => w.message.includes('commentaires illisibles'))).toBe(false);
+  });
+
+  it('le payload de simulation nomme le compte qui publierait vraiment', () => {
+    const post = {
+      id: 1, platform: 'linkedin', channel: 'li_personal', liAccountKey: 'ecriture', format: 'li_image',
+      hook: 'Accroche', caption: 'Texte', hashtags: '[]',
+    } as unknown as typeof schema.posts.$inferSelect;
+    const payload = linkedInDryPayload({ post, images: [], caption: 'Texte' }) as { compte: string; body: { author: string } };
+    expect(payload.compte).toBe('Écriture seule');
+    expect(payload.body.author).toBe('urn:li:person:P2');
+  });
+});

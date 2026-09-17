@@ -302,10 +302,22 @@ export function connectionWarnings(now = Date.now()): ConnectionWarning[] {
   for (const row of db.select().from(schema.oauthTokens).all()) {
     const meta = row.meta ? (JSON.parse(row.meta) as Record<string, unknown>) : {};
     const label = labels[row.subject] ?? row.subject;
+    const nom = typeof meta.name === 'string' && meta.name ? ` ${meta.name}` : '';
     const lastCheck = meta.lastCheck as { ok?: boolean; detail?: string } | undefined;
     if (lastCheck && lastCheck.ok === false) {
-      warnings.push({ provider: row.provider, subject: row.subject, level: 'error', message: `${label} : ${lastCheck.detail ?? 'connexion en échec'}` });
+      warnings.push({ provider: row.provider, subject: row.subject, level: 'error', message: `${label}${nom} : ${lastCheck.detail ?? 'connexion en échec'}` });
       continue;
+    }
+    // Lecture des commentaires refusée : le tunnel commentaire → ressource est muet
+    // sur ce compte, sans que rien ne le signale ailleurs.
+    const lecture = meta.lectureCommentaires as { ok?: boolean; detail?: string } | undefined;
+    if (lecture && lecture.ok === false) {
+      warnings.push({
+        provider: row.provider,
+        subject: row.subject,
+        level: 'warn',
+        message: `${label}${nom} : commentaires illisibles (${lecture.detail ?? 'refus de LinkedIn'}) — aucune réponse automatique ne partira sur ce compte`,
+      });
     }
     const left = daysLeft(row.expiresAt, now);
     if (left === null) continue;

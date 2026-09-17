@@ -29,6 +29,8 @@ interface CompteLinkedInDto {
   connectedAt: string | null;
   peutRepondre: boolean;
   manque: string;
+  /** dernier passage du lecteur de commentaires sur ce compte */
+  lecture: { ok: boolean; detail: string; at: string } | null;
 }
 interface OrgsDto {
   orgScopes: boolean;
@@ -503,10 +505,14 @@ export default function Setup() {
                   </div>
                   {profils.map((c) => (
                     <div key={c.key} className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/[0.03] px-3 py-2 text-xs">
-                      <Dot ok={c.actif} warn={c.actif && !c.peutRepondre} />
+                      <Dot ok={c.actif} warn={c.actif && (!c.peutRepondre || c.lecture?.ok === false)} />
                       <span className="font-semibold">{c.name}</span>
                       {c.role && <span className="text-muted">· {c.role}</span>}
                       {!c.peutRepondre && <span className="text-muted">· droit {c.manque} absent : reconnecte ce profil</span>}
+                      {/* La lecture des commentaires est le maillon qui casse en silence : LinkedIn
+                          ne l'accorde pas à toutes les applications, et sans elle le tunnel est muet. */}
+                      {c.lecture?.ok === false && <span className="text-muted">· commentaires illisibles : {c.lecture.detail}</span>}
+                      {c.lecture?.ok === true && <span className="text-muted">· commentaires lus ✓</span>}
                       <span className="ml-auto flex items-center gap-1">
                         <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => void etiquetterCompte(c)} title="Étiquette">
                           Étiquette

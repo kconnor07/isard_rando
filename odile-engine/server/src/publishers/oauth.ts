@@ -12,7 +12,7 @@ import { getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
 import { db, schema } from '../db/client.js';
 import { expliquerErreurMeta } from './metaErrors.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
-import { droitCommentaire, toutesLesSurfaces } from './linkedinAccounts.js';
+import { droitCommentaire, etatLecture, toutesLesSurfaces } from './linkedinAccounts.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
 
@@ -459,6 +459,8 @@ export function registerOauthRoutes(app: FastifyInstance): void {
       connectedAt: c.connectedAt,
       peutRepondre: droitCommentaire(c).peutRepondre,
       manque: droitCommentaire(c).manque,
+      /** Lecture des commentaires : ce que LinkedIn a répondu au dernier passage. */
+      lecture: etatLecture(c),
     })),
   }));
 

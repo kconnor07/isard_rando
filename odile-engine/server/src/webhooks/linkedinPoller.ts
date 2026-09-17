@@ -25,6 +25,7 @@ import {
   compteDuPost,
   droitCommentaire,
   jetonDuCompte,
+  noterLecture,
   toutesLesSurfaces,
   type CompteLinkedIn,
 } from '../publishers/linkedinAccounts.js';
@@ -185,10 +186,20 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     let elements: LiComment[];
     try {
       elements = await lireCommentaires(token.accessToken, post.externalPostId!);
+      noterLecture(compte, { ok: true, detail: '' });
     } catch (err) {
-      // La lecture des commentaires d'un profil dépend d'un droit que LinkedIn
-      // n'accorde pas à toutes les apps (r_member_social) : on le dit, sans casser.
-      logger.warn({ post: post.id, compte: compte.name, err: String(err).slice(0, 200) }, 'lecture des commentaires LinkedIn impossible');
+      // La lecture des commentaires dépend d'un droit que LinkedIn n'accorde pas à
+      // toutes les applications (r_member_social pour un profil). Le refus était
+      // jusqu'ici invisible : le tunnel paraissait branché alors qu'aucun
+      // commentaire n'était jamais lu. Il est désormais consigné sur le compte et
+      // remonte dans « Connexions & santé ».
+      const detail = err instanceof Error ? err.message : String(err);
+      const droit = droitCommentaire(compte);
+      noterLecture(compte, {
+        ok: false,
+        detail: droit.peutLire ? detail.slice(0, 300) : `droit ${droit.manqueLecture} non accordé par LinkedIn`,
+      });
+      logger.warn({ post: post.id, compte: compte.name, err: detail.slice(0, 200) }, 'lecture des commentaires LinkedIn impossible');
       continue;
     }
     const lien = linkForPost(post.id);
