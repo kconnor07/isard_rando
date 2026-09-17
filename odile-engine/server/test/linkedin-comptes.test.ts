@@ -66,12 +66,29 @@ describe('réponse sous un commentaire LinkedIn', async () => {
   });
 });
 
-describe('caption LinkedIn sans aucun lien', async () => {
-  const { sansLien } = await import('../src/writer/generate.js');
+describe('le lien dans la caption', async () => {
+  const { avecLien, sansLien } = await import('../src/writer/generate.js');
 
-  it('retire le placeholder et les URL sans laisser de trou', () => {
+  it('sansLien retire le placeholder et les URL sans laisser de trou (Instagram)', () => {
     expect(sansLien('Le guide ici : {{link}} .\n\nSource : Les Échos https://lesechos.fr/x')).toBe('Le guide ici :.\n\nSource : Les Échos');
     expect(sansLien('Commente GUIDE 👇')).toBe('Commente GUIDE 👇');
+    // Une étiquette privée de son adresse ne reste pas ouverte sur le vide…
+    expect(sansLien('Commente GUIDE.\n\nOu directement ici : https://o/r/abc')).toBe('Commente GUIDE.');
+    // … mais une ligne qui annonce une liste garde ses deux points.
+    expect(sansLien('Ce qui change :\n→ moins d’erreurs')).toBe('Ce qui change :\n→ moins d’erreurs');
+  });
+
+  it('avecLien laisse une seule adresse, la nôtre, juste sous le mot-clé (LinkedIn)', () => {
+    const url = 'https://odile-engine.duckdns.org/r/ab23cd45';
+    expect(avecLien('Le guide : {{link}}', url)).toBe(`Le guide : ${url}`);
+    // Une URL inventée par le modèle disparaît ; la nôtre, traçable, reste.
+    expect(avecLien(`Vu sur https://exemple.fr/x\n\nLe guide : ${url}`, url)).toBe(`Vu sur\n\nLe guide : ${url}`);
+    // Lien oublié : il se pose juste après l'appel à l'action, pas à la fin.
+    expect(avecLien('Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOdile AI', url, 'GUIDE')).toBe(
+      `Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOu directement ici : ${url}\n\nOdile AI`,
+    );
+    // Sans mot-clé (ou sans CTA repérable), en fin de texte.
+    expect(avecLien('Trois idées.', url, null)).toBe(`Trois idées.\n\nOu directement ici : ${url}`);
   });
 });
 

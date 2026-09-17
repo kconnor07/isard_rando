@@ -29,10 +29,22 @@ describe('diffusion simultanée', async () => {
     expect(surfacesManquantes({ channel: 'ig', liAccountKey: null }).map((s) => s.label)).toEqual(['Moi', 'Alexis Duquenoy', 'page Odile AI']);
   });
 
-  it('en mode mock, l’adaptation garde le texte et retire tout lien pour LinkedIn', async () => {
-    const post = { caption: 'Voilà {{link}} et https://x.y/z fin', cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE', hook: 'h' };
-    expect((await adapterLegende(post, 'instagram', 'linkedin')).caption).toBe('Voilà et fin');
-    expect((await adapterLegende(post, 'linkedin', 'instagram')).caption).toBe(post.caption);
+  it('LinkedIn garde le lien en emplacement, Instagram n’en garde aucun', async () => {
+    const { config } = await import('../src/config.js');
+    // Le lien du parent redevient {{link}} : chaque copie posera le sien.
+    const post = {
+      caption: `Voilà ${config.PUBLIC_URL}/r/ab23cd45 et https://x.y/z fin`,
+      cta: 'Commente GUIDE',
+      commentTriggerKeyword: 'GUIDE',
+      hook: 'h',
+    };
+    expect((await adapterLegende(post, 'instagram', 'linkedin')).caption).toBe('Voilà {{link}} et fin');
+    expect((await adapterLegende(post, 'linkedin', 'instagram')).caption).toBe('Voilà et fin');
+    // Un texte venu d'Instagram n'a aucun lien : LinkedIn en reçoit un, sous le mot-clé.
+    const sansRien = { caption: 'Trois idées.\n\nCommente GUIDE pour le recevoir.', cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE', hook: 'h' };
+    expect((await adapterLegende(sansRien, 'instagram', 'linkedin')).caption).toBe(
+      'Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOu directement ici : {{link}}',
+    );
   });
 
   it('un post fabriqué est recopié partout : mêmes slides rendues, lien propre à chaque copie', async () => {
@@ -66,6 +78,9 @@ describe('diffusion simultanée', async () => {
       expect(f.linkId).not.toBe(parent.linkId);
       const lienFrere = db.select().from(schema.links).where(eq(schema.links.id, f.linkId!)).get()!;
       expect(lienFrere.targetUrl).toBe('https://odile-engine.duckdns.org/guide/abc');
+      // Sur LinkedIn, la description porte le lien — celui de CETTE copie, jamais un autre.
+      expect(f.caption).toContain(`/r/${lienFrere.code}`);
+      expect(f.caption).not.toContain('{{link}}');
       const slides = db.select().from(schema.slides).where(eq(schema.slides.postId, f.id)).orderBy(schema.slides.idx).all();
       expect(slides.map((s) => s.renderAssetId)).toEqual(['asset-0', 'asset-1', 'asset-2']);
     }

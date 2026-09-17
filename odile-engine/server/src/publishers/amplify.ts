@@ -5,10 +5,10 @@
  * que le moteur fait désormais seul :
  *
  * 1. Le COMMENTAIRE D'AMORCE, posté par le compte auteur juste après la publication.
- *    Il porte le lien de la source — interdit dans le post lui-même, où un lien
- *    externe fait chuter la portée — et rappelle le mot-clé à commenter. Il ne donne
- *    jamais la ressource promise : celle-ci reste au bout du commentaire, sinon le
- *    tunnel n'a plus de raison d'exister.
+ *    Il rappelle le mot-clé à commenter, et rien d'autre : AUCUN lien. Le lien, un
+ *    seul, vit désormais dans la description du post. Il ne donne jamais la ressource
+ *    promise : celle-ci reste au bout du commentaire, sinon le tunnel n'a plus de
+ *    raison d'exister.
  * 2. Les COMMENTAIRES DE L'ÉQUIPE, une demi-heure plus tard : les autres comptes
  *    connectés commentent le post de leur collègue. Un commentaire précoce pèse
  *    beaucoup plus qu'un like dans le classement LinkedIn, et ouvre le post aux
@@ -29,7 +29,6 @@ import { getAmplification, getBrand } from '../db/settingsRepo.js';
 import { verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
-import { createLink } from '../shortener/index.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 import { commenterPostLinkedIn } from '../webhooks/linkedinPoller.js';
 import {
@@ -106,39 +105,17 @@ export function amplificateursDus(args: {
 }
 
 /**
- * Le commentaire d'amorce : la source, puis le rappel du mot-clé.
+ * Le commentaire d'amorce : le rappel du mot-clé, sans aucun lien.
  *
- * Sans source à citer ni mot-clé à rappeler, il n'a rien à dire — on ne poste rien
- * plutôt qu'un commentaire creux sous son propre post.
+ * Le lien vit dans la description du post — le répéter ici ne servirait qu'à
+ * disperser les clics sur deux adresses. Sans mot-clé à rappeler, l'amorce n'a rien
+ * à dire : on ne poste rien plutôt qu'un commentaire creux sous son propre post.
  */
 export function texteAmorce(
   post: Pick<Post, 'commentTriggerKeyword' | 'resourceKind' | 'resourceTitle'>,
-  lienSource: string | null,
 ): string | null {
-  const lignes: string[] = [];
-  if (lienSource) lignes.push(`Source complète : ${lienSource}`);
-  if (post.commentTriggerKeyword) {
-    lignes.push(
-      `Et pour recevoir ${nommerRessource(post)} : commente ${post.commentTriggerKeyword} ici, je te l'envoie en réponse.`,
-    );
-  }
-  return lignes.length ? lignes.join('\n\n') : null;
-}
-
-/** Lien court et tracké vers l'article source, pour le commentaire d'amorce. */
-function lienSourceDuPost(post: Post): string | null {
-  if (!post.newsItemId) return null;
-  const news = db
-    .select({ url: schema.newsItems.url })
-    .from(schema.newsItems)
-    .where(eq(schema.newsItems.id, post.newsItemId))
-    .get();
-  if (!news?.url) return null;
-  return createLink(news.url, {
-    postId: post.id,
-    label: `amorce-${post.id}`,
-    utm: { utm_source: 'linkedin', utm_medium: 'comment', utm_campaign: `post-${post.id}` },
-  }).shortUrl;
+  if (!post.commentTriggerKeyword) return null;
+  return `Pour recevoir ${nommerRessource(post)} : commente ${post.commentTriggerKeyword} ici, je te l'envoie en réponse.`;
 }
 
 const commentaireSchema = z.object({ texte: z.string().min(20).max(600) });
@@ -253,7 +230,7 @@ export async function amplifierPostsPublies(now = new Date()): Promise<ResumeAmp
       const jeton = jetonDuCompte(compte);
       if (!jeton) continue;
       const texte =
-        role === 'amorce' ? texteAmorce(post, lienSourceDuPost(post)) : await texteDeCollegue(post, compte);
+        role === 'amorce' ? texteAmorce(post) : await texteDeCollegue(post, compte);
       if (!texte) {
         // Rien à dire : on note le passage de l'amorce (elle ne dira jamais rien de
         // plus), mais pas celui d'un collègue — le modèle pourra réessayer plus tard.

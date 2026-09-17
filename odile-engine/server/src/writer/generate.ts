@@ -8,6 +8,7 @@ import {
   type GeneratedPost,
   type PostFormat,
 } from '@odile/shared';
+import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import {
   getBrand,
@@ -296,12 +297,14 @@ CE QUE LA PERSONNE RECEVRA EN PRIVÉ, et que tu dois déclarer dans "resource" :
   adresse officielle dans resource.toolUrl (celle du site de l'outil, pas celle de l'article) ;
 — "article" sinon : elle recevra ${promesseDuLien}.
 La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`
-      : `CTA LinkedIn : même mécanique que sur Instagram — un mot-clé simple en majuscules
-(par ex. ${dm.keywords.join(', ')}), et le CTA se construit autour de « Commente [MOT-CLÉ] ».
-La personne reçoit ce qu'on lui promet en réponse sous son commentaire, au nom du compte qui
-publie (LinkedIn n'ouvre sa messagerie à aucune application). Renseigne commentTrigger
-{enabled: true, keyword}. AUCUN lien, AUCUNE URL dans la caption : un lien externe dans le
-texte fait chuter la portée du post.
+      : `CTA LinkedIn : DEUX CHEMINS, et les deux comptent.
+1. Le mot-clé, comme sur Instagram : un mot simple en majuscules (par ex. ${dm.keywords.join(', ')}),
+   et le CTA se construit autour de « Commente [MOT-CLÉ] ». La personne reçoit ce qu'on lui promet
+   en réponse sous son commentaire, au nom du compte qui publie (LinkedIn n'ouvre sa messagerie à
+   aucune application). Renseigne commentTrigger {enabled: true, keyword}.
+2. Le lien direct, pour qui ne veut pas commenter : écris le marqueur {{link}} — et rien d'autre,
+   jamais une URL inventée. Le moteur le remplacera par une adresse courte traçable.
+Les deux se suivent en fin de post : l'appel à commenter, puis « Ou directement ici : {{link}} ».
 CE QUE LA PERSONNE RECEVRA, et que tu dois déclarer dans "resource" :
 — "guide" si la promesse mérite un document à part (méthode, pas-à-pas, modèle) : le moteur
   le RÉDIGERA et l'enverra en PDF, donne-lui son titre exact dans resource.title ;
@@ -337,9 +340,10 @@ STRATÉGIE LINKEDIN (le texte du post, « caption ») :
 - ORDRE DE FIN DE POST, sans rien d'autre entre les lignes :
   1. une ligne vide ;
   2. l'appel à l'action seul sur sa ligne : « Commente [MOT-CLÉ] » (écrit en toutes lettres, c'est lui qui déclenche l'envoi) ;
-  3. « Source : média, auteur » ;
-  4. la mention de ${brand.name}, intégrée à l'une de ces deux lignes ;
-  5. les 3 hashtags.`
+  3. « Ou directement ici : {{link}} » (le marqueur tel quel, jamais une URL) ;
+  4. « Source : média, auteur » ;
+  5. la mention de ${brand.name}, intégrée à l'une de ces deux lignes ;
+  6. les 3 hashtags.`
       : '';
 
   // Vidéo : le script est prononcé par l'avatar de la marque, pas lu à l'écran.
@@ -426,15 +430,71 @@ CONTRAINTES :
   return persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte });
 }
 
-/** Retire placeholder et URL d'un texte destiné à LinkedIn, sans laisser de trou. */
+const porteUnLien = (ligne: string) => ligne.includes('{{link}}') || /https?:\/\//i.test(ligne);
+
+/**
+ * Nettoie un texte ligne à ligne après avoir touché aux liens.
+ *
+ * Une étiquette privée de son adresse — « Ou directement ici : », « Source : » —
+ * ne veut plus rien dire : la ligne part avec le lien, au lieu de rester ouverte
+ * sur le vide. Le reste est seulement resserré (espaces avant ponctuation, lignes
+ * vides en trop).
+ */
+function nettoyer(texte: string, transformer: (ligne: string) => string): string {
+  const lignes = texte.split('\n').flatMap((ligne) => {
+    const nette = transformer(ligne)
+      .replace(/[ \t]+([.,!?])/g, '$1')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trimEnd();
+    if (porteUnLien(ligne) && !porteUnLien(nette) && (!nette.trim() || /[:：>→»]$/.test(nette.trim()))) return [];
+    return [nette];
+  });
+  return lignes.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Pose le lien court dans un texte destiné à LinkedIn.
+ *
+ * Deux chemins cohabitent : le lien dans la description, pour qui veut aller droit
+ * au but, et « Commente [MOT-CLÉ] » pour qui préfère demander — le commentaire
+ * nourrit le post, le lien sert les pressés. Toute autre URL inventée par le
+ * modèle est retirée : une seule adresse, la nôtre, traçable.
+ */
+export function avecLien(texte: string, url: string, motcle?: string | null): string {
+  const propre = nettoyer(texte, (ligne) =>
+    ligne.replaceAll('{{link}}', url).replace(/https?:\/\/\S+/gi, (trouve) => (trouve.startsWith(url) ? trouve : '')),
+  );
+  if (propre.includes(url)) return propre;
+  // Le modèle a oublié le lien : on le pose nous-mêmes, juste après l'appel à
+  // l'action quand il y en a un, en fin de texte sinon.
+  const ligne = `Ou directement ici : ${url}`;
+  if (!motcle) return `${propre}\n\n${ligne}`;
+  const lignes = propre.split('\n');
+  const cle = motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const iCta = lignes.findIndex((l) => new RegExp(`commente\\s+${cle}`, 'i').test(l));
+  if (iCta === -1) return `${propre}\n\n${ligne}`;
+  lignes.splice(iCta + 1, 0, '', ligne);
+  return lignes.join('\n');
+}
+
+/**
+ * Filet de sécurité après une réécriture (studio de design, régénération) : le
+ * modèle a pu effacer le lien court. On le remet — sur LinkedIn seulement, puisque
+ * sur Instagram aucun lien n'est affiché, tout part en message privé.
+ */
+export function relierLeLien(
+  post: { platform: string; linkId: number | null; commentTriggerKeyword: string | null },
+  texte: string,
+): string {
+  if (post.platform !== 'linkedin' || !post.linkId) return texte;
+  const lien = db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get();
+  if (!lien) return texte;
+  return avecLien(texte, `${config.PUBLIC_URL}/r/${lien.code}`, post.commentTriggerKeyword);
+}
+
+/** Retire placeholder et URL d'un texte qui n'en veut aucun (Instagram), sans laisser de trou. */
 export function sansLien(texte: string): string {
-  return texte
-    .replaceAll('{{link}}', '')
-    .replace(/https?:\/\/\S+/gi, '')
-    .replace(/[ \t]+([.,!?])/g, '$1')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/ +\n/g, '\n')
-    .trim();
+  return nettoyer(texte, (ligne) => ligne.replaceAll('{{link}}', '').replace(/https?:\/\/\S+/gi, ''));
 }
 
 function persistDraft(args: {
@@ -492,20 +552,25 @@ function persistDraft(args: {
     label: `post-${post.id}`,
     utm: { utm_source: platform, utm_medium: 'social', utm_campaign: `post-${post.id}` },
   });
-  // Sur LinkedIn, aucun lien dans le texte : le lien part sous le commentaire. Un
-  // `{{link}}` ou une URL glissés par le modèle sont retirés plutôt que remplacés.
+  // Le lien court traçable est posé dans le texte des deux plateformes. Sur LinkedIn
+  // il accompagne le mot-clé au lieu de le remplacer : commenter nourrit le post,
+  // le lien sert ceux qui veulent aller droit au but.
+  const motcle = generated.commentTrigger?.enabled ? generated.commentTrigger.keyword.toUpperCase() : null;
   const caption =
-    platform === 'linkedin' ? sansLien(generated.caption) : generated.caption.replaceAll('{{link}}', link.shortUrl);
-  const cta = platform === 'linkedin' ? sansLien(generated.cta) : generated.cta.replaceAll('{{link}}', link.shortUrl);
+    platform === 'linkedin'
+      ? avecLien(generated.caption, link.shortUrl, motcle)
+      : generated.caption.replaceAll('{{link}}', link.shortUrl);
+  const cta = generated.cta.replaceAll('{{link}}', link.shortUrl);
   db.update(schema.posts)
     .set({ caption, cta, linkId: link.id })
     .where(eq(schema.posts.id, post.id))
     .run();
 
   generated.slides.forEach((slide, idx) => {
-    db.insert(schema.slides)
-      .values({ postId: post.id, idx, kind: slide.kind, content: JSON.stringify(slide) })
-      .run();
+    // Le marqueur de lien n'a rien à faire sur un visuel : une image ne se clique pas,
+    // et « {{link}} » imprimé sur une slide se voit jusqu'à la fin du post.
+    const content = JSON.stringify(slide).replaceAll('{{link}}', '').replace(/ {2,}/g, ' ');
+    db.insert(schema.slides).values({ postId: post.id, idx, kind: slide.kind, content }).run();
   });
 
   db.update(schema.newsItems).set({ status: 'used' }).where(eq(schema.newsItems.id, news.id)).run();

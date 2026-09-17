@@ -464,8 +464,8 @@ export default function Settings() {
           Commentaire d'amorce du compte qui publie
         </label>
         <p className="mb-3 text-xs text-muted">
-          Le lien de la source — interdit dans le post lui-même, où il fait chuter la portée — plus le rappel du mot-clé à commenter. Il ne donne jamais la ressource
-          promise : elle reste au bout du commentaire, sinon le tunnel n'a plus de raison d'être.
+          Le rappel du mot-clé à commenter, et rien d'autre : <strong>aucun lien sous le post</strong>, le lien vit dans la description. Il ne donne jamais la
+          ressource promise : elle reste au bout du commentaire, sinon le tunnel n'a plus de raison d'être.
         </p>
         <label className="mb-1 flex items-center gap-2 text-sm">
           <input type="checkbox" className="accent-sky-500" checked={form.amplification?.crossComment ?? true}
@@ -522,6 +522,11 @@ export default function Settings() {
             <p className="mt-2 text-xs text-muted">
               Le rédacteur en est informé : la promesse de la dernière slide désigne ce que la personne reçoit
               vraiment, et jamais un guide ou une checklist que le moteur n'envoie pas.
+            </p>
+            <p className="mt-2 text-xs text-muted">
+              C'est aussi l'adresse posée dans la <strong>description des posts LinkedIn</strong> (« Ou directement ici : … ») : ceux qui ne veulent pas
+              commenter y vont d'un clic, les autres passent par le mot-clé et arrivent en message privé. Un code de suivi par compte : on sait d'où vient
+              chaque clic. Sur Instagram et Facebook, aucun lien — tout part en privé.
             </p>
             {form.dm_triggers.linkTarget === 'fixe' && (
               <div className="mt-3 grid gap-3">

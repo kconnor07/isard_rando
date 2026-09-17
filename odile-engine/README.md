@@ -43,9 +43,13 @@ Moteur de veille, rédaction, design et publication **LinkedIn + Instagram** pou
 8. **Publication automatique** au créneau optimal (étude algo dans
    [docs/instagram-algorithme-2026.md](docs/instagram-algorithme-2026.md)) :
    LinkedIn (profil + page entreprise) et Instagram (carrousels + statiques).
-9. **Commentaire → DM** façon ManyChat : mot-clé commenté sur Instagram → message
-   privé automatique avec lien tracké. LinkedIn (pas d'API DM) : email avec
-   réponse pré-rédigée à coller en 1 clic.
+9. **Deux chemins vers la ressource**, jamais trois : sur LinkedIn, le mot-clé à
+   commenter **et** le lien tracké dans la description (« Ou directement ici : … »,
+   un code de suivi par compte) ; sous le post, le commentaire d'amorce rappelle le
+   mot-clé sans aucun lien. Sur Instagram et Facebook, aucun lien affiché — tout part
+   en privé. **Commentaire → DM** façon ManyChat : mot-clé commenté sur Instagram →
+   message privé automatique. LinkedIn (pas d'API DM) : réponse publique sous le
+   commentaire, au nom du compte qui publie.
 10. **Tracking de clics** intégré (`/r/<code>` + UTM) et analytics dans le dashboard.
 
 ## Démarrage rapide (local)

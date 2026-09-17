@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { slideContentSchema, type ReviewIssue, type SlideContent } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { completeJson } from '../llm/router.js';
+import { relierLeLien } from '../writer/generate.js';
 
 const fixSchema = z.object({
   slides: z.array(slideContentSchema),
@@ -79,7 +80,7 @@ Renvoie l'intégralité corrigée (slides + caption + cta).`,
     });
   }
   db.update(schema.posts)
-    .set({ caption: value.caption, cta: value.cta, updatedAt: new Date().toISOString() })
+    .set({ caption: relierLeLien(post, value.caption), cta: value.cta, updatedAt: new Date().toISOString() })
     .where(eq(schema.posts.id, postId))
     .run();
   return { applied: issues.length };

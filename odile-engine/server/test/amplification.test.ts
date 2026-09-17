@@ -68,14 +68,15 @@ describe('amplification', async () => {
     expect(dus.map((a) => a.compte.key)).toEqual(['moi', 'alexis']);
   });
 
-  it('le commentaire d’amorce porte la source et rappelle le mot-clé, sans donner la ressource', () => {
+  it('le commentaire d’amorce rappelle le mot-clé, sans aucun lien ni la ressource', () => {
     const post = { commentTriggerKeyword: 'GUIDE', resourceKind: 'guide' as const, resourceTitle: 'Automatiser vos devis' };
-    const texte = texteAmorce(post, 'https://odile-engine.duckdns.org/l/abc')!;
-    expect(texte).toContain('https://odile-engine.duckdns.org/l/abc');
+    const texte = texteAmorce(post)!;
+    // Le lien vit dans la description du post : sous le post, aucune URL.
+    expect(texte).not.toMatch(/https?:\/\//);
     expect(texte).toContain('commente GUIDE');
     expect(texte).toContain('le guide « Automatiser vos devis »');
     // Rien à dire = rien de publié.
-    expect(texteAmorce({ commentTriggerKeyword: null, resourceKind: 'article' as const, resourceTitle: null }, null)).toBeNull();
+    expect(texteAmorce({ commentTriggerKeyword: null, resourceKind: 'article' as const, resourceTitle: null })).toBeNull();
   });
 
   it('une passe commente sous le post, une seconde ne recommente pas', async () => {

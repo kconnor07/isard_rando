@@ -4,6 +4,7 @@ import { slideContentSchema, type SlideContent } from '@odile/shared';
 import { db, schema } from '../db/client.js';
 import { getTone } from '../db/settingsRepo.js';
 import { completeJson, completeText } from '../llm/router.js';
+import { relierLeLien } from './generate.js';
 import { toneToPrompt } from './tone.js';
 
 const captionSchema = z.object({ caption: z.string().max(2900), cta: z.string().max(280) });
@@ -35,7 +36,7 @@ export async function regeneratePart(opts: RegenerateOptions): Promise<{ ok: tru
       captionSchema,
     );
     db.update(schema.posts)
-      .set({ caption: value.caption, cta: value.cta, updatedAt: new Date().toISOString() })
+      .set({ caption: relierLeLien(post, value.caption), cta: value.cta, updatedAt: new Date().toISOString() })
       .where(eq(schema.posts.id, opts.postId))
       .run();
     return { ok: true };

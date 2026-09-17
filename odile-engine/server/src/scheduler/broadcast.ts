@@ -20,7 +20,7 @@ import { completeJson } from '../llm/router.js';
 import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import { getStoredToken } from '../publishers/tokens.js';
 import { createLink } from '../shortener/index.js';
-import { sansLien } from '../writer/generate.js';
+import { avecLien, sansLien } from '../writer/generate.js';
 
 const nanoGroupe = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
 
@@ -78,6 +78,18 @@ export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>)
 
 const legendeAdapteeSchema = z.object({ caption: z.string().min(1).max(2900), cta: z.string().max(280) });
 
+/**
+ * Le lien court du parent redevient un emplacement `{{link}}`.
+ *
+ * Chaque copie pose ensuite le sien : deux comptes qui publient le même lien,
+ * ce sont des clics que l'on ne sait plus attribuer. La cible, elle, ne change
+ * pas — c'est toujours la ressource promise.
+ */
+export function enEmplacement(texte: string): string {
+  const base = config.PUBLIC_URL.replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return texte.replace(new RegExp(`${base}/r/[a-z2-9]+`, 'gi'), '{{link}}');
+}
+
 /** La voix du compte qui publiera la copie : « je » pour un profil, « nous » pour la page. */
 function consigneVoix(compte: CompteLinkedIn): string {
   return compte.subject === 'li_org'
@@ -91,14 +103,16 @@ jamais un résumé neutre ni un communiqué.`;
 /**
  * Le même sujet, écrit pour une autre surface.
  *
- * Deux choses peuvent changer : la plateforme (LinkedIn veut court, sourcé, sans
- * lien ; Instagram accepte plus long et plus chaleureux) et le compte qui publie
- * (le profil d'Alexis ne parle pas comme la page de l'agence). Quand seul le compte
- * change, le texte est intégralement réécrit : trois profils qui publient le même
- * paragraphe au mot près, les lecteurs le voient — et l'algorithme aussi.
+ * Deux choses peuvent changer : la plateforme (LinkedIn veut court et sourcé, avec
+ * le lien dans la description ; Instagram accepte plus long et plus chaleureux, et
+ * n'affiche aucun lien — tout part en privé) et le compte qui publie (le profil
+ * d'Alexis ne parle pas comme la page de l'agence). Quand seul le compte change, le
+ * texte est intégralement réécrit : trois profils qui publient le même paragraphe au
+ * mot près, les lecteurs le voient — et l'algorithme aussi.
  *
- * Une adaptation par surface, réutilisée par les copies identiques. En mode mock ou
- * sans budget, on garde le texte tel quel (nettoyé de tout lien pour LinkedIn).
+ * Le texte rendu porte l'emplacement `{{link}}`, jamais une adresse : c'est la copie
+ * qui y posera son propre lien court. Une adaptation par surface, réutilisée par les
+ * copies identiques ; en mode mock ou sans budget, le texte d'origine est conservé.
  */
 export async function adapterLegende(
   post: Pick<Post, 'caption' | 'cta' | 'commentTriggerKeyword' | 'hook'>,
@@ -106,7 +120,13 @@ export async function adapterLegende(
   vers: 'linkedin' | 'instagram',
   compte?: CompteLinkedIn | null,
 ): Promise<{ caption: string; cta: string }> {
-  const brut = { caption: vers === 'linkedin' ? sansLien(post.caption) : post.caption, cta: vers === 'linkedin' ? sansLien(post.cta) : post.cta };
+  const motcleReel = post.commentTriggerKeyword;
+  // LinkedIn garde le lien (sous forme d'emplacement) ; Instagram n'en montre aucun.
+  const pose = (t: { caption: string; cta: string }) =>
+    vers === 'linkedin'
+      ? { caption: avecLien(enEmplacement(t.caption), '{{link}}', motcleReel), cta: enEmplacement(t.cta) }
+      : { caption: sansLien(t.caption), cta: sansLien(t.cta) };
+  const brut = pose({ caption: post.caption, cta: post.cta });
   // Même plateforme et même voix : il n'y a rien à réécrire.
   if ((de === vers && !compte) || config.LLM_MODE === 'mock') return brut;
   const verdict = verifierBudget('writing');
@@ -117,13 +137,14 @@ export async function adapterLegende(
       ? `Ce texte part aussi sur d'autres comptes de la même équipe. Réécris-le ENTIÈREMENT pour celui-ci :
 même information, même source, même appel à l'action « Commente ${motcle} », même longueur — mais une autre
 entrée en matière, un autre angle, d'autres formulations. Quelqu'un qui verrait les deux posts ne doit pas
-lire un copier-coller.${vers === 'linkedin' ? ' AUCUN lien, AUCUNE URL.' : ''}
+lire un copier-coller.${vers === 'linkedin' ? ' Garde l’emplacement {{link}} tel quel, sur sa propre ligne ; AUCUNE autre URL.' : ''}
 ${compte ? consigneVoix(compte) : ''}`
       : vers === 'linkedin'
         ? `Adapte ce texte de post Instagram pour LinkedIn : 500 à 1 000 caractères, jamais plus de 1 200 ;
 l'accroche tient dans les 200 premiers caractères ; une idée par ligne ; nomme la source en clair
-(« Source : … ») ; AUCUN lien, AUCUNE URL ; nomme ${getBrand().name} une fois dans la dernière ligne ;
-garde exactement le même appel à l'action « Commente ${motcle} ».
+(« Source : … ») ; nomme ${getBrand().name} une fois dans la dernière ligne ; garde exactement le même
+appel à l'action « Commente ${motcle} » ET, juste en dessous, la ligne « Ou directement ici : {{link}} »
+— écris {{link}} tel quel, c'est un emplacement ; AUCUNE autre URL.
 ${compte ? consigneVoix(compte) : ''}`
         : `Adapte ce texte de post LinkedIn pour Instagram : ton plus chaleureux et direct, tutoiement,
 1 200 à 2 000 caractères, aéré, quelques émojis sobres, AUCUN lien ; garde exactement le même appel à
@@ -132,12 +153,14 @@ l'action « Commente ${motcle} » pour recevoir la ressource en message privé.`
     const { value } = await completeJson(
       {
         task: 'writing',
-        prompt: `${consigne}\n\nACCROCHE : ${post.hook}\n\nTEXTE D'ORIGINE :\n"""\n${post.caption}\n"""\n\nCTA D'ORIGINE : ${post.cta}`,
+        prompt: `${consigne}\n\nACCROCHE : ${post.hook}\n\nTEXTE D'ORIGINE :\n"""\n${
+          vers === 'linkedin' ? enEmplacement(post.caption) : post.caption
+        }\n"""\n\nCTA D'ORIGINE : ${post.cta}`,
         maxTokens: 1200,
       },
       legendeAdapteeSchema,
     );
-    return vers === 'linkedin' ? { caption: sansLien(value.caption), cta: sansLien(value.cta) } : value;
+    return pose(value);
   } catch (err) {
     logger.warn({ err: String(err).slice(0, 200) }, 'adaptation de légende impossible — texte d’origine conservé');
     return brut;
@@ -236,7 +259,16 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
       label: `post-${copie.id}`,
       utm: { utm_source: surface.platform, utm_medium: 'social', utm_campaign: `post-${copie.id}` },
     });
-    db.update(schema.posts).set({ linkId: link.id }).where(eq(schema.posts.id, copie.id)).run();
+    // Chaque copie pose son propre lien court à l'emplacement laissé par l'adaptation :
+    // même destination, un code par compte — les clics restent attribuables.
+    db.update(schema.posts)
+      .set({
+        linkId: link.id,
+        caption: texte.caption.replaceAll('{{link}}', link.shortUrl),
+        cta: texte.cta.replaceAll('{{link}}', link.shortUrl),
+      })
+      .where(eq(schema.posts.id, copie.id))
+      .run();
     for (const slide of slides) {
       db.insert(schema.slides)
         .values({
