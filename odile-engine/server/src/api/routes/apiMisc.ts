@@ -14,6 +14,7 @@ import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '..
 import { loginLimiter } from '../rateLimit.js';
 import { dailyIpHash } from '../../lib/crypto.js';
 import { logger } from '../../lib/logger.js';
+import { repondreSousCommentaire } from '../../webhooks/reponsePublique.js';
 
 export function registerMiscRoutes(app: FastifyInstance): void {
   // ----- Auth ---------------------------------------------------------------
@@ -301,6 +302,35 @@ export function registerMiscRoutes(app: FastifyInstance): void {
         createdTime: c.createdTime ?? c.fetchedAt,
       };
     });
+  });
+
+  /**
+   * Envoie la réponse publique sous un commentaire, à la demande d'un humain.
+   *
+   * C'est la sortie de la boîte « à traiter » : un prospect qui n'a pas écrit le
+   * mot-clé reçoit quand même ce qu'il demande, en un clic, sous son commentaire.
+   */
+  app.post<{ Params: { id: string }; Body: { texte?: string } }>('/api/comments/:id/repondre', async (request, reply) => {
+    const id = Number(request.params.id);
+    const comment = db.select().from(schema.comments).where(eq(schema.comments.id, id)).get();
+    if (!comment) return reply.status(404).send({ error: 'Commentaire introuvable' });
+    const texte = (request.body?.texte ?? comment.suggestedReply ?? '').trim();
+    if (!texte) return reply.status(400).send({ error: 'Aucune réponse à envoyer — rédige-la d’abord.' });
+    try {
+      await repondreSousCommentaire(comment, texte);
+      db.update(schema.comments)
+        .set({ publicReplyStatus: 'sent', publicReplyError: null, dmStatus: 'handled', suggestedReply: texte })
+        .where(eq(schema.comments.id, id))
+        .run();
+      return { ok: true };
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      db.update(schema.comments)
+        .set({ publicReplyStatus: 'failed', publicReplyError: detail.slice(0, 500) })
+        .where(eq(schema.comments.id, id))
+        .run();
+      return reply.status(400).send({ error: detail });
+    }
   });
 
   app.post<{ Params: { id: string } }>('/api/comments/:id/mark-handled', async (request) => {

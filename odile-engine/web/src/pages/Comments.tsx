@@ -59,10 +59,26 @@ export default function Comments() {
     },
     onError: (err) => toast.error(humanizeError(err)),
   });
+  /** Envoie la réponse préparée sous le commentaire : la sortie de la boîte « à traiter ». */
+  const repondre = useMutation({
+    mutationFn: (args: { id: number; texte: string }) => api.post(`/api/comments/${args.id}/repondre`, { texte: args.texte }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['comments'] });
+      toast.success('Réponse postée sous le commentaire');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
   const markHandled = useMutation({
     mutationFn: (id: number) => api.post(`/api/comments/${id}/mark-handled`),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['comments'] }),
   });
+
+  /** Sans mot-clé, mais une réponse a été préparée : un humain doit trancher. */
+  const estATraiter = (c: CommentDto) =>
+    !c.matchedKeyword && Boolean(c.suggestedReply) && c.publicReplyStatus === 'none' && c.dmStatus === 'none';
+  const aTraiter = (comments ?? []).filter(estATraiter);
+  // La boîte à traiter passe devant : c'est ce qui coûte un prospect si on l'oublie.
+  const ordonnes = comments && [...comments].sort((a, b) => Number(estATraiter(b)) - Number(estATraiter(a)));
 
   return (
     <div>
@@ -119,8 +135,26 @@ export default function Comments() {
         )}
       </div>
       {comments && comments.length === 0 && <Empty>Aucun commentaire détecté pour l'instant.</Empty>}
+      {comments && comments.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+          {aTraiter.length > 0 && (
+            <span className="rounded-full border border-accent/60 bg-accent-soft/50 px-3 py-1 font-semibold text-ice">
+              {aTraiter.length} à traiter
+            </span>
+          )}
+          <span className="text-muted">
+            {comments.filter((c) => c.matchedKeyword).length} avec mot-clé · {comments.filter((c) => c.publicReplyStatus === 'sent').length} répondu(s) ·{' '}
+            {comments.length} au total
+          </span>
+        </div>
+      )}
+      {aTraiter.length > 0 && (
+        <p className="mb-3 text-xs text-muted">
+          Ces personnes demandent la ressource sans avoir écrit le mot-clé. Sans toi, elles ne reçoivent rien — la réponse est prête, il suffit de l'envoyer.
+        </p>
+      )}
       <div className="flex flex-col gap-3">
-        {comments?.map((comment) => {
+        {ordonnes?.map((comment) => {
           const dm = DM_LABELS[comment.dmStatus] ?? DM_LABELS.none!;
           return (
             <div key={comment.id} className="card p-4">
@@ -146,6 +180,40 @@ export default function Comments() {
                 <span className="ml-auto text-xs text-muted">{fmtDate(comment.createdTime)}</span>
               </div>
               <p className="mt-2 text-sm">{comment.text}</p>
+              {estATraiter(comment) && (
+                <div className="mt-3 rounded-2xl border border-accent/40 bg-accent-soft/30 p-3">
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-ice">Demande sans le mot-clé — réponse prête</div>
+                  <p className="text-sm">{comment.suggestedReply}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      className="btn-primary !py-1.5 text-xs"
+                      disabled={repondre.isPending}
+                      onClick={() => repondre.mutate({ id: comment.id, texte: comment.suggestedReply! })}
+                    >
+                      <Check size={13} /> Répondre sous le commentaire
+                    </button>
+                    <button
+                      className="btn-ghost !py-1.5 text-xs"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(comment.suggestedReply!).then(
+                          () => toast.success('Réponse copiée'),
+                          () => toast.error('Copie impossible — sélectionnez le texte à la main'),
+                        );
+                      }}
+                    >
+                      <Copy size={13} /> Copier
+                    </button>
+                    {comment.externalPostUrl && (
+                      <a href={comment.externalPostUrl} target="_blank" rel="noreferrer" className="btn-ghost !py-1.5 text-xs">
+                        Ouvrir le post <ExternalLink size={12} />
+                      </a>
+                    )}
+                    <button className="btn-ghost !py-1.5 text-xs" onClick={() => markHandled.mutate(comment.id)}>
+                      Sans suite
+                    </button>
+                  </div>
+                </div>
+              )}
               {comment.dmStatus === 'failed' && (
                 <div className="mt-3 rounded-2xl border border-line bg-white/[0.03] p-3">
                   <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted">Pourquoi le message privé n'est pas parti</div>

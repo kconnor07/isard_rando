@@ -32,6 +32,7 @@ import {
 import {
   buildReply,
   choisirVariante,
+  interetProbable,
   lienRdv,
   linkForPost,
   matchKeyword,
@@ -223,7 +224,10 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
         prenom,
         rdv: lienRdv(),
       };
-      const dm = matched ? composerReponseLinkedIn(settings.replyTemplate, contexte) : null;
+      // Sans mot-clé, la réponse est quand même préparée quand le commentaire
+      // ressemble à une demande : elle attend un humain dans la boîte « à traiter ».
+      const interesse = !matched && Boolean(post.commentTriggerKeyword) && interetProbable(text);
+      const dm = matched || interesse ? composerReponseLinkedIn(settings.replyTemplate, { ...contexte, motcle: matched ?? post.commentTriggerKeyword }) : null;
       const inserted = db
         .insert(schema.comments)
         .values({

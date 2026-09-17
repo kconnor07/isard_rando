@@ -213,6 +213,62 @@ export function contexteDuCommentaire(postId: number | null, motcle: string | nu
  * correspond, envoie UNE private reply avec le lien tracké (règles Meta :
  * 1 réponse privée par commentaire, sous 7 jours, ≤ 200 DM/h).
  */
+/**
+ * Ce commentaire mérite-t-il une réponse, alors qu'il n'a pas le mot-clé ?
+ *
+ * « Très intéressant, je veux bien la méthode » est un prospect ; « 👏 » est une
+ * politesse. Le premier doit remonter dans la boîte à traiter, le second non —
+ * une boîte pleine d'applaudissements ne se regarde plus, et la vraie demande s'y
+ * noie. On repère une marque d'intérêt, une question, ou simplement une phrase
+ * construite : le doute profite au prospect.
+ */
+const MARQUES_D_INTERET = [
+  'je veux', 'je suis preneur', 'je suis preneuse', 'preneur', 'preneuse', 'jaimerais', "j'aimerais", 'interess', 'intéress',
+  'comment', 'combien', 'prix', 'tarif', 'dispo', 'lien', 'guide', 'methode', 'méthode', 'envoie', 'envoyer', 'envoi',
+  'partage', 'recevoir', 'recois', 'reçois', 'possible', 'besoin', 'contact', 'rendez-vous', 'rendezvous', 'rdv',
+  'demo', 'démo', 'essai', 'tester', 'ca marche', 'ça marche', 'ca coute', 'ça coûte',
+];
+
+export function interetProbable(texte: string): boolean {
+  // Les apostrophes typographiques et la casse ne doivent pas décider du sort d'un
+  // prospect : on compare sur un texte mis à plat.
+  const propre = texte.replace(/[’'`]/g, "'").replace(/\s+/g, ' ').trim();
+  const bas = propre.toLowerCase();
+  if (propre.length < 3) return false;
+  if (MARQUES_D_INTERET.some((m) => bas.includes(m))) return true;
+  if (propre.includes('?')) return true;
+  // Une phrase construite (au moins six mots) est une prise de parole, pas un applaudissement.
+  return propre.split(/\s+/).filter((m) => /[a-zà-ÿ]{2,}/i.test(m)).length >= 6;
+}
+
+/**
+ * Prépare la réponse d'un commentaire qui n'a pas le mot-clé.
+ *
+ * Rien n'est envoyé : le texte attend dans la boîte « à traiter », et c'est un
+ * humain qui décide. Sans cela, un prospect qui écrit « je veux bien la méthode »
+ * au lieu de « GUIDE » ne reçoit jamais rien — le tunnel le perd.
+ */
+export function preparerSansMotCle(commentId: number): boolean {
+  const comment = db.select().from(schema.comments).where(eq(schema.comments.id, commentId)).get();
+  if (!comment || comment.matchedKeyword || comment.suggestedReply || comment.dmStatus !== 'none') return false;
+  const post = comment.postId ? db.select().from(schema.posts).where(eq(schema.posts.id, comment.postId)).get() : null;
+  // Seuls les posts qui promettent quelque chose ouvrent une boîte à traiter.
+  if (!post?.commentTriggerKeyword) return false;
+  if (!interetProbable(comment.text)) return false;
+  const contexte = contexteDuCommentaire(comment.postId, post.commentTriggerKeyword, prenomDuCommentaire(comment.authorName));
+  const texte = buildReply(getDmTriggers().replyTemplate, contexte);
+  db.update(schema.comments).set({ suggestedReply: texte }).where(eq(schema.comments.id, commentId)).run();
+  logger.info({ commentId }, 'commentaire sans mot-clé : réponse préparée, en attente d’un humain');
+  return true;
+}
+
+/** Prénom utilisable dans une réponse (« marie.dupont » → « Marie »). */
+function prenomDuCommentaire(nom: string): string | null {
+  const premier = nom.split(/[\s._-]+/).filter(Boolean)[0];
+  if (!premier || premier.length < 2 || /^\d+$/.test(premier)) return null;
+  return premier.charAt(0).toUpperCase() + premier.slice(1).toLowerCase();
+}
+
 export async function handleInstagramComment(commentId: number): Promise<void> {
   const comment = db.select().from(schema.comments).where(eq(schema.comments.id, commentId)).get();
   if (!comment || comment.dmStatus !== 'none') return;
@@ -228,7 +284,11 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
     ...settings.keywords,
   ];
   const matched = matchKeyword(comment.text, keywords);
-  if (!matched) return;
+  if (!matched) {
+    // Pas le mot-clé, mais peut-être un prospect : on prépare une réponse, sans l'envoyer.
+    preparerSansMotCle(commentId);
+    return;
+  }
 
   // Ne jamais répondre à soi-même
   const igToken = getStoredToken('meta', 'ig_user');
