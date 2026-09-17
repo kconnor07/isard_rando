@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getCadence, getFbMirror } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
+import { renderPost } from '../render/renderer.js';
 import { sendMail } from '../mailer/smtp.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 import { captionFacebook, facebookMirrorDryPayload, mirrorToFacebookPage } from './facebook.js';
@@ -64,6 +65,16 @@ async function mirrorOnFacebook(
   }
 }
 
+/** Reste-t-il une slide sans rendu ? (thème ou format changés depuis la programmation) */
+function slidesARendre(postId: number): boolean {
+  return db
+    .select({ renderAssetId: schema.slides.renderAssetId })
+    .from(schema.slides)
+    .where(eq(schema.slides.postId, postId))
+    .all()
+    .some((s) => !s.renderAssetId);
+}
+
 function publisherFor(platform: string): Publisher {
   if (config.PUBLISH_MODE === 'dry') {
     return platform === 'instagram'
@@ -113,6 +124,13 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
     try {
       const video = collectPublishVideo(post);
       // Un post vidéo n'a qu'une slide : elle sert de couverture, pas de contenu.
+      // Une slide sans rendu (thème ou format changés après la programmation) est
+      // refabriquée ici plutôt que de faire échouer la publication : modifier un
+      // post programmé ne doit jamais coûter sa parution.
+      if (slidesARendre(post.id)) {
+        logger.info({ postId: post.id }, 'slides à refabriquer avant publication');
+        await renderPost(post.id);
+      }
       const images = collectPublishImages(post.id);
       const publisher = publisherFor(post.platform);
       const result = await publisher.publish({ post, images, caption: buildCaption(post), video });

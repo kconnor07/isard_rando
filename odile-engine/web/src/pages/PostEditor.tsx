@@ -360,7 +360,15 @@ export default function PostEditor() {
     }
   };
   const outcomeMessage = (fallback: string) => (r: unknown) => (r as ActionOutcome | undefined)?.message || fallback;
+  /** Le post attend encore une décision : la barre approuver / rejeter a du sens. */
   const editable = ['draft', 'reviewing', 'awaiting_approval', 'rejected', 'failed'].includes(post.status);
+  /**
+   * Le contenu se modifie tant que rien n'est parti — programmé compris. Un post
+   * approuvé il y a trois jours et qui part demain doit pouvoir être corrigé :
+   * c'est justement le moment où on le relit. La publication prendra la dernière
+   * version, et le worker refabrique les slides si un changement les a effacées.
+   */
+  const modifiable = editable || post.status === 'scheduled';
   const inProgress = post.status === 'draft' || post.status === 'reviewing';
 
   const publishNow = async () => {
@@ -476,7 +484,7 @@ export default function PostEditor() {
         </div>
       )}
 
-      {editable && (
+      {modifiable && (
         <div className="card mb-4 flex flex-wrap items-end gap-4 p-4">
           <div className="min-w-[15rem] flex-1">
             <label className="label !mb-1">Thème visuel de ce post</label>
@@ -508,7 +516,13 @@ export default function PostEditor() {
           </div>
           <div className="min-w-[11rem]">
             <label className="label !mb-1">Canal</label>
-            <select className="input" value={post.channel} disabled={!!busy} onChange={(e) => patchPost.mutate({ channel: e.target.value })}>
+            <select
+              className="input"
+              value={post.channel}
+              disabled={!!busy || post.status === 'scheduled'}
+              title={post.status === 'scheduled' ? 'Le créneau appartient à la plateforme : annule la programmation pour changer de canal' : undefined}
+              onChange={(e) => patchPost.mutate({ channel: e.target.value })}
+            >
               {Object.entries(CHANNEL_LABELS).map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
@@ -555,11 +569,21 @@ export default function PostEditor() {
       {post.status === 'scheduled' && (
         <div className="card mb-6 flex flex-wrap items-center gap-3 p-4">
           <span className="text-sm text-muted">
-            Programmé pour <b className="text-txt">{fmtDate(post.scheduledAt)}</b>.
+            Part le <b className="text-txt">{fmtDate(post.scheduledAt)}</b>
+            {post.surface ? (
+              <>
+                {' '}
+                depuis <b className="text-txt">{post.surface}</b>
+              </>
+            ) : null}
+            . Tu peux encore modifier le texte et les visuels : c'est la dernière version qui partira.
           </span>
           <span className="flex-1" />
           <button className="btn-ghost" disabled={!!busy} onClick={() => void scheduleAt()}>
             <CalendarClock size={14} /> Déplacer
+          </button>
+          <button className="btn-ghost" disabled={!!busy} onClick={run('render', () => api.post(`/api/posts/${post.id}/render`), { done: 'Slides refabriquées' })}>
+            {busy === 'render' ? 'Rendu…' : 'Régénérer les images'}
           </button>
           <button className="btn-ghost" disabled={!!busy} onClick={() => void publishNow()}>
             <Zap size={14} /> Publier maintenant
@@ -579,7 +603,7 @@ export default function PostEditor() {
             ))}
           </div>
 
-          {editable && <VisualAgentPanel post={post} locked={!!busy} onChanged={refresh} />}
+          {modifiable && <VisualAgentPanel post={post} locked={!!busy} onChanged={refresh} />}
 
           <h2 className="mb-3 mt-8 text-lg font-bold">
             Caption
@@ -591,12 +615,12 @@ export default function PostEditor() {
             className="input min-h-44 font-mono text-[13px] leading-relaxed"
             value={caption}
             onChange={(e) => setCaptionDraft(e.target.value)}
-            disabled={!editable}
+            disabled={!modifiable}
           />
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <button
               className="btn-primary"
-              disabled={!editable || !!busy || caption === post.caption}
+              disabled={!modifiable || !!busy || caption === post.caption}
               onClick={run('caption', async () => {
                 await api.patch(`/api/posts/${post.id}`, { caption });
                 setCaptionDraft(null);
@@ -609,7 +633,7 @@ export default function PostEditor() {
                 Annuler les modifications
               </button>
             )}
-            <button className="btn-ghost" disabled={!editable || !!busy} onClick={() => void regenCaption()}>
+            <button className="btn-ghost" disabled={!modifiable || !!busy} onClick={() => void regenCaption()}>
               <RefreshCw size={12} /> Régénérer par l'IA
             </button>
             <span className="text-xs text-muted">{post.hashtags.join(' ')}</span>

@@ -3,8 +3,8 @@ import { CalendarClock, ChevronLeft, ChevronRight, FileText, Film, Images, Image
 import { useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, humanizeError } from '../api/client';
-import type { ActionOutcomeDto, PostSummaryDto, SlotDto } from '../api/types';
-import { Empty, PageTitle, StatusBadge } from '../components/shared';
+import type { ActionOutcomeDto, PostDetailDto, PostSummaryDto, SlotDto } from '../api/types';
+import { CHANNEL_LABELS, Empty, fmtDate, FORMAT_LABELS, PageTitle, StatusBadge } from '../components/shared';
 import { toast } from '../components/Toaster';
 import {
   aujourdhuiYmd,
@@ -62,6 +62,8 @@ export default function Calendar() {
   const [glisse, setGlisse] = useState<number | null>(null);
   const [cible, setCible] = useState<string | null>(null);
   const [picker, setPicker] = useState<{ at: string; postId: number | null } | null>(null);
+  /** post ouvert dans le panneau d'aperçu (compte, texte, visuels) */
+  const [apercu, setApercu] = useState<number | null>(null);
 
   const debut = ymdPlus(lundiDe(aujourdhuiYmd()), offsetSemaines * 7);
   const fin = ymdPlus(debut, SEMAINES * 7 - 1);
@@ -76,6 +78,11 @@ export default function Calendar() {
   const slotsQ = useQuery({
     queryKey: ['schedule', 'slots', range],
     queryFn: () => api.get<SlotDto[]>(`/api/schedule/slots?${range}`),
+  });
+  const detailQ = useQuery({
+    queryKey: ['post', apercu],
+    queryFn: () => api.get<PostDetailDto>(`/api/posts/${apercu}`),
+    enabled: apercu !== null,
   });
   const fileQ = useQuery({
     queryKey: ['posts', 'schedulable'],
@@ -189,15 +196,15 @@ export default function Calendar() {
               </span>
             )}
           </div>
-          {/* draggable={false} : sans cela le navigateur glisserait le LIEN (son URL) au lieu du post. */}
-          <Link
-            to={`/posts/${post.id}`}
+          {/* Un clic ouvre l'aperçu : ce qui part, depuis quel compte, avec quel visuel. */}
+          <button
             draggable={false}
-            className={`mt-0.5 block font-semibold hover:text-ice ${compact ? 'line-clamp-2' : ''}`}
-            title={post.hook}
+            className={`mt-0.5 block w-full text-left font-semibold hover:text-ice ${compact ? 'line-clamp-2' : ''}`}
+            title="Voir ce qui part : compte, texte, visuels"
+            onClick={() => setApercu(post.id)}
           >
             {post.hook || '(sans titre)'}
-          </Link>
+          </button>
           {post.surface && <div className="truncate text-[10px] text-muted">{post.surface}</div>}
           {deplacable && (
             <button
@@ -416,6 +423,116 @@ export default function Calendar() {
             Rien sur ces {SEMAINES} semaines. Les créneaux se règlent dans Réglages → Cadence &amp; créneaux ; approuve un post ou clique « Programmer à une
             date ».
           </Empty>
+        </div>
+      )}
+
+      {/* Aperçu : ce qui part, depuis quel compte, avec quel visuel et quel texte */}
+      {apercu !== null && (
+        <div className="fixed inset-0 z-[70] flex justify-end bg-black/60 backdrop-blur-sm" onClick={() => setApercu(null)}>
+          <aside
+            className="flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-line bg-bg p-5 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {detailQ.isPending && <p className="text-sm text-muted">Chargement…</p>}
+            {detailQ.isError && <p className="text-sm text-muted">{humanizeError(detailQ.error)}</p>}
+            {detailQ.data && (
+              <>
+                <div className="mb-3 flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                      <StatusBadge status={detailQ.data.status} simulated={detailQ.data.simulated} />
+                      <span className="mono uppercase">{PLATEFORME_COURT[detailQ.data.platform] ?? detailQ.data.platform}</span>
+                      <span>{FORMAT_LABELS[detailQ.data.format] ?? detailQ.data.format}</span>
+                    </div>
+                    <h2 className="mt-1 text-lg font-bold leading-snug">{detailQ.data.hook || `Post #${detailQ.data.id}`}</h2>
+                  </div>
+                  <button className="text-muted hover:text-txt" onClick={() => setApercu(null)} aria-label="Fermer">
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* Qui publie, et quand */}
+                <div className="card mb-3 p-3 text-sm">
+                  <div className="label !mb-1">Compte</div>
+                  <div className="font-semibold">{detailQ.data.surface ?? CHANNEL_LABELS[detailQ.data.channel] ?? detailQ.data.channel}</div>
+                  <div className="mt-2 text-xs text-muted">
+                    {detailQ.data.scheduledAt
+                      ? `Part le ${fmtDate(detailQ.data.scheduledAt)}`
+                      : detailQ.data.publishedAt
+                        ? `Publié le ${fmtDate(detailQ.data.publishedAt)}`
+                        : 'Pas encore programmé'}
+                  </div>
+                  {detailQ.data.broadcast && (
+                    <div className="mt-2 text-xs text-muted">
+                      Même sujet sur : {detailQ.data.broadcast.others.join(' · ')}
+                    </div>
+                  )}
+                </div>
+
+                {/* Les visuels tels qu'ils partiront */}
+                {detailQ.data.slides.length > 0 && (
+                  <div className="mb-3">
+                    <div className="label !mb-1.5">Visuels ({detailQ.data.slides.length})</div>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {detailQ.data.slides.map((slide) =>
+                        slide.renderAssetId ? (
+                          <img
+                            key={slide.id}
+                            src={`/public-assets/${slide.renderAssetId}.jpg`}
+                            alt=""
+                            className="h-40 w-32 shrink-0 rounded-lg border border-line object-cover"
+                          />
+                        ) : (
+                          <div key={slide.id} className="flex h-40 w-32 shrink-0 items-center justify-center rounded-lg border border-dashed border-line text-[11px] text-muted">
+                            à rendre
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Le texte exact */}
+                <div className="mb-3">
+                  <div className="label !mb-1.5">Description</div>
+                  <p className="whitespace-pre-wrap rounded-2xl border border-line bg-white/[0.03] p-3 text-sm leading-relaxed">{detailQ.data.caption}</p>
+                  {detailQ.data.hashtags.length > 0 && <p className="mt-1.5 text-xs text-muted">{detailQ.data.hashtags.join(' ')}</p>}
+                </div>
+
+                {/* Ce que le post promet */}
+                {detailQ.data.commentTriggerKeyword && (
+                  <div className="mb-4 text-xs text-muted">
+                    Mot à commenter : <span className="mono text-ice">{detailQ.data.commentTriggerKeyword}</span>
+                    {detailQ.data.resource?.title ? ` · envoie « ${detailQ.data.resource.title} »` : ''}
+                  </div>
+                )}
+
+                <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                  <Link className="btn-primary !py-1.5 text-xs" to={`/posts/${detailQ.data.id}`}>
+                    Modifier ce post
+                  </Link>
+                  {detailQ.data.status === 'scheduled' && (
+                    <button
+                      className="btn-ghost !py-1.5 text-xs"
+                      onClick={() => {
+                        ouvrirPicker(detailQ.data!.scheduledAt ?? new Date().toISOString(), detailQ.data!.id);
+                        setApercu(null);
+                      }}
+                    >
+                      <CalendarClock size={12} /> Déplacer
+                    </button>
+                  )}
+                  {detailQ.data.externalUrl && (
+                    <a className="btn-ghost !py-1.5 text-xs" href={detailQ.data.externalUrl} target="_blank" rel="noreferrer">
+                      Voir en ligne
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
+          </aside>
         </div>
       )}
 
