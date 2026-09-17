@@ -17,7 +17,7 @@ import { getBrand, getCadence } from '../db/settingsRepo.js';
 import { verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
-import { comptesLinkedIn, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
+import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import { getStoredToken } from '../publishers/tokens.js';
 import { createLink } from '../shortener/index.js';
 import { sansLien } from '../writer/generate.js';
@@ -78,30 +78,56 @@ export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>)
 
 const legendeAdapteeSchema = z.object({ caption: z.string().min(1).max(2900), cta: z.string().max(280) });
 
+/** La voix du compte qui publiera la copie : « je » pour un profil, « nous » pour la page. */
+function consigneVoix(compte: CompteLinkedIn): string {
+  return compte.subject === 'li_org'
+    ? `VOIX : la page entreprise ${compte.name}. Écris au « nous » — la voix de l'agence, collective mais
+incarnée. Aucun « je », aucune anecdote personnelle, aucun ton de communiqué (« nous sommes ravis de »).`
+    : `VOIX : ${compte.name}${compte.role ? ` (${compte.role})` : ''}, depuis son profil personnel. Écris à la
+PREMIÈRE PERSONNE DU SINGULIER (« je », « ce que j'en retiens ») : un point de vue assumé de praticien,
+jamais un résumé neutre ni un communiqué.`;
+}
+
 /**
- * Le même texte, adapté à l'autre plateforme. LinkedIn veut court, sourcé, sans
- * lien ; Instagram accepte plus long et plus chaleureux. Une seule adaptation par
- * groupe, réutilisée par tous les posts de la même plateforme. En mode mock ou
+ * Le même sujet, écrit pour une autre surface.
+ *
+ * Deux choses peuvent changer : la plateforme (LinkedIn veut court, sourcé, sans
+ * lien ; Instagram accepte plus long et plus chaleureux) et le compte qui publie
+ * (le profil d'Alexis ne parle pas comme la page de l'agence). Quand seul le compte
+ * change, le texte est intégralement réécrit : trois profils qui publient le même
+ * paragraphe au mot près, les lecteurs le voient — et l'algorithme aussi.
+ *
+ * Une adaptation par surface, réutilisée par les copies identiques. En mode mock ou
  * sans budget, on garde le texte tel quel (nettoyé de tout lien pour LinkedIn).
  */
 export async function adapterLegende(
   post: Pick<Post, 'caption' | 'cta' | 'commentTriggerKeyword' | 'hook'>,
   de: 'linkedin' | 'instagram',
   vers: 'linkedin' | 'instagram',
+  compte?: CompteLinkedIn | null,
 ): Promise<{ caption: string; cta: string }> {
   const brut = { caption: vers === 'linkedin' ? sansLien(post.caption) : post.caption, cta: vers === 'linkedin' ? sansLien(post.cta) : post.cta };
-  if (de === vers || config.LLM_MODE === 'mock') return brut;
+  // Même plateforme et même voix : il n'y a rien à réécrire.
+  if ((de === vers && !compte) || config.LLM_MODE === 'mock') return brut;
   const verdict = verifierBudget('writing');
   if (!verdict.autorise) return brut;
+  const motcle = post.commentTriggerKeyword ?? 'le mot-clé';
   const consigne =
-    vers === 'linkedin'
-      ? `Adapte ce texte de post Instagram pour LinkedIn : 500 à 1 000 caractères, jamais plus de 1 200 ;
+    de === vers
+      ? `Ce texte part aussi sur d'autres comptes de la même équipe. Réécris-le ENTIÈREMENT pour celui-ci :
+même information, même source, même appel à l'action « Commente ${motcle} », même longueur — mais une autre
+entrée en matière, un autre angle, d'autres formulations. Quelqu'un qui verrait les deux posts ne doit pas
+lire un copier-coller.${vers === 'linkedin' ? ' AUCUN lien, AUCUNE URL.' : ''}
+${compte ? consigneVoix(compte) : ''}`
+      : vers === 'linkedin'
+        ? `Adapte ce texte de post Instagram pour LinkedIn : 500 à 1 000 caractères, jamais plus de 1 200 ;
 l'accroche tient dans les 200 premiers caractères ; une idée par ligne ; nomme la source en clair
 (« Source : … ») ; AUCUN lien, AUCUNE URL ; nomme ${getBrand().name} une fois dans la dernière ligne ;
-garde exactement le même appel à l'action « Commente ${post.commentTriggerKeyword ?? 'le mot-clé'} ».`
-      : `Adapte ce texte de post LinkedIn pour Instagram : ton plus chaleureux et direct, tutoiement,
+garde exactement le même appel à l'action « Commente ${motcle} ».
+${compte ? consigneVoix(compte) : ''}`
+        : `Adapte ce texte de post LinkedIn pour Instagram : ton plus chaleureux et direct, tutoiement,
 1 200 à 2 000 caractères, aéré, quelques émojis sobres, AUCUN lien ; garde exactement le même appel à
-l'action « Commente ${post.commentTriggerKeyword ?? 'le mot-clé'} » pour recevoir la ressource en message privé.`;
+l'action « Commente ${motcle} » pour recevoir la ressource en message privé.`;
   try {
     const { value } = await completeJson(
       {
@@ -148,16 +174,23 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
   const lienParent = parent.linkId ? db.select().from(schema.links).where(eq(schema.links.id, parent.linkId)).get() : null;
   const cible = lienParent?.targetUrl ?? parent.resourceUrl ?? 'https://odileai.com';
 
-  // Une adaptation par plateforme cible, pas par compte.
-  const textes = new Map<'linkedin' | 'instagram', { caption: string; cta: string }>();
-  for (const vers of new Set(aFaire.map((s) => s.platform))) {
-    textes.set(vers, await adapterLegende(parent, parent.platform, vers));
+  // Une adaptation par surface : changer de plateforme demande une traduction,
+  // changer de compte demande une autre voix. Deux surfaces identiques la partagent.
+  const cleSurface = (s: SurfaceDiffusion) => `${s.platform}|${s.liAccountKey ?? ''}`;
+  const textes = new Map<string, { caption: string; cta: string }>();
+  for (const surface of aFaire) {
+    if (textes.has(cleSurface(surface))) continue;
+    const compte =
+      surface.platform === 'linkedin'
+        ? compteDuPost({ channel: surface.channel, liAccountKey: surface.liAccountKey })
+        : null;
+    textes.set(cleSurface(surface), await adapterLegende(parent, parent.platform, surface.platform, compte));
   }
 
   const crees: number[] = [];
   const now = new Date().toISOString();
   for (const surface of aFaire) {
-    const texte = textes.get(surface.platform)!;
+    const texte = textes.get(cleSurface(surface))!;
     const format = surface.platform === 'linkedin' ? 'li_image' : slides.length > 1 ? 'carousel' : 'static';
     const copie = db
       .insert(schema.posts)

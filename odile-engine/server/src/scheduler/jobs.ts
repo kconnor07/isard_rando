@@ -109,6 +109,14 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'publish-due en échec'));
   }, { timezone: TZ });
 
+  // Amplification : commentaire d'amorce de l'auteur, puis commentaires des collègues sous le post
+  cron.schedule('*/10 * * * *', () => {
+    void (async () => {
+      const { amplifierPostsPublies } = await import('../publishers/amplify.js');
+      await runJob('amplify', () => amplifierPostsPublies());
+    })().catch((err) => logger.error({ err: String(err) }, 'amplify en échec'));
+  }, { timezone: TZ });
+
   // LinkedIn : lecture des commentaires de chaque profil et de la page, réponse sous le commentaire (pas d'API DM, pas de webhook)
   cron.schedule('*/30 * * * *', () => {
     void (async () => {

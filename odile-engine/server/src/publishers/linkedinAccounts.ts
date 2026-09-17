@@ -110,6 +110,19 @@ export function prochainComptePersonnel(): CompteLinkedIn | null {
   return actifs.slice().sort((a, b) => (dernier.get(a.key) ?? '').localeCompare(dernier.get(b.key) ?? ''))[0]!;
 }
 
+/**
+ * Le compte qui publiera un brouillon de ce canal — avant même que le post existe.
+ *
+ * Le rédacteur en a besoin AVANT d'écrire : un post signé d'un profil ne se raconte
+ * pas comme un post de la page. Publier avec un autre compte que celui annoncé au
+ * rédacteur produirait un texte à la première personne signé par quelqu'un d'autre.
+ */
+export function compteDuCanal(channel: string): CompteLinkedIn | null {
+  if (channel === 'li_personal') return prochainComptePersonnel();
+  if (channel === 'li_org') return comptesLinkedIn('li_org').find((c) => c.actif) ?? null;
+  return null;
+}
+
 /** Droits nécessaires pour lire et écrire des commentaires, selon la surface. */
 export function droitCommentaire(compte: CompteLinkedIn): { peutRepondre: boolean; manque: string } {
   const attendu = compte.subject === 'li_org' ? 'w_organization_social' : 'w_member_social';

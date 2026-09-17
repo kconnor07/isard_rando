@@ -13,6 +13,10 @@ type AllSettings = Record<string, unknown> & {
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string };
   fb_mirror: { enabled: boolean };
+  amplification: {
+    enabled: boolean; firstComment: boolean; firstCommentDelayMinutes: number; crossComment: boolean;
+    delayMinutes: number; spacingMinutes: number; maxAccounts: number;
+  };
   video: {
     enabled: boolean; everyNPosts: number; avatarType: 'avatar' | 'talking_photo'; avatarId: string; avatarStyle: string;
     voiceId: string; voiceSpeed: number; backgroundType: 'couleur' | 'image'; backgroundValue: string;
@@ -125,7 +129,7 @@ export default function Settings() {
   }, [settings]);
 
   const SECTION_LABELS: Record<string, string> = {
-    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', llm_budget: 'Budget IA',
+    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', amplification: 'Amplification', llm_budget: 'Budget IA',
     design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
     default_theme: 'Thème par défaut', default_format: 'Format par défaut', video: 'Vidéos avatar',
   };
@@ -372,8 +376,12 @@ export default function Settings() {
         </label>
         <p className="mb-4 text-xs text-muted">
           Un seul sujet, une seule validation : le post part sur chaque profil LinkedIn de l’équipe, sur la page entreprise, sur Instagram — et sur la Page Facebook
-          dans la foulée. Mêmes visuels partout ; le texte est réécrit court et sans lien pour LinkedIn, plus chaleureux pour Instagram. La rotation ci-dessus ne
-          sert alors qu’à choisir le texte de départ.
+          dans la foulée. Mêmes visuels partout ; le texte est <strong>réécrit pour chaque compte</strong> — à la première personne pour un profil, au « nous » pour la
+          page, et adapté à chaque plateforme. La rotation ci-dessus ne sert alors qu’à choisir le texte de départ.
+        </p>
+        <p className="mb-4 text-xs text-muted">
+          Les copies ne partent pas à la même minute : chacune prend le créneau suivant de sa plateforme. Trois comptes qui publient le même sujet à la même seconde se
+          repèrent ; étalés sur les créneaux de la semaine, ils font trois passages au lieu d’un.
         </p>
         <div className="grid gap-6 sm:grid-cols-2">
           <div><label className="label">Créneaux Instagram</label>
@@ -420,9 +428,59 @@ export default function Settings() {
           consigné sur le post et laisse la publication Instagram intacte.
         </p>
         <p className="mt-2 text-xs text-muted">
+          La recopie est aussi active tant que « publier sur tous les comptes » l'est (Cadence) — décocher ici suffit à
+          l'arrêter dès que la diffusion l'est aussi. La légende, elle, est adaptée : le moteur ne lit que les commentaires
+          Instagram, donc « Commente MOT-CLÉ » est remplacé sur Facebook par un renvoi vers la publication Instagram, là où
+          la promesse est tenue.
+        </p>
+        <p className="mt-2 text-xs text-muted">
           Exige la permission <code>pages_manage_posts</code> sur l'app Meta : ajoutez-la aux autorisations, puis
           reconnectez le compte depuis Connexions &amp; santé.
         </p>
+      </Section>
+
+      <Section title="Amplification" saving={savingOf('amplification')} onSave={() => save.mutate({ key: 'amplification', value: form.amplification })}>
+        <p className="mb-3 text-xs text-muted">
+          Ce qui se passe <strong>sous</strong> un post LinkedIn une fois publié. C'est ce que font à la main les équipes qui percent : un commentaire précoce pèse
+          bien plus qu'un like dans le classement LinkedIn, et ouvre le post aux réseaux des collègues.
+        </p>
+        <label className="mb-3 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.amplification?.enabled ?? true}
+            onChange={(e) => set('amplification', { ...form.amplification, enabled: e.target.checked })} />
+          Activer l'amplification des posts LinkedIn
+        </label>
+        <label className="mb-1 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.amplification?.firstComment ?? true}
+            onChange={(e) => set('amplification', { ...form.amplification, firstComment: e.target.checked })} />
+          Commentaire d'amorce du compte qui publie
+        </label>
+        <p className="mb-3 text-xs text-muted">
+          Le lien de la source — interdit dans le post lui-même, où il fait chuter la portée — plus le rappel du mot-clé à commenter. Il ne donne jamais la ressource
+          promise : elle reste au bout du commentaire, sinon le tunnel n'a plus de raison d'être.
+        </p>
+        <label className="mb-1 flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={form.amplification?.crossComment ?? true}
+            onChange={(e) => set('amplification', { ...form.amplification, crossComment: e.target.checked })} />
+          Les autres comptes connectés commentent le post
+        </label>
+        <p className="mb-3 text-xs text-muted">
+          Chaque collègue écrit son propre commentaire, à sa voix, avec un angle ou un exemple — jamais un « super post ». Un compte ne commente qu'une fois le même
+          post, et rien ne part au-delà de 48 h.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-4">
+          <div><label className="label">Amorce après (min)</label>
+            <input type="number" min={1} max={120} className="input" value={form.amplification?.firstCommentDelayMinutes ?? 4}
+              onChange={(e) => set('amplification', { ...form.amplification, firstCommentDelayMinutes: Number(e.target.value) })} /></div>
+          <div><label className="label">Collègues après (min)</label>
+            <input type="number" min={5} max={360} className="input" value={form.amplification?.delayMinutes ?? 25}
+              onChange={(e) => set('amplification', { ...form.amplification, delayMinutes: Number(e.target.value) })} /></div>
+          <div><label className="label">Écart entre eux (min)</label>
+            <input type="number" min={5} max={180} className="input" value={form.amplification?.spacingMinutes ?? 20}
+              onChange={(e) => set('amplification', { ...form.amplification, spacingMinutes: Number(e.target.value) })} /></div>
+          <div><label className="label">Comptes max</label>
+            <input type="number" min={1} max={5} className="input" value={form.amplification?.maxAccounts ?? 2}
+              onChange={(e) => set('amplification', { ...form.amplification, maxAccounts: Number(e.target.value) })} /></div>
+        </div>
       </Section>
 
       <Section title="Commentaire → DM" saving={savingOf('dm_triggers')} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>

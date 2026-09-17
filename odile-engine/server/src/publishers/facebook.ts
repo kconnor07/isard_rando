@@ -13,6 +13,37 @@ export interface MirrorResult {
 }
 
 /**
+ * La légende de la recopie Facebook.
+ *
+ * Le moteur ne lit que les commentaires Instagram : Meta n'envoie pas les
+ * commentaires de Page au même webhook, et personne ne répondrait à quelqu'un qui
+ * commente « GUIDE » sur Facebook. Laisser l'appel à l'action tel quel serait donc
+ * une promesse que rien ne tient. On le remplace par un renvoi vers la publication
+ * Instagram, là où le mot-clé fonctionne vraiment.
+ */
+export function captionFacebook(args: {
+  caption: string;
+  motcle: string | null;
+  /** ce qui est promis, nommé : « le guide « … » » */
+  ressource: string;
+  urlInstagram: string | null;
+}): string {
+  const { caption, motcle, ressource, urlInstagram } = args;
+  if (!motcle) return caption;
+  const motif = new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+  const nettoye = caption
+    .split('\n')
+    .filter((ligne) => !motif.test(ligne))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  const renvoi = urlInstagram
+    ? `👉 Pour recevoir ${ressource}, commente ${motcle} sous cette publication sur Instagram : ${urlInstagram}`
+    : `👉 Pour recevoir ${ressource}, commente ${motcle} sous cette publication sur notre Instagram.`;
+  return `${nettoye}\n\n${renvoi}`;
+}
+
+/**
  * Recopie d'une publication Instagram sur la Page Facebook liée.
  *
  * Une image : photo publiée directement avec sa légende. Plusieurs : chaque image

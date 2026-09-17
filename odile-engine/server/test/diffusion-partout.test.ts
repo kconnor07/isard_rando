@@ -77,10 +77,10 @@ describe('diffusion simultanée', async () => {
     expect(schedulePost(parent.id, quand).ok).toBe(true);
     const freres = freresDuGroupe(parent);
     expect(freres.every((f) => f.status === 'scheduled' && f.scheduledAt)).toBe(true);
-    // Autre plateforme : un vrai créneau LinkedIn, jamais avant l'original, et LE MÊME
-    // pour toutes les copies — le sujet part ensemble sur chaque compte.
+    // Chaque copie a son propre créneau, jamais avant l'original : le même sujet ne part
+    // pas à la même minute depuis trois comptes.
     for (const f of freres) expect(new Date(f.scheduledAt!).getTime()).toBeGreaterThanOrEqual(new Date(quand).getTime());
-    expect(new Set(freres.map((f) => f.scheduledAt)).size).toBe(1);
+    expect(new Set(freres.map((f) => f.scheduledAt)).size).toBe(freres.length);
     expect(unschedulePost(parent.id).ok).toBe(true);
     expect(freresDuGroupe(parent).every((f) => f.status === 'awaiting_approval' && !f.scheduledAt)).toBe(true);
   });

@@ -169,6 +169,13 @@
       "when": 1789636733048,
       "tag": "0023_video-avatar",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789640607818,
+      "tag": "0024_amplification",
+      "breakpoints": true
     }
   ]
 }

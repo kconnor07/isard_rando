@@ -37,6 +37,13 @@ function buildMockText(req: LlmRequest): string {
       return JSON.stringify({ scores: ids.map(score) });
     }
     case 'writing': {
+      // Amplification : le commentaire qu'un collègue poste sous le post.
+      if (/Tu écris un commentaire LinkedIn/.test(req.prompt)) {
+        return JSON.stringify({
+          texte:
+            'Mock : ce que je vois chez nos clients, c’est exactement ça — le blocage n’est jamais l’outil, c’est le temps de le brancher sur l’existant.',
+        });
+      }
       // Guide livré en message privé : le mock en produit un complet, pour que la
       // chaîne « promesse → PDF » se vérifie sans appeler un modèle.
       if (/Tu rédiges un guide PDF/.test(req.prompt)) {

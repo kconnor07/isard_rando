@@ -19,7 +19,7 @@ import {
   getTone,
   getVideo,
 } from '../db/settingsRepo.js';
-import { comptesLinkedIn, prochainComptePersonnel } from '../publishers/linkedinAccounts.js';
+import { compteDuCanal, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import { videoDue } from '../video/index.js';
 import { completeJson } from '../llm/router.js';
 import { ICON_IDS } from '../render/icons.js';
@@ -227,6 +227,9 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const brand = getBrand();
   const dm = getDmTriggers();
   const imageGen = getImageGen();
+  // Qui publiera ce post, décidé AVANT d'écrire : tour de rôle entre les profils
+  // personnels connectés, ou la page entreprise. Le texte est rédigé à sa voix.
+  const compte = compteDuCanal(channel);
 
   const isCarousel = format === 'carousel';
   const isReel = format === 'reel';
@@ -325,6 +328,26 @@ SCRIPT DE LA VIDÉO (champ "videoScript") — c'est le cœur de ce post :
 - Ponctue pour la respiration : un point là où l'avatar doit marquer une pause.`
     : '';
 
+  // Qui parle. Sans cette consigne, chaque compte publie le même communiqué à la
+  // troisième personne : trois fois la même voix, que les lecteurs — et l'algorithme —
+  // repèrent immédiatement comme de la duplication.
+  const specEnonciateur =
+    platform === 'linkedin' && compte
+      ? compte.subject === 'li_org'
+        ? `
+QUI PARLE : la page entreprise ${brand.name}.
+- Écris au « nous » : la voix de l'agence, collective mais incarnée.
+- Ce que NOUS observons sur le terrain, ce que nous en faisons pour les PME que nous accompagnons.
+- Aucun « je », aucune anecdote personnelle. Aucun « nous sommes ravis de » non plus : on informe, on ne communique pas.`
+        : `
+QUI PARLE : ${compte.name}${compte.role ? `, ${compte.role}` : ''}, depuis son profil personnel — pas depuis la page de la marque.
+- Écris à la PREMIÈRE PERSONNE DU SINGULIER : « je », « ce que j'en retiens », « ce que je vois chez nos clients ».
+- Un point de vue assumé de praticien : ce que cette actualité change concrètement pour les dirigeants
+  que cette personne accompagne. Une opinion, pas un résumé neutre.
+- ${brand.name} se dit « chez nous », « l'agence » — jamais comme une entreprise tierce dont on parlerait.
+- Bannis le ton communiqué : « nous sommes ravis de », « notre équipe a le plaisir de », « c'est avec fierté que ».`
+      : '';
+
   const prompt = `ACTUALITÉ SOURCE (à transformer en post ${platform === 'instagram' ? 'Instagram' : 'LinkedIn'}) :
 Titre : ${news.title}
 Résumé : ${news.summary ?? '(pas de résumé)'}
@@ -347,7 +370,7 @@ ${buildArchetypeSpec(isCarousel, imagesAllowed)}
 FORMAT DEMANDÉ : ${slideSpec}
 
 ${ctaSpec}
-${strategieLinkedIn}${specVideo}
+${specEnonciateur}${strategieLinkedIn}${specVideo}
 CONTRAINTES :
 - Tout en français. Source anglophone : TRANSPOSE, ne traduis pas — adapte l'histoire et les ordres de
   grandeur au quotidien d'une PME française. Marque : ${brand.name} (${brand.handle}).
@@ -370,7 +393,7 @@ CONTRAINTES :
     { attempts: 3 },
   );
 
-  return persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien });
+  return persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte });
 }
 
 /** Retire placeholder et URL d'un texte destiné à LinkedIn, sans laisser de trou. */
@@ -394,21 +417,14 @@ function persistDraft(args: {
   generated: GeneratedPost;
   /** cible du lien court : l'article source, ou l'adresse fixe des réglages */
   cibleDuLien: string;
+  /** compte qui publie — choisi AVANT la rédaction, puisque le texte porte sa voix */
+  compte: CompteLinkedIn | null;
 }): DraftResult {
-  const { news, channel, platform, format, theme, tone, generated, cibleDuLien } = args;
+  const { news, channel, platform, format, theme, tone, generated, cibleDuLien, compte } = args;
 
   const archetype = ARCHETYPES.some((a) => a.id === generated.archetype)
     ? generated.archetype!
     : null;
-  // Qui publie : tour de rôle entre les profils personnels connectés (le tien, celui
-  // d'Alexis, les recrues), ou la page entreprise. Vide si LinkedIn n'est pas connecté —
-  // la publication retombera alors sur le premier compte disponible.
-  const compte =
-    channel === 'li_personal'
-      ? prochainComptePersonnel()
-      : channel === 'li_org'
-        ? (comptesLinkedIn('li_org').find((c) => c.actif) ?? null)
-        : null;
   const post = db
     .insert(schema.posts)
     .values({

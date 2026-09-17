@@ -109,23 +109,24 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
 }
 
 /**
- * Diffusion simultanée : approuver l'original approuve ses copies. Même créneau
- * sur la même plateforme (le même sujet part au même moment sur chaque compte) ;
- * prochain créneau de l'autre plateforme sinon. Une copie déjà publiée ou déjà
- * programmée à la main n'est pas touchée.
+ * Diffusion simultanée : approuver l'original approuve ses copies.
+ *
+ * Chaque copie prend le créneau suivant de sa plateforme, à la queue leu leu derrière
+ * l'original. Publier le même sujet à la même minute depuis trois comptes se voit ;
+ * l'étaler donne trois passages au lieu d'un, et laisse au premier post le temps de
+ * vivre (et d'être commenté par les autres comptes) avant que le suivant parte.
+ * « Publier maintenant » reste immédiat pour tout le groupe. Une copie déjà publiée
+ * ou déjà programmée à la main n'est pas touchée.
  */
 function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeSuite = false): void {
-  // Un seul créneau par plateforme, calculé une fois : les copies d'un même sujet
-  // partent ensemble. Recalculer pour chacune les aurait étalées sur plusieurs
-  // jours, le calcul des créneaux évitant deux posts à la même heure.
-  const creneaux = new Map<string, Date>();
+  // Dernier créneau retenu sur chaque plateforme : le suivant se calcule après lui.
+  const dernier = new Map<string, Date>([[post.platform, scheduledAt]]);
   for (const frere of freresDuGroupe(post)) {
     if (!['draft', 'reviewing', 'awaiting_approval', 'rejected', 'failed'].includes(frere.status)) continue;
-    // « Publier maintenant » vaut pour tout le groupe ; sinon l'autre plateforme prend son prochain créneau.
-    let quand = toutDeSuite || frere.platform === post.platform ? scheduledAt : creneaux.get(frere.platform);
-    if (!quand) {
-      quand = nextPublishSlot(frere.platform as 'linkedin' | 'instagram', scheduledAt);
-      creneaux.set(frere.platform, quand);
+    let quand = scheduledAt;
+    if (!toutDeSuite) {
+      quand = nextPublishSlot(frere.platform as 'linkedin' | 'instagram', dernier.get(frere.platform) ?? scheduledAt);
+      dernier.set(frere.platform, quand);
     }
     db.insert(schema.publishJobs).values({ postId: frere.id, scheduledAt: quand.toISOString() }).run();
     db.update(schema.posts)

@@ -243,6 +243,34 @@ export const fbMirrorSettingsSchema = z.object({
 });
 export type FbMirrorSettings = z.infer<typeof fbMirrorSettingsSchema>;
 
+/**
+ * Amplification : ce qui se passe SOUS un post LinkedIn une fois publié.
+ *
+ * Deux gestes, que toutes les équipes qui percent sur LinkedIn font à la main :
+ * — le commentaire d'amorce, posté par le compte auteur juste après la publication.
+ *   Il porte le lien de la source (interdit dans le post lui-même, où il fait chuter
+ *   la portée) et rappelle le mot-clé à commenter ;
+ * — les commentaires des autres comptes de l'équipe, une demi-heure plus tard. Un
+ *   commentaire précoce compte bien plus qu'un like dans le classement LinkedIn, et
+ *   ouvre le post aux réseaux des collègues.
+ */
+export const amplificationSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  /** commentaire d'amorce du compte auteur : source + rappel du mot-clé */
+  firstComment: z.boolean().default(true),
+  /** délai avant l'amorce, en minutes — assez court pour être le premier commentaire */
+  firstCommentDelayMinutes: z.number().int().min(1).max(120).default(4),
+  /** les autres comptes connectés commentent le post */
+  crossComment: z.boolean().default(true),
+  /** délai avant le premier commentaire d'un collègue, en minutes */
+  delayMinutes: z.number().int().min(5).max(360).default(25),
+  /** écart entre deux collègues, en minutes : ils n'arrivent pas tous à la même seconde */
+  spacingMinutes: z.number().int().min(5).max(180).default(20),
+  /** nombre maximum de comptes qui commentent un même post */
+  maxAccounts: z.number().int().min(1).max(5).default(2),
+});
+export type AmplificationSettings = z.infer<typeof amplificationSettingsSchema>;
+
 export const approvalEmailSettingsSchema = z.object({
   to: z.string().email(),
   subjectPrefix: z.string().max(40).default('[Odile]'),

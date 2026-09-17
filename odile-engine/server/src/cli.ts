@@ -110,6 +110,10 @@ async function main() {
       const { pollLinkedInComments } = await import('./webhooks/linkedinPoller.js');
       return runJob('poll-li-comments', pollLinkedInComments);
     }
+    case 'amplify': {
+      const { amplifierPostsPublies } = await import('./publishers/amplify.js');
+      return runJob('amplify', () => amplifierPostsPublies());
+    }
     case 'generate-image': {
       const { generateHeroImage, generateImagesForPost } = await import('./imagegen/index.js');
       const postId = Number(arg('post'));
@@ -170,7 +174,7 @@ async function main() {
       return { ok: true };
     }
     default:
-      console.log(`Commandes : scrape | score | shortlist | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | seed | fixture [--title ..] [--url ..]`);
+      console.log(`Commandes : scrape | score | shortlist | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | amplify | seed | fixture [--title ..] [--url ..]`);
       return { ok: false };
   }
 }

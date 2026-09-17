@@ -3,10 +3,11 @@ import path from 'node:path';
 import { and, eq, lte } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getApprovalEmail, getFbMirror } from '../db/settingsRepo.js';
+import { getApprovalEmail, getCadence, getFbMirror } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { sendMail } from '../mailer/smtp.js';
-import { facebookMirrorDryPayload, mirrorToFacebookPage } from './facebook.js';
+import { nommerRessource } from '../webhooks/commentDm.js';
+import { captionFacebook, facebookMirrorDryPayload, mirrorToFacebookPage } from './facebook.js';
 import { instagramDryPayload, InstagramPublisher } from './instagram.js';
 import { linkedInDryPayload, LinkedInPublisher } from './linkedin.js';
 import { buildCaption, collectPublishImages, collectPublishVideo, DryRunPublisher, type Publisher } from './types.js';
@@ -18,9 +19,27 @@ import { buildCaption, collectPublishImages, collectPublishVideo, DryRunPublishe
  * échec ici est consigné sur le post et n'entraîne ni nouvelle tentative de
  * publication, ni statut « échec ».
  */
-async function mirrorOnFacebook(post: typeof schema.posts.$inferSelect, input: Parameters<Publisher['publish']>[0]): Promise<void> {
-  // Miroir activé, ou diffusion sur tous les comptes : « tous », c'est aussi Facebook.
-  if (post.platform !== 'instagram' || !(getFbMirror().enabled || post.broadcastGroup)) return;
+async function mirrorOnFacebook(
+  post: typeof schema.posts.$inferSelect,
+  entree: Parameters<Publisher['publish']>[0],
+  urlInstagram: string | null,
+): Promise<void> {
+  if (post.platform !== 'instagram') return;
+  // Miroir activé, ou diffusion sur tous les comptes EN COURS — « tous », c'est aussi
+  // Facebook. Un groupe hérité d'un réglage désactivé depuis ne suffit pas : une case
+  // décochée doit vouloir dire quelque chose.
+  if (!getFbMirror().enabled && !(post.broadcastGroup && getCadence().broadcast)) return;
+  // Le mot-clé ne marche pas sur une Page : le moteur ne lit que les commentaires
+  // Instagram. La légende renvoie donc là où la promesse est tenue.
+  const input = {
+    ...entree,
+    caption: captionFacebook({
+      caption: entree.caption,
+      motcle: post.commentTriggerKeyword,
+      ressource: nommerRessource(post),
+      urlInstagram,
+    }),
+  };
   try {
     if (config.PUBLISH_MODE === 'dry') {
       const payload = facebookMirrorDryPayload(input);
@@ -115,7 +134,7 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
         .run();
       summary.published++;
       logger.info({ postId: post.id, publisher: publisher.name }, 'publication réussie');
-      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post), video });
+      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post), video }, result.externalUrl ?? null);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const retryable = job.attempt + 1 < job.maxAttempts;

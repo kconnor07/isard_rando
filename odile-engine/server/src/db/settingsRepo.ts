@@ -13,6 +13,7 @@ import {
   publishSlotsSchema,
   toneSettingsSchema,
   visualAgentSettingsSchema,
+  amplificationSettingsSchema,
   fbMirrorSettingsSchema,
   blogSettingsSchema,
   videoSettingsSchema,
@@ -97,6 +98,8 @@ export const getVideo = () => getSetting('video', videoSettingsSchema, videoSett
 export const getBlog = () => getSetting('blog', blogSettingsSchema, blogSettingsSchema.parse({}));
 /** Recopie des publications Instagram sur la Page Facebook (désactivée par défaut). */
 export const getFbMirror = () => getSetting('fb_mirror', fbMirrorSettingsSchema, { enabled: false });
+export const getAmplification = () =>
+  getSetting('amplification', amplificationSettingsSchema, amplificationSettingsSchema.parse({}));
 export const getApprovalEmail = () =>
   getSetting('approval_email', approvalEmailSettingsSchema, {
     to: config.APPROVAL_EMAIL_TO ?? 'admin@localhost.local',

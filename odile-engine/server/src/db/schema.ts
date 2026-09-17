@@ -86,6 +86,14 @@ export const posts = sqliteTable(
      * prise sur l'un vaut pour tous.
      */
     broadcastGroup: text('broadcast_group'),
+    /**
+     * Amplification : le commentaire d'amorce du compte auteur (source + rappel du
+     * mot-clé), puis les commentaires des autres comptes de l'équipe sous le post.
+     * `amplifiedBy` liste en JSON les clés déjà passées (« source » pour l'amorce) —
+     * un compte ne commente jamais deux fois le même post.
+     */
+    amplifiedAt: text('amplified_at'),
+    amplifiedBy: text('amplified_by'),
     format: text('format', { enum: ['carousel', 'static', 'li_image', 'reel'] }).notNull(),
     theme: text('theme').notNull(),
     language: text('language').notNull().default('fr'),

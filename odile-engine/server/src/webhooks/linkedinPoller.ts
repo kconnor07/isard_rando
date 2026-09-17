@@ -116,6 +116,33 @@ export async function repondreSousCommentaireLinkedIn(args: {
   return res.commentUrn ?? res.id ?? null;
 }
 
+/**
+ * Commentaire de PREMIER NIVEAU sous un post — pas une réponse dans un fil.
+ *
+ * Même route que la réponse, sans `parentComment` : c'est ce seul champ qui fait la
+ * différence chez LinkedIn. Sert à l'amplification (voir publishers/amplify.ts).
+ */
+export async function commenterPostLinkedIn(args: {
+  compte: CompteLinkedIn;
+  token: string;
+  postUrn: string;
+  texte: string;
+}): Promise<string | null> {
+  const res = await fetchJson<{ commentUrn?: string; id?: string }>(
+    `${API}/rest/socialActions/${encodeURIComponent(args.postUrn)}/comments`,
+    {
+      method: 'POST',
+      headers: linkedInHeaders(args.token),
+      body: JSON.stringify({
+        actor: args.compte.actor,
+        object: args.postUrn,
+        message: { text: args.texte },
+      }),
+    },
+  );
+  return res.commentUrn ?? res.id ?? null;
+}
+
 export interface LinkedInPollSummary {
   scanned: number;
   newComments: number;
