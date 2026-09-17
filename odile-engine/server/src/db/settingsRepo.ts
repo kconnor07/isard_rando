@@ -90,6 +90,12 @@ export const getDmTriggers = () =>
     fixedLabel: '',
     rdvUrl: '',
     rdvLabel: 'Prendre 20 minutes',
+    // Sur LinkedIn, le lien de la description donne déjà la ressource : le mot-clé
+    // ouvre autre chose, sinon les deux chemins font doublon.
+    linkedinOffer: 'diagnostic',
+    diagnosticKeywords: dmTriggerSettingsSchema.shape.diagnosticKeywords.parse(undefined),
+    diagnosticPromise: dmTriggerSettingsSchema.shape.diagnosticPromise.parse(undefined),
+    diagnosticReplyVariants: dmTriggerSettingsSchema.shape.diagnosticReplyVariants.parse(undefined),
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });

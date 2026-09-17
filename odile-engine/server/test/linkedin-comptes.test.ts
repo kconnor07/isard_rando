@@ -84,11 +84,16 @@ describe('le lien dans la caption', async () => {
     // Une URL inventée par le modèle disparaît ; la nôtre, traçable, reste.
     expect(avecLien(`Vu sur https://exemple.fr/x\n\nLe guide : ${url}`, url)).toBe(`Vu sur\n\nLe guide : ${url}`);
     // Lien oublié : il se pose juste après l'appel à l'action, pas à la fin.
-    expect(avecLien('Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOdile AI', url, 'GUIDE')).toBe(
-      `Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOu directement ici : ${url}\n\nOdile AI`,
+    expect(
+      avecLien('Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOdile AI', url, { motcle: 'GUIDE', libelle: 'Ou directement ici' }),
+    ).toBe(`Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOu directement ici : ${url}\n\nOdile AI`);
+    // Quand le mot-clé ouvre le diagnostic, le lien passe DEVANT l'appel à commenter :
+    // il donne, le mot-clé propose.
+    expect(avecLien('Trois idées.\n\nCommente CAS et je regarde.', url, { motcle: 'CAS', avantLeCta: true })).toBe(
+      `Trois idées.\n\nC’est ici : ${url}\n\nCommente CAS et je regarde.`,
     );
     // Sans mot-clé (ou sans CTA repérable), en fin de texte.
-    expect(avecLien('Trois idées.', url, null)).toBe(`Trois idées.\n\nOu directement ici : ${url}`);
+    expect(avecLien('Trois idées.', url)).toBe(`Trois idées.\n\nC’est ici : ${url}`);
   });
 });
 

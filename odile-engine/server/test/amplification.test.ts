@@ -68,13 +68,18 @@ describe('amplification', async () => {
     expect(dus.map((a) => a.compte.key)).toEqual(['moi', 'alexis']);
   });
 
-  it('le commentaire d’amorce rappelle le mot-clé, sans aucun lien ni la ressource', () => {
-    const post = { commentTriggerKeyword: 'GUIDE', resourceKind: 'guide' as const, resourceTitle: 'Automatiser vos devis' };
+  it('le commentaire d’amorce : aucun lien, et le mot-clé ouvre le diagnostic', async () => {
+    const { getDmTriggers } = await import('../src/db/settingsRepo.js');
+    const post = { commentTriggerKeyword: 'CAS', resourceKind: 'guide' as const, resourceTitle: 'Automatiser vos devis' };
     const texte = texteAmorce(post)!;
     // Le lien vit dans la description du post : sous le post, aucune URL.
     expect(texte).not.toMatch(/https?:\/\//);
-    expect(texte).toContain('commente GUIDE');
-    expect(texte).toContain('le guide « Automatiser vos devis »');
+    expect(texte).toContain('Le guide « Automatiser vos devis » est en lien dans la description');
+    expect(texte).toContain('commente CAS');
+    // Réglé sur « la même ressource », l'amorce redevient une promesse d'envoi.
+    setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'ressource' });
+    expect(texteAmorce(post)!).toContain("je te l'envoie en réponse");
+    setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'diagnostic' });
     // Rien à dire = rien de publié.
     expect(texteAmorce({ commentTriggerKeyword: null, resourceKind: 'article' as const, resourceTitle: null })).toBeNull();
   });

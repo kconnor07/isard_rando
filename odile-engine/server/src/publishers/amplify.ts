@@ -25,7 +25,7 @@ import type { AmplificationSettings } from '@odile/shared';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getAmplification, getBrand } from '../db/settingsRepo.js';
+import { getAmplification, getBrand, getDmTriggers } from '../db/settingsRepo.js';
 import { verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
@@ -115,7 +115,13 @@ export function texteAmorce(
   post: Pick<Post, 'commentTriggerKeyword' | 'resourceKind' | 'resourceTitle'>,
 ): string | null {
   if (!post.commentTriggerKeyword) return null;
-  return `Pour recevoir ${nommerRessource(post)} : commente ${post.commentTriggerKeyword} ici, je te l'envoie en réponse.`;
+  const dm = getDmTriggers();
+  if (dm.linkedinOffer !== 'diagnostic') {
+    return `Pour recevoir ${nommerRessource(post)} : commente ${post.commentTriggerKeyword} ici, je te l'envoie en réponse.`;
+  }
+  // Le lien est dans la description : l'amorce ne le répète pas, elle ouvre la suite.
+  const ressource = nommerRessource(post);
+  return `${ressource.charAt(0).toUpperCase()}${ressource.slice(1)} est en lien dans la description — servez-vous.\n\nEt si vous voulez ${dm.diagnosticPromise} : commente ${post.commentTriggerKeyword} ici.`;
 }
 
 const commentaireSchema = z.object({ texte: z.string().min(20).max(600) });

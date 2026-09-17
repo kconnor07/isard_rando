@@ -202,6 +202,20 @@ export function lienRdv(): string {
   return getBrand().siteUrl || 'https://odileai.com';
 }
 
+/**
+ * Le modèle de réponse à un commentaire, selon la plateforme.
+ *
+ * Sur Instagram, le mot-clé envoie la ressource en privé : le modèle porte le lien.
+ * Sur LinkedIn, quand le mot-clé ouvre le diagnostic, la ressource est déjà dans la
+ * description du post — renvoyer le même lien n'apprendrait rien à personne : la
+ * réponse dit où il se trouve et propose le rendez-vous.
+ */
+export function modeleDeReponse(platform: string): string {
+  const s = getDmTriggers();
+  if (platform !== 'linkedin' || s.linkedinOffer !== 'diagnostic') return s.replyTemplate;
+  return `Merci {{prenom}} 🙂 {{ressource}} est en lien dans le post. Si vous voulez ${s.diagnosticPromise}, c’est ici : {{rdv}}`;
+}
+
 /** Le contexte de réponse d'un commentaire : lien, ressource nommée, mot-clé. */
 export function contexteDuCommentaire(postId: number | null, motcle: string | null, prenom?: string | null): ContexteReponse {
   const post = postId ? (db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get() ?? null) : null;
@@ -256,7 +270,7 @@ export function preparerSansMotCle(commentId: number): boolean {
   if (!post?.commentTriggerKeyword) return false;
   if (!interetProbable(comment.text)) return false;
   const contexte = contexteDuCommentaire(comment.postId, post.commentTriggerKeyword, prenomDuCommentaire(comment.authorName));
-  const texte = buildReply(getDmTriggers().replyTemplate, contexte);
+  const texte = buildReply(modeleDeReponse(comment.platform), contexte);
   db.update(schema.comments).set({ suggestedReply: texte }).where(eq(schema.comments.id, commentId)).run();
   logger.info({ commentId }, 'commentaire sans mot-clé : réponse préparée, en attente d’un humain');
   return true;

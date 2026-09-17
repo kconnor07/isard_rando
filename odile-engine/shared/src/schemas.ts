@@ -193,6 +193,40 @@ export const dmTriggerSettingsSchema = z.object({
       'Avec plaisir {{prenom}}, {{ressource}} vous attend ici : {{link}}',
     ]),
   /**
+   * LinkedIn : ce que le mot-clé donne, maintenant que le lien de la ressource est
+   * dans la description du post.
+   *
+   * « ressource » : le mot-clé renvoie la même chose que le lien — simple, mais la
+   * personne qui a déjà cliqué n'a aucune raison de commenter.
+   * « diagnostic » : le lien donne la ressource tout de suite, et le mot-clé ouvre
+   * autre chose, de plus haut — un regard sur SON cas. Les deux chemins ne se
+   * marchent plus dessus, et celui qui commente se signale comme prospect.
+   */
+  linkedinOffer: z.enum(['ressource', 'diagnostic']).default('diagnostic'),
+  /** mots à commenter sur LinkedIn quand le mot-clé ouvre le diagnostic */
+  diagnosticKeywords: z.array(z.string().min(3).max(14)).max(20).default(['DIAGNOSTIC', 'CAS', 'AUDIT']),
+  /** ce que le diagnostic offre, en une ligne — sert de promesse au rédacteur et aux réponses */
+  diagnosticPromise: z
+    .string()
+    .max(160)
+    .default('un regard sur votre organisation et ce qui peut y être automatisé, en 20 minutes'),
+  /**
+   * Réponses postées sous le commentaire quand le mot-clé ouvre le diagnostic.
+   * Elles ne redonnent JAMAIS le lien de la ressource (il est dans le post) : elles
+   * rappellent où il se trouve et proposent le rendez-vous. `{{rdv}}` = le lien de
+   * prise de rendez-vous des réglages.
+   */
+  diagnosticReplyVariants: z
+    .array(z.string().min(1).max(400))
+    .max(30)
+    .default([
+      'Merci {{prenom}} 🙂 {{ressource}} est en lien dans le post. Et si vous voulez qu’on regarde votre cas : {{rdv}}',
+      'Avec plaisir {{prenom}}. Le lien est dans la description. Pour un regard sur votre organisation, 20 minutes ici : {{rdv}}',
+      'Bonne lecture {{prenom}} — le lien est juste au-dessus. Si vous voulez qu’on cherche ensemble ce qui peut être automatisé chez vous : {{rdv}}',
+      'Merci pour votre commentaire {{prenom}}. {{ressource}} vous attend en description ; pour votre cas précis, c’est ici : {{rdv}}',
+      'C’est noté {{prenom}} 🙂 Le lien est dans le post, et votre cas mérite mieux qu’un lien : {{rdv}}',
+    ]),
+  /**
    * Message de qualification, envoyé UNE fois quand la personne répond après avoir
    * reçu son lien. C'est le seul moment où Meta rouvre une fenêtre de 24 h, et le
    * seul endroit du parcours où l'on apprend à qui on parle.

@@ -284,6 +284,11 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const promesseDuLien = lienFixe
     ? dm.fixedLabel.trim() || 'la page vers laquelle nous envoyons les gens'
     : 'l’article source qui a inspiré ce post (son analyse complète)';
+  // Sur LinkedIn, le lien de la description donne déjà la ressource. Le mot-clé ne
+  // peut donc pas promettre la même chose : il ouvre le diagnostic, un cran plus haut.
+  const diagnostic = dm.linkedinOffer === 'diagnostic';
+  const motsLinkedIn = (diagnostic ? dm.diagnosticKeywords : dm.keywords).join(', ');
+  const promesseDiagnostic = dm.diagnosticPromise.trim() || 'un regard sur votre organisation';
 
   const ctaSpec =
     platform === 'instagram' && dm.enabled
@@ -297,15 +302,25 @@ CE QUE LA PERSONNE RECEVRA EN PRIVÉ, et que tu dois déclarer dans "resource" :
   adresse officielle dans resource.toolUrl (celle du site de l'outil, pas celle de l'article) ;
 — "article" sinon : elle recevra ${promesseDuLien}.
 La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`
-      : `CTA LinkedIn : DEUX CHEMINS, et les deux comptent.
-1. Le mot-clé, comme sur Instagram : un mot simple en majuscules (par ex. ${dm.keywords.join(', ')}),
-   et le CTA se construit autour de « Commente [MOT-CLÉ] ». La personne reçoit ce qu'on lui promet
-   en réponse sous son commentaire, au nom du compte qui publie (LinkedIn n'ouvre sa messagerie à
-   aucune application). Renseigne commentTrigger {enabled: true, keyword}.
-2. Le lien direct, pour qui ne veut pas commenter : écris le marqueur {{link}} — et rien d'autre,
-   jamais une URL inventée. Le moteur le remplacera par une adresse courte traçable.
-Les deux se suivent en fin de post : l'appel à commenter, puis « Ou directement ici : {{link}} ».
-CE QUE LA PERSONNE RECEVRA, et que tu dois déclarer dans "resource" :
+      : `CTA LinkedIn : DEUX CHEMINS, et ils ne donnent surtout PAS la même chose.
+1. LE LIEN, dans la description : il DONNE la ressource, tout de suite, sans rien demander.
+   Écris le marqueur {{link}} et rien d'autre, jamais une URL inventée : le moteur le
+   remplacera par une adresse courte traçable.
+${
+  diagnostic
+    ? `2. LE MOT-CLÉ, pour aller plus loin : un mot simple en majuscules (par ex. ${motsLinkedIn}),
+   et le CTA se construit autour de « Commente [MOT-CLÉ] ». Il n'ouvre PAS la ressource — elle est
+   déjà dans le lien, la redemander n'aurait aucun sens — mais ${promesseDiagnostic}.
+   N'écris donc JAMAIS « commente pour recevoir le guide » : ce qui se commente, c'est le regard
+   sur SON cas à elle. Renseigne commentTrigger {enabled: true, keyword}.
+Les deux se suivent en fin de post : d'abord la ressource et son lien, puis l'appel à commenter.`
+    : `2. LE MOT-CLÉ, pour qui préfère demander : un mot simple en majuscules (par ex. ${motsLinkedIn}),
+   et le CTA se construit autour de « Commente [MOT-CLÉ] ». La personne reçoit la même ressource en
+   réponse sous son commentaire (LinkedIn n'ouvre sa messagerie à aucune application).
+   Renseigne commentTrigger {enabled: true, keyword}.
+Les deux se suivent en fin de post : l'appel à commenter, puis « Ou directement ici : {{link}} ».`
+}
+CE QUE DONNE LE LIEN, et que tu dois déclarer dans "resource" :
 — "guide" si la promesse mérite un document à part (méthode, pas-à-pas, modèle) : le moteur
   le RÉDIGERA et l'enverra en PDF, donne-lui son titre exact dans resource.title ;
 — "outil" si le post parle d'un outil précis et que la personne veut y accéder : mets son
@@ -339,8 +354,13 @@ STRATÉGIE LINKEDIN (le texte du post, « caption ») :
 - hashtags : 3 à 5, pas davantage — LinkedIn n'en tient pas compte au-delà.
 - ORDRE DE FIN DE POST, sans rien d'autre entre les lignes :
   1. une ligne vide ;
-  2. l'appel à l'action seul sur sa ligne : « Commente [MOT-CLÉ] » (écrit en toutes lettres, c'est lui qui déclenche l'envoi) ;
-  3. « Ou directement ici : {{link}} » (le marqueur tel quel, jamais une URL) ;
+${
+  diagnostic
+    ? `  2. la ressource et son lien, sur une ligne : « <ce que c'est, en trois mots> : {{link}} » (le marqueur tel quel, jamais une URL) ;
+  3. l'appel à l'action seul sur sa ligne : « Commente [MOT-CLÉ] » (en toutes lettres, c'est lui qui déclenche) suivi de ce qu'il ouvre — ${promesseDiagnostic} ;`
+    : `  2. l'appel à l'action seul sur sa ligne : « Commente [MOT-CLÉ] » (écrit en toutes lettres, c'est lui qui déclenche l'envoi) ;
+  3. « Ou directement ici : {{link}} » (le marqueur tel quel, jamais une URL) ;`
+}
   4. « Source : média, auteur » ;
   5. la mention de ${brand.name}, intégrée à l'une de ces deux lignes ;
   6. les 3 hashtags.`
@@ -452,28 +472,50 @@ function nettoyer(texte: string, transformer: (ligne: string) => string): string
   return lignes.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+export interface OptionsDuLien {
+  /** le mot à commenter, pour placer la ligne au bon endroit */
+  motcle?: string | null;
+  /** ce qui introduit l'adresse : « C'est ici », « Ou directement ici »… */
+  libelle?: string;
+  /** poser le lien AVANT l'appel à commenter (le lien donne, le mot-clé propose) */
+  avantLeCta?: boolean;
+}
+
+/**
+ * Comment poser le lien, selon ce que le mot-clé donne sur LinkedIn.
+ *
+ * Quand le mot-clé ouvre le diagnostic, le lien est ce qu'on DONNE : il vient en
+ * premier, et l'appel à commenter propose la suite. Quand le mot-clé renvoie la
+ * même ressource que le lien, celui-ci n'est qu'un raccourci : il suit le mot-clé.
+ */
+export function optionsDuLien(motcle?: string | null): OptionsDuLien {
+  const diagnostic = getDmTriggers().linkedinOffer === 'diagnostic';
+  return diagnostic
+    ? { motcle, libelle: 'C’est ici', avantLeCta: true }
+    : { motcle, libelle: 'Ou directement ici', avantLeCta: false };
+}
+
 /**
  * Pose le lien court dans un texte destiné à LinkedIn.
  *
- * Deux chemins cohabitent : le lien dans la description, pour qui veut aller droit
- * au but, et « Commente [MOT-CLÉ] » pour qui préfère demander — le commentaire
- * nourrit le post, le lien sert les pressés. Toute autre URL inventée par le
- * modèle est retirée : une seule adresse, la nôtre, traçable.
+ * Deux chemins cohabitent : le lien de la description, qui donne la ressource sans
+ * rien demander, et « Commente [MOT-CLÉ] », qui ouvre autre chose. Toute autre URL
+ * inventée par le modèle est retirée : une seule adresse, la nôtre, traçable.
  */
-export function avecLien(texte: string, url: string, motcle?: string | null): string {
+export function avecLien(texte: string, url: string, opts: OptionsDuLien = {}): string {
   const propre = nettoyer(texte, (ligne) =>
     ligne.replaceAll('{{link}}', url).replace(/https?:\/\/\S+/gi, (trouve) => (trouve.startsWith(url) ? trouve : '')),
   );
   if (propre.includes(url)) return propre;
-  // Le modèle a oublié le lien : on le pose nous-mêmes, juste après l'appel à
-  // l'action quand il y en a un, en fin de texte sinon.
-  const ligne = `Ou directement ici : ${url}`;
-  if (!motcle) return `${propre}\n\n${ligne}`;
+  // Le modèle a oublié le lien : on le pose nous-mêmes, contre l'appel à l'action
+  // quand il y en a un, en fin de texte sinon.
+  const ligne = `${opts.libelle ?? 'C’est ici'} : ${url}`;
+  if (!opts.motcle) return `${propre}\n\n${ligne}`;
   const lignes = propre.split('\n');
-  const cle = motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const cle = opts.motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const iCta = lignes.findIndex((l) => new RegExp(`commente\\s+${cle}`, 'i').test(l));
   if (iCta === -1) return `${propre}\n\n${ligne}`;
-  lignes.splice(iCta + 1, 0, '', ligne);
+  lignes.splice(opts.avantLeCta ? iCta : iCta + 1, 0, ...(opts.avantLeCta ? [ligne, ''] : ['', ligne]));
   return lignes.join('\n');
 }
 
@@ -489,7 +531,7 @@ export function relierLeLien(
   if (post.platform !== 'linkedin' || !post.linkId) return texte;
   const lien = db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get();
   if (!lien) return texte;
-  return avecLien(texte, `${config.PUBLIC_URL}/r/${lien.code}`, post.commentTriggerKeyword);
+  return avecLien(texte, `${config.PUBLIC_URL}/r/${lien.code}`, optionsDuLien(post.commentTriggerKeyword));
 }
 
 /** Retire placeholder et URL d'un texte qui n'en veut aucun (Instagram), sans laisser de trou. */
@@ -558,7 +600,7 @@ function persistDraft(args: {
   const motcle = generated.commentTrigger?.enabled ? generated.commentTrigger.keyword.toUpperCase() : null;
   const caption =
     platform === 'linkedin'
-      ? avecLien(generated.caption, link.shortUrl, motcle)
+      ? avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle))
       : generated.caption.replaceAll('{{link}}', link.shortUrl);
   const cta = generated.cta.replaceAll('{{link}}', link.shortUrl);
   db.update(schema.posts)

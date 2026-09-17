@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[]; broadcast?: boolean; docEveryNPosts?: number };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
-  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string };
+  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string; linkedinOffer?: 'ressource' | 'diagnostic'; diagnosticKeywords?: string[]; diagnosticPromise?: string };
   fb_mirror: { enabled: boolean };
   amplification: {
     enabled: boolean; firstComment: boolean; firstCommentDelayMinutes: number; crossComment: boolean;
@@ -542,6 +542,39 @@ export default function Settings() {
                     value={form.dm_triggers.fixedLabel ?? ''}
                     onChange={(e) => set('dm_triggers', { ...form.dm_triggers, fixedLabel: e.target.value })} />
                 </div>
+              </div>
+            )}
+          </div>
+          <div className="rounded-xl border border-line p-4">
+            <label className="label !mb-1">Sur LinkedIn, le mot-clé donne…</label>
+            <select className="input" value={form.dm_triggers.linkedinOffer ?? 'diagnostic'}
+              onChange={(e) => set('dm_triggers', { ...form.dm_triggers, linkedinOffer: e.target.value as 'ressource' | 'diagnostic' })}>
+              <option value="diagnostic">Autre chose — un diagnostic de son organisation (recommandé)</option>
+              <option value="ressource">La même ressource que le lien de la description</option>
+            </select>
+            <p className="mt-2 text-xs text-muted">
+              Le lien de la description donne déjà la ressource. Si le mot-clé donne la même chose, personne n'a de raison de commenter — et un clic
+              ne dit pas <em>qui</em> s'intéresse. Un diagnostic, lui, ne se télécharge pas : il se demande. C'est ce qui transforme un lecteur en
+              conversation.
+            </p>
+            {form.dm_triggers.linkedinOffer !== 'ressource' && (
+              <div className="mt-3 grid gap-3">
+                <div>
+                  <label className="label">Mots à commenter sur LinkedIn</label>
+                  <input className="input" value={(form.dm_triggers.diagnosticKeywords ?? []).join(', ')}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, diagnosticKeywords: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
+                  <p className="mt-1 text-xs text-muted">Un seul mot chacun, 3 à 14 lettres. Le rédacteur en choisit un par post.</p>
+                </div>
+                <div>
+                  <label className="label">Ce que le diagnostic offre (annoncé dans le post, repris dans les réponses)</label>
+                  <input className="input" placeholder="un regard sur votre organisation et ce qui peut y être automatisé, en 20 minutes"
+                    value={form.dm_triggers.diagnosticPromise ?? ''}
+                    onChange={(e) => set('dm_triggers', { ...form.dm_triggers, diagnosticPromise: e.target.value })} />
+                </div>
+                <p className="text-xs text-muted">
+                  La réponse postée sous le commentaire rappelle que le lien est dans le post et propose le rendez-vous ci-dessous : renseigne-le,
+                  sinon elle renvoie vers le site.
+                </p>
               </div>
             )}
           </div>

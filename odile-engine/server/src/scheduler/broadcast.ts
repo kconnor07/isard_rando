@@ -13,14 +13,14 @@ import { customAlphabet } from 'nanoid';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getBrand, getCadence } from '../db/settingsRepo.js';
+import { getBrand, getCadence, getDmTriggers } from '../db/settingsRepo.js';
 import { verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
 import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import { getStoredToken } from '../publishers/tokens.js';
 import { createLink } from '../shortener/index.js';
-import { avecLien, sansLien } from '../writer/generate.js';
+import { avecLien, optionsDuLien, sansLien } from '../writer/generate.js';
 
 const nanoGroupe = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
 
@@ -119,36 +119,58 @@ export async function adapterLegende(
   de: 'linkedin' | 'instagram',
   vers: 'linkedin' | 'instagram',
   compte?: CompteLinkedIn | null,
-): Promise<{ caption: string; cta: string }> {
-  const motcleReel = post.commentTriggerKeyword;
+  motcleCible?: string | null,
+): Promise<{ caption: string; cta: string; motcle: string | null }> {
+  const dm = getDmTriggers();
   // LinkedIn garde le lien (sous forme d'emplacement) ; Instagram n'en montre aucun.
-  const pose = (t: { caption: string; cta: string }) =>
+  const pose = (t: { caption: string; cta: string }, motcle: string | null) =>
     vers === 'linkedin'
-      ? { caption: avecLien(enEmplacement(t.caption), '{{link}}', motcleReel), cta: enEmplacement(t.cta) }
-      : { caption: sansLien(t.caption), cta: sansLien(t.cta) };
-  const brut = pose({ caption: post.caption, cta: post.cta });
+      ? {
+          caption: avecLien(enEmplacement(t.caption), '{{link}}', optionsDuLien(motcle)),
+          cta: enEmplacement(t.cta),
+          motcle,
+        }
+      : { caption: sansLien(t.caption), cta: sansLien(t.cta), motcle };
+  // Sans réécriture, le mot du parent reste : changer le mot dans la base sans le
+  // changer dans le texte ferait un post qui demande un mot et un moteur qui en
+  // attend un autre.
+  const brut = pose({ caption: post.caption, cta: post.cta }, post.commentTriggerKeyword);
   // Même plateforme et même voix : il n'y a rien à réécrire.
   if ((de === vers && !compte) || config.LLM_MODE === 'mock') return brut;
   const verdict = verifierBudget('writing');
   if (!verdict.autorise) return brut;
-  const motcle = post.commentTriggerKeyword ?? 'le mot-clé';
+  const motcleVoulu = motcleCible ?? post.commentTriggerKeyword;
+  const motcle = motcleVoulu ?? 'le mot-clé';
+  // Ce que l'appel à l'action promet dépend de la plateforme : sur LinkedIn le lien
+  // donne déjà la ressource, le mot-clé ouvre donc le diagnostic ; sur Instagram il
+  // n'y a pas de lien, et c'est le mot-clé qui envoie la ressource en privé.
+  const consigneCta =
+    vers !== 'linkedin'
+      ? `APPEL À L'ACTION : « Commente ${motcle} » (ce mot exactement) pour recevoir la ressource en
+message privé. AUCUN lien, AUCUNE URL.`
+      : dm.linkedinOffer === 'diagnostic'
+        ? `APPEL À L'ACTION, dans cet ordre et sur deux lignes : d'abord la ressource et son adresse
+(« … : {{link}} », écris {{link}} tel quel, c'est un emplacement), puis « Commente ${motcle} » (ce mot
+exactement) qui n'ouvre PAS la ressource — elle est déjà dans le lien — mais ${dm.diagnosticPromise}.
+AUCUNE autre URL.`
+        : `APPEL À L'ACTION : « Commente ${motcle} » (ce mot exactement), puis juste en dessous la ligne
+« Ou directement ici : {{link}} » — écris {{link}} tel quel, c'est un emplacement. AUCUNE autre URL.`;
   const consigne =
     de === vers
       ? `Ce texte part aussi sur d'autres comptes de la même équipe. Réécris-le ENTIÈREMENT pour celui-ci :
-même information, même source, même appel à l'action « Commente ${motcle} », même longueur — mais une autre
-entrée en matière, un autre angle, d'autres formulations. Quelqu'un qui verrait les deux posts ne doit pas
-lire un copier-coller.${vers === 'linkedin' ? ' Garde l’emplacement {{link}} tel quel, sur sa propre ligne ; AUCUNE autre URL.' : ''}
+même information, même source, même longueur — mais une autre entrée en matière, un autre angle, d'autres
+formulations. Quelqu'un qui verrait les deux posts ne doit pas lire un copier-coller.
+${consigneCta}
 ${compte ? consigneVoix(compte) : ''}`
       : vers === 'linkedin'
         ? `Adapte ce texte de post Instagram pour LinkedIn : 500 à 1 000 caractères, jamais plus de 1 200 ;
 l'accroche tient dans les 200 premiers caractères ; une idée par ligne ; nomme la source en clair
-(« Source : … ») ; nomme ${getBrand().name} une fois dans la dernière ligne ; garde exactement le même
-appel à l'action « Commente ${motcle} » ET, juste en dessous, la ligne « Ou directement ici : {{link}} »
-— écris {{link}} tel quel, c'est un emplacement ; AUCUNE autre URL.
+(« Source : … ») ; nomme ${getBrand().name} une fois dans la dernière ligne.
+${consigneCta}
 ${compte ? consigneVoix(compte) : ''}`
         : `Adapte ce texte de post LinkedIn pour Instagram : ton plus chaleureux et direct, tutoiement,
-1 200 à 2 000 caractères, aéré, quelques émojis sobres, AUCUN lien ; garde exactement le même appel à
-l'action « Commente ${motcle} » pour recevoir la ressource en message privé.`;
+1 200 à 2 000 caractères, aéré, quelques émojis sobres.
+${consigneCta}`;
   try {
     const { value } = await completeJson(
       {
@@ -160,11 +182,27 @@ l'action « Commente ${motcle} » pour recevoir la ressource en message privé.`
       },
       legendeAdapteeSchema,
     );
-    return pose(value);
+    return pose(value, motcleVoulu);
   } catch (err) {
     logger.warn({ err: String(err).slice(0, 200) }, 'adaptation de légende impossible — texte d’origine conservé');
     return brut;
   }
+}
+
+/**
+ * Le mot à commenter, sur la surface qui reçoit la copie.
+ *
+ * Les deux plateformes ne promettent pas la même chose : sur Instagram le mot-clé
+ * envoie la ressource en message privé, sur LinkedIn il ouvre le diagnostic (la
+ * ressource, elle, est dans le lien du post). Une copie qui change de plateforme
+ * change donc de mot ; une copie qui reste sur la même garde celui du parent.
+ */
+export function motcleDeSurface(parent: Pick<Post, 'id' | 'platform' | 'commentTriggerKeyword'>, vers: 'linkedin' | 'instagram'): string | null {
+  if (!parent.commentTriggerKeyword || vers === parent.platform) return parent.commentTriggerKeyword;
+  const dm = getDmTriggers();
+  const liste = vers === 'linkedin' && dm.linkedinOffer === 'diagnostic' ? dm.diagnosticKeywords : dm.keywords;
+  const mot = liste.length ? liste[parent.id % liste.length] : null;
+  return (mot ?? parent.commentTriggerKeyword).toUpperCase();
 }
 
 /**
@@ -200,14 +238,17 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
   // Une adaptation par surface : changer de plateforme demande une traduction,
   // changer de compte demande une autre voix. Deux surfaces identiques la partagent.
   const cleSurface = (s: SurfaceDiffusion) => `${s.platform}|${s.liAccountKey ?? ''}`;
-  const textes = new Map<string, { caption: string; cta: string }>();
+  const textes = new Map<string, { caption: string; cta: string; motcle: string | null }>();
   for (const surface of aFaire) {
     if (textes.has(cleSurface(surface))) continue;
     const compte =
       surface.platform === 'linkedin'
         ? compteDuPost({ channel: surface.channel, liAccountKey: surface.liAccountKey })
         : null;
-    textes.set(cleSurface(surface), await adapterLegende(parent, parent.platform, surface.platform, compte));
+    textes.set(
+      cleSurface(surface),
+      await adapterLegende(parent, parent.platform, surface.platform, compte, motcleDeSurface(parent, surface.platform)),
+    );
   }
 
   const crees: number[] = [];
@@ -240,7 +281,7 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
         caption: texte.caption,
         cta: texte.cta,
         hashtags: parent.hashtags,
-        commentTriggerKeyword: parent.commentTriggerKeyword,
+        commentTriggerKeyword: texte.motcle,
         resourceKind: parent.resourceKind,
         resourceTitle: parent.resourceTitle,
         resourceUrl: parent.resourceUrl,

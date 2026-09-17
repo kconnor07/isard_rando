@@ -36,6 +36,7 @@ import {
   lienRdv,
   linkForPost,
   matchKeyword,
+  modeleDeReponse,
   nommerRessource,
   type ContexteReponse,
 } from './commentDm.js';
@@ -204,7 +205,14 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
       continue;
     }
     const lien = linkForPost(post.id);
-    const motsCles = [...(post.commentTriggerKeyword ? [post.commentTriggerKeyword] : []), ...settings.keywords];
+    // On reconnaît large : le mot du post, ceux de la ressource et ceux du diagnostic.
+    // Quelqu'un qui commente « GUIDE » sous un post qui demande « CAS » veut la même
+    // chose — le perdre pour une question de vocabulaire serait absurde.
+    const motsCles = [
+      ...(post.commentTriggerKeyword ? [post.commentTriggerKeyword] : []),
+      ...settings.keywords,
+      ...settings.diagnosticKeywords,
+    ];
 
     for (const element of elements) {
       const externalId = element.commentUrn ?? element.id;
@@ -227,7 +235,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
       // Sans mot-clé, la réponse est quand même préparée quand le commentaire
       // ressemble à une demande : elle attend un humain dans la boîte « à traiter ».
       const interesse = !matched && Boolean(post.commentTriggerKeyword) && interetProbable(text);
-      const dm = matched || interesse ? composerReponseLinkedIn(settings.replyTemplate, { ...contexte, motcle: matched ?? post.commentTriggerKeyword }) : null;
+      const dm = matched || interesse ? composerReponseLinkedIn(modeleDeReponse('linkedin'), { ...contexte, motcle: matched ?? post.commentTriggerKeyword }) : null;
       const inserted = db
         .insert(schema.comments)
         .values({
@@ -267,7 +275,10 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
   // Réponse sous chaque commentaire, au nom du compte qui a publié.
   for (const item of aRepondre.slice(0, REPONSES_MAX_PAR_PASSAGE)) {
     if (!settings.publicReply) break;
-    const modele = choisirVariante(settings.linkedinReplyVariants, item.commentId);
+    // Ce que la réponse publique propose : la ressource (elle porte le lien) ou le
+    // diagnostic (le lien est déjà dans le post — elle propose le rendez-vous).
+    const variantes = settings.linkedinOffer === 'diagnostic' ? settings.diagnosticReplyVariants : settings.linkedinReplyVariants;
+    const modele = choisirVariante(variantes, item.commentId);
     if (!modele) break;
     const texte = composerReponseLinkedIn(modele, item.contexte);
     const droit = droitCommentaire(item.compte);
@@ -315,8 +326,12 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     await sendMail({
       kind: 'li_comment_digest',
       to: getApprovalEmail().to,
-      subject: `[Odile] 💬 ${pourEmail.length} commentaire(s) LinkedIn — lien envoyé, DM à coller si tu veux`,
-      html: `<p>Le lien est parti en réponse sous chaque commentaire (LinkedIn n'ouvre pas sa messagerie aux applications). Pour ajouter la touche personnelle, voici un message privé prêt à coller :</p>
+      subject: `[Odile] 💬 ${pourEmail.length} commentaire(s) LinkedIn — réponse postée, DM à coller si tu veux`,
+      html: `<p>${
+        settings.linkedinOffer === 'diagnostic'
+          ? 'Une réponse est partie sous chaque commentaire : le lien est déjà dans le post, elle propose donc le rendez-vous. Ces gens se sont signalés — un message privé personnel vaut le détour :'
+          : "Le lien est parti en réponse sous chaque commentaire (LinkedIn n'ouvre pas sa messagerie aux applications). Pour ajouter la touche personnelle, voici un message privé prêt à coller :"
+      }</p>
 <table style="border-collapse:collapse;width:100%">${rows}</table>
 <p style="color:#889">Copie le message, ouvre le profil de la personne, colle en message privé. 30 secondes par lead.</p>`,
       text: pourEmail.map((m) => `[${m.compte}] ${m.auteur} : ${m.texte}\n→ DM : ${m.dm}\n`).join('\n'),

@@ -7,7 +7,9 @@ process.env.APP_SECRET ??= 'x'.repeat(48);
 describe('diffusion simultanée', async () => {
   const { db, schema } = await import('../src/db/client.js');
   const { storeToken, deleteToken } = await import('../src/publishers/tokens.js');
-  const { surfacesConnectees, surfacesManquantes, diffuserPartout, freresDuGroupe, adapterLegende } = await import('../src/scheduler/broadcast.js');
+  const { surfacesConnectees, surfacesManquantes, diffuserPartout, freresDuGroupe, adapterLegende, motcleDeSurface } = await import(
+    '../src/scheduler/broadcast.js'
+  );
   const { schedulePost, unschedulePost } = await import('../src/approvals/service.js');
   const { createLink } = await import('../src/shortener/index.js');
   const { eq } = await import('drizzle-orm');
@@ -29,6 +31,22 @@ describe('diffusion simultanée', async () => {
     expect(surfacesManquantes({ channel: 'ig', liAccountKey: null }).map((s) => s.label)).toEqual(['Moi', 'Alexis Duquenoy', 'page Odile AI']);
   });
 
+  it('changer de plateforme change le mot à commenter', async () => {
+    const { getDmTriggers } = await import('../src/db/settingsRepo.js');
+    const dm = getDmTriggers();
+    const parent = { id: 1, platform: 'instagram' as const, commentTriggerKeyword: 'GUIDE' };
+    // Même plateforme : le mot du parent, sans quoi le texte publié et la base se
+    // contrediraient. Vers LinkedIn : un mot du diagnostic, parce que là-bas le
+    // mot-clé n'envoie pas la ressource (elle est dans le lien) mais ouvre le cas.
+    expect(motcleDeSurface(parent, 'instagram')).toBe('GUIDE');
+    expect(dm.diagnosticKeywords).toContain(motcleDeSurface(parent, 'linkedin'));
+    expect(dm.keywords.map((m) => m.toUpperCase())).toContain(
+      motcleDeSurface({ id: 1, platform: 'linkedin', commentTriggerKeyword: 'CAS' }, 'instagram'),
+    );
+    // Un post sans mot-clé n'en gagne pas un en changeant de compte.
+    expect(motcleDeSurface({ id: 2, platform: 'instagram', commentTriggerKeyword: null }, 'linkedin')).toBeNull();
+  });
+
   it('LinkedIn garde le lien en emplacement, Instagram n’en garde aucun', async () => {
     const { config } = await import('../src/config.js');
     // Le lien du parent redevient {{link}} : chaque copie posera le sien.
@@ -40,10 +58,11 @@ describe('diffusion simultanée', async () => {
     };
     expect((await adapterLegende(post, 'instagram', 'linkedin')).caption).toBe('Voilà {{link}} et fin');
     expect((await adapterLegende(post, 'linkedin', 'instagram')).caption).toBe('Voilà et fin');
-    // Un texte venu d'Instagram n'a aucun lien : LinkedIn en reçoit un, sous le mot-clé.
+    // Un texte venu d'Instagram n'a aucun lien : LinkedIn en reçoit un, devant le
+    // mot-clé — le lien donne la ressource, le mot-clé ouvre le diagnostic.
     const sansRien = { caption: 'Trois idées.\n\nCommente GUIDE pour le recevoir.', cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE', hook: 'h' };
     expect((await adapterLegende(sansRien, 'instagram', 'linkedin')).caption).toBe(
-      'Trois idées.\n\nCommente GUIDE pour le recevoir.\n\nOu directement ici : {{link}}',
+      'Trois idées.\n\nC’est ici : {{link}}\n\nCommente GUIDE pour le recevoir.',
     );
   });
 
