@@ -145,9 +145,73 @@ export async function mentionsDuPost(
   return mentions;
 }
 
+/** Tranche imposée par LinkedIn pour l'envoi d'une vidéo : 4 Mo. */
+const TRANCHE_VIDEO = 4 * 1024 * 1024;
+
+interface InitVideo {
+  value: {
+    video: string;
+    uploadToken: string;
+    uploadInstructions: { uploadUrl: string; firstByte: number; lastByte: number }[];
+  };
+}
+
+/**
+ * Envoie un MP4 à LinkedIn et renvoie l'URN de la vidéo.
+ *
+ * Le parcours est en trois temps : on déclare le fichier (`initializeUpload`), on
+ * envoie chaque tranche à l'adresse fournie en relevant son ETag, puis on scelle
+ * l'ensemble (`finalizeUpload`) avec la liste des ETags — dans l'ordre des tranches,
+ * sans quoi LinkedIn reconstitue un fichier illisible.
+ */
+export async function envoyerVideoLinkedIn(args: {
+  token: string;
+  owner: string;
+  fichier: string;
+}): Promise<string> {
+  const taille = fs.statSync(args.fichier).size;
+  const init = await fetchJson<InitVideo>(`${API}/rest/videos?action=initializeUpload`, {
+    method: 'POST',
+    headers: headers(args.token),
+    body: JSON.stringify({
+      initializeUploadRequest: { owner: args.owner, fileSizeBytes: taille, uploadCaptions: false, uploadThumbnail: false },
+    }),
+    timeoutMs: 60_000,
+  });
+  const { video, uploadToken, uploadInstructions } = init.value;
+  const contenu = fs.readFileSync(args.fichier);
+  const etags: string[] = [];
+  for (const tranche of uploadInstructions) {
+    const morceau = contenu.subarray(tranche.firstByte, Math.min(tranche.lastByte + 1, contenu.length));
+    const res = await fetchWithRetry(tranche.uploadUrl, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/octet-stream' },
+      body: morceau,
+      timeoutMs: 180_000,
+      retries: 2,
+    });
+    if (!res.ok) throw new HttpError(res.status, tranche.uploadUrl, await res.text().catch(() => ''));
+    const etag = res.headers.get('etag');
+    await res.text().catch(() => undefined);
+    if (!etag) throw new Error('LinkedIn n’a pas renvoyé d’ETag pour une tranche de la vidéo');
+    etags.push(etag.replace(/^"|"$/g, ''));
+  }
+  await fetchWithRetry(`${API}/rest/videos?action=finalizeUpload`, {
+    method: 'POST',
+    headers: headers(args.token),
+    body: JSON.stringify({ finalizeUploadRequest: { video, uploadToken, uploadedPartIds: etags } }),
+    timeoutMs: 60_000,
+  }).then(async (res) => {
+    if (!res.ok) throw new HttpError(res.status, `${API}/rest/videos?action=finalizeUpload`, await res.text());
+    await res.text().catch(() => undefined);
+  });
+  logger.info({ video, tranches: etags.length, octets: taille }, 'vidéo envoyée à LinkedIn');
+  return video;
+}
+
 /**
  * Publie sur LinkedIn (profil personnel ou page entreprise selon le canal).
- * 1 image (li_image) ou multi-images (carrousel LinkedIn).
+ * 1 image (li_image), multi-images (carrousel LinkedIn) ou vidéo native.
  */
 export class LinkedInPublisher implements Publisher {
   readonly name = 'linkedin';
@@ -165,9 +229,15 @@ export class LinkedInPublisher implements Publisher {
     }
     const owner = compte.actor;
 
+    // Vidéo : LinkedIn la lit dans le fil, c'est le format le plus regardé après le document.
+    const videoUrn = input.video
+      ? await envoyerVideoLinkedIn({ token: stored.accessToken, owner, fichier: input.video.path })
+      : null;
     const imageUrns: string[] = [];
-    for (const image of input.images) {
-      imageUrns.push(await uploadImage(stored.accessToken, owner, image.path));
+    if (!videoUrn) {
+      for (const image of input.images) {
+        imageUrns.push(await uploadImage(stored.accessToken, owner, image.path));
+      }
     }
 
     // Identifications réelles : la page entreprise, les collègues connectés, et les
@@ -182,7 +252,9 @@ export class LinkedInPublisher implements Publisher {
       lifecycleState: 'PUBLISHED',
       isReshareDisabledByAuthor: false,
     };
-    if (imageUrns.length === 1) {
+    if (videoUrn) {
+      body.content = { media: { id: videoUrn, title: input.post.hook.slice(0, 120) } };
+    } else if (imageUrns.length === 1) {
       body.content = { media: { id: imageUrns[0], altText: input.post.hook.slice(0, 120) } };
     } else if (imageUrns.length > 1) {
       body.content = {
@@ -210,6 +282,21 @@ export class LinkedInPublisher implements Publisher {
 /** Payload « à blanc » pour le mode dry-run (contrôle visuel dans var/outbox). */
 export function linkedInDryPayload(input: PublishInput): unknown {
   const isOrg = input.post.channel === 'li_org';
+  if (input.video) {
+    return {
+      endpoint: `${API}/rest/posts`,
+      uploads: [
+        { call: `POST ${API}/rest/videos?action=initializeUpload`, body: { initializeUploadRequest: { owner: '<OWNER>', fileSizeBytes: '<taille>' } } },
+        { call: 'PUT <uploadUrl> par tranches de 4 Mo', relever: 'ETag de chaque tranche' },
+        { call: `POST ${API}/rest/videos?action=finalizeUpload`, body: { finalizeUploadRequest: { video: 'urn:li:video:<ID>', uploadedPartIds: ['<etags>'] } } },
+      ],
+      body: {
+        author: isOrg ? 'urn:li:organization:<ORG_ID>' : 'urn:li:person:<PERSON_ID>',
+        commentary: commentary(input.caption),
+        content: { media: { id: 'urn:li:video:<ID>', title: input.post.hook.slice(0, 120) } },
+      },
+    };
+  }
   return {
     endpoint: `${API}/rest/posts`,
     headers: { 'linkedin-version': LINKEDIN_VERSION, 'x-restli-protocol-version': '2.0.0' },

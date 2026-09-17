@@ -23,6 +23,7 @@ export const FORMAT_LABELS: Record<string, string> = {
   carousel: 'Carrousel',
   static: 'Image unique (Instagram)',
   li_image: 'Image LinkedIn',
+  reel: 'Vidéo verticale (Reel)',
 };
 
 /** Types de slide et champs, en français (les clés restent celles du schéma). */

@@ -13,6 +13,7 @@ import { registerAnalyticsRoutes } from './routes/apiAnalytics.js';
 import { registerImageRoutes } from './routes/apiImages.js';
 import { registerMiscRoutes } from './routes/apiMisc.js';
 import { registerBlogRoutes } from './routes/apiBlog.js';
+import { registerVideoRoutes } from './routes/apiVideo.js';
 import { registerNewsRoutes } from './routes/apiNews.js';
 import { registerPostRoutes } from './routes/apiPosts.js';
 import { registerSettingsRoutes } from './routes/apiSettings.js';
@@ -57,6 +58,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   registerPostRoutes(app);
   registerNewsRoutes(app);
   registerBlogRoutes(app);
+  registerVideoRoutes(app);
   registerSettingsRoutes(app);
   registerTemplateRoutes(app);
   registerImageRoutes(app);

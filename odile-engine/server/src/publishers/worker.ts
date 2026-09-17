@@ -9,7 +9,7 @@ import { sendMail } from '../mailer/smtp.js';
 import { facebookMirrorDryPayload, mirrorToFacebookPage } from './facebook.js';
 import { instagramDryPayload, InstagramPublisher } from './instagram.js';
 import { linkedInDryPayload, LinkedInPublisher } from './linkedin.js';
-import { buildCaption, collectPublishImages, DryRunPublisher, type Publisher } from './types.js';
+import { buildCaption, collectPublishImages, collectPublishVideo, DryRunPublisher, type Publisher } from './types.js';
 
 /**
  * Recopie du post Instagram sur la Page Facebook, quand le miroir est activé.
@@ -92,9 +92,11 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
 
     db.update(schema.posts).set({ status: 'publishing' }).where(eq(schema.posts.id, post.id)).run();
     try {
+      const video = collectPublishVideo(post);
+      // Un post vidéo n'a qu'une slide : elle sert de couverture, pas de contenu.
       const images = collectPublishImages(post.id);
       const publisher = publisherFor(post.platform);
-      const result = await publisher.publish({ post, images, caption: buildCaption(post) });
+      const result = await publisher.publish({ post, images, caption: buildCaption(post), video });
       const finished = new Date().toISOString();
       db.update(schema.publishJobs)
         .set({ state: 'done', finishedAt: finished, result: JSON.stringify(result) })
@@ -113,7 +115,7 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
         .run();
       summary.published++;
       logger.info({ postId: post.id, publisher: publisher.name }, 'publication réussie');
-      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post) });
+      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post), video });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const retryable = job.attempt + 1 < job.maxAttempts;

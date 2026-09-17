@@ -9,6 +9,12 @@ export interface PublishInput {
   /** slides ordonnées avec le chemin de leur PNG rendu */
   images: { idx: number; assetId: string; path: string; publicUrl: string }[];
   caption: string;
+  /**
+   * Vidéo avatar, quand le post en est une. `publicUrl` est servie par le moteur
+   * (Meta et Facebook la téléchargent), `path` sert à l'envoi par tranches chez
+   * LinkedIn ; la couverture est la slide d'accroche déjà rendue.
+   */
+  video?: { assetId: string; path: string; publicUrl: string; coverUrl: string | null; durationMs: number | null };
 }
 
 export interface PublishResult {
@@ -44,6 +50,27 @@ export function collectPublishImages(postId: number): PublishInput['images'] {
     });
   }
   return images;
+}
+
+/** La vidéo d'un post, prête à publier (null si le MP4 n'est pas encore rapatrié). */
+export function collectPublishVideo(post: typeof schema.posts.$inferSelect): PublishInput['video'] | undefined {
+  if (post.videoStatus !== 'ready' || !post.videoAssetId) return undefined;
+  const asset = db.select().from(schema.assets).where(eq(schema.assets.id, post.videoAssetId)).get();
+  if (!asset || !fs.existsSync(asset.path)) return undefined;
+  const cover = db
+    .select()
+    .from(schema.slides)
+    .where(eq(schema.slides.postId, post.id))
+    .orderBy(schema.slides.idx)
+    .all()
+    .find((s) => s.renderAssetId)?.renderAssetId;
+  return {
+    assetId: asset.id,
+    path: asset.path,
+    publicUrl: `${config.PUBLIC_URL.replace(/\/$/, '')}/public-assets/${asset.id}.mp4`,
+    coverUrl: cover ? `${config.PUBLIC_URL.replace(/\/$/, '')}/public-assets/${cover}.jpg` : null,
+    durationMs: post.videoDurationMs,
+  };
 }
 
 /** Caption finale : texte + hashtags. */

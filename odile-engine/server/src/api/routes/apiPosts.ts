@@ -55,6 +55,14 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     error: post.error,
     /** étape de fabrication en cours, quand le post est encore en chantier */
     pipelineStep: post.pipelineStep,
+    /** vidéo avatar : état, script, adresse du MP4 servi par le moteur */
+    video: {
+      status: post.videoStatus,
+      script: post.videoScript,
+      error: post.videoError,
+      durationMs: post.videoDurationMs,
+      url: post.videoAssetId ? `/public-assets/${post.videoAssetId}.mp4` : null,
+    },
     /** diffusion simultanée : la surface de ce post et celles de ses copies */
     broadcast: post.broadcastGroup
       ? { group: post.broadcastGroup, surface: surfaceDuPost(post).label, others: freresDuGroupe(post).map((f) => surfaceDuPost(f).label) }
@@ -170,6 +178,8 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (data.format !== undefined) update.format = data.format;
     if (data.theme !== undefined) update.theme = data.theme;
     if (data.scheduledAt !== undefined) update.scheduledAt = data.scheduledAt;
+    // Le script corrigé n'invalide pas la vidéo déjà fabriquée : c'est « Relancer la vidéo » qui la refait.
+    if (data.videoScript !== undefined) update.videoScript = data.videoScript;
     db.update(schema.posts).set(update).where(eq(schema.posts.id, id)).run();
     if (data.theme !== undefined || data.format !== undefined) {
       db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, id)).run();

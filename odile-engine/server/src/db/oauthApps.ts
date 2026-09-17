@@ -19,6 +19,7 @@ interface Stored {
   metaConfigId: string;
   framerProjectUrl: string;
   framerApiKeyEnc: string | null;
+  heygenApiKeyEnc: string | null;
   updatedAt: string | null;
 }
 
@@ -33,6 +34,7 @@ function readStored(): Stored {
     metaConfigId: typeof raw?.metaConfigId === 'string' ? raw.metaConfigId : '',
     framerProjectUrl: typeof raw?.framerProjectUrl === 'string' ? raw.framerProjectUrl : '',
     framerApiKeyEnc: typeof raw?.framerApiKeyEnc === 'string' ? raw.framerApiKeyEnc : null,
+    heygenApiKeyEnc: typeof raw?.heygenApiKeyEnc === 'string' ? raw.heygenApiKeyEnc : null,
     updatedAt: typeof raw?.updatedAt === 'string' ? raw.updatedAt : null,
   };
 }
@@ -59,6 +61,8 @@ export interface OauthApps {
   /** Framer : projet et clé d'API serveur (blog) */
   framerProjectUrl: string;
   framerApiKey: string;
+  /** HeyGen : clé d'API des vidéos avatar */
+  heygenApiKey: string;
   source: { linkedin: AppSource; meta: AppSource };
 }
 
@@ -83,6 +87,7 @@ export function getOauthApps(): OauthApps {
     metaConfigId: s.metaConfigId || config.META_CONFIG_ID || '',
     framerProjectUrl: s.framerProjectUrl,
     framerApiKey: safeDecrypt(s.framerApiKeyEnc),
+    heygenApiKey: safeDecrypt(s.heygenApiKeyEnc) || (config.HEYGEN_API_KEY ?? ''),
     source: {
       linkedin: liDash ? 'dashboard' : linkedinClientId ? 'env' : 'aucune',
       meta: metaDash ? 'dashboard' : metaAppId ? 'env' : 'aucune',
@@ -99,6 +104,9 @@ export function metaAppConfigured(apps = getOauthApps()): boolean {
 }
 export function framerConfigured(apps = getOauthApps()): boolean {
   return Boolean(apps.framerProjectUrl && apps.framerApiKey);
+}
+export function heygenConfigured(apps = getOauthApps()): boolean {
+  return Boolean(apps.heygenApiKey);
 }
 
 /** Enregistre les clés ; un secret vide conserve celui déjà stocké, un identifiant vide efface la paire. */
@@ -117,6 +125,8 @@ export function setOauthApps(input: OauthAppsInput): void {
     metaConfigId: input.metaConfigId,
     framerProjectUrl: input.framerProjectUrl,
     framerApiKeyEnc: !input.framerProjectUrl ? null : input.framerApiKey ? encryptSecret(input.framerApiKey) : current.framerApiKeyEnc,
+    // Une clé vide conserve celle déjà enregistrée ; « - » l'efface.
+    heygenApiKeyEnc: input.heygenApiKey === '-' ? null : input.heygenApiKey ? encryptSecret(input.heygenApiKey) : current.heygenApiKeyEnc,
     updatedAt: new Date().toISOString(),
   };
   setSetting(KEY, next);
@@ -146,6 +156,7 @@ export function maskedOauthApps() {
       secretSet: Boolean(apps.framerApiKey),
       configured: framerConfigured(apps),
     },
+    heygen: { secretSet: Boolean(apps.heygenApiKey), configured: heygenConfigured(apps) },
     updatedAt: stored.updatedAt,
     urls: {
       linkedinRedirect: `${config.PUBLIC_URL}/oauth/linkedin/callback`,

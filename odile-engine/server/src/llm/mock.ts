@@ -223,4 +223,6 @@ const MOCK_GENERATED_POST = {
   ],
   screenshotUrl: 'https://odileai.com',
   commentTrigger: { enabled: true, keyword: 'OUTIL' },
+  videoScript:
+    "Vos devis partent en trois jours ? Vos concurrents répondent en trois minutes. Mock : une PME de douze personnes a branché son formulaire sur un assistant qui rédige le devis et l'envoie pour relecture. Résultat, vingt-sept pour cent de devis signés en plus, sans embaucher. Commente OUTIL et je t'envoie la méthode complète.",
 };

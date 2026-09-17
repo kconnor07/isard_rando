@@ -182,6 +182,38 @@ export const llmBudgetSettingsSchema = z.object({
 });
 export type LlmBudgetSettings = z.infer<typeof llmBudgetSettingsSchema>;
 
+/**
+ * Vidéos avatar (HeyGen).
+ *
+ * Le moteur écrit le script, HeyGen le fait dire à l'avatar de la marque, et le
+ * MP4 part en Reel Instagram, en vidéo native LinkedIn et sur la Page Facebook.
+ * L'avatar et la voix se choisissent dans le dashboard : la liste vient du compte
+ * HeyGen connecté, jamais d'identifiants écrits en dur.
+ */
+export const videoSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** un post sur N part en vidéo (0 = jamais automatiquement, la vidéo reste manuelle) */
+  everyNPosts: z.number().int().min(0).max(20).default(3),
+  /** avatar du compte HeyGen : « avatar » (studio, instantané) ou « talking_photo » (photo animée) */
+  avatarType: z.enum(['avatar', 'talking_photo']).default('avatar'),
+  avatarId: z.string().max(120).default(''),
+  /** cadrage HeyGen : normal, circle, closeUp… */
+  avatarStyle: z.string().max(40).default('normal'),
+  voiceId: z.string().max(120).default(''),
+  voiceSpeed: z.number().min(0.5).max(1.5).default(1),
+  /** fond de la vidéo : couleur (par défaut celle du template) ou image de la bibliothèque */
+  backgroundType: z.enum(['couleur', 'image']).default('couleur'),
+  /** couleur hexadécimale, ou identifiant d'asset quand le fond est une image */
+  backgroundValue: z.string().max(120).default(''),
+  /** sous-titres incrustés par HeyGen — indispensables : la majorité regarde sans le son */
+  captions: z.boolean().default(true),
+  /** longueur visée du script parlé, en secondes (≈ 15 caractères par seconde en français) */
+  targetSeconds: z.number().int().min(15).max(90).default(45),
+  /** mode test HeyGen : vidéo filigranée, sans consommer de crédit */
+  testMode: z.boolean().default(false),
+});
+export type VideoSettings = z.infer<typeof videoSettingsSchema>;
+
 /** Recopie automatique de chaque publication Instagram sur la Page Facebook liée. */
 export const fbMirrorSettingsSchema = z.object({
   enabled: z.boolean().default(false),
@@ -359,6 +391,11 @@ export const generatedPostSchema = z.object({
    */
   resource: ressourcePromiseSchema.optional(),
   /**
+   * Texte que l'avatar prononce, quand le post est une vidéo. L'accroche tient dans
+   * la première phrase : sur un Reel, les deux premières secondes décident de tout.
+   */
+  videoScript: z.string().max(1400).optional(),
+  /**
    * Entreprises ou personnes de notoriété nommées dans le texte, quand l'actualité
    * s'y prête — jamais obligatoire. Les entreprises portent leur `vanityName`
    * LinkedIn (la fin de l'URL de leur page) : c'est ce qui permet de les identifier
@@ -415,6 +452,8 @@ export const themeIdSchema = z.union([
 ]);
 
 export const patchPostSchema = z.object({
+  /** texte prononcé par l'avatar : corrigeable avant de relancer la vidéo */
+  videoScript: z.string().max(1400).nullable().optional(),
   caption: z.string().max(2900).optional(),
   hook: z.string().max(220).optional(),
   cta: z.string().max(280).optional(),
@@ -437,6 +476,8 @@ export const rejectSchema = z.object({ reason: z.string().max(500).optional() })
 
 /** Clés des apps LinkedIn / Meta (et l'accès Framer) saisies depuis le dashboard — un secret vide conserve l'existant */
 export const oauthAppsSchema = z.object({
+  /** Clé d'API HeyGen (vidéos avatar) : réglages HeyGen → API */
+  heygenApiKey: z.string().trim().max(400).optional(),
   /** Adresse du projet Framer (https://framer.com/projects/…) — l'API serveur s'y connecte */
   framerProjectUrl: z.string().trim().max(300).default(''),
   /** Clé d'API Framer : réglages du site → Général → API keys */

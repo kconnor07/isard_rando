@@ -111,6 +111,18 @@ export async function sendApprovalEmail(
         .join(' · ')} ${review.passed ? '✔ validé' : '⚠ seuil non atteint (à vérifier)'}</p>`
     : '';
 
+  // Vidéo : on ne valide pas à l'aveugle un post dont le visuel principal est un MP4.
+  const ligneVideo =
+    post.format === 'reel'
+      ? post.videoStatus === 'ready' && post.videoAssetId
+        ? `<p style="margin:6px 0 2px;color:#556;font-size:13px">🎬 Vidéo de l'avatar${
+            post.videoDurationMs ? ` (${Math.round(post.videoDurationMs / 1000)} s)` : ''
+          } — <a href="${config.PUBLIC_URL.replace(/\/$/, '')}/public-assets/${post.videoAssetId}.mp4" style="color:#0077cc"><b>la regarder avant d'approuver</b></a></p>`
+        : `<p style="margin:6px 0 2px;color:#b45309;font-size:13px">⚠ Vidéo indisponible : ${escapeHtml(
+            post.videoError ?? 'fabrication en cours',
+          )}. Le post partirait avec la seule image de couverture.</p>`
+      : '';
+
   // Diffusion simultanée : l'email le dit, pour que la validation soit donnée en connaissance de cause.
   const autresSurfaces = freresDuGroupe(post).map((f) => surfaceDuPost(f).label);
   const subject = `${settings.subjectPrefix}${opts.reminder ? ' [RELANCE]' : ''} Post à valider · ${CHANNEL_LABELS[post.channel] ?? post.channel}${autresSurfaces.length ? ` +${autresSurfaces.length}` : ''} · ${post.hook.slice(0, 60)}`;
@@ -133,6 +145,7 @@ export async function sendApprovalEmail(
     ${reviewLine}
     <p style="margin:10px 0 2px;color:#556;font-size:13px">🕒 Si tu approuves, publication programmée : <b>${fmtParis(slot)}</b> (heure de Paris)</p>
     ${autresSurfaces.length ? `<p style="margin:6px 0 2px;color:#556;font-size:13px">📣 Partira aussi, avec la même validation, sur : <b>${escapeHtml(autresSurfaces.join(', '))}</b></p>` : ''}
+    ${ligneVideo}
   </td></tr>
   <tr><td align="center" style="padding:10px 20px">
     <table role="presentation" cellpadding="0" cellspacing="0">${slideRows.join('')}</table>
@@ -153,7 +166,11 @@ export async function sendApprovalEmail(
 </table>
 </td></tr></table></body></html>`;
 
-  const text = `Un post ${CHANNEL_LABELS[post.channel] ?? post.channel} attend ta validation.
+  const text = `Un post ${CHANNEL_LABELS[post.channel] ?? post.channel} attend ta validation.${
+    post.format === 'reel' && post.videoStatus === 'ready' && post.videoAssetId
+      ? `\nVidéo : ${config.PUBLIC_URL.replace(/\/$/, '')}/public-assets/${post.videoAssetId}.mp4`
+      : ''
+  }
 
 Hook : ${post.hook}
 

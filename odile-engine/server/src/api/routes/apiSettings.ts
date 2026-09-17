@@ -18,6 +18,7 @@ import {
   visualAgentSettingsSchema,
   fbMirrorSettingsSchema,
   blogSettingsSchema,
+  videoSettingsSchema,
   llmBudgetSettingsSchema,
 } from '@odile/shared';
 import { config } from '../../config.js';
@@ -35,6 +36,7 @@ import {
   getLlmRouting,
   getFbMirror,
   getBlog,
+  getVideo,
   getLlmBudget,
   getSettingRaw,
   THEME_DERNIER,
@@ -57,6 +59,7 @@ const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> =
   dm_triggers: { schema: dmTriggerSettingsSchema, read: getDmTriggers },
   fb_mirror: { schema: fbMirrorSettingsSchema, read: getFbMirror },
   blog: { schema: blogSettingsSchema, read: getBlog },
+  video: { schema: videoSettingsSchema, read: getVideo },
   llm_budget: { schema: llmBudgetSettingsSchema, read: getLlmBudget },
   approval_email: { schema: approvalEmailSettingsSchema, read: getApprovalEmail },
   design_studio: { schema: designStudioSettingsSchema, read: getDesignStudio },

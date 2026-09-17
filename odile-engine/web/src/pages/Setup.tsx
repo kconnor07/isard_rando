@@ -85,6 +85,7 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
     metaConfigId: apps.meta.configId ?? '',
     framerProjectUrl: apps.framer?.projectUrl ?? '',
     framerApiKey: '',
+    heygenApiKey: '',
   });
   const [form, setForm] = useState(blank);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,6 +210,20 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
               value={form.framerApiKey}
               onChange={(e) => set('framerApiKey', e.target.value)}
               placeholder={apps.framer?.secretSet ? '•••••••• enregistrée — laisser vide pour conserver' : 'fk_…'}
+              autoComplete="new-password"
+            />
+            <h3 className="mt-5 text-sm font-bold">HeyGen (vidéos avatar)</h3>
+            <p className="mt-1 text-[11px] leading-snug text-muted">
+              HeyGen → <i>Settings</i> → <i>API</i> : crée une clé et colle-la ici. Le moteur pourra alors lister tes avatars et tes voix
+              dans Réglages → Vidéos, et faire dire tes scripts à ton avatar. Saisis <code>-</code> pour effacer la clé enregistrée.
+            </p>
+            <label className="label mt-3">Clé d’API HeyGen</label>
+            <input
+              className="input"
+              type="password"
+              value={form.heygenApiKey}
+              onChange={(e) => set('heygenApiKey', e.target.value)}
+              placeholder={apps.heygen?.secretSet ? '•••••••• enregistrée — laisser vide pour conserver' : 'clé HeyGen'}
               autoComplete="new-password"
             />
           </div>

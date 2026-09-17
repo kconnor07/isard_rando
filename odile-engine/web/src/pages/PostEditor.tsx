@@ -448,6 +448,7 @@ export default function PostEditor() {
         </div>
       )}
 
+      {post.format === 'reel' && <BlocVideo post={post} />}
       {post.resource && post.resource.kind !== 'article' && (
         <div className="card mb-4 p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted">
@@ -655,6 +656,92 @@ export default function PostEditor() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Vidéo de l'avatar : on la regarde, on corrige le script s'il faut, on relance.
+ * Tant qu'elle est en fabrication, l'état se rafraîchit tout seul.
+ */
+function BlocVideo({ post }: { post: PostDetailDto }) {
+  const qc = useQueryClient();
+  const [script, setScript] = useState(post.video?.script ?? '');
+  const enCours = post.video?.status === 'pending';
+  useQuery({
+    queryKey: ['post', post.id, 'video'],
+    queryFn: async () => {
+      const etat = await api.get<{ statut: string }>(`/api/posts/${post.id}/video`);
+      if (etat.statut !== 'pending') void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      return etat;
+    },
+    enabled: enCours,
+    refetchInterval: 20_000,
+  });
+  const enregistrer = useMutation({
+    mutationFn: () => api.patch(`/api/posts/${post.id}`, { videoScript: script }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      toast.success('Script enregistré');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const relancer = useMutation({
+    mutationFn: async () => {
+      await api.patch(`/api/posts/${post.id}`, { videoScript: script });
+      return api.post<{ ok: boolean }>(`/api/posts/${post.id}/video`, {});
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      toast.success('Vidéo relancée — compte une à trois minutes');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const secondes = post.video?.durationMs ? Math.round(post.video.durationMs / 1000) : null;
+  const caracteres = script.trim().length;
+
+  return (
+    <div className="card mb-5 p-5">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <h2 className="text-base font-bold">Vidéo de l’avatar</h2>
+        <span className="text-xs text-muted">
+          {post.video?.status === 'ready'
+            ? `prête${secondes ? ` · ${secondes} s` : ''}`
+            : post.video?.status === 'pending'
+              ? 'en fabrication chez HeyGen…'
+              : post.video?.status === 'failed'
+                ? 'en échec'
+                : 'pas encore lancée'}
+        </span>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <div>
+          {post.video?.url ? (
+            <video src={post.video.url} controls playsInline className="w-full rounded-2xl border border-line" />
+          ) : (
+            <div className="flex aspect-[9/16] w-full items-center justify-center rounded-2xl border border-dashed border-line text-center text-xs text-muted">
+              {post.video?.status === 'pending' ? 'Fabrication en cours' : 'Aucune vidéo'}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="label">Texte prononcé par l’avatar · {caracteres} caractères ≈ {Math.round(caracteres / 15)} s</label>
+          <textarea className="input min-h-[180px]" value={script} onChange={(e) => setScript(e.target.value)} />
+          {post.video?.error && <p className="mt-2 text-xs text-accent">{post.video.error}</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="btn-ghost !py-1.5 text-xs" disabled={enregistrer.isPending || script === (post.video?.script ?? '')} onClick={() => enregistrer.mutate()}>
+              Enregistrer le script
+            </button>
+            <button className="btn-primary !py-1.5 text-xs" disabled={relancer.isPending || enCours || caracteres < 40} onClick={() => relancer.mutate()}>
+              {enCours ? 'Fabrication en cours…' : post.video?.url ? 'Refaire la vidéo' : 'Fabriquer la vidéo'}
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] leading-snug text-muted">
+            Écrit pour l’oreille : la première phrase arrête le scroll en deux secondes, pas d’émoji, pas d’URL — l’avatar lit tout à voix haute.
+            Les réglages (avatar, voix, sous-titres) sont dans Réglages → Vidéos avatar.
+          </p>
         </div>
       </div>
     </div>

@@ -26,6 +26,14 @@ export interface PostSummaryDto {
   };
   createdAt: string;
   commentTriggerKeyword: string | null;
+  /** vidéo avatar : état de fabrication et adresse du MP4 */
+  video?: {
+    status: 'none' | 'pending' | 'ready' | 'failed';
+    script: string | null;
+    error: string | null;
+    durationMs: number | null;
+    url: string | null;
+  };
   /** diffusion simultanée : ce post et ses copies sur les autres comptes */
   broadcast?: { group: string; surface: string; others: string[] } | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;
@@ -299,6 +307,7 @@ export interface OauthAppsDto {
   linkedin: { clientId: string; secretSet: boolean; source: 'dashboard' | 'env' | 'aucune'; configured: boolean };
   meta: { appId: string; secretSet: boolean; verifyToken: string; configId: string; source: 'dashboard' | 'env' | 'aucune'; configured: boolean };
   framer: { projectUrl: string; secretSet: boolean; configured: boolean };
+  heygen: { secretSet: boolean; configured: boolean };
   updatedAt: string | null;
   urls: { linkedinRedirect: string; metaRedirect: string; metaWebhook: string };
 }

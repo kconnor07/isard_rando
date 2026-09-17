@@ -4,7 +4,7 @@ export type Platform = (typeof PLATFORMS)[number];
 export const CHANNELS = ['li_personal', 'li_org', 'ig'] as const;
 export type Channel = (typeof CHANNELS)[number];
 
-export const POST_FORMATS = ['carousel', 'static', 'li_image'] as const;
+export const POST_FORMATS = ['carousel', 'static', 'li_image', 'reel'] as const;
 export type PostFormat = (typeof POST_FORMATS)[number];
 
 export const POST_STATUSES = [
@@ -133,6 +133,8 @@ export const RENDER_SIZES: Record<PostFormat, { width: number; height: number }>
   carousel: { width: 1080, height: 1350 },
   static: { width: 1080, height: 1350 },
   li_image: { width: 1080, height: 1350 },
+  // Vidéo verticale : la slide d'accroche sert de couverture (Reels, vidéo LinkedIn, Facebook).
+  reel: { width: 1080, height: 1920 },
 };
 
 /**

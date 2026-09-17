@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
-import { api, upload } from '../api/client';
+import { api, humanizeError, upload } from '../api/client';
 import LibraryPicker, { LibraryThumb } from '../components/LibraryPicker';
 import { FORMAT_LABELS, PageTitle } from '../components/shared';
 import { toast } from '../components/Toaster';
@@ -13,6 +13,11 @@ type AllSettings = Record<string, unknown> & {
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string };
   fb_mirror: { enabled: boolean };
+  video: {
+    enabled: boolean; everyNPosts: number; avatarType: 'avatar' | 'talking_photo'; avatarId: string; avatarStyle: string;
+    voiceId: string; voiceSpeed: number; backgroundType: 'couleur' | 'image'; backgroundValue: string;
+    captions: boolean; targetSeconds: number; testMode: boolean;
+  };
   llm_budget: { enabled: boolean; dailyEuros: number };
   approval_email: { to: string; subjectPrefix: string; maxReminders: number };
   design_studio: { enabled: boolean; maxIterations: number; passThreshold: number };
@@ -122,7 +127,7 @@ export default function Settings() {
   const SECTION_LABELS: Record<string, string> = {
     tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', llm_budget: 'Budget IA',
     design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
-    default_theme: 'Thème par défaut', default_format: 'Format par défaut',
+    default_theme: 'Thème par défaut', default_format: 'Format par défaut', video: 'Vidéos avatar',
   };
   /** Enregistre une ou plusieurs clés en une seule action (bouton et message par section). */
   const save = useMutation({
@@ -400,6 +405,8 @@ export default function Settings() {
           de 100 %, plus aucun appel ne part jusqu'au lendemain — un arrêt annoncé, pas une panne.
         </p>
       </Section>
+
+      <SectionVideo form={form} set={set} saving={savingOf('video')} onSave={() => save.mutate({ key: 'video', value: form.video })} />
 
       <Section title="Miroir Facebook" saving={savingOf('fb_mirror')} onSave={() => save.mutate({ key: 'fb_mirror', value: form.fb_mirror })}>
         <label className="mb-2 flex items-center gap-2 text-sm">
@@ -790,5 +797,201 @@ export default function Settings() {
         </div>
       </Section>
     </div>
+  );
+}
+
+interface AvatarDto {
+  id: string;
+  nom: string;
+  type: 'avatar' | 'talking_photo';
+  genre: string;
+  apercu: string | null;
+}
+interface VoixDto {
+  id: string;
+  nom: string;
+  langue: string;
+  genre: string;
+  apercu: string | null;
+  emotions: boolean;
+}
+
+/**
+ * Vidéos avatar : l'avatar et la voix se choisissent dans la liste du compte HeyGen
+ * connecté — jamais un identifiant collé à la main — et l'essai part en mode test,
+ * donc sans consommer de crédit.
+ */
+function SectionVideo({
+  form,
+  set,
+  saving,
+  onSave,
+}: {
+  form: AllSettings;
+  set: <K extends keyof AllSettings>(k: K, v: AllSettings[K]) => void;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  const v = form.video;
+  const [essai, setEssai] = useState<{ providerId: string; statut: string; url: string | null } | null>(null);
+  const {
+    data: comptes,
+    refetch: charger,
+    isFetching,
+    error: erreurComptes,
+  } = useQuery({
+    queryKey: ['video', 'comptes'],
+    queryFn: () => api.get<{ avatars: AvatarDto[]; voix: VoixDto[] }>('/api/video/comptes'),
+    enabled: false,
+    retry: false,
+  });
+  const lancerEssai = useMutation({
+    mutationFn: () => api.post<{ providerId: string }>('/api/video/essai', {}),
+    onSuccess: (r) => {
+      setEssai({ providerId: r.providerId, statut: 'processing', url: null });
+      toast.info('Essai lancé — la vidéo arrive dans une à trois minutes');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  // Tant que l'essai tourne, on demande son état toutes les dix secondes.
+  useQuery({
+    queryKey: ['video', 'essai', essai?.providerId],
+    queryFn: async () => {
+      const etat = await api.get<{ statut: string; videoUrl: string | null; erreur: string | null }>(
+        `/api/video/essai/${essai!.providerId}`,
+      );
+      if (etat.statut === 'completed' && etat.videoUrl) setEssai({ providerId: essai!.providerId, statut: 'completed', url: etat.videoUrl });
+      else if (etat.statut === 'failed') {
+        toast.error(`Essai en échec : ${etat.erreur ?? 'motif non donné'}`);
+        setEssai(null);
+      }
+      return etat;
+    },
+    enabled: Boolean(essai && essai.statut !== 'completed'),
+    refetchInterval: 10_000,
+  });
+
+  const avatars = comptes?.avatars ?? [];
+  const voix = comptes?.voix ?? [];
+  const avatarChoisi = avatars.find((a) => a.id === v.avatarId);
+  const maj = <K extends keyof AllSettings['video']>(k: K, val: AllSettings['video'][K]) => set('video', { ...v, [k]: val });
+
+  return (
+    <Section title="Vidéos avatar (HeyGen)" saving={saving} onSave={onSave}>
+      <label className="mb-1 flex items-center gap-2 text-sm">
+        <input type="checkbox" className="accent-sky-500" checked={v.enabled} onChange={(e) => maj('enabled', e.target.checked)} />
+        Fabriquer des vidéos avec l’avatar de la marque
+      </label>
+      <p className="mb-4 text-xs text-muted">
+        Le moteur écrit le script, HeyGen le fait dire à ton avatar, et le MP4 part en Reel Instagram, en vidéo native LinkedIn et sur la
+        Page Facebook. La slide d’accroche sert de couverture. La clé HeyGen se saisit dans Connexions &amp; santé.
+      </p>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button className="btn-ghost !py-1.5 text-xs" disabled={isFetching} onClick={() => void charger()}>
+          {isFetching ? 'Lecture du compte HeyGen…' : 'Charger mes avatars et mes voix'}
+        </button>
+        {erreurComptes && <span className="text-xs text-accent">{humanizeError(erreurComptes)}</span>}
+        {avatars.length > 0 && <span className="text-xs text-muted">{avatars.length} avatars · {voix.length} voix</span>}
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="label">Avatar</label>
+          {avatars.length > 0 ? (
+            <select
+              className="input"
+              value={v.avatarId}
+              onChange={(e) => {
+                const a = avatars.find((x) => x.id === e.target.value);
+                set('video', { ...v, avatarId: e.target.value, avatarType: a?.type ?? 'avatar' });
+              }}
+            >
+              <option value="">— choisir —</option>
+              {avatars.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.nom}
+                  {a.type === 'talking_photo' ? ' (photo animée)' : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input className="input" value={v.avatarId} onChange={(e) => maj('avatarId', e.target.value)} placeholder="charge la liste, ou colle un avatar_id" />
+          )}
+        </div>
+        <div>
+          <label className="label">Voix</label>
+          {voix.length > 0 ? (
+            <select className="input" value={v.voiceId} onChange={(e) => maj('voiceId', e.target.value)}>
+              <option value="">— choisir —</option>
+              {voix.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.nom} {x.langue ? `· ${x.langue}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input className="input" value={v.voiceId} onChange={(e) => maj('voiceId', e.target.value)} placeholder="charge la liste, ou colle un voice_id" />
+          )}
+        </div>
+        <div>
+          <label className="label">Cadrage {v.avatarType === 'talking_photo' ? '(sans effet sur une photo animée)' : ''}</label>
+          <select className="input" value={v.avatarStyle} onChange={(e) => maj('avatarStyle', e.target.value)} disabled={v.avatarType === 'talking_photo'}>
+            <option value="normal">Normal</option>
+            <option value="closeUp">Gros plan</option>
+            <option value="circle">Rond</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Débit de la voix · {v.voiceSpeed.toFixed(2)}×</label>
+          <input type="range" min={0.8} max={1.2} step={0.05} className="w-full accent-sky-500" value={v.voiceSpeed} onChange={(e) => maj('voiceSpeed', Number(e.target.value))} />
+        </div>
+        <div>
+          <label className="label">Une vidéo tous les {v.everyNPosts || '—'} post(s)</label>
+          <input type="range" min={0} max={10} className="w-full accent-sky-500" value={v.everyNPosts} onChange={(e) => maj('everyNPosts', Number(e.target.value))} />
+          <p className="text-[11px] text-muted">0 = jamais automatiquement (tu lances la vidéo depuis un post).</p>
+        </div>
+        <div>
+          <label className="label">Durée visée · {v.targetSeconds} s</label>
+          <input type="range" min={15} max={90} step={5} className="w-full accent-sky-500" value={v.targetSeconds} onChange={(e) => maj('targetSeconds', Number(e.target.value))} />
+          <p className="text-[11px] text-muted">Instagram accepte 5 à 90 s ; 30 à 45 s retient le mieux.</p>
+        </div>
+        <div>
+          <label className="label">Fond</label>
+          <div className="flex gap-2">
+            <select className="input" value={v.backgroundType} onChange={(e) => maj('backgroundType', e.target.value as 'couleur' | 'image')}>
+              <option value="couleur">Couleur du template</option>
+              <option value="image">Image de la bibliothèque</option>
+            </select>
+            <input
+              className="input"
+              value={v.backgroundValue}
+              onChange={(e) => maj('backgroundValue', e.target.value)}
+              placeholder={v.backgroundType === 'couleur' ? '#06050a (vide = couleur du template)' : 'identifiant d’image'}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-2 pt-6">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="accent-sky-500" checked={v.captions} onChange={(e) => maj('captions', e.target.checked)} />
+            Sous-titres incrustés
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="accent-sky-500" checked={v.testMode} onChange={(e) => maj('testMode', e.target.checked)} />
+            Mode test (filigrane, aucun crédit consommé)
+          </label>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-line pt-4">
+        <button className="btn-ghost !py-1.5 text-xs" disabled={lancerEssai.isPending || !v.avatarId || !v.voiceId} onClick={() => lancerEssai.mutate()}>
+          {lancerEssai.isPending ? 'Demande…' : 'Tester l’avatar et la voix'}
+        </button>
+        <span className="text-xs text-muted">
+          {avatarChoisi ? `${avatarChoisi.nom} · ` : ''}l’essai part toujours en mode test : il ne coûte aucun crédit.
+        </span>
+        {essai && essai.statut !== 'completed' && <span className="text-xs text-muted">Fabrication en cours…</span>}
+      </div>
+      {essai?.url && (
+        <video src={essai.url} controls playsInline className="mt-3 w-full max-w-[260px] rounded-2xl border border-line" />
+      )}
+    </Section>
   );
 }

@@ -159,11 +159,32 @@ export function registerPublicRoutes(app: FastifyInstance): void {
   // fichier : l'API Instagram n'accepte que le JPEG.
   app.get<{ Params: { file: string } }>('/public-assets/:file', async (request, reply) => {
     const wantsJpeg = /\.(jpg|jpeg)$/i.test(request.params.file);
-    const id = request.params.file.replace(/\.(png|jpg|jpeg)$/i, '');
+    const id = request.params.file.replace(/\.(png|jpg|jpeg|mp4)$/i, '');
     const asset = db.select().from(schema.assets).where(eq(schema.assets.id, id)).get();
     if (!asset) return reply.status(404).send('Asset inconnu');
     if (!fs.existsSync(asset.path)) return reply.status(404).send('Fichier manquant');
     reply.header('cache-control', 'public, max-age=86400');
+    // Vidéo : Meta et Facebook téléchargent le MP4 depuis cette adresse, et les
+    // navigateurs demandent une plage d'octets pour démarrer la lecture sans tout charger.
+    if (asset.mime === 'video/mp4') {
+      const taille = fs.statSync(asset.path).size;
+      reply.header('accept-ranges', 'bytes').type('video/mp4');
+      const plage = /^bytes=(\d*)-(\d*)$/.exec(String(request.headers.range ?? ''));
+      if (plage) {
+        const debut = plage[1] ? Number(plage[1]) : 0;
+        const fin = plage[2] ? Math.min(Number(plage[2]), taille - 1) : taille - 1;
+        if (debut >= taille || fin < debut) {
+          return reply.status(416).header('content-range', `bytes */${taille}`).send();
+        }
+        return reply
+          .status(206)
+          .header('content-range', `bytes ${debut}-${fin}/${taille}`)
+          .header('content-length', String(fin - debut + 1))
+          .send(fs.createReadStream(asset.path, { start: debut, end: fin }));
+      }
+      reply.header('content-length', String(taille));
+      return reply.send(fs.createReadStream(asset.path));
+    }
     if (wantsJpeg && asset.mime !== 'image/jpeg') {
       const jpegPath = `${asset.path}.jpg`;
       if (!fs.existsSync(jpegPath)) {

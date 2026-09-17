@@ -15,6 +15,7 @@ import {
   visualAgentSettingsSchema,
   fbMirrorSettingsSchema,
   blogSettingsSchema,
+  videoSettingsSchema,
   llmBudgetSettingsSchema,
 } from '@odile/shared';
 import { config } from '../config.js';
@@ -87,6 +88,8 @@ export const getDmTriggers = () =>
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });
+/** Vidéos avatar HeyGen : désactivées tant que l'avatar et la voix ne sont pas choisis. */
+export const getVideo = () => getSetting('video', videoSettingsSchema, videoSettingsSchema.parse({}));
 /** Blog du site Framer : désactivé tant que la collection n'est pas choisie. */
 export const getBlog = () => getSetting('blog', blogSettingsSchema, blogSettingsSchema.parse({}));
 /** Recopie des publications Instagram sur la Page Facebook (désactivée par défaut). */

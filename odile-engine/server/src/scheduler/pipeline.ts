@@ -83,6 +83,7 @@ const ETAPES = [
   'Capture et illustrations',
   'Agent visuel',
   'Rendu des slides',
+  'Vidéo de l’avatar',
   'Relecture du studio',
   'Email de validation',
 ] as const;
@@ -144,6 +145,30 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
   const visuals = await runVisualAgentForPipeline(draft.postId);
   etape(draft.postId, 'Rendu des slides');
   await renderPost(draft.postId);
+
+  // Vidéo : le script part chez HeyGen, qui met quelques minutes. On patiente le
+  // temps habituel ; si la fabrication traîne, le post reste « en attente de vidéo »
+  // et le passage régulier (job « video-suivi ») la termine puis envoie l'email.
+  let videoEnAttente = false;
+  const post = db.select().from(schema.posts).where(eq(schema.posts.id, draft.postId)).get();
+  if (post?.format === 'reel') {
+    etape(draft.postId, 'Vidéo de l’avatar');
+    const { lancerVideo, attendreVideo } = await import('../video/index.js');
+    const lancement = await lancerVideo(draft.postId);
+    if (lancement.lance) {
+      const issue = await attendreVideo(draft.postId);
+      videoEnAttente = issue === 'en_cours';
+      if (issue === 'echec') {
+        logger.warn({ postId: draft.postId }, 'vidéo en échec — le post part sans elle, à relancer depuis l’éditeur');
+      }
+    } else {
+      logger.warn({ postId: draft.postId, raison: lancement.raison }, 'vidéo non lancée');
+      db.update(schema.posts)
+        .set({ videoStatus: 'failed', videoError: `Vidéo non lancée : ${lancement.raison ?? 'raison inconnue'}` })
+        .where(eq(schema.posts.id, draft.postId))
+        .run();
+    }
+  }
   // Le studio ne doit jamais bloquer la livraison : un post rendu vaut mieux
   // qu'aucun post — l'humain valide de toute façon.
   etape(draft.postId, 'Relecture du studio');
@@ -162,6 +187,19 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
 
   etape(draft.postId, 'Email de validation');
   let emailed = false;
+  if (videoEnAttente) {
+    // Rien à valider tant que la vidéo n'est pas là : le job « video-suivi » enverra
+    // l'email dès qu'elle arrive. L'étape reste affichée pour que l'attente soit lisible.
+    logger.info({ postId: draft.postId }, 'vidéo encore en fabrication — email de validation différé');
+    return {
+      postId: draft.postId,
+      screenshot: capture.ok ? 'ok' : `échec: ${capture.reason.slice(0, 120)}`,
+      images,
+      review: { iterations: review.iterations, passed: review.passed, unavailable: review.unavailable },
+      visuals,
+      emailed: false,
+    };
+  }
   try {
     const { sendApprovalEmail } = await import('../mailer/approvalEmail.js');
     await sendApprovalEmail(draft.postId);

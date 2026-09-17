@@ -73,13 +73,20 @@ export const posts = sqliteTable(
     liAccountKey: text('li_account_key'),
     /** JSON [{nom, type, vanityName}] : qui identifier dans le texte (LinkedIn). */
     mentions: text('mentions'),
+    /** Vidéo avatar : texte prononcé, identifiant chez le prestataire, MP4 rapatrié. */
+    videoScript: text('video_script'),
+    videoProviderId: text('video_provider_id'),
+    videoStatus: text('video_status', { enum: ['none', 'pending', 'ready', 'failed'] }).notNull().default('none'),
+    videoAssetId: text('video_asset_id'),
+    videoDurationMs: integer('video_duration_ms'),
+    videoError: text('video_error'),
     /**
      * Diffusion simultanée : les posts d'un même groupe sont le même sujet publié
      * sur chaque compte connecté. Une décision (approuver, rejeter, programmer)
      * prise sur l'un vaut pour tous.
      */
     broadcastGroup: text('broadcast_group'),
-    format: text('format', { enum: ['carousel', 'static', 'li_image'] }).notNull(),
+    format: text('format', { enum: ['carousel', 'static', 'li_image', 'reel'] }).notNull(),
     theme: text('theme').notNull(),
     language: text('language').notNull().default('fr'),
     status: text('status', {
@@ -157,7 +164,7 @@ export const slides = sqliteTable(
 export const assets = sqliteTable('assets', {
   id: text('id').primaryKey(), // nanoid(21) — sert de segment d'URL publique
   kind: text('kind', {
-    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide', 'cover'],
+    enum: ['render', 'screenshot', 'logo', 'upload', 'genimage', 'library', 'candidate', 'guide', 'cover', 'video'],
   }).notNull(),
   postId: integer('post_id'),
   slideId: integer('slide_id'),

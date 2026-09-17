@@ -23,6 +23,9 @@ export interface MirrorResult {
  * télécharge depuis PUBLIC_URL, aucun envoi de fichier n'est nécessaire.
  */
 export async function mirrorToFacebookPage(input: PublishInput): Promise<MirrorResult> {
+  // Une vidéo ne se recopie pas comme une photo : la Page a son propre point d'entrée,
+  // et Facebook télécharge le MP4 depuis l'adresse que le moteur sert.
+  if (input.video) return publierVideoFacebook(input);
   const page = getStoredToken('meta', 'fb_page');
   if (!page) throw new Error('Aucune Page Facebook connectée — connecte Instagram depuis Connexions & santé');
   if (page.scopes && !page.scopes.split(',').includes(PAGE_PUBLISH_SCOPE)) {
@@ -67,8 +70,38 @@ export async function mirrorToFacebookPage(input: PublishInput): Promise<MirrorR
   return { postId: feed.id, url: `https://www.facebook.com/${feed.id}` };
 }
 
+/** Vidéo publiée sur la Page (Facebook télécharge le MP4 depuis `file_url`). */
+async function publierVideoFacebook(input: PublishInput): Promise<MirrorResult> {
+  const page = getStoredToken('meta', 'fb_page');
+  if (!page) throw new Error('Aucune Page Facebook connectée — connecte Instagram depuis Connexions & santé');
+  const video = input.video!;
+  const res = await fetchJson<{ id: string }>(`${GRAPH}/${page.externalId}/videos`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      file_url: video.publicUrl,
+      description: input.caption.slice(0, 60000),
+      title: input.post.hook.slice(0, 120),
+      access_token: page.accessToken,
+    }),
+    timeoutMs: 120_000,
+  });
+  logger.info({ videoId: res.id }, 'vidéo publiée sur la Page Facebook');
+  return { postId: res.id, url: `https://www.facebook.com/${res.id}` };
+}
+
 /** Payload « à blanc » pour le mode dry-run. */
 export function facebookMirrorDryPayload(input: PublishInput): unknown {
+  if (input.video) {
+    return {
+      call: `POST ${GRAPH}/<PAGE_ID>/videos`,
+      body: {
+        file_url: input.video.publicUrl,
+        description: input.caption.slice(0, 200),
+        title: input.post.hook.slice(0, 120),
+      },
+    };
+  }
   const message = input.caption.slice(0, 60000);
   return input.images.length === 1
     ? { call: `POST ${GRAPH}/<PAGE_ID>/photos`, body: { url: input.images[0]!.publicUrl, caption: message } }

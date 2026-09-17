@@ -17,8 +17,10 @@ import {
   getDmTriggers,
   getImageGen,
   getTone,
+  getVideo,
 } from '../db/settingsRepo.js';
 import { comptesLinkedIn, prochainComptePersonnel } from '../publishers/linkedinAccounts.js';
+import { videoDue } from '../video/index.js';
 import { completeJson } from '../llm/router.js';
 import { ICON_IDS } from '../render/icons.js';
 import { nextShortlistedItem } from '../scorer/shortlist.js';
@@ -183,8 +185,11 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
 
   const channel = opts.channel ?? channelFromRotation();
   const platform = channel === 'ig' ? 'instagram' : 'linkedin';
+  // Un post sur N part en vidéo quand HeyGen est prêt : c'est le seul format qui
+  // touche les gens qui ne suivent pas encore le compte.
+  const nbPosts = db.select({ id: schema.posts.id }).from(schema.posts).all().length;
   const format: PostFormat =
-    opts.format ?? (channel === 'ig' ? (getDefaultFormat() as PostFormat) : 'li_image');
+    opts.format ?? (videoDue(nbPosts) ? 'reel' : channel === 'ig' ? (getDefaultFormat() as PostFormat) : 'li_image');
   const theme = opts.theme ?? getDefaultTheme();
   const tone = getTone();
   const brand = getBrand();
@@ -192,6 +197,7 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const imageGen = getImageGen();
 
   const isCarousel = format === 'carousel';
+  const isReel = format === 'reel';
   const imagesAllowed = imageGen.enabled ? imageGen.imagesPerPost : 0;
   const slideSpec = isCarousel
     ? `un carrousel de ${DEFAULTS.carouselSlides.min} à ${DEFAULTS.carouselSlides.max} slides :
@@ -201,7 +207,10 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
      (une slide kind "screenshot" si un outil/site mérite une capture d'écran réelle : renseigne toolName et toolUrl),
      une slide "value_prop" avec le résultat chiffré (bigNumber)
   N+1. kind "cta" — l'appel à l'action final`
-    : `exactement 1 slide kind "hook" : le visuel unique du post (titre percutant, accentWord, body court)`;
+    : isReel
+      ? `exactement 1 slide kind "hook" : elle sert de COUVERTURE à la vidéo verticale (titre percutant de 6 mots
+  maximum, accentWord, body très court) — c'est la vignette figée que l'on voit avant de lancer la lecture`
+      : `exactement 1 slide kind "hook" : le visuel unique du post (titre percutant, accentWord, body court)`;
 
   // Ce que la personne recevra vraiment : le rédacteur doit promettre cela et rien d'autre.
   const lienFixe = dm.linkTarget === 'fixe' && dm.fixedUrl.trim() ? dm.fixedUrl.trim() : '';
@@ -263,6 +272,22 @@ STRATÉGIE LINKEDIN (le texte du post, « caption ») :
 - Termine par le CTA « Commente [MOT-CLÉ] » — c'est lui qui déclenche l'envoi.`
       : '';
 
+  // Vidéo : le script est prononcé par l'avatar de la marque, pas lu à l'écran.
+  const reglagesVideo = getVideo();
+  const specVideo = isReel
+    ? `
+SCRIPT DE LA VIDÉO (champ "videoScript") — c'est le cœur de ce post :
+- L'avatar de ${brand.name} va PRONONCER ce texte face caméra. Écris pour l'oreille, pas pour l'œil.
+- Durée visée : ${reglagesVideo.targetSeconds} secondes, soit environ ${Math.round(reglagesVideo.targetSeconds * 15)} caractères. Ne dépasse jamais 1 300.
+- La PREMIÈRE PHRASE tient en 2 secondes et arrête le scroll : un chiffre, une tension, une question directe.
+  Pas de « bonjour », pas de « aujourd'hui je vais vous parler de ».
+- Ensuite : le problème vécu par le dirigeant, ce qui change concrètement, un exemple ou un ordre de grandeur.
+- Termine par le même appel à l'action que la légende (« Commente [MOT-CLÉ] »), dit à l'oral.
+- Phrases courtes, une idée par phrase, vocabulaire parlé. AUCUN émoji, AUCUN hashtag, AUCUNE URL, aucun sigle
+  imprononçable : tout est lu à voix haute tel quel.
+- Ponctue pour la respiration : un point là où l'avatar doit marquer une pause.`
+    : '';
+
   const prompt = `ACTUALITÉ SOURCE (à transformer en post ${platform === 'instagram' ? 'Instagram' : 'LinkedIn'}) :
 Titre : ${news.title}
 Résumé : ${news.summary ?? '(pas de résumé)'}
@@ -285,7 +310,7 @@ ${buildArchetypeSpec(isCarousel, imagesAllowed)}
 FORMAT DEMANDÉ : ${slideSpec}
 
 ${ctaSpec}
-${strategieLinkedIn}
+${strategieLinkedIn}${specVideo}
 CONTRAINTES :
 - Tout en français (traduis et adapte si la source est en anglais). Marque : ${brand.name} (${brand.handle}).
 - caption : le texte du post (${platform === 'instagram' ? '2 200 caractères max pour Instagram' : '1 200 caractères max pour LinkedIn'}, aéré, sauts de ligne).
@@ -369,6 +394,7 @@ function persistDraft(args: {
       resourceTitle: generated.resource?.title ?? null,
       resourceUrl: generated.resource?.kind === 'outil' ? (generated.resource.toolUrl ?? null) : null,
       mentions: generated.mentions?.length ? JSON.stringify(generated.mentions) : null,
+      videoScript: generated.videoScript?.trim() || null,
       toneSnapshot: JSON.stringify(tone),
     })
     .returning({ id: schema.posts.id })

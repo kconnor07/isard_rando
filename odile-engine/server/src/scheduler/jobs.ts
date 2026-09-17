@@ -67,6 +67,20 @@ export function registerJobs(): void {
     });
   }, { timezone: TZ });
 
+  // Vidéos avatar en fabrication : HeyGen met quelques minutes, parfois plus. Ce
+  // passage rapatrie le MP4 dès qu'il est prêt et débloque l'email de validation.
+  cron.schedule('*/3 * * * *', () => {
+    void (async () => {
+      const { suivreVideosEnCours } = await import('../video/index.js');
+      const { finirPostsVideo } = await import('../video/relance.js');
+      await runJob('video-suivi', async () => {
+        const resume = await suivreVideosEnCours();
+        const finis = await finirPostsVideo();
+        return { ...resume, ...finis };
+      });
+    })().catch((err) => logger.error({ err: String(err) }, 'video-suivi en échec'));
+  }, { timezone: TZ });
+
   // Blog du site : un article quand la cadence l'exige (rédaction → validation dans le dashboard)
   cron.schedule('30 6 * * *', () => {
     void (async () => {

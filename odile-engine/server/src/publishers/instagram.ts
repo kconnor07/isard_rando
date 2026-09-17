@@ -10,8 +10,14 @@ interface Container {
   id: string;
 }
 
-async function waitForContainer(igId: string, token: string, containerId: string): Promise<void> {
-  for (let i = 0; i < 20; i++) {
+async function waitForContainer(
+  igId: string,
+  token: string,
+  containerId: string,
+  opts: { essais?: number } = {},
+): Promise<void> {
+  // Une image est prête en quelques secondes ; une vidéo demande un encodage complet.
+  for (let i = 0; i < (opts.essais ?? 20); i++) {
     const status = await fetchJson<{ status_code?: string }>(
       `${GRAPH}/${containerId}?fields=status_code&access_token=${encodeURIComponent(token)}`,
     );
@@ -41,6 +47,8 @@ export class InstagramPublisher implements Publisher {
     const igId = stored.externalId;
     const token = stored.accessToken;
     const caption = input.caption.slice(0, 2190);
+
+    if (input.video) return this.publierReel(igId, token, caption, input.video);
 
     await preflight(input.images[0]!.publicUrl);
 
@@ -100,10 +108,77 @@ export class InstagramPublisher implements Publisher {
     logger.info({ mediaId: published.id }, 'post Instagram publié');
     return { externalPostId: published.id, externalUrl: permalink, raw: { creationId } };
   }
+
+  /**
+   * Reel : un seul container `REELS` qui pointe sur le MP4 servi par le moteur, avec
+   * la slide d'accroche en couverture (sans elle, Instagram fige la première image
+   * de la vidéo — souvent un avatar bouche ouverte). `share_to_feed` met aussi le
+   * Reel dans la grille, là où les abonnés le retrouvent.
+   *
+   * L'encodage est plus long qu'une image : Meta demande d'attendre l'état FINISHED,
+   * ce qui prend ici jusqu'à quelques minutes.
+   */
+  private async publierReel(
+    igId: string,
+    token: string,
+    caption: string,
+    video: NonNullable<PublishInput['video']>,
+  ): Promise<PublishResult> {
+    await preflight(video.publicUrl);
+    const corps: Record<string, unknown> = {
+      media_type: 'REELS',
+      video_url: video.publicUrl,
+      share_to_feed: true,
+      caption,
+      access_token: token,
+    };
+    if (video.coverUrl) corps.cover_url = video.coverUrl;
+    const container = await fetchJson<Container>(`${GRAPH}/${igId}/media`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(corps),
+      timeoutMs: 60_000,
+    });
+    await waitForContainer(igId, token, container.id, { essais: 40 });
+    const published = await fetchJson<{ id: string }>(`${GRAPH}/${igId}/media_publish`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ creation_id: container.id, access_token: token }),
+    });
+    let permalink: string | null = null;
+    try {
+      const info = await fetchJson<{ permalink?: string }>(
+        `${GRAPH}/${published.id}?fields=permalink&access_token=${encodeURIComponent(token)}`,
+      );
+      permalink = info.permalink ?? null;
+    } catch {
+      /* le permalink est cosmétique */
+    }
+    logger.info({ mediaId: published.id, dureeMs: video.durationMs }, 'Reel Instagram publié');
+    return { externalPostId: published.id, externalUrl: permalink, raw: { creationId: container.id, reel: true } };
+  }
 }
 
 /** Payload « à blanc » pour le mode dry-run. */
 export function instagramDryPayload(input: PublishInput): unknown {
+  if (input.video) {
+    return {
+      steps: [
+        {
+          call: `POST ${GRAPH}/<IG_USER_ID>/media`,
+          body: {
+            media_type: 'REELS',
+            video_url: input.video.publicUrl,
+            cover_url: input.video.coverUrl,
+            share_to_feed: true,
+            caption: input.caption.slice(0, 2190),
+          },
+        },
+        { call: 'GET .../{container}?fields=status_code', until: 'FINISHED' },
+        { call: `POST ${GRAPH}/<IG_USER_ID>/media_publish`, body: { creation_id: '<container_id>' } },
+      ],
+    };
+  }
   const caption = input.caption.slice(0, 2190);
   if (input.images.length > 1) {
     return {
