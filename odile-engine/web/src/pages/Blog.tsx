@@ -132,6 +132,37 @@ export default function Blog() {
     onError: erreur,
   });
 
+  /**
+   * Refaire toutes les couvertures, y compris celles des articles déjà en ligne.
+   * Geste rare et visible sur le site : il se confirme, en annonçant ce qu'il touche.
+   */
+  const refaireToutes = useMutation({
+    mutationFn: (itemsHorsMoteur: boolean) =>
+      api.post<{ refaites: number; misAJour: number; horsMoteur: number; deploye: boolean; ignores: { quoi: string; raison: string }[] }>(
+        '/api/blog/couvertures',
+        { itemsHorsMoteur },
+      ),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['blog'] });
+      const bouts = [`${r.refaites} couverture(s) refaite(s)`, `${r.misAJour} remplacée(s) en ligne`];
+      if (r.horsMoteur) bouts.push(`${r.horsMoteur} article(s) hors moteur`);
+      if (r.deploye) bouts.push('site déployé');
+      toast.success(bouts.join(' · '));
+      for (const i of r.ignores.slice(0, 3)) toast.info(`${i.quoi} : ${i.raison}`);
+    },
+    onError: erreur,
+  });
+
+  const refaireToutesAsk = async () => {
+    const enLigne = (articles ?? []).filter((a) => a.status === 'published').length;
+    const ok = await dialog.confirm({
+      title: 'Refaire toutes les couvertures',
+      message: `Les images sont refabriquées au format réglé, et celles des ${enLigne} article(s) déjà en ligne sont remplacées dans Framer. Le texte, le titre, la date et l’adresse des articles ne bougent pas. Le site est déployé à la fin.`,
+      confirmLabel: 'Refaire et remplacer',
+    });
+    if (ok) refaireToutes.mutate(false);
+  };
+
   const refaireCouverture = useMutation({
     mutationFn: (id: number) => api.post<{ coverUrl: string; ratio: string }>(`/api/blog/articles/${id}/cover`, {}),
     onSuccess: (r) => {
@@ -165,6 +196,14 @@ export default function Blog() {
         </button>
         <button className="btn-ghost" onClick={() => setReglagesOuverts((v) => !v)}>
           {reglagesOuverts ? 'Masquer les réglages' : 'Réglages du blog'}
+        </button>
+        <button
+          className="btn-ghost"
+          disabled={refaireToutes.isPending || !(articles ?? []).length}
+          onClick={() => void refaireToutesAsk()}
+          title="Refabrique toutes les couvertures au format réglé et remplace celles des articles déjà publiés"
+        >
+          <ImageIcon size={14} /> {refaireToutes.isPending ? 'Remplacement en cours…' : 'Refaire toutes les couvertures'}
         </button>
       </div>
       {reglagesOuverts && <ReglagesBlog />}

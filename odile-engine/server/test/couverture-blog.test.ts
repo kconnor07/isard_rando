@@ -76,3 +76,58 @@ describe('couverture d’article', async () => {
     expect(muet).toContain('brand-footer');
   });
 });
+
+describe('refaire toutes les couvertures (simulation)', async () => {
+  const fs = await import('node:fs');
+  const { db, schema } = await import('../src/db/client.js');
+  const { config } = await import('../src/config.js');
+  const { setSetting } = await import('../src/db/settingsRepo.js');
+  const { refaireLesCouvertures } = await import('../src/blog/couvertures.js');
+  const { closeBrowser } = await import('../src/render/browser.js');
+  const { eq } = await import('drizzle-orm');
+
+  it('refait les images de tous les articles et n’annonce que les articles en ligne', async () => {
+    process.env.PUBLISH_MODE = 'dry';
+    setSetting('blog', { enabled: true, everyDays: 7, ville: 'Toulouse', collectionId: 'col-1', fields: { title: 'f1', body: 'f2', cover: 'f3' }, coverRatio: '1:1' });
+
+    const creer = (statut: string, slug: string, itemId: string | null) =>
+      db
+        .insert(schema.articles)
+        .values({
+          status: statut as 'published',
+          slug,
+          title: `Titre de ${slug}`,
+          brief: 'brief',
+          content: JSON.stringify({ coverTitle: `Couverture ${slug}`, coverAccentWord: 'Couverture' }),
+          framerItemId: itemId,
+          coverAssetId: 'ancienne-image',
+        })
+        .returning()
+        .get();
+
+    const enLigne = creer('published', 'article-en-ligne', 'item-1');
+    const brouillon = creer('awaiting_approval', 'article-en-attente', null);
+
+    const resume = await refaireLesCouvertures();
+    expect(resume.refaites).toBe(2);
+    // En simulation, rien ne part chez Framer.
+    expect(resume.misAJour).toBe(0);
+    expect(resume.deploye).toBe(false);
+
+    // Les deux articles ont une image neuve, au format réglé.
+    for (const id of [enLigne.id, brouillon.id]) {
+      const a = db.select().from(schema.articles).where(eq(schema.articles.id, id)).get()!;
+      expect(a.coverAssetId).not.toBe('ancienne-image');
+      const asset = db.select().from(schema.assets).where(eq(schema.assets.id, a.coverAssetId!)).get()!;
+      expect({ width: asset.width, height: asset.height }).toEqual({ width: 1080, height: 1080 });
+    }
+
+    // Le payload de simulation ne liste que ce qui serait remplacé en ligne.
+    const fichier = fs.readdirSync(config.outboxDir).filter((f) => f.startsWith('blog-couvertures-')).at(-1)!;
+    const paye = JSON.parse(fs.readFileSync(`${config.outboxDir}/${fichier}`, 'utf8')) as { format: string; articles: { slug: string; itemId: string | null }[] };
+    expect(paye.format).toBe('1:1');
+    expect(paye.articles.map((a) => a.slug)).toEqual(['article-en-ligne']);
+    expect(paye.articles[0]!.itemId).toBe('item-1');
+    await closeBrowser();
+  }, 120_000);
+});

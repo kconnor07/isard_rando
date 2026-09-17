@@ -73,7 +73,8 @@ Les emails partent dans `server/var/outbox/emails/` si aucun SMTP n'est configur
 `npx tsx src/cli.ts <cmd>` depuis `server/` :
 `scrape` · `score` · `shortlist` · `draft` · `render --post N` · `review --post N` ·
 `pipeline` · `publish-due` · `gallery` (planche de contrôle des thèmes fournis) ·
-`visuals --post N [--more]` · `fixture` · `seed` · `poll-li-comments` · `amplify`
+`visuals --post N [--more]` · `fixture` · `seed` · `poll-li-comments` · `amplify` ·
+`blog-covers [--tous]` (refait les couvertures et remplace celles des articles en ligne)
 
 ## Déploiement production
 

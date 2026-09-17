@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { articleSchema } from '@odile/shared';
 import { coverUrl, publierArticle, regenererArticle, runBlogPipeline } from '../../blog/pipeline.js';
 import { fabriquerCouverture } from '../../blog/cover.js';
+import { refaireLesCouvertures } from '../../blog/couvertures.js';
 import { listerCollections } from '../../blog/framer.js';
 import { db, schema } from '../../db/client.js';
 import { getBlog } from '../../db/settingsRepo.js';
@@ -146,6 +147,20 @@ export function registerBlogRoutes(app: FastifyInstance): void {
       return { coverUrl: `/public-assets/${coverAssetId}.jpg`, ratio: reglages.coverRatio };
     } catch (err) {
       logger.warn({ articleId: id, err: String(err).slice(0, 200) }, 'couverture non refabriquée');
+      return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /**
+   * Refait toutes les couvertures et remplace celles des articles en ligne.
+   *
+   * Seul le champ image bouge : le texte, le titre, la date et l'adresse de
+   * l'article restent intacts. Le site est déployé une seule fois à la fin.
+   */
+  app.post<{ Body: { itemsHorsMoteur?: boolean } }>('/api/blog/couvertures', async (request, reply) => {
+    try {
+      return await refaireLesCouvertures({ itemsHorsMoteur: Boolean(request.body?.itemsHorsMoteur) });
+    } catch (err) {
       return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });

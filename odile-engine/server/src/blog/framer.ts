@@ -89,6 +89,11 @@ export function fieldDataPour(contenu: ContenuAPublier, champs: BlogSettings['fi
   return data;
 }
 
+/** Connexion au projet Framer, partagée avec les autres modules du blog. */
+export async function connexionFramer() {
+  return connexion();
+}
+
 async function connexion() {
   const apps = getOauthApps();
   if (!apps.framerProjectUrl || !apps.framerApiKey) {
