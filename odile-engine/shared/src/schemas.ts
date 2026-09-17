@@ -648,6 +648,24 @@ export const blogSettingsSchema = z.object({
   fields: blogFieldMapSchema.prefault({}),
   /** déposer l'article en brouillon dans Framer (à publier depuis Framer) plutôt que publié et déployé */
   publishAsDraft: z.boolean().default(false),
+  /**
+   * Proportions de l'image de couverture, à accorder à ce que le site affiche.
+   * 16:9 convient à la plupart des gabarits Framer ; 1.91:1 est le format des
+   * aperçus de partage ; 1:1 ne se fait jamais rogner nulle part.
+   */
+  coverRatio: z.enum(['16:9', '1.91:1', '3:2', '4:3', '1:1']).default('16:9'),
+  /**
+   * Ce que porte la couverture. « aucun » quand le site affiche déjà le titre
+   * en toutes lettres à côté de l'image : deux fois le même titre, c'est une fois
+   * de trop, et plus rien ne peut être coupé.
+   */
+  coverText: z.enum(['titre', 'mention', 'aucun']).default('titre'),
+  /**
+   * Zone sûre : tout ce qui est écrit reste dans un carré centré. Un site
+   * responsive recadre l'image selon la largeur de l'écran — sans cette marge,
+   * un titre qui occupe toute la largeur se retrouve amputé sur mobile.
+   */
+  coverSafeZone: z.boolean().default(true),
 });
 export type BlogSettings = z.infer<typeof blogSettingsSchema>;
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, PenSquare, RefreshCw } from 'lucide-react';
+import { ExternalLink, Image as ImageIcon, PenSquare, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, humanizeError } from '../api/client';
 import { useDialog } from '../components/Dialog';
@@ -46,6 +46,9 @@ interface BlogSettingsDto {
   collectionId: string;
   fields: Record<string, string>;
   publishAsDraft: boolean;
+  coverRatio: '16:9' | '1.91:1' | '3:2' | '4:3' | '1:1';
+  coverText: 'titre' | 'mention' | 'aucun';
+  coverSafeZone: boolean;
 }
 interface CollectionsDto {
   collections: { id: string; name: string; fields: { id: string; name: string; type: string }[] }[];
@@ -129,6 +132,15 @@ export default function Blog() {
     onError: erreur,
   });
 
+  const refaireCouverture = useMutation({
+    mutationFn: (id: number) => api.post<{ coverUrl: string; ratio: string }>(`/api/blog/articles/${id}/cover`, {}),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ['blog'] });
+      toast.success(`Couverture refaite au format ${r.ratio}`);
+    },
+    onError: erreur,
+  });
+
   const programmerAsk = async (id: number) => {
     const at = await dialog.prompt({
       title: 'Publier le…',
@@ -194,6 +206,16 @@ export default function Blog() {
                 {!['published', 'publishing', 'drafting'].includes(a.status) && (
                   <button className="btn-ghost !py-1.5 text-xs" disabled={regenerer.isPending} onClick={() => regenerer.mutate(a.id)} title="Même sujet, texte neuf">
                     <RefreshCw size={12} /> Réécrire
+                  </button>
+                )}
+                {a.coverUrl && (
+                  <button
+                    className="btn-ghost !py-1.5 text-xs"
+                    disabled={refaireCouverture.isPending}
+                    onClick={() => refaireCouverture.mutate(a.id)}
+                    title="Refabrique la seule image, au format réglé ci-dessus — le texte de l'article ne bouge pas"
+                  >
+                    <ImageIcon size={12} /> Refaire la couverture
                   </button>
                 )}
                 {!['published', 'publishing'].includes(a.status) && (
@@ -295,6 +317,38 @@ function ReglagesBlog() {
         <div>
           <label className="label">Cibles (séparées par des virgules)</label>
           <input className="input" value={form.cibles.join(', ')} onChange={(e) => set('cibles', e.target.value.split(',').map((z) => z.trim()).filter(Boolean))} />
+        </div>
+        <div>
+          <label className="label">Format de l'image de couverture</label>
+          <select className="input" value={form.coverRatio ?? '16:9'} onChange={(e) => set('coverRatio', e.target.value as BlogSettingsDto['coverRatio'])}>
+            <option value="16:9">16:9 — le plus courant sur les sites</option>
+            <option value="1.91:1">1,91:1 — format des aperçus de partage</option>
+            <option value="3:2">3:2 — photo classique</option>
+            <option value="4:3">4:3 — plus haut, bon sur mobile</option>
+            <option value="1:1">1:1 — carré, jamais rogné sur les côtés</option>
+          </select>
+          <p className="mt-1.5 text-xs text-muted">À accorder à ce que la collection Framer affiche. En cas de doute, 16:9.</p>
+        </div>
+        <div>
+          <label className="label">Ce que porte l'image</label>
+          <select className="input" value={form.coverText ?? 'titre'} onChange={(e) => set('coverText', e.target.value as BlogSettingsDto['coverText'])}>
+            <option value="titre">Le titre de l'article</option>
+            <option value="mention">Seulement la mention (la ville)</option>
+            <option value="aucun">Rien — juste le décor et le logo</option>
+          </select>
+          <p className="mt-1.5 text-xs text-muted">
+            Si le site affiche déjà le titre en gros à côté de l'image, « rien » évite de le lire deux fois — et plus aucun texte ne peut être coupé.
+          </p>
+        </div>
+        <div className="sm:col-span-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="accent-sky-500" checked={form.coverSafeZone ?? true} onChange={(e) => set('coverSafeZone', e.target.checked)} />
+            Garder le texte dans une zone sûre (recommandé)
+          </label>
+          <p className="mt-1.5 text-xs text-muted">
+            Un site recadre l'image selon la largeur de l'écran : ce qui touchait les bords se retrouve amputé sur mobile. La zone sûre garde titre et logo au
+            centre, là où aucun recadrage ne va les chercher. Le décor, lui, occupe toute l'image — qu'il déborde est justement ce qu'on lui demande.
+          </p>
         </div>
         <div className="sm:col-span-2">
           <label className="label">Pages du site pour le maillage interne — une par ligne : « Libellé | /chemin »</label>

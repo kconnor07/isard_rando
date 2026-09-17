@@ -3,6 +3,7 @@ import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { articleSchema } from '@odile/shared';
 import { coverUrl, publierArticle, regenererArticle, runBlogPipeline } from '../../blog/pipeline.js';
+import { fabriquerCouverture } from '../../blog/cover.js';
 import { listerCollections } from '../../blog/framer.js';
 import { db, schema } from '../../db/client.js';
 import { getBlog } from '../../db/settingsRepo.js';
@@ -116,6 +117,35 @@ export function registerBlogRoutes(app: FastifyInstance): void {
     try {
       return await regenererArticle(Number(request.params.id));
     } catch (err) {
+      return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /**
+   * Refabrique la seule image de couverture, aux réglages du moment.
+   *
+   * Changer le format d'image ne doit pas obliger à réécrire l'article : on
+   * essaie, on regarde sur le site, on ajuste.
+   */
+  app.post<{ Params: { id: string } }>('/api/blog/articles/:id/cover', async (request, reply) => {
+    const id = Number(request.params.id);
+    const a = db.select().from(schema.articles).where(eq(schema.articles.id, id)).get();
+    if (!a) return reply.status(404).send({ error: 'Article introuvable' });
+    try {
+      const reglages = getBlog();
+      // Le titre de couverture vit dans l'article structuré, pas dans une colonne.
+      const contenu = articleSchema.partial().safeParse(JSON.parse(a.content || '{}'));
+      const coverAssetId = await fabriquerCouverture({
+        title: (contenu.success ? contenu.data.coverTitle : null) || a.title,
+        accentWord: (contenu.success ? contenu.data.coverAccentWord : '') ?? '',
+        kicker: reglages.ville,
+        articleId: id,
+        reglages,
+      });
+      db.update(schema.articles).set({ coverAssetId, updatedAt: new Date().toISOString() }).where(eq(schema.articles.id, id)).run();
+      return { coverUrl: `/public-assets/${coverAssetId}.jpg`, ratio: reglages.coverRatio };
+    } catch (err) {
+      logger.warn({ articleId: id, err: String(err).slice(0, 200) }, 'couverture non refabriquée');
       return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });

@@ -104,7 +104,7 @@ export async function regenererArticle(articleId: number): Promise<BlogPipelineS
 
 async function enregistrerRedaction(articleId: number, article: Article, reglages: BlogSettings): Promise<void> {
   const slug = slugDisponible(article.slug, articleId);
-  const coverAssetId = await fabriquerCouverture({ title: article.coverTitle, accentWord: article.coverAccentWord, kicker: reglages.ville, articleId });
+  const coverAssetId = await fabriquerCouverture({ title: article.coverTitle, accentWord: article.coverAccentWord, kicker: reglages.ville, articleId, reglages });
   const now = new Date().toISOString();
   db.update(schema.articles)
     .set({ title: article.title, slug, metaTitle: article.metaTitle, metaDescription: article.metaDescription, excerpt: article.excerpt, content: JSON.stringify(article), keywords: JSON.stringify(article.keywords), coverAssetId, updatedAt: now })
