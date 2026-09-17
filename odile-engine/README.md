@@ -70,7 +70,19 @@ Les emails partent dans `server/var/outbox/emails/` si aucun SMTP n'est configur
 
 ### Commandes CLI
 
-`npx tsx src/cli.ts <cmd>` depuis `server/` :
+Trois façons de lancer la même commande, selon l'endroit où l'on se trouve :
+
+```bash
+npm run job -- <cmd>                                   # depuis odile-engine/
+cd server && npx tsx src/cli.ts <cmd>                  # depuis server/
+./docker/dc.sh exec app npx tsx server/src/cli.ts <cmd>   # en production, dans le conteneur
+```
+
+En production, c'est la **troisième** qui compte : la base et les clés vivent dans
+le conteneur. Lancée sur une machine de développement, une commande travaille sur
+la base locale — souvent vide — et ne touche ni le site ni les réseaux.
+
+Commandes disponibles :
 `scrape` · `score` · `shortlist` · `draft` · `render --post N` · `review --post N` ·
 `pipeline` · `publish-due` · `gallery` (planche de contrôle des thèmes fournis) ·
 `visuals --post N [--more]` · `fixture` · `seed` · `poll-li-comments` · `amplify` ·
