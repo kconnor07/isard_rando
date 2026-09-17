@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, humanizeError } from '../api/client';
 import { useDialog } from '../components/Dialog';
 import { toast } from '../components/Toaster';
+import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 import { Empty, fmtDate, PageTitle } from '../components/shared';
 
 interface ArticleDto {
@@ -129,8 +130,15 @@ export default function Blog() {
   });
 
   const programmerAsk = async (id: number) => {
-    const at = await dialog.prompt({ title: 'Publier le…', message: 'Date et heure (heure locale).', type: 'datetime-local', confirmLabel: 'Programmer' });
-    if (at) approuver.mutate({ id, at: new Date(at).toISOString() });
+    const at = await dialog.prompt({
+      title: 'Publier le…',
+      message: 'Date et heure, à l’heure de Paris.',
+      type: 'datetime-local',
+      initial: pourChampLocal(new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000)),
+      min: pourChampLocal(new Date()),
+      confirmLabel: 'Programmer',
+    });
+    if (at) approuver.mutate({ id, at: depuisChampLocal(at).toISOString() });
   };
 
   return (

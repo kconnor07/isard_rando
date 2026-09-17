@@ -7,6 +7,7 @@ import type { LibraryImageDto, PostDetailDto, SlideDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import LibraryPicker from '../components/LibraryPicker';
 import { toast } from '../components/Toaster';
+import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 import VisualAgentPanel from '../components/VisualAgentPanel';
 import { CHANNEL_LABELS, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge } from '../components/shared';
 
@@ -373,22 +374,17 @@ export default function PostEditor() {
       done: 'Publication programmée dans une minute — « Annuler la programmation » reste disponible.',
     })();
   };
-  const toLocalInput = (iso: string) => {
-    const d = new Date(iso);
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
   const scheduleAt = async () => {
     const value = await dialog.prompt({
       title: post.status === 'scheduled' ? 'Déplacer la publication' : 'Programmer à une date',
       message: 'Date et heure de publication (heure de Paris). Le post est approuvé pour ce créneau.',
       type: 'datetime-local',
-      initial: toLocalInput(post.scheduledAt ?? new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000).toISOString()),
-      min: toLocalInput(new Date().toISOString()),
+      initial: pourChampLocal(post.scheduledAt ?? new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000).toISOString()),
+      min: pourChampLocal(new Date()),
       confirmLabel: post.status === 'scheduled' ? 'Déplacer' : 'Programmer',
     });
     if (!value) return;
-    await run('schedule', () => api.post(`/api/posts/${post.id}/schedule`, { at: new Date(value).toISOString() }), {
+    await run('schedule', () => api.post(`/api/posts/${post.id}/schedule`, { at: depuisChampLocal(value).toISOString() }), {
       done: outcomeMessage('Post programmé'),
     })();
   };

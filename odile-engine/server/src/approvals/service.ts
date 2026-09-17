@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import type { TokenPayload } from '../lib/signedToken.js';
@@ -150,6 +150,30 @@ function cascaderRejet(post: Post, reason: string | null, now: string): void {
  * Programme (ou reprogramme) un post à une date précise : un post à valider, rejeté
  * ou en échec est approuvé pour cette date ; un post déjà programmé change de créneau.
  */
+/**
+ * Un autre post du même compte part-il à quelques minutes de là ?
+ *
+ * Deux publications du même profil à la même demi-heure, c'est le compte qui se fait
+ * concurrence à lui-même : la seconde vole la portée de la première. Sur deux comptes
+ * différents, en revanche, rien n'empêche deux départs simultanés.
+ */
+function voisinTropProche(post: Post, when: Date): { hook: string; at: string } | null {
+  const marge = 30 * 60_000;
+  const voisin = db
+    .select()
+    .from(schema.posts)
+    .where(and(inArray(schema.posts.status, ['scheduled', 'publishing']), ne(schema.posts.id, post.id)))
+    .all()
+    .find(
+      (p) =>
+        p.platform === post.platform &&
+        (p.liAccountKey ?? '') === (post.liAccountKey ?? '') &&
+        p.scheduledAt !== null &&
+        Math.abs(new Date(p.scheduledAt).getTime() - when.getTime()) < marge,
+    );
+  return voisin?.scheduledAt ? { hook: voisin.hook || `Post #${voisin.id}`, at: voisin.scheduledAt } : null;
+}
+
 export function schedulePost(postId: number, at: string): ActionOutcome {
   const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (!post) return { ok: false, message: 'Post introuvable.', postId };
@@ -158,6 +182,14 @@ export function schedulePost(postId: number, at: string): ActionOutcome {
   if (when.getTime() < Date.now() + 60_000) return { ok: false, message: 'La date choisie est déjà passée.', postId };
   if (!['awaiting_approval', 'rejected', 'failed', 'scheduled', 'approved'].includes(post.status)) {
     return { ok: false, message: `Ce post est « ${post.status} » — il ne peut pas être programmé.`, postId };
+  }
+  const voisin = voisinTropProche(post, when);
+  if (voisin) {
+    return {
+      ok: false,
+      message: `Ce compte publie déjà « ${voisin.hook.slice(0, 40)} » à ${new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' }).format(new Date(voisin.at))}. Choisis un créneau à plus de 30 minutes : deux posts du même compte à la même heure se volent leur portée.`,
+      postId,
+    };
   }
   const now = new Date().toISOString();
   db.update(schema.publishJobs)

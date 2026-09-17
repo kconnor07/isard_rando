@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, like } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { db, schema } from '../../db/client.js';
 import { getLlmBudget, getTopicAffinity } from '../../db/settingsRepo.js';
-import { consommationDuJour, consommationRecente, repartitionDuJour } from '../../lib/llmBudget.js';
+import { consommationDuJour, consommationRecente, repartitionDuJour, type Consommation } from '../../lib/llmBudget.js';
 import { runJob } from '../../lib/jobRunner.js';
 import { parisParts } from '../../lib/time.js';
 import { latestMetricsByPost, performanceScore, runMetricsJob } from '../../publishers/metrics.js';
@@ -37,11 +37,20 @@ export function registerAnalyticsRoutes(app: FastifyInstance): void {
   app.get('/api/analytics/llm', async () => {
     const budget = getLlmBudget();
     const aujourdhui = consommationDuJour();
+    // Le dashboard parle français jusque dans les clés : `entree`/`sortie` et non
+    // `inputTokens`/`outputTokens`. Sans cette traduction, l'écran affichait « NaN jetons ».
+    const enFrancais = (c: Consommation) => ({
+      jour: c.jour,
+      appels: c.appels,
+      entree: c.inputTokens,
+      sortie: c.outputTokens,
+      cout: c.cout,
+    });
     return {
-      aujourdhui,
+      aujourdhui: enFrancais(aujourdhui),
       plafond: budget.enabled ? budget.dailyEuros : null,
       partUtilisee: budget.enabled && budget.dailyEuros > 0 ? Math.min(1, aujourdhui.cout / budget.dailyEuros) : null,
-      jours: consommationRecente(14),
+      jours: consommationRecente(14).map(enFrancais),
       repartition: repartitionDuJour(),
     };
   });

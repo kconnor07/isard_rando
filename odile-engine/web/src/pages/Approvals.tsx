@@ -6,6 +6,7 @@ import type { PostSummaryDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import { CHANNEL_LABELS, Empty, fmtDate, FORMAT_LABELS, PageTitle, StatusBadge } from '../components/shared';
 import { toast } from '../components/Toaster';
+import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 
 interface ActionOutcome {
   ok: boolean;
@@ -56,21 +57,17 @@ export default function Approvals() {
     },
   });
   const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : schedule.isPending ? schedule.variables?.id : null;
-  const toLocalInput = (d: Date) => {
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
   const scheduleAt = async (post: PostSummaryDto) => {
     const value = await dialog.prompt({
       title: 'Programmer à une date',
       message: `« ${post.hook || `Post #${post.id}`} » — date et heure de publication (heure de Paris).`,
       type: 'datetime-local',
-      initial: toLocalInput(new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000)),
-      min: toLocalInput(new Date()),
+      initial: pourChampLocal(new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000)),
+      min: pourChampLocal(new Date()),
       confirmLabel: 'Programmer',
     });
     if (!value) return;
-    schedule.mutate({ id: post.id, at: new Date(value).toISOString() });
+    schedule.mutate({ id: post.id, at: depuisChampLocal(value).toISOString() });
   };
 
   const publishNow = async (post: PostSummaryDto) => {

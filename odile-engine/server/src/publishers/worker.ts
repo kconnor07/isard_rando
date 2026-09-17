@@ -138,20 +138,23 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const retryable = job.attempt + 1 < job.maxAttempts;
+      const prochainEssai = new Date(Date.now() + 10 * 60 * 1000).toISOString();
       db.update(schema.publishJobs)
         .set(
           retryable
-            ? {
-                state: 'pending',
-                lastError: message.slice(0, 800),
-                scheduledAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-              }
+            ? { state: 'pending', lastError: message.slice(0, 800), scheduledAt: prochainEssai }
             : { state: 'failed', finishedAt: new Date().toISOString(), lastError: message.slice(0, 800) },
         )
         .where(eq(schema.publishJobs.id, job.id))
         .run();
+      // Le post porte la même date que son job : sans cela, le calendrier continuait
+      // d'annoncer l'heure ratée et le créneau restait marqué pris au mauvais endroit.
       db.update(schema.posts)
-        .set({ status: retryable ? 'scheduled' : 'failed', error: message.slice(0, 800) })
+        .set({
+          status: retryable ? 'scheduled' : 'failed',
+          error: message.slice(0, 800),
+          ...(retryable ? { scheduledAt: prochainEssai } : {}),
+        })
         .where(eq(schema.posts.id, post.id))
         .run();
       summary.failed++;

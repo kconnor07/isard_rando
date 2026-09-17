@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { customAlphabet } from 'nanoid';
 import {
@@ -63,6 +63,8 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
       durationMs: post.videoDurationMs,
       url: post.videoAssetId ? `/public-assets/${post.videoAssetId}.mp4` : null,
     },
+    /** le compte qui publie, en clair : « Alexis Duquenoy », « page Odile AI », « Instagram » */
+    surface: surfaceDuPost(post).label,
     /** diffusion simultanée : la surface de ce post et celles de ses copies */
     broadcast: post.broadcastGroup
       ? { group: post.broadcastGroup, surface: surfaceDuPost(post).label, others: freresDuGroupe(post).map((f) => surfaceDuPost(f).label) }
@@ -478,17 +480,16 @@ export function registerPostRoutes(app: FastifyInstance): void {
   app.get<{ Querystring: { from?: string; to?: string } }>('/api/calendar', async (request) => {
     const from = request.query.from ?? new Date(Date.now() - 30 * 86400000).toISOString();
     const to = request.query.to ?? new Date(Date.now() + 30 * 86400000).toISOString();
+    // La date qui compte est celle du créneau tant que le post n'est pas parti, puis
+    // celle de la publication : un post publié à la main (« Publier maintenant » sur un
+    // post jamais programmé, reprise après incident) n'avait aucune date de créneau et
+    // disparaissait purement et simplement du calendrier.
+    const quand = sql<string>`coalesce(${schema.posts.scheduledAt}, ${schema.posts.publishedAt})`;
     const rows = db
       .select()
       .from(schema.posts)
-      .where(
-        and(
-          inArray(schema.posts.status, ['scheduled', 'publishing', 'published']),
-          gte(schema.posts.scheduledAt, from),
-          lte(schema.posts.scheduledAt, to),
-        ),
-      )
-      .orderBy(schema.posts.scheduledAt)
+      .where(and(inArray(schema.posts.status, ['scheduled', 'publishing', 'published']), gte(quand, from), lte(quand, to)))
+      .orderBy(quand)
       .all();
     return rows.map(postSummary);
   });
