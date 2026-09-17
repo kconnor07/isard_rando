@@ -99,6 +99,11 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
       remindTemplate: base.remindTemplate,
       publicReplyVariants: base.publicReplyVariants,
       publicReplyFallbackVariants: base.publicReplyFallbackVariants,
+      // Les réponses LinkedIn manquaient à l'appel : impossible de les restaurer
+      // après les avoir modifiées, alors que le bouton promet « les textes proposés ».
+      linkedinReplyVariants: base.linkedinReplyVariants,
+      diagnosticReplyVariants: base.diagnosticReplyVariants,
+      qualifyTemplate: base.qualifyTemplate,
     };
   });
 

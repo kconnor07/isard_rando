@@ -6,7 +6,7 @@ import { api, humanizeError, upload } from '../api/client';
 import type { LibraryImageDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import { LibraryThumb } from '../components/LibraryPicker';
-import { Empty, PageTitle } from '../components/shared';
+import { Empty, EtatErreur, PageTitle } from '../components/shared';
 import { toast as notify } from '../components/Toaster';
 
 /** Paramètres d'un template — miroir du schéma serveur. */
@@ -1327,7 +1327,7 @@ export default function Templates() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const { data: catalogue } = useQuery({
+  const { data: catalogue, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['templates'],
     queryFn: () => api.get<Catalogue>('/api/templates'),
   });
@@ -2112,6 +2112,7 @@ export default function Templates() {
 
       {/* Mes templates */}
       <h2 className="mb-3 mt-9 text-[15px] font-bold tracking-tight">Mes templates</h2>
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Les templates" />}
       {catalogue && catalogue.custom.length === 0 && (
         <Empty>Aucun template maison pour l'instant — composez-en un ci-dessus.</Empty>
       )}

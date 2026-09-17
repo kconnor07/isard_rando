@@ -1,4 +1,6 @@
+import { RotateCw } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { humanizeError } from '../api/client';
 
 export const STATUS_LABELS: Record<string, { label: string; dot: string; text: string }> = {
   draft: { label: 'Brouillon', dot: 'bg-white/25', text: 'text-muted' },
@@ -110,6 +112,28 @@ export function Empty({ children, action }: { children: ReactNode; action?: Reac
     <div className="rounded-2xl border border-dashed border-line px-8 py-12 text-center">
       <div className="mx-auto max-w-sm text-sm leading-relaxed text-muted">{children}</div>
       {action && <div className="mt-5 flex justify-center">{action}</div>}
+    </div>
+  );
+}
+
+/**
+ * Ce qu'on montre quand une lecture échoue.
+ *
+ * Une page qui reste vide laisse croire qu'il n'y a rien à voir : on cherche le
+ * post qu'on attendait, on ne le trouve pas, et on doute de la machine. Dire
+ * « le moteur n'a pas répondu » et offrir un bouton, c'est deux secondes au lieu
+ * d'un quart d'heure.
+ */
+export function EtatErreur({ error, onRetry, quoi }: { error: unknown; onRetry?: () => void; quoi?: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-white/[0.02] px-8 py-10 text-center">
+      <p className="text-sm font-semibold text-txt">{quoi ? `${quoi} n’a pas pu être chargé` : 'Chargement impossible'}</p>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-muted">{humanizeError(error)}</p>
+      {onRetry && (
+        <button className="btn-ghost mt-5" onClick={onRetry}>
+          <RotateCw size={14} /> Réessayer
+        </button>
+      )}
     </div>
   );
 }

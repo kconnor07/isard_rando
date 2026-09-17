@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { NewsDto } from '../api/types';
-import { Empty, PageTitle } from '../components/shared';
+import { Empty, EtatErreur, PageTitle } from '../components/shared';
 import { toast } from '../components/Toaster';
 
 interface Generating {
@@ -14,7 +14,7 @@ interface Generating {
 
 export default function News() {
   const qc = useQueryClient();
-  const { data: news } = useQuery({
+  const { data: news, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['news'],
     queryFn: () => api.get<NewsDto[]>('/api/news?status=shortlisted,scored'),
   });
@@ -77,6 +77,7 @@ export default function News() {
           </button>
         }
       />
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="La veille" />}
       {generatingIds.size > 0 && (
         <div className="card mb-4 flex flex-wrap items-center gap-2 border-accent/40 p-4 text-sm">
           <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />

@@ -9,7 +9,7 @@ import LibraryPicker from '../components/LibraryPicker';
 import { toast } from '../components/Toaster';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 import VisualAgentPanel from '../components/VisualAgentPanel';
-import { CHANNEL_LABELS, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge } from '../components/shared';
+import { CHANNEL_LABELS, EtatErreur, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge } from '../components/shared';
 
 const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications'] as const;
 /** Statuts pendant lesquels le post évolue tout seul (pipeline, studio, publication) : l'éditeur se rafraîchit */
@@ -291,7 +291,7 @@ export default function PostEditor() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const dialog = useDialog();
-  const { data: post } = useQuery({
+  const { data: post, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['post', id],
     queryFn: () => api.get<PostDetailDto>(`/api/posts/${id}`),
     // Le post évolue tout seul pendant la fabrication et la publication : on suit
@@ -344,6 +344,7 @@ export default function PostEditor() {
     },
   });
 
+  if (enErreur) return <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Ce post" />;
   if (!post) return <div className="text-muted">Chargement…</div>;
   const caption = captionDraft ?? post.caption;
   const run = (name: string, fn: () => Promise<unknown>, opts: { done?: string | ((r: unknown) => string | undefined) } = {}) => async () => {

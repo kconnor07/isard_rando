@@ -8,7 +8,7 @@ import sharp from 'sharp';
 import { RENDER_SIZES, slideContentSchema, type PostFormat, type SlideContent } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getBrand, getImageGen } from '../db/settingsRepo.js';
+import { getBrand, getDmTriggers, getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
 import { buildCustomThemeCss, getCustomTheme, slideStyleFor } from './custom-theme.js';
@@ -446,17 +446,20 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: nu
 /**
  * Ce que la slide CTA promet sous le mot-clé.
  *
- * Elle annonçait « le lien direct en message privé » sur toutes les plateformes.
- * Sur LinkedIn, aucun message privé n'arrive jamais — la réponse se poste sous le
- * commentaire : un lecteur qui attend un DM ne va pas la chercher, et le lead est
- * perdu. La promesse dit donc ce qui se passe vraiment, et nomme la ressource.
+ * Un visuel se lit plus vite que la légende, et il ne se corrige plus une fois
+ * publié : il ne doit promettre que ce qui arrive vraiment. Sur Instagram, le
+ * mot-clé envoie la ressource en message privé. Sur LinkedIn, aucun message privé
+ * n'existe (l'API ne l'ouvre à personne) : la réponse se poste sous le commentaire
+ * — et quand le mot-clé ouvre le diagnostic, elle ne porte pas la ressource, qui
+ * est déjà dans le lien du post.
  */
 export function promesseDuMotCle(post: { platform: string; resourceKind?: string | null }): string {
   const quoi =
     post.resourceKind === 'guide' ? 'le guide' : post.resourceKind === 'outil' ? 'l’accès à l’outil' : 'l’analyse complète';
-  return post.platform === 'linkedin'
-    ? `et je te réponds sous ton commentaire avec ${quoi}`
-    : `et reçois ${quoi} en message privé`;
+  if (post.platform !== 'linkedin') return `et reçois ${quoi} en message privé`;
+  return getDmTriggers().linkedinOffer === 'diagnostic'
+    ? 'et je te réponds pour qu’on regarde ton cas'
+    : `et je te réponds sous ton commentaire avec ${quoi}`;
 }
 
 export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}): Promise<RenderSummary> {

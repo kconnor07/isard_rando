@@ -16,7 +16,7 @@ interface PublicationsDto {
     portee: number | null; likes: number | null; commentaires: number | null; clics: number; releveLe: string | null;
   }[];
 }
-import { CHANNEL_LABELS, Empty, fmtDate, Skeleton, StatusBadge } from '../components/shared';
+import { CHANNEL_LABELS, Empty, EtatErreur, fmtDate, Skeleton, StatusBadge } from '../components/shared';
 
 /** « jeu. 18:30 » — assez court pour tenir sur une ligne de station. */
 function fmtSlot(iso: string): string {
@@ -125,7 +125,7 @@ function Thread({ summary }: { summary?: SummaryDto }) {
 }
 
 export default function Dashboard() {
-  const { data: summary } = useQuery({
+  const { data: summary, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['summary'],
     queryFn: () => api.get<SummaryDto>('/api/dashboard/summary'),
   });
@@ -145,6 +145,7 @@ export default function Dashboard() {
         <h1 className="text-[26px] font-extrabold leading-tight tracking-tight">Tableau de bord</h1>
         {summary && <p className="mt-1.5 text-sm text-muted">{summary.cadence.reason}</p>}
       </div>
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Le tableau de bord" />}
 
       {summary && summary.warnings.length > 0 && (
         <Link

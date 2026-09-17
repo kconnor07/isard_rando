@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { AnalyticsOverviewDto, LlmUsageDto, PostStatDto } from '../api/types';
-import { CHANNEL_LABELS, Empty, fmtDate, PageTitle } from '../components/shared';
+import { CHANNEL_LABELS, Empty, EtatErreur, PageTitle, fmtDate } from '../components/shared';
 import { toast } from '../components/Toaster';
 
 interface LearningDto {
@@ -44,7 +44,7 @@ const TACHE_LABELS: Record<string, string> = {
 export default function Analytics() {
   const qc = useQueryClient();
   const [days, setDays] = useState(30);
-  const { data: overview } = useQuery({
+  const { data: overview, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['analytics', 'overview', days],
     queryFn: () => api.get<AnalyticsOverviewDto>(`/api/analytics/overview?days=${days}`),
   });
@@ -94,6 +94,7 @@ export default function Analytics() {
           </>
         }
       />
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Les statistiques" />}
 
       {overview && overview.warnings.length > 0 && (
         <div className="card mb-5 flex flex-col gap-1 border-white/25 p-4 text-sm">

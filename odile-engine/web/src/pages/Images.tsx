@@ -8,7 +8,7 @@ import { toast } from '../components/Toaster';
 import type { ImageModelsDto, LibraryImageDto } from '../api/types';
 import EditImageDialog from '../components/EditImageDialog';
 import { LibraryThumb } from '../components/LibraryPicker';
-import { Empty, PageTitle } from '../components/shared';
+import { Empty, EtatErreur, PageTitle } from '../components/shared';
 
 const SOURCE_LABELS: Record<LibraryImageDto['source'], string> = {
   studio: 'Studio IA',
@@ -43,7 +43,7 @@ export default function Images() {
   const [uploading, setUploading] = useState(false);
   const dialog = useDialog();
 
-  const { data: library } = useQuery({
+  const { data: library, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['library'],
     queryFn: () => api.get<LibraryImageDto[]>('/api/library'),
   });
@@ -148,6 +148,7 @@ export default function Images() {
           </>
         }
       />
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="La bibliothèque" />}
 
       {/* Studio */}
       <div className="card p-5">

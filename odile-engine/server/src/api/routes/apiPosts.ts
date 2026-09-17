@@ -10,7 +10,7 @@ import {
   schedulePostSchema,
 } from '@odile/shared';
 import { executeApprovalAction, schedulePost, unschedulePost } from '../../approvals/service.js';
-import { getPublishSlots } from '../../db/settingsRepo.js';
+import { getDmTriggers, getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
@@ -82,6 +82,9 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
       url: post.resourceUrl,
       assetId: post.resourceAssetId,
       error: post.resourceError,
+      // Sur LinkedIn, quand le mot-clé ouvre le diagnostic, la ressource s'atteint
+      // par le lien du post — pas en commentant. L'écran de validation doit le dire.
+      viaLien: post.platform === 'linkedin' && getDmTriggers().linkedinOffer === 'diagnostic',
     },
     createdAt: post.createdAt,
     commentTriggerKeyword: post.commentTriggerKeyword,

@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { humanizeError } from './api/client';
 import { DialogProvider } from './components/Dialog';
+import ErrorBoundary from './components/ErrorBoundary';
 import { toast, ToastHost } from './components/Toaster';
 import './index.css';
 
@@ -24,7 +25,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <DialogProvider>
-          <App />
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
           <ToastHost />
         </DialogProvider>
       </BrowserRouter>

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, humanizeError, upload } from '../api/client';
 import LibraryPicker, { LibraryThumb } from '../components/LibraryPicker';
-import { FORMAT_LABELS, PageTitle } from '../components/shared';
+import { EtatErreur, FORMAT_LABELS, PageTitle } from '../components/shared';
 import { toast } from '../components/Toaster';
 import type { LibraryImageDto } from '../api/types';
 
@@ -98,7 +98,7 @@ function SlotsEditor({ slots, onChange }: { slots: { dow: number; time: string }
 
 export default function Settings() {
   const qc = useQueryClient();
-  const { data: settings } = useQuery({
+  const { data: settings, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.get<AllSettings>('/api/settings'),
   });
@@ -173,6 +173,16 @@ export default function Settings() {
     onSettled: () => void qc.invalidateQueries({ queryKey: ['sources'] }),
   });
 
+  // Les réglages ne se chargent pas : le dire, plutôt que laisser un écran vide où
+  // l'on croit avoir tout perdu.
+  if (enErreur) {
+    return (
+      <div className="max-w-3xl">
+        <PageTitle title="Réglages" subtitle="Ton, marque, cadence, déclencheurs DM, studio de design, veille." />
+        <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Les réglages" />
+      </div>
+    );
+  }
   if (!form) return <div className="text-muted">Chargement…</div>;
   const set = <K extends keyof AllSettings>(key: K, value: AllSettings[K]) =>
     setForm((f) => (f ? { ...f, [key]: value } : f));

@@ -4,7 +4,7 @@ import { Check, Copy, ExternalLink, Stethoscope } from 'lucide-react';
 import { api, humanizeError } from '../api/client';
 import { toast } from '../components/Toaster';
 import type { CommentDto, MessagerieDiagDto } from '../api/types';
-import { Empty, fmtDate, PageTitle } from '../components/shared';
+import { Empty, EtatErreur, PageTitle, fmtDate } from '../components/shared';
 
 const DM_LABELS: Record<string, { label: string; cls: string }> = {
   sent: { label: 'DM envoyé', cls: 'text-txt' },
@@ -30,7 +30,7 @@ export default function Comments() {
     queryFn: () => api.get<MessagerieDiagDto>('/api/diagnostic/messagerie'),
     enabled: diagOuvert,
   });
-  const { data: comments } = useQuery({
+  const { data: comments, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['comments'],
     queryFn: () => api.get<CommentDto[]>('/api/comments'),
     refetchInterval: 30_000,
@@ -84,8 +84,9 @@ export default function Comments() {
     <div>
       <PageTitle
         title="Commentaires & DM"
-        subtitle="Instagram : DM automatique sur mot-clé. LinkedIn : la réponse part sous le commentaire avec le lien, sur chaque profil et sur la page (LinkedIn n'ouvre sa messagerie à aucune app) — un DM prêt à coller est proposé en plus."
+        subtitle="Instagram : DM automatique sur mot-clé. LinkedIn : la réponse part sous le commentaire, sur chaque profil et sur la page (LinkedIn n'ouvre sa messagerie à aucune app) — un DM prêt à coller est proposé en plus."
       />
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Les commentaires" />}
       <div className="mb-4">
         <button className="btn-ghost !py-1.5 text-xs" onClick={() => setDiagOuvert((v) => !v)}>
           <Stethoscope size={13} /> {diagOuvert ? 'Masquer le bilan messagerie' : 'Pourquoi ça ne part pas ?'}

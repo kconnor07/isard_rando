@@ -5,7 +5,7 @@ import { api, humanizeError } from '../api/client';
 import type { ConnectionCheckDto, OauthAppsDto, OauthTokenDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import { toast } from '../components/Toaster';
-import { fmtDate, PageTitle } from '../components/shared';
+import { EtatErreur, fmtDate, PageTitle } from '../components/shared';
 
 interface HealthDto {
   publicUrl: string;
@@ -285,7 +285,7 @@ export default function Setup() {
   const [withOrg, setWithOrg] = useState(false);
   /** Connexion Meta réduite aux permissions de publication (voir le libellé sous la case). */
   const [metaMinimal, setMetaMinimal] = useState(false);
-  const { data: health, refetch } = useQuery({
+  const { data: health, refetch, isError: enErreur, error: erreur } = useQuery({
     queryKey: ['health'],
     queryFn: () => api.get<HealthDto>('/api/setup/health'),
   });
@@ -448,6 +448,16 @@ export default function Setup() {
     }
   };
 
+  // Un état de santé illisible n'est pas un état de santé vide : le dire évite de
+  // chercher une panne de connexion là où c'est le moteur qui ne répond pas.
+  if (enErreur) {
+    return (
+      <div className="max-w-3xl">
+        <PageTitle title="Connexions & santé" subtitle="Comptes sociaux, renouvellement des jetons et état des services." />
+        <EtatErreur error={erreur} onRetry={() => void refetch()} quoi="L’état des connexions" />
+      </div>
+    );
+  }
   if (!health) return <div className="text-muted">Chargement…</div>;
   const liCheck = lastCheckOf(liToken);
   const igCheck = lastCheckOf(igToken);

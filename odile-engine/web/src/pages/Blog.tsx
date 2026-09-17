@@ -5,7 +5,7 @@ import { api, humanizeError } from '../api/client';
 import { useDialog } from '../components/Dialog';
 import { toast } from '../components/Toaster';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
-import { Empty, fmtDate, PageTitle } from '../components/shared';
+import { Empty, EtatErreur, PageTitle, fmtDate } from '../components/shared';
 
 interface ArticleDto {
   id: number;
@@ -87,7 +87,7 @@ export default function Blog() {
   const dialog = useDialog();
   const [ouvert, setOuvert] = useState<number | null>(null);
   const [reglagesOuverts, setReglagesOuverts] = useState(false);
-  const { data: articles } = useQuery({ queryKey: ['blog', 'articles'], queryFn: () => api.get<ArticleDto[]>('/api/blog/articles'), refetchInterval: 15_000 });
+  const { data: articles, isError: listeKo, error: erreurListe, refetch: rechargerListe } = useQuery({ queryKey: ['blog', 'articles'], queryFn: () => api.get<ArticleDto[]>('/api/blog/articles'), refetchInterval: 15_000 });
   const { data: detail } = useQuery({
     queryKey: ['blog', 'article', ouvert],
     queryFn: () => api.get<ArticleDetailDto>(`/api/blog/articles/${ouvert}`),
@@ -221,6 +221,7 @@ export default function Blog() {
         title="Blog du site"
         subtitle="Articles rédigés pour le référencement local et les moteurs génératifs, couverture au template Odile, publiés dans Framer après ta validation."
       />
+      {listeKo && <EtatErreur error={erreurListe} onRetry={() => void rechargerListe()} quoi="Les articles" />}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button className="btn-primary" disabled={rediger.isPending} onClick={() => rediger.mutate()}>
           <PenSquare size={14} /> {rediger.isPending ? 'Rédaction (1 à 2 min)…' : 'Rédiger un article maintenant'}

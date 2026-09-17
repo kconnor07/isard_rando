@@ -87,14 +87,19 @@ describe('le mot-clé est garanti dans la caption', async () => {
 
 describe('la slide CTA dit ce qui se passe vraiment', async () => {
   const { promesseDuMotCle } = await import('../src/render/renderer.js');
+  const { getDmTriggers, setSetting } = await import('../src/db/settingsRepo.js');
 
-  it('Instagram promet un message privé, LinkedIn une réponse sous le commentaire', () => {
+  it('Instagram promet un message privé, LinkedIn ce que le mot-clé ouvre vraiment', () => {
     expect(promesseDuMotCle({ platform: 'instagram', resourceKind: 'guide' })).toBe('et reçois le guide en message privé');
-    // Sur LinkedIn aucun DM n'arrive jamais : promettre un DM perd le lead.
-    expect(promesseDuMotCle({ platform: 'linkedin', resourceKind: 'guide' })).toBe(
-      'et je te réponds sous ton commentaire avec le guide',
-    );
     expect(promesseDuMotCle({ platform: 'instagram', resourceKind: 'outil' })).toContain('l’accès à l’outil');
+    // Un visuel ne se corrige plus une fois publié : quand le mot-clé ouvre le
+    // diagnostic, il ne promet pas la ressource — elle est dans le lien du post.
+    expect(promesseDuMotCle({ platform: 'linkedin', resourceKind: 'guide' })).toBe('et je te réponds pour qu’on regarde ton cas');
+    // Réglé sur « la même ressource », il redit la vérité de ce réglage-là : aucun
+    // DM n'arrive jamais sur LinkedIn, la réponse se poste sous le commentaire.
+    setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'ressource' });
+    expect(promesseDuMotCle({ platform: 'linkedin', resourceKind: 'guide' })).toBe('et je te réponds sous ton commentaire avec le guide');
+    setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'diagnostic' });
   });
 });
 

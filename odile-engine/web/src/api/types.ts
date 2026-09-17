@@ -23,6 +23,8 @@ export interface PostSummaryDto {
     url: string | null;
     assetId: string | null;
     error: string | null;
+    /** la ressource s'atteint par le lien du post, pas en commentant (LinkedIn) */
+    viaLien?: boolean;
   };
   createdAt: string;
   commentTriggerKeyword: string | null;

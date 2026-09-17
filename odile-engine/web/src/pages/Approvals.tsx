@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
-import { CHANNEL_LABELS, Empty, fmtDate, FORMAT_LABELS, PageTitle, StatusBadge } from '../components/shared';
+import { CHANNEL_LABELS, Empty, EtatErreur, FORMAT_LABELS, PageTitle, StatusBadge, fmtDate } from '../components/shared';
 import { toast } from '../components/Toaster';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 
@@ -20,7 +20,7 @@ export default function Approvals() {
   const [zoom, setZoom] = useState<string | null>(null);
   const qc = useQueryClient();
   const dialog = useDialog();
-  const { data: posts } = useQuery({
+  const { data: posts, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['posts', 'pending'],
     queryFn: () => api.get<PostSummaryDto[]>('/api/posts?status=draft,reviewing,awaiting_approval'),
     refetchInterval: 15_000,
@@ -101,6 +101,7 @@ export default function Approvals() {
         </div>
       )}
       <PageTitle title="Posts à valider" subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez." />
+      {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="La file de validation" />}
       {posts && posts.length === 0 && <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>}
       <div className="flex flex-col gap-4">
         {posts
@@ -171,6 +172,7 @@ export default function Approvals() {
               {post.commentTriggerKeyword && (
                 <p className="mt-1.5 text-xs text-muted">
                   Mot à commenter : <span className="mono text-ice">{post.commentTriggerKeyword}</span>
+                  {post.resource?.viaLien ? ' — il ouvre le diagnostic, pas la ressource (elle est dans le lien du post)' : ''}
                 </p>
               )}
               {inProgress ? (
