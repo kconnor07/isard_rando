@@ -50,6 +50,11 @@ interface BlogSettingsDto {
   coverText: 'titre' | 'mention' | 'aucun';
   coverSafeZone: boolean;
 }
+interface InventaireDto {
+  collection: string;
+  champImage: string;
+  items: { id: string; slug: string; titre: string; aImage: boolean; brouillon: boolean; connu: boolean }[];
+}
 interface CollectionsDto {
   collections: { id: string; name: string; fields: { id: string; name: string; type: string }[] }[];
 }
@@ -153,14 +158,40 @@ export default function Blog() {
     onError: erreur,
   });
 
+  /**
+   * On regarde d'abord ce que le site contient vraiment, puis on annonce des
+   * chiffres exacts. « Les anciens articles n'ont pas changé » vient presque
+   * toujours de là : ils sont écrits à la main, donc inconnus du moteur.
+   */
   const refaireToutesAsk = async () => {
-    const enLigne = (articles ?? []).filter((a) => a.status === 'published').length;
+    let inventaire: InventaireDto;
+    try {
+      inventaire = await api.get<InventaireDto>('/api/blog/framer/items');
+    } catch (err) {
+      toast.error(humanizeError(err));
+      return;
+    }
+    const connus = inventaire.items.filter((i) => i.connu).length;
+    const inconnus = inventaire.items.length - connus;
+    if (inventaire.items.length === 0) {
+      toast.info(`La collection « ${inventaire.collection} » ne contient aucun article. Tes anciens articles sont sans doute dans une autre collection — ou ce sont des pages, que l’API Framer ne touche pas.`);
+      return;
+    }
     const ok = await dialog.confirm({
-      title: 'Refaire toutes les couvertures',
-      message: `Les images sont refabriquées au format réglé, et celles des ${enLigne} article(s) déjà en ligne sont remplacées dans Framer. Le texte, le titre, la date et l’adresse des articles ne bougent pas. Le site est déployé à la fin.`,
-      confirmLabel: 'Refaire et remplacer',
+      title: 'Refaire les couvertures',
+      message: `Collection « ${inventaire.collection} », champ image « ${inventaire.champImage} » : ${connus} article(s) écrit(s) par le moteur, ${inconnus} écrit(s) à la main. Les images sont refabriquées au format réglé et remplacées en ligne ; le texte, le titre, la date et l’adresse ne bougent pas. Le site est déployé à la fin.`,
+      confirmLabel: `Refaire les ${connus} du moteur`,
     });
-    if (ok) refaireToutes.mutate(false);
+    if (!ok) return;
+    let tous = false;
+    if (inconnus > 0) {
+      tous = await dialog.confirm({
+        title: `Et les ${inconnus} articles écrits à la main ?`,
+        message: 'Leur titre servira de titre de couverture, au template Odile. Une illustration choisie exprès pour l’un d’eux sera remplacée — c’est sans retour.',
+        confirmLabel: 'Oui, refaire les leurs aussi',
+      });
+    }
+    refaireToutes.mutate(tous);
   };
 
   const refaireCouverture = useMutation({

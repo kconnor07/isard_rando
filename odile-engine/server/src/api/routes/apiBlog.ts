@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { articleSchema } from '@odile/shared';
 import { coverUrl, publierArticle, regenererArticle, runBlogPipeline } from '../../blog/pipeline.js';
 import { fabriquerCouverture } from '../../blog/cover.js';
-import { refaireLesCouvertures } from '../../blog/couvertures.js';
+import { inventaireDuSite, refaireLesCouvertures } from '../../blog/couvertures.js';
 import { listerCollections } from '../../blog/framer.js';
 import { db, schema } from '../../db/client.js';
 import { getBlog } from '../../db/settingsRepo.js';
@@ -147,6 +147,15 @@ export function registerBlogRoutes(app: FastifyInstance): void {
       return { coverUrl: `/public-assets/${coverAssetId}.jpg`, ratio: reglages.coverRatio };
     } catch (err) {
       logger.warn({ articleId: id, err: String(err).slice(0, 200) }, 'couverture non refabriquée');
+      return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Ce que le moteur voit dans la collection : d'où vient le « rien n'a changé ». */
+  app.get('/api/blog/framer/items', async (_request, reply) => {
+    try {
+      return await inventaireDuSite();
+    } catch (err) {
       return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });

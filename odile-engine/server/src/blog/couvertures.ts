@@ -58,6 +58,59 @@ function champImage(fields: ChampFramer[], reglages: BlogSettings): string {
   return champs.cover;
 }
 
+export interface ItemDuSite {
+  id: string;
+  slug: string;
+  titre: string;
+  /** l'item porte-t-il déjà une image dans le champ couverture ? */
+  aImage: boolean;
+  brouillon: boolean;
+  /** le lot standard s'en occupe-t-il ? (article du moteur, déjà publié par lui) */
+  connu: boolean;
+}
+
+/**
+ * Ce que le moteur voit dans la collection Framer.
+ *
+ * Quand des articles « ne changent pas », la réponse est presque toujours ici :
+ * ils sont dans une autre collection, ce sont des pages et non des items de CMS,
+ * ou la collection ne porte pas de champ image. Autant le montrer en clair.
+ */
+export async function inventaireDuSite(): Promise<{ collection: string; champImage: string; items: ItemDuSite[] }> {
+  const reglages = getBlog();
+  if (!reglages.collectionId) throw new Error('Aucune collection Framer choisie pour le blog (Réglages du blog)');
+  const articles = db.select().from(schema.articles).all();
+  const framer = await connexionFramer();
+  try {
+    const collections = await framer.getCollections();
+    const collection = collections.find((c) => c.id === reglages.collectionId);
+    if (!collection) throw new Error(`Collection Framer ${reglages.collectionId} introuvable — rechoisis-la dans les réglages du blog`);
+    const fields = (await collection.getFields()).map((f) => ({ id: f.id, name: f.name, type: f.type }));
+    const champs = devinerChamps(fields, reglages.fields);
+    const cover = champImage(fields, reglages);
+    const items = await collection.getItems();
+    const valeur = (item: (typeof items)[number], champ: string) =>
+      champ ? (item.fieldData[champ] as { value?: unknown } | undefined)?.value : undefined;
+    return {
+      collection: collection.name,
+      champImage: fields.find((f) => f.id === cover)?.name ?? cover,
+      items: items.map((item) => ({
+        id: item.id,
+        slug: item.slug,
+        titre: String(valeur(item, champs.title) ?? ''),
+        aImage: Boolean(valeur(item, cover)),
+        brouillon: Boolean(item.draft),
+        // « Connu » veut dire « repris par le lot standard » : un article que le
+        // moteur a écrit ET publié. Les deux nombres annoncés à l'écran sont ainsi
+        // exacts et complémentaires — le reste relève du passage « écrits à la main ».
+        connu: articles.some((a) => a.status === 'published' && (a.framerItemId === item.id || (a.slug && a.slug === item.slug))),
+      })),
+    };
+  } finally {
+    await framer.disconnect().catch(() => undefined);
+  }
+}
+
 /**
  * Refait les couvertures et les remplace en ligne.
  *
