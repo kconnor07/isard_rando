@@ -82,9 +82,12 @@ export const getDmTriggers = () =>
     publicReplyVariants: dmTriggerSettingsSchema.shape.publicReplyVariants.parse(undefined),
     publicReplyFallbackVariants: dmTriggerSettingsSchema.shape.publicReplyFallbackVariants.parse(undefined),
     linkedinReplyVariants: dmTriggerSettingsSchema.shape.linkedinReplyVariants.parse(undefined),
+    qualifyTemplate: dmTriggerSettingsSchema.shape.qualifyTemplate.parse(undefined),
     linkTarget: 'article',
     fixedUrl: '',
     fixedLabel: '',
+    rdvUrl: '',
+    rdvLabel: 'Prendre 20 minutes',
   });
 /** Plafond quotidien de consommation IA (2 € par jour par défaut). */
 export const getLlmBudget = () => getSetting('llm_budget', llmBudgetSettingsSchema, { enabled: true, dailyEuros: 2 });

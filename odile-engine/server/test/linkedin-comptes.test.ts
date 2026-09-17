@@ -34,13 +34,19 @@ describe('réponse sous un commentaire LinkedIn', async () => {
   const reglages = dmTriggerSettingsSchema.parse({ keywords: ['GUIDE'], replyTemplate: 'x' });
 
   it('porte le lien et le prénom quand LinkedIn le donne', () => {
-    const out = composerReponseLinkedIn('Merci {{prenom}} 🙌 c’est par ici : {{link}}', 'https://o/r/abc', 'Camille');
-    expect(out).toBe('Merci Camille 🙌 c’est par ici : https://o/r/abc');
+    const out = composerReponseLinkedIn('Merci {{prenom}} 🙌 voici {{ressource}} : {{link}}', {
+      link: 'https://o/r/abc',
+      ressource: 'le guide « Automatiser vos devis »',
+      prenom: 'Camille',
+    });
+    expect(out).toBe('Merci Camille 🙌 voici le guide « Automatiser vos devis » : https://o/r/abc');
   });
 
   it('retire proprement le prénom quand il est inconnu', () => {
-    expect(composerReponseLinkedIn('Merci {{prenom}} 🙌 voilà : {{link}}', 'L', null)).toBe('Merci 🙌 voilà : L');
-    expect(composerReponseLinkedIn('Avec plaisir, {{prenom}} ☀️ {{link}}', 'L', '  ')).toBe('Avec plaisir ☀️ L');
+    expect(composerReponseLinkedIn('Merci {{prenom}} 🙌 voilà : {{link}}', { link: 'L' })).toBe('Merci 🙌 voilà : L');
+    expect(composerReponseLinkedIn('Avec plaisir, {{prenom}} ☀️ {{link}}', { link: 'L', prenom: '  ' })).toBe('Avec plaisir ☀️ L');
+    // Une ressource inconnue s'efface aussi proprement
+    expect(composerReponseLinkedIn('Voici {{ressource}} : {{link}}', { link: 'L' })).toBe('Voici : L');
   });
 
   it('chaque phrase par défaut livre le lien — c’est le seul canal que LinkedIn autorise', () => {
@@ -48,7 +54,14 @@ describe('réponse sous un commentaire LinkedIn', async () => {
     const emoji = /\p{Extended_Pictographic}/u;
     for (const phrase of reglages.linkedinReplyVariants) {
       expect(phrase).toContain('{{link}}');
-      expect(phrase).toMatch(emoji);
+      // Chaque phrase nomme ce qu'elle envoie : un lien court sans libellé se lit comme du spam.
+      expect(phrase).toContain('{{ressource}}');
+      expect(phrase).toContain('{{prenom}}');
+    }
+    // Registre B2B : au plus un émoji par phrase, jamais le ton « influenceur ».
+    for (const phrase of reglages.linkedinReplyVariants) {
+      expect((phrase.match(emoji) ?? []).length).toBeLessThanOrEqual(1);
+      expect(phrase).not.toMatch(/cadeau|hop,|c’est cadeau/i);
     }
   });
 });

@@ -28,7 +28,15 @@ import {
   toutesLesSurfaces,
   type CompteLinkedIn,
 } from '../publishers/linkedinAccounts.js';
-import { choisirVariante, linkForPost, matchKeyword } from './commentDm.js';
+import {
+  buildReply,
+  choisirVariante,
+  lienRdv,
+  linkForPost,
+  matchKeyword,
+  nommerRessource,
+  type ContexteReponse,
+} from './commentDm.js';
 
 interface LiComment {
   commentUrn?: string;
@@ -45,17 +53,15 @@ interface LiComment {
 const REPONSES_MAX_PAR_PASSAGE = 20;
 
 /**
- * Réponse à poster sous un commentaire : `{{link}}` reçoit le lien, `{{prenom}}`
- * le prénom si LinkedIn l'a donné — sinon la mention disparaît proprement, sans
- * laisser d'espace double ni de virgule orpheline.
+ * Réponse à poster sous un commentaire.
+ *
+ * Mêmes gabarits que les messages privés Instagram : `{{link}}`, `{{ressource}}`,
+ * `{{motcle}}`, `{{rdv}}` et `{{prenom}}` quand LinkedIn le donne. Un placeholder
+ * sans valeur disparaît proprement. Nommer la ressource compte double ici : la
+ * réponse est publique, et les lecteurs qui n'ont pas commenté la lisent aussi.
  */
-export function composerReponseLinkedIn(modele: string, lien: string, prenom: string | null): string {
-  const avecLien = modele.replaceAll('{{link}}', lien);
-  if (prenom?.trim()) return avecLien.replaceAll('{{prenom}}', prenom.trim());
-  return avecLien
-    .replace(/[ ,]*\{\{prenom\}\}/g, '')
-    .replace(/ {2,}/g, ' ')
-    .trim();
+export function composerReponseLinkedIn(modele: string, contexte: ContexteReponse): string {
+  return buildReply(modele, contexte);
 }
 
 /** Prénom du commentateur, quand la décoration `actor~` a été servie. */
@@ -141,7 +147,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
   if (surfaces.length === 0) return resume;
   const settings = getDmTriggers();
   const nosActeurs = new Set(surfaces.map((s) => s.actor));
-  const aRepondre: { commentId: number; compte: CompteLinkedIn; token: string; postUrn: string; commentUrn: string; prenom: string | null; lien: string }[] = [];
+  const aRepondre: { commentId: number; compte: CompteLinkedIn; token: string; postUrn: string; commentUrn: string; contexte: ContexteReponse }[] = [];
   const pourEmail: { compte: string; auteur: string; texte: string; dm: string; postUrl: string | null }[] = [];
 
   for (const post of postsRecents()) {
@@ -172,7 +178,14 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
       const matched = matchKeyword(text, motsCles);
       const prenom = prenomDe(element);
       const nom = [element['actor~']?.localizedFirstName, element['actor~']?.localizedLastName].filter(Boolean).join(' ');
-      const dm = matched ? composerReponseLinkedIn(settings.replyTemplate, lien, prenom) : null;
+      const contexte: ContexteReponse = {
+        link: lien,
+        ressource: nommerRessource(post),
+        motcle: matched,
+        prenom,
+        rdv: lienRdv(),
+      };
+      const dm = matched ? composerReponseLinkedIn(settings.replyTemplate, contexte) : null;
       const inserted = db
         .insert(schema.comments)
         .values({
@@ -203,8 +216,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
         token: token.accessToken,
         postUrn: post.externalPostId!,
         commentUrn: String(externalId),
-        prenom,
-        lien,
+        contexte,
       });
       pourEmail.push({ compte: compte.name, auteur: nom || element.actor || 'inconnu', texte: text, dm, postUrl: post.externalUrl });
     }
@@ -215,7 +227,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     if (!settings.publicReply) break;
     const modele = choisirVariante(settings.linkedinReplyVariants, item.commentId);
     if (!modele) break;
-    const texte = composerReponseLinkedIn(modele, item.lien, item.prenom);
+    const texte = composerReponseLinkedIn(modele, item.contexte);
     const droit = droitCommentaire(item.compte);
     if (config.PUBLISH_MODE === 'dry') {
       db.update(schema.comments).set({ publicReplyStatus: 'sent', publicReplyError: null }).where(eq(schema.comments.id, item.commentId)).run();

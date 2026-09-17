@@ -1,7 +1,7 @@
 import { and, desc, eq, gte } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getDmTriggers } from '../db/settingsRepo.js';
+import { getBrand, getDmTriggers } from '../db/settingsRepo.js';
 import { fetchJson } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { GRAPH } from '../publishers/instagram.js';
@@ -103,7 +103,7 @@ export async function repondreEnPublic(commentId: number, dmParti: boolean, lien
   if (!settings.publicReply) return;
   const modele = choisirVariante(dmParti ? settings.publicReplyVariants : settings.publicReplyFallbackVariants, commentId);
   if (!modele) return;
-  const texte = buildReply(modele, lien);
+  const texte = buildReply(modele, contexteDuCommentaire(comment.postId, comment.matchedKeyword));
 
   const igToken = getStoredToken('meta', 'ig_user');
   if (config.PUBLISH_MODE === 'dry' || !igToken) {
@@ -144,8 +144,68 @@ export function linkForPost(postId: number | null): string {
   return 'https://odileai.com';
 }
 
-export function buildReply(template: string, link: string): string {
-  return template.replaceAll('{{link}}', link);
+/** Ce que les gabarits de message savent remplacer. */
+export interface ContexteReponse {
+  /** lien court tracké vers la ressource promise */
+  link: string;
+  /** « le guide « Automatiser vos devis » », « l'accès à n8n »… */
+  ressource?: string | null;
+  /** le mot commenté, tel qu'il a été reconnu */
+  motcle?: string | null;
+  /** prénom de la personne, quand la plateforme le donne */
+  prenom?: string | null;
+  /** lien de prise de rendez-vous (réglages), sinon le site de la marque */
+  rdv?: string | null;
+}
+
+/**
+ * Comment nommer ce que la personne va recevoir.
+ *
+ * Un lien court tout nu se lit comme du spam ; « voici le guide « Automatiser vos
+ * devis » » se lit comme une réponse. Le post a déclaré sa ressource au moment de
+ * la rédaction : on la reprend mot pour mot.
+ */
+export function nommerRessource(post: { resourceKind?: string | null; resourceTitle?: string | null } | null): string {
+  const titre = post?.resourceTitle?.trim();
+  if (post?.resourceKind === 'guide') return titre ? `le guide « ${titre} »` : 'le guide promis';
+  if (post?.resourceKind === 'outil') return titre ? `l’accès à ${titre}` : 'l’accès à l’outil';
+  if (post?.resourceKind === 'article') return 'l’analyse complète';
+  return 'ce qui était promis';
+}
+
+/**
+ * Remplit un gabarit de message.
+ *
+ * Un placeholder sans valeur disparaît proprement — pas de « {{prenom}} » affiché,
+ * pas d'espace double ni de virgule orpheline laissés derrière lui.
+ */
+export function buildReply(template: string, contexte: ContexteReponse | string): string {
+  const ctx: ContexteReponse = typeof contexte === 'string' ? { link: contexte } : contexte;
+  let texte = template.replaceAll('{{link}}', ctx.link);
+  const remplir = (cle: string, valeur: string | null | undefined) => {
+    const motif = new RegExp(`[ ,]*\\{\\{${cle}\\}\\}`, 'g');
+    texte = valeur?.trim()
+      ? texte.replaceAll(`{{${cle}}}`, valeur.trim())
+      : texte.replace(motif, '');
+  };
+  remplir('prenom', ctx.prenom);
+  remplir('ressource', ctx.ressource);
+  remplir('motcle', ctx.motcle);
+  remplir('rdv', ctx.rdv);
+  return texte.replace(/[ \t]{2,}/g, ' ').replace(/[ \t]+([.,])/g, '$1').trim();
+}
+
+/** Le lien de rendez-vous des réglages, sinon le site de la marque. */
+export function lienRdv(): string {
+  const regle = getDmTriggers().rdvUrl.trim();
+  if (regle) return regle;
+  return getBrand().siteUrl || 'https://odileai.com';
+}
+
+/** Le contexte de réponse d'un commentaire : lien, ressource nommée, mot-clé. */
+export function contexteDuCommentaire(postId: number | null, motcle: string | null, prenom?: string | null): ContexteReponse {
+  const post = postId ? (db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get() ?? null) : null;
+  return { link: linkForPost(postId), ressource: nommerRessource(post), motcle, prenom, rdv: lienRdv() };
 }
 
 /**
@@ -192,6 +252,7 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
   }
 
   const lien = linkForPost(comment.postId);
+  const contexte = contexteDuCommentaire(comment.postId, matched);
   // Porte d'abonnement : on demande d'abord de s'abonner, et la réponse de la
   // personne permettra de vérifier puis d'envoyer le lien (voir handleInstagramMessage).
   const abonne = settings.requireFollow ? await estAbonne(comment.authorExternalId ?? '') : true;
@@ -202,8 +263,8 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
   // seulement que le lien part (ou que l'abonnement est demandé, à bon escient).
   const porteFermee = settings.requireFollow && abonne !== true;
   const message = porteFermee
-    ? buildReply(settings.askFollowTemplate, lien)
-    : buildReply(settings.replyTemplate, lien);
+    ? buildReply(settings.askFollowTemplate, contexte)
+    : buildReply(settings.replyTemplate, contexte);
 
   if (config.PUBLISH_MODE === 'dry' || !igToken) {
     db.insert(schema.dmEvents)
@@ -309,7 +370,7 @@ export async function handleInstagramMessage(igsid: string, texte = ''): Promise
       .limit(1)
       .get();
     if (dejaEcrit) return;
-    const message = buildReply(settings.thanksTemplate, 'https://odileai.com');
+    const message = buildReply(settings.thanksTemplate, { link: getBrand().siteUrl || 'https://odileai.com', rdv: lienRdv() });
     await envoyerMessage(igsid, message);
     db.insert(schema.dmEvents)
       .values({ commentId: null, platform: 'instagram', recipientExternalId: igsid, message, status: 'sent' })
@@ -324,10 +385,9 @@ export async function handleInstagramMessage(igsid: string, texte = ''): Promise
     return;
   }
 
+  const contexte = contexteDuCommentaire(enAttente.postId, enAttente.matchedKeyword);
   const message =
-    abonne === false
-      ? buildReply(settings.remindTemplate, linkForPost(enAttente.postId))
-      : buildReply(settings.thanksTemplate, linkForPost(enAttente.postId));
+    abonne === false ? buildReply(settings.remindTemplate, contexte) : buildReply(settings.thanksTemplate, contexte);
   try {
     await envoyerMessage(igsid, message);
     db.insert(schema.dmEvents)

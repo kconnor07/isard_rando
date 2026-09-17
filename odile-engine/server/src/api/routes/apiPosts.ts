@@ -180,6 +180,17 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (data.scheduledAt !== undefined) update.scheduledAt = data.scheduledAt;
     // Le script corrigé n'invalide pas la vidéo déjà fabriquée : c'est « Relancer la vidéo » qui la refait.
     if (data.videoScript !== undefined) update.videoScript = data.videoScript;
+    // Changer le mot-clé touche trois endroits : la caption publiée, la slide CTA
+    // imprimée et le détecteur de commentaires. On les garde alignés.
+    if (data.commentTriggerKeyword !== undefined) {
+      const ancien = db.select().from(schema.posts).where(eq(schema.posts.id, id)).get()?.commentTriggerKeyword;
+      const nouveau = data.commentTriggerKeyword?.toUpperCase() ?? null;
+      update.commentTriggerKeyword = nouveau;
+      if (ancien && nouveau && data.caption === undefined) {
+        const post = db.select().from(schema.posts).where(eq(schema.posts.id, id)).get();
+        if (post) update.caption = post.caption.replaceAll(ancien, nouveau);
+      }
+    }
     db.update(schema.posts).set(update).where(eq(schema.posts.id, id)).run();
     if (data.theme !== undefined || data.format !== undefined) {
       db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, id)).run();

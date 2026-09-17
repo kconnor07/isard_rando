@@ -78,7 +78,13 @@ export type CadenceSettings = z.infer<typeof cadenceSettingsSchema>;
 export const dmTriggerSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   keywords: z.array(z.string().min(1).max(40)).max(20),
-  /** message qui porte le lien ({{link}}) */
+  /**
+   * Message qui porte le lien. Placeholders disponibles partout : `{{link}}` (lien
+   * court tracké), `{{ressource}}` (le titre de ce qui a été promis — « le guide
+   * … »), `{{motcle}}` (le mot commenté), `{{rdv}}` (lien de rendez-vous).
+   * Nommer la ressource change tout : un lien raccourci sans libellé se lit comme
+   * du spam, « voici le guide « Automatiser vos devis » » se lit comme une réponse.
+   */
   replyTemplate: z.string().min(1).max(900),
   /**
    * Ce vers quoi pointe le lien envoyé en privé. « article » = la source du post ;
@@ -91,6 +97,15 @@ export const dmTriggerSettingsSchema = z.object({
   fixedUrl: z.string().max(400).default(''),
   /** ce que cette adresse offre, en quelques mots — sert de promesse au rédacteur */
   fixedLabel: z.string().max(80).default(''),
+  /**
+   * Prise de rendez-vous : l'unique porte de sortie du tunnel. Elle apparaît à la
+   * fin du guide PDF et dans le message de qualification — le moment où la personne
+   * vient de recevoir ce qu'elle a demandé est celui où son intérêt est le plus fort.
+   * Vide : le guide renvoie vers le site de la marque.
+   */
+  rdvUrl: z.string().max(400).default(''),
+  /** libellé du bouton de rendez-vous, dans le guide et les messages */
+  rdvLabel: z.string().max(80).default('Prendre 20 minutes'),
   /**
    * Exiger l'abonnement avant d'envoyer le lien. Meta ne prévient pas d'un nouvel
    * abonné et n'expose pas la liste des abonnés : l'état d'abonnement n'est lisible
@@ -106,7 +121,7 @@ export const dmTriggerSettingsSchema = z.object({
   ),
   /** message envoyé une fois l'abonnement constaté, avec le lien */
   thanksTemplate: z.string().max(900).default(
-    'Merci d’être là, ça compte beaucoup ☀️ Voilà ce que je t’avais promis : {{link}} — bonne lecture, et dis-moi ce que tu en penses 💛',
+    'Merci d’être là, ça compte beaucoup ☀️ Voici {{ressource}} : {{link}} — dis-moi ce que tu veux automatiser en premier, je te réponds 💛',
   ),
   /** relance quand la personne répond sans s'être abonnée */
   remindTemplate: z.string().max(900).default(
@@ -163,14 +178,22 @@ export const dmTriggerSettingsSchema = z.object({
     .array(z.string().min(1).max(400))
     .max(30)
     .default([
-      'Avec plaisir {{prenom}} ☀️ voilà ce que je t’avais promis : {{link}} — dis-moi ce que tu en penses !',
-      'Merci {{prenom}} 🙌 c’est par ici : {{link}} bonne lecture !',
-      'Le voilà {{prenom}} ✨ {{link}} — n’hésite pas si tu as des questions.',
-      'Hop, comme promis {{prenom}} 🎁 {{link}}',
-      'Ravi que ça te parle {{prenom}} 💛 tout est là : {{link}}',
-      'C’est cadeau {{prenom}} 🚀 {{link}} — je suis curieux de ton retour.',
-      'Avec grand plaisir {{prenom}} 🌞 {{link}} bonne découverte !',
+      'Merci {{prenom}}, voici {{ressource}} : {{link}}. Si vous voulez qu’on regarde votre cas, écrivez-moi.',
+      'Avec plaisir {{prenom}} 🙂 {{ressource}} est ici : {{link}} — dites-moi ce que vous automatiseriez en premier.',
+      'C’est envoyé {{prenom}} : {{ressource}} → {{link}}. Bonne lecture, et vos retours m’intéressent.',
+      'Voilà {{prenom}} — {{ressource}} : {{link}}. Une question sur votre organisation ? Je réponds en message.',
+      'Merci pour votre commentaire {{prenom}}. {{ressource}} : {{link}}',
+      'Le voici {{prenom}} : {{ressource}} → {{link}}. Dites-moi si ça correspond à ce que vous cherchiez.',
+      'Avec plaisir {{prenom}}, {{ressource}} vous attend ici : {{link}}',
     ]),
+  /**
+   * Message de qualification, envoyé UNE fois quand la personne répond après avoir
+   * reçu son lien. C'est le seul moment où Meta rouvre une fenêtre de 24 h, et le
+   * seul endroit du parcours où l'on apprend à qui on parle.
+   */
+  qualifyTemplate: z.string().max(900).default(
+    'Avec plaisir ☀️ Pour te dire si ça s’applique chez toi : tu es plutôt artisan/commerce, cabinet, ou PME de services ? Si tu veux qu’on regarde ton cas de près, c’est ici : {{rdv}}',
+  ),
 });
 export type DmTriggerSettings = z.infer<typeof dmTriggerSettingsSchema>;
 
@@ -454,6 +477,13 @@ export const themeIdSchema = z.union([
 export const patchPostSchema = z.object({
   /** texte prononcé par l'avatar : corrigeable avant de relancer la vidéo */
   videoScript: z.string().max(1400).nullable().optional(),
+  /** mot à commenter : un seul mot, sans quoi le détecteur ne reconnaîtra rien */
+  commentTriggerKeyword: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-zÀ-ÿ]{3,14}$/, 'un seul mot de 3 à 14 lettres, sans chiffre ni ponctuation')
+    .nullable()
+    .optional(),
   caption: z.string().max(2900).optional(),
   hook: z.string().max(220).optional(),
   cta: z.string().max(280).optional(),

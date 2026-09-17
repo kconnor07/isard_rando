@@ -11,7 +11,7 @@ type AllSettings = Record<string, unknown> & {
   brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
   cadence: { days: number; rotation: string[]; broadcast?: boolean };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
-  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string };
+  dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string };
   fb_mirror: { enabled: boolean };
   video: {
     enabled: boolean; everyNPosts: number; avatarType: 'avatar' | 'talking_photo'; avatarId: string; avatarStyle: string;
@@ -472,6 +472,36 @@ export default function Settings() {
                 </div>
               </div>
             )}
+          </div>
+          <div className="rounded-xl border border-line p-4">
+            <label className="label !mb-1">Prise de rendez-vous — la porte de sortie du tunnel</label>
+            <p className="mb-3 text-xs text-muted">
+              C’est le seul endroit où l’on demande quelque chose : à la dernière page du guide PDF (bouton cliquable, lien tracké) et dans
+              le message qui suit l’envoi. Le moment où la personne vient de recevoir ce qu’elle a demandé est celui où son intérêt est le
+              plus fort. Vide : le guide renvoie simplement vers le site.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_200px]">
+              <div>
+                <label className="label">Adresse du calendrier ou de la page de contact</label>
+                <input className="input" placeholder="https://cal.com/odile/20min"
+                  value={form.dm_triggers.rdvUrl ?? ''}
+                  onChange={(e) => set('dm_triggers', { ...form.dm_triggers, rdvUrl: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Libellé du bouton</label>
+                <input className="input" placeholder="Prendre 20 minutes"
+                  value={form.dm_triggers.rdvLabel ?? ''}
+                  onChange={(e) => set('dm_triggers', { ...form.dm_triggers, rdvLabel: e.target.value })} />
+              </div>
+            </div>
+            <label className="label mt-4">Message de qualification (envoyé une fois, quand la personne répond après son lien)</label>
+            <textarea className="input" rows={3} value={form.dm_triggers.qualifyTemplate ?? ''}
+              onChange={(e) => set('dm_triggers', { ...form.dm_triggers, qualifyTemplate: e.target.value })} />
+            <p className="mt-2 text-xs text-muted">
+              Placeholders : <code>{'{{link}}'}</code> le lien de la ressource, <code>{'{{ressource}}'}</code> son titre exact,{' '}
+              <code>{'{{motcle}}'}</code> le mot commenté, <code>{'{{prenom}}'}</code> le prénom (LinkedIn),{' '}
+              <code>{'{{rdv}}'}</code> le rendez-vous ci-dessus. Un placeholder sans valeur disparaît proprement.
+            </p>
           </div>
           <div className="rounded-xl border border-line p-4">
             <label className="flex items-start gap-2 text-sm">

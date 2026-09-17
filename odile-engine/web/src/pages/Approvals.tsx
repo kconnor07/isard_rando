@@ -122,6 +122,24 @@ export default function Approvals() {
                 {post.hook || '(sans titre)'}
               </Link>
               {post.newsTitle && <p className="mt-1 text-xs text-muted">Source : {post.newsTitle}</p>}
+              {post.resource?.error ? (
+                <p className="mt-1 text-xs text-accent">
+                  ⚠ Ressource promise en échec — la personne qui commente recevra l’article source à la place. {post.resource.error}
+                </p>
+              ) : post.resource && post.resource.kind !== 'article' ? (
+                <p className="mt-1 text-xs text-muted">
+                  🎁 Elle recevra {post.resource.kind === 'guide' ? 'le guide' : 'l’accès à l’outil'}
+                  {post.resource.title ? ` « ${post.resource.title} »` : ''}
+                  {post.resource.url && (
+                    <>
+                      {' · '}
+                      <a href={post.resource.url} target="_blank" rel="noreferrer" className="hover:text-ice">
+                        {post.resource.kind === 'guide' ? 'ouvrir le PDF' : 'voir la page'}
+                      </a>
+                    </>
+                  )}
+                </p>
+              ) : null}
               {post.broadcast && (
                 <p className="mt-1 text-xs text-muted">
                   📣 {post.broadcast.surface}

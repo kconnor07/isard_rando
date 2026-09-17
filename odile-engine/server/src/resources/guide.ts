@@ -14,9 +14,10 @@ import { eq } from 'drizzle-orm';
 import { guideSchema, type Guide } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getBrand, getDefaultTheme } from '../db/settingsRepo.js';
+import { getBrand, getDefaultTheme, getDmTriggers } from '../db/settingsRepo.js';
 import { verifierBudget, BudgetDepasseError } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
+import { createLink } from '../shortener/index.js';
 import { completeJson } from '../llm/router.js';
 import { getBrowser } from '../render/browser.js';
 import { buildCustomThemeCss, getCustomTheme } from '../render/custom-theme.js';
@@ -69,8 +70,26 @@ Règles :
   return value;
 }
 
-/** Mise en page du guide aux couleurs de la marque, réutilisée telle quelle par le PDF. */
-export function guideHtml(guide: Guide, marque: { nom: string; site: string }, logoDataUri: string | null): string {
+export interface PorteDeSortie {
+  /** adresse cliquable (lien court tracké) */
+  url: string;
+  /** libellé du bouton : « Prendre 20 minutes » */
+  libelle: string;
+}
+
+/**
+ * Mise en page du guide aux couleurs de la marque, réutilisée telle quelle par le PDF.
+ *
+ * Le guide est le moment où la personne a la plus forte intention : elle a commenté,
+ * ouvert le message privé, cliqué, et elle lit. Sans lien cliquable, tout ce chemin
+ * ne produit aucun contact — c'est l'endroit du parcours où la valeur se perdait.
+ */
+export function guideHtml(
+  guide: Guide,
+  marque: { nom: string; site: string },
+  logoDataUri: string | null,
+  sortie?: PorteDeSortie | null,
+): string {
   const theme = getDefaultTheme();
   const custom = getCustomTheme(theme);
   const couleurs = custom ? buildCustomThemeCss(custom) : themeCss(theme);
@@ -133,8 +152,17 @@ h1 { font-size: 30pt; line-height: 1.08; letter-spacing: -0.03em; font-weight: 8
 .check li { list-style: none; font-size: 10.5pt; line-height: 1.5; padding-left: 8mm; position: relative; margin-bottom: 2mm; }
 .check li::before { content: '☐'; position: absolute; left: 0; color: var(--accent-clair); }
 .fin { margin-top: 10mm; font-size: 11pt; line-height: 1.6; opacity: 0.86; }
+/* La porte de sortie : le seul endroit du guide où l'on demande quelque chose. */
+.sortie { margin-top: 10mm; padding: 8mm; border-radius: 8mm; page-break-inside: avoid;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 55%, transparent), color-mix(in srgb, var(--accent) 16%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent-clair) 55%, transparent); }
+.sortie-titre { font-size: 14pt; font-weight: 700; margin-bottom: 3mm; }
+.sortie p { font-size: 10.5pt; line-height: 1.55; opacity: 0.9; margin-bottom: 5mm; }
+.sortie-bouton { display: inline-block; padding: 3.5mm 7mm; border-radius: 99mm; text-decoration: none;
+  background: var(--text); color: #0b0b12; font-size: 10.5pt; font-weight: 700; }
 .pied { margin-top: 12mm; padding-top: 5mm; border-top: 1px solid rgba(255,255,255,0.14);
   font-family: 'Fragment Mono', monospace; font-size: 8.5pt; letter-spacing: 0.1em; opacity: 0.5; }
+.pied a { color: inherit; text-decoration: none; }
 </style></head>
 <body class="slide">
   <div class="page couv">
@@ -150,7 +178,16 @@ h1 { font-size: 30pt; line-height: 1.08; letter-spacing: -0.03em; font-weight: 8
       <ul>${guide.checklist.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul>
     </div>
     <p class="fin">${escapeHtml(guide.closing)}</p>
-    <div class="pied">${escapeHtml(marque.nom)} · ${escapeHtml(marque.site)}</div>
+    ${
+      sortie
+        ? `<div class="sortie">
+      <div class="sortie-titre">Et chez vous ?</div>
+      <p>Vingt minutes suffisent à repérer les deux tâches qui vous coûtent le plus de temps. C'est gratuit et sans engagement.</p>
+      <a class="sortie-bouton" href="${escapeHtml(sortie.url)}">${escapeHtml(sortie.libelle)} →</a>
+    </div>`
+        : ''
+    }
+    <div class="pied"><a href="${escapeHtml(marque.site)}">${escapeHtml(marque.nom)} · ${escapeHtml(marque.site.replace(/^https?:\/\//, ''))}</a></div>
   </div>
 </body></html>`;
 }
@@ -187,7 +224,8 @@ export async function livrerRessource(postId: number): Promise<RessourceLivree> 
   };
 
   const marque = getBrand();
-  const infos = { nom: marque.name, site: marque.handle?.replace(/^@/, '') || 'odileai.com' };
+  // Le pied affichait le handle (« odileai ») au lieu du site : une adresse qui ne mène nulle part.
+  const infos = { nom: marque.name, site: marque.siteUrl || 'https://odileai.com' };
 
   if (post.resourceKind === 'outil') {
     const url = post.resourceUrl?.trim();
@@ -206,7 +244,16 @@ export async function livrerRessource(postId: number): Promise<RessourceLivree> 
       marque: infos.nom,
     });
     const logo = logoDataUri();
-    const assetId = await imprimerPdf(guideHtml(guide, infos, logo), postId);
+    // Un lien court tracké : on saura combien de guides mènent à un rendez-vous.
+    const dm = getDmTriggers();
+    const cible = dm.rdvUrl.trim() || infos.site;
+    const lien = createLink(cible, {
+      postId,
+      label: `guide-${postId}`,
+      utm: { utm_source: 'guide', utm_medium: 'pdf', utm_campaign: `post-${postId}` },
+    });
+    const sortie: PorteDeSortie = { url: lien.shortUrl, libelle: dm.rdvLabel.trim() || 'Prendre 20 minutes' };
+    const assetId = await imprimerPdf(guideHtml(guide, infos, logo, sortie), postId);
     logger.info({ postId, assetId, titre: guide.title }, 'guide livré');
     return { kind: 'guide', url: urlDuGuide(assetId), title: guide.title, assetId };
   } catch (err) {

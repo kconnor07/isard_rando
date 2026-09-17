@@ -118,6 +118,19 @@ export function normalizeArchetype(value: unknown): unknown {
  * d'image sur l'accroche. Une réponse non conforme est renvoyée au modèle avec
  * l'erreur exacte (boucle de correction de completeJson).
  */
+/**
+ * La caption porte-t-elle l'appel à l'action ?
+ *
+ * Même normalisation que le détecteur de commentaires (accents et casse ignorés) :
+ * ce qui est vérifié ici est exactement ce qui sera reconnu chez les gens.
+ */
+export function captionPorteLeMotCle(caption: string, motcle: string): boolean {
+  const norme = (t: string) =>
+    t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const texte = norme(caption);
+  return texte.includes('COMMENTE') && new RegExp(`(^|\\W)${norme(motcle)}(\\W|$)`).test(texte);
+}
+
 export function writerResponseSchema(imagesAllowed: number) {
   // L'archétype est vérifié dans le superRefine (et non par un enum) pour que ses
   // erreurs et celle de l'idée d'image remontent ensemble au modèle, en une passe.
@@ -131,6 +144,25 @@ export function writerResponseSchema(imagesAllowed: number) {
         path: ['archetype'],
         message: `obligatoire : l'un de ${ARCHETYPE_IDS.join(', ')}`,
       });
+    }
+    // Le mot-clé est le seul déclencheur de tout le tunnel : s'il ne figure pas
+    // dans la caption publiée, les gens ne savent pas quoi commenter, et un
+    // commentaire au hasard ne déclenche rien. On ne laisse pas passer.
+    if (post.commentTrigger?.enabled) {
+      const motcle = post.commentTrigger.keyword ?? '';
+      if (!/^[A-Za-zÀ-ÿ]{3,14}$/.test(motcle)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['commentTrigger', 'keyword'],
+          message: 'un seul mot, 3 à 14 lettres, sans chiffre ni ponctuation (ex. GUIDE, METHODE, OUTIL)',
+        });
+      } else if (!captionPorteLeMotCle(post.caption, motcle)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['caption'],
+          message: `la caption doit contenir l'appel à l'action « Commente ${motcle.toUpperCase()} » en toutes lettres — c'est lui qui déclenche l'envoi`,
+        });
+      }
     }
     if (imagesAllowed <= 0) return;
     const hook = post.slides[0];
@@ -269,7 +301,12 @@ STRATÉGIE LINKEDIN (le texte du post, « caption ») :
   Une identification n'a de valeur que si elle est justifiée : jamais de tag gratuit.
 - Nomme ${brand.name} une fois, naturellement, dans la dernière ligne (le moteur l'identifiera).
 - hashtags : 3 à 5, pas davantage — LinkedIn n'en tient pas compte au-delà.
-- Termine par le CTA « Commente [MOT-CLÉ] » — c'est lui qui déclenche l'envoi.`
+- ORDRE DE FIN DE POST, sans rien d'autre entre les lignes :
+  1. une ligne vide ;
+  2. l'appel à l'action seul sur sa ligne : « Commente [MOT-CLÉ] » (écrit en toutes lettres, c'est lui qui déclenche l'envoi) ;
+  3. « Source : média, auteur » ;
+  4. la mention de ${brand.name}, intégrée à l'une de ces deux lignes ;
+  5. les 3 hashtags.`
       : '';
 
   // Vidéo : le script est prononcé par l'avatar de la marque, pas lu à l'écran.
@@ -312,10 +349,11 @@ FORMAT DEMANDÉ : ${slideSpec}
 ${ctaSpec}
 ${strategieLinkedIn}${specVideo}
 CONTRAINTES :
-- Tout en français (traduis et adapte si la source est en anglais). Marque : ${brand.name} (${brand.handle}).
+- Tout en français. Source anglophone : TRANSPOSE, ne traduis pas — adapte l'histoire et les ordres de
+  grandeur au quotidien d'une PME française. Marque : ${brand.name} (${brand.handle}).
 - caption : le texte du post (${platform === 'instagram' ? '2 200 caractères max pour Instagram' : '1 200 caractères max pour LinkedIn'}, aéré, sauts de ligne).
-  Structure AIDA aussi dans la caption. Termine par le CTA.
-- hashtags : 5 à 8, ciblés PME/automatisation/IA, sans doublon avec le texte.
+  Structure AIDA aussi dans la caption.
+- hashtags : ${platform === 'instagram' ? '3 à 5' : '3'}, ciblés PME/automatisation/IA, sans doublon avec le texte.
 - hook : reprend le titre de la slide 1 (pour l'objet de l'email de validation).
 - screenshotUrl : URL réelle de l'outil/du site à capturer (celle de l'actu ou de l'outil cité), sinon null.
 - Chaque slide : title ≤ 9 mots, body ≤ 2 phrases, bullets ≤ 4 items courts.

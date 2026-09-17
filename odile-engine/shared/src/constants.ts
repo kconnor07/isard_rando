@@ -169,7 +169,7 @@ export const DEFAULTS = {
   dmTriggers: {
     keywords: ['OUTIL', 'GUIDE', 'INFO'],
     replyTemplate:
-      'Coucou ☀️ merci pour ton message ! Voilà ce que je t’avais promis : {{link}} — dis-moi si ça t’aide, ça me fait toujours plaisir d’avoir ton retour 💛',
+      'Coucou ☀️ merci pour ton commentaire ! Voici {{ressource}} : {{link}} — dis-moi la tâche que tu veux automatiser en premier, je te réponds 💛',
   },
   designStudio: {
     enabled: true,

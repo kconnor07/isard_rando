@@ -448,6 +448,7 @@ export default function PostEditor() {
         </div>
       )}
 
+      {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
       {post.resource && post.resource.kind !== 'article' && (
         <div className="card mb-4 p-4">
@@ -743,6 +744,55 @@ function BlocVideo({ post }: { post: PostDetailDto }) {
             Les réglages (avatar, voix, sous-titres) sont dans Réglages → Vidéos avatar.
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Mot-clé à commenter : il est imprimé sur la slide CTA, écrit dans la caption et
+ * attendu par le détecteur de commentaires. Le changer ici met les trois d'accord.
+ */
+function BlocMotCle({ post }: { post: PostDetailDto }) {
+  const qc = useQueryClient();
+  const [motcle, setMotcle] = useState(post.commentTriggerKeyword ?? '');
+  const valide = /^[A-Za-zÀ-ÿ]{3,14}$/.test(motcle.trim());
+  const dansLaCaption = post.caption.toUpperCase().includes(motcle.trim().toUpperCase());
+  const enregistrer = useMutation({
+    mutationFn: () => api.patch(`/api/posts/${post.id}`, { commentTriggerKeyword: motcle.trim().toUpperCase() }),
+    onSuccess: async () => {
+      await api.post(`/api/posts/${post.id}/render`, {}).catch(() => undefined);
+      void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      toast.success('Mot-clé changé — caption et slide mises à jour');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+
+  return (
+    <div className="card mb-5 p-5">
+      <h2 className="mb-1 text-base font-bold">Mot à commenter</h2>
+      <p className="mb-3 text-xs text-muted">
+        C’est le déclencheur de tout le tunnel : imprimé sur la slide finale, écrit dans la caption, attendu par le moteur sous chaque
+        commentaire. Un seul mot, 3 à 14 lettres.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="input max-w-[220px] uppercase"
+          value={motcle}
+          onChange={(e) => setMotcle(e.target.value.replace(/[^A-Za-zÀ-ÿ]/g, ''))}
+          placeholder="GUIDE"
+        />
+        <button
+          className="btn-primary !py-1.5 text-xs"
+          disabled={!valide || enregistrer.isPending || motcle.trim().toUpperCase() === (post.commentTriggerKeyword ?? '')}
+          onClick={() => enregistrer.mutate()}
+        >
+          {enregistrer.isPending ? 'Mise à jour…' : 'Changer le mot-clé'}
+        </button>
+        {!valide && motcle.length > 0 && <span className="text-xs text-accent">Un seul mot, 3 à 14 lettres.</span>}
+        {valide && !dansLaCaption && (
+          <span className="text-xs text-accent">Ce mot n’apparaît pas dans la caption — les gens ne sauront pas quoi commenter.</span>
+        )}
       </div>
     </div>
   );

@@ -111,6 +111,27 @@ export async function sendApprovalEmail(
         .join(' · ')} ${review.passed ? '✔ validé' : '⚠ seuil non atteint (à vérifier)'}</p>`
     : '';
 
+  // Ce que recevra la personne qui commente : on ne fait pas valider une promesse
+  // sans la montrer. Un guide mal fabriqué, et c'est le premier échange privé avec
+  // un prospect qui déçoit — le pire moment du parcours pour rater quelque chose.
+  const base = config.PUBLIC_URL.replace(/\/$/, '');
+  const blocRessource = post.commentTriggerKeyword
+    ? post.resourceError
+      ? `<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fff4ed;border:1px solid #f4c9a8;color:#8a4b12;font-size:13px">
+      ⚠ <b>La ressource promise n'a pas pu être fabriquée</b> — la personne recevra l'article source à la place, alors que le post promet
+      ${post.resourceKind === 'guide' ? 'un guide' : 'autre chose'}.<br/><span style="color:#a9714a">${escapeHtml(post.resourceError.slice(0, 200))}</span>
+    </div>`
+      : `<p style="margin:8px 0 0;color:#556;font-size:13px">🎁 Elle recevra : <b>${
+          post.resourceKind === 'guide' ? 'le guide' : post.resourceKind === 'outil' ? 'l’accès à l’outil' : 'l’analyse complète'
+        }${post.resourceTitle ? ` « ${escapeHtml(post.resourceTitle)} »` : ''}</b>${
+          post.resourceKind === 'guide' && post.resourceAssetId
+            ? ` — <a href="${base}/guide/${post.resourceAssetId}" style="color:#0077cc"><b>ouvrir le PDF</b></a>`
+            : post.resourceUrl
+              ? ` — <a href="${escapeHtml(post.resourceUrl)}" style="color:#0077cc">voir la page</a>`
+              : ''
+        }</p>`
+    : '';
+
   // Vidéo : on ne valide pas à l'aveugle un post dont le visuel principal est un MP4.
   const ligneVideo =
     post.format === 'reel'
@@ -153,7 +174,8 @@ export async function sendApprovalEmail(
   <tr><td style="padding:8px 28px">
     <div style="background:#f6f8fb;border-radius:12px;padding:16px 18px;color:#223;font-size:14px;line-height:1.55;white-space:pre-wrap">${escapeHtml(post.caption)}</div>
     <p style="margin:8px 0 0;color:#0077cc;font-size:13px">${escapeHtml(hashtags)}</p>
-    ${post.commentTriggerKeyword ? `<p style="margin:8px 0 0;color:#556;font-size:13px">💬 Déclencheur DM : commenter « <b>${post.commentTriggerKeyword}</b> »</p>` : ''}
+    ${post.commentTriggerKeyword ? `<p style="margin:8px 0 0;color:#556;font-size:13px">💬 Déclencheur : commenter « <b>${post.commentTriggerKeyword}</b> »</p>` : ''}
+    ${blocRessource}
   </td></tr>
   <tr><td align="center" style="padding:22px 28px 6px">
     ${btn('✅ Approuver', urlFor('approve'), '#16a34a')}

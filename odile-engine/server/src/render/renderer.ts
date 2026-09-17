@@ -84,6 +84,8 @@ export interface SlideRenderInput {
   slideNum: number;
   slideTotal: number;
   keyword?: string | null;
+  /** ce que la slide promet sous le mot-clé — dépend de la plateforme et de la ressource */
+  keywordPromesse?: string | null;
   screenshotDataUri?: string | null;
   toolUrlDisplay?: string | null;
   logoDataUri?: string | null;
@@ -177,6 +179,7 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     bodyHtml: buildBodyHtml(source.body),
     iconSvg: iconSvg(input.content.icon),
     keyword: input.keyword ?? null,
+    keywordPromesse: input.keywordPromesse ?? 'et reçois le lien en message privé',
     screenshotDataUri: input.screenshotDataUri ?? null,
     toolUrlDisplay: input.toolUrlDisplay ?? null,
   });
@@ -440,6 +443,22 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T, index: nu
  * slides.render_asset_id. `onlyIdx` : une seule slide (action ciblée de
  * l'éditeur : illustration posée, slide régénérée) — les autres gardent leur rendu.
  */
+/**
+ * Ce que la slide CTA promet sous le mot-clé.
+ *
+ * Elle annonçait « le lien direct en message privé » sur toutes les plateformes.
+ * Sur LinkedIn, aucun message privé n'arrive jamais — la réponse se poste sous le
+ * commentaire : un lecteur qui attend un DM ne va pas la chercher, et le lead est
+ * perdu. La promesse dit donc ce qui se passe vraiment, et nomme la ressource.
+ */
+export function promesseDuMotCle(post: { platform: string; resourceKind?: string | null }): string {
+  const quoi =
+    post.resourceKind === 'guide' ? 'le guide' : post.resourceKind === 'outil' ? 'l’accès à l’outil' : 'l’analyse complète';
+  return post.platform === 'linkedin'
+    ? `et je te réponds sous ton commentaire avec ${quoi}`
+    : `et reçois ${quoi} en message privé`;
+}
+
 export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}): Promise<RenderSummary> {
   const post = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (!post) throw new Error(`Post ${postId} introuvable`);
@@ -510,6 +529,7 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
       slideNum: slide.idx + 1,
       slideTotal: allSlides.length,
       keyword: post.commentTriggerKeyword,
+      keywordPromesse: promesseDuMotCle(post),
       screenshotDataUri,
       heroDataUri: hero?.dataUri ?? null,
       heroContain: hero?.cutout ?? false,
