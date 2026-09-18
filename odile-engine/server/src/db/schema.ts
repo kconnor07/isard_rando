@@ -415,6 +415,14 @@ export const llmUsage = sqliteTable(
     provider: text('provider').notNull(),
     model: text('model').notNull(),
     task: text('task').notNull(),
+    /**
+     * Le métier qui a passé l'appel (« post:redaction », « studio:copy »,
+     * « veille:notation »…). La tâche seule mettait onze métiers sous
+     * « Rédaction » : on voyait la facture, jamais qui la faisait.
+     */
+    label: text('label'),
+    /** 1 = première tentative ; 2 et plus = reprise après une réponse invalide */
+    attempt: integer('attempt').notNull().default(1),
     inputTokens: integer('input_tokens').notNull().default(0),
     outputTokens: integer('output_tokens').notNull().default(0),
     /** coût estimé en millièmes d'euro (les tarifs vivent dans lib/llmBudget.ts) */

@@ -271,7 +271,7 @@ MISSION
 ${opts.more && (knownUrls.size || knownPrompts.length) ? `\nDÉJÀ PROPOSÉ (à ne PAS répéter, propose autre chose) :\n${[...knownUrls].map((u) => `- page : ${u}`).join('\n')}\n${knownPrompts.map((p) => `- image : ${p}`).join('\n')}` : ''}`;
     try {
       const res = await completeJson(
-        { task: 'writing', tier: 'fast', system: SYSTEM, prompt, maxTokens: 1800 },
+        { task: 'writing', label: 'visuel:agent', tier: 'fast', system: SYSTEM, prompt, maxTokens: 1800 },
         planSchema,
       );
       plan = res.value;

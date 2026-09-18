@@ -11,6 +11,10 @@ export interface LlmRequest {
   maxTokens?: number;
   /** finale = modèle le plus capable du provider ; rapide sinon */
   tier?: 'fast' | 'best';
+  /** métier qui passe l'appel, pour la comptabilité (« post:redaction », « studio:copy »…) */
+  label?: string;
+  /** posé par completeJson quand une réponse invalide force une reprise (2, 3…) */
+  attempt?: number;
 }
 
 export interface LlmResponse {

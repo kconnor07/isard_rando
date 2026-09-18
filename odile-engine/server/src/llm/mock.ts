@@ -9,9 +9,24 @@ export const mockProvider: LlmProvider = {
   isConfigured: () => true,
 
   async completeText(req: LlmRequest): Promise<LlmResponse> {
-    return { text: buildMockText(req), model: 'mock-1' };
+    const text = buildMockText(req);
+    return { text, model: 'mock-1', ...jetonsEstimes(req, text) };
   },
 };
+
+/**
+ * Des jetons plausibles, pour que le compteur de consommation vive aussi en mode
+ * démo : sans eux, « Consommation IA » restait à zéro quoi qu'on fabrique, et l'on
+ * ne pouvait pas juger l'écran avant d'avoir une clé. Ordre de grandeur : ~3,6
+ * caractères par jeton en français, ~490 jetons par image en 540 px de large.
+ */
+function jetonsEstimes(req: LlmRequest, texte: string): { inputTokens: number; outputTokens: number } {
+  const caracteres = (req.system?.length ?? 0) + req.prompt.length;
+  return {
+    inputTokens: Math.round(caracteres / 3.6) + (req.images?.length ?? 0) * 490,
+    outputTokens: Math.round(texte.length / 3.6),
+  };
+}
 
 function buildMockText(req: LlmRequest): string {
   switch (req.task) {

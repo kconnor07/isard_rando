@@ -16,11 +16,16 @@ import { parisParts } from './time.js';
  * avant les travaux essentiels (rédaction du post du jour).
  */
 
-/** Tarifs indicatifs en millièmes d'euro par million de jetons (entrée / sortie). */
+/**
+ * Tarifs indicatifs en millièmes d'euro par million de jetons (entrée / sortie),
+ * au tarif public Anthropic converti à ~0,93 € le dollar. Les anciens chiffres
+ * dataient d'une génération de modèles : Sonnet était compté 60 % trop cher,
+ * Opus trois fois — le compteur ne disait pas la vérité, donc le plafond non plus.
+ */
 const TARIFS: Record<string, { in: number; out: number }> = {
-  'claude-opus-5': { in: 15_000, out: 75_000 },
-  'claude-sonnet-5': { in: 3_000, out: 15_000 },
-  'claude-haiku-4-5': { in: 800, out: 4_000 },
+  'claude-opus-5': { in: 4_650, out: 23_250 },
+  'claude-sonnet-5': { in: 1_860, out: 9_300 },
+  'claude-haiku-4-5': { in: 930, out: 4_650 },
   'gemini-2.5-pro': { in: 1_250, out: 10_000 },
   'gemini-2.5-flash': { in: 300, out: 2_500 },
 };
@@ -52,22 +57,31 @@ export function enregistrerUsage(args: {
   provider: string;
   model: string;
   task: string;
+  /** métier qui a passé l'appel (« post:redaction », « studio:copy »…) */
+  label?: string;
+  /** 1 = première tentative ; 2 et plus = reprise */
+  attempt?: number;
   inputTokens?: number;
   outputTokens?: number;
+  /** coût hors jetons, en millièmes d'euro (ex. : les recherches web facturées à l'unité) */
+  coutSupplementMilli?: number;
 }): void {
   try {
     const entree = Math.max(0, args.inputTokens ?? 0);
     const sortie = Math.max(0, args.outputTokens ?? 0);
-    if (entree === 0 && sortie === 0) return;
+    const supplement = Math.max(0, Math.round(args.coutSupplementMilli ?? 0));
+    if (entree === 0 && sortie === 0 && supplement === 0) return;
     db.insert(schema.llmUsage)
       .values({
         day: jourParis(),
         provider: args.provider,
         model: args.model,
         task: args.task,
+        label: args.label ?? null,
+        attempt: Math.max(1, args.attempt ?? 1),
         inputTokens: entree,
         outputTokens: sortie,
-        costMilli: coutMilli(args.model, entree, sortie),
+        costMilli: coutMilli(args.model, entree, sortie) + supplement,
       })
       .run();
   } catch (err) {
@@ -119,21 +133,44 @@ export function consommationRecente(jours = 14): Consommation[] {
   });
 }
 
-/** Répartition du jour par tâche, du plus coûteux au moins coûteux. */
-export function repartitionDuJour(jour = jourParis()): { task: string; provider: string; appels: number; tokens: number; cout: number }[] {
+export interface LigneRepartition {
+  /** le métier ; à défaut (lignes d'avant le suivi par métier), la tâche */
+  label: string;
+  task: string;
+  provider: string;
+  appels: number;
+  tokens: number;
+  cout: number;
+  /** appels qui étaient une reprise après réponse invalide, et ce qu'ils ont coûté */
+  reprises: number;
+  coutReprises: number;
+}
+
+/**
+ * Répartition du jour par métier, du plus coûteux au moins coûteux.
+ *
+ * Les reprises sont comptées à part : un métier qui coûte cher parce qu'il
+ * recommence n'a pas le même remède qu'un métier qui coûte cher parce qu'il
+ * travaille.
+ */
+export function repartitionDuJour(jour = jourParis()): LigneRepartition[] {
+  const metier = sql<string>`coalesce(${schema.llmUsage.label}, ${schema.llmUsage.task})`;
   return db
     .select({
-      task: schema.llmUsage.task,
+      label: metier,
+      task: sql<string>`min(${schema.llmUsage.task})`,
       provider: schema.llmUsage.provider,
       appels: sql<number>`count(*)`,
       tokens: sql<number>`coalesce(sum(${schema.llmUsage.inputTokens} + ${schema.llmUsage.outputTokens}), 0)`,
       cout: sql<number>`coalesce(sum(${schema.llmUsage.costMilli}), 0)`,
+      reprises: sql<number>`coalesce(sum(case when ${schema.llmUsage.attempt} > 1 then 1 else 0 end), 0)`,
+      coutReprises: sql<number>`coalesce(sum(case when ${schema.llmUsage.attempt} > 1 then ${schema.llmUsage.costMilli} else 0 end), 0)`,
     })
     .from(schema.llmUsage)
     .where(eq(schema.llmUsage.day, jour))
-    .groupBy(schema.llmUsage.task, schema.llmUsage.provider)
+    .groupBy(metier, schema.llmUsage.provider)
     .all()
-    .map((r) => ({ ...r, cout: r.cout / 1000 }))
+    .map((r) => ({ ...r, cout: r.cout / 1000, coutReprises: r.coutReprises / 1000 }))
     .sort((a, b) => b.cout - a.cout);
 }
 

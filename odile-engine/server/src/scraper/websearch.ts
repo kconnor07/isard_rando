@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { extractJson } from '../llm/provider.js';
+import { BudgetDepasseError, enregistrerUsage, verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { canonicalizeUrl, contentHash } from './dedupe.js';
 
@@ -170,6 +171,12 @@ async function harvest(client: Anthropic, spec: HarvestSpec): Promise<WebsearchS
   const webSearchTool = (type: string) =>
     ({ type, name: 'web_search', max_uses: 5 }) as unknown as Anthropic.Messages.ToolUnion;
 
+  // Cet appel passe par le SDK sans le routeur : il échappait au compteur et au
+  // plafond. Une recherche web se paie aussi à l'unité (10 $ les mille), en plus
+  // des jetons — la ligne le comptabilise.
+  const verdict = verifierBudget('websearch');
+  if (!verdict.autorise) throw new BudgetDepasseError(verdict);
+
   let text = '';
   for (const toolType of ['web_search_20260209', 'web_search_20250305']) {
     try {
@@ -178,6 +185,16 @@ async function harvest(client: Anthropic, spec: HarvestSpec): Promise<WebsearchS
         max_tokens: 16000,
         tools: [webSearchTool(toolType)],
         messages: [{ role: 'user', content: spec.prompt }],
+      });
+      const recherches = response.usage.server_tool_use?.web_search_requests ?? 0;
+      enregistrerUsage({
+        provider: 'anthropic',
+        model: config.ANTHROPIC_MODEL_WRITER,
+        task: 'websearch',
+        label: 'veille:recherche-web',
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+        coutSupplementMilli: recherches * 9.3,
       });
       text = response.content
         .filter((b): b is Anthropic.TextBlock => b.type === 'text')

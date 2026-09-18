@@ -37,6 +37,7 @@ export async function validateScreenshot(png: Buffer): Promise<ScreenshotValidat
     const { value } = await completeJson(
       {
         task: 'vision_check',
+        label: 'visuel:controle-capture',
         tier: 'fast',
         prompt:
           "Cette capture d'écran doit illustrer un outil/site web réel dans un post professionnel. " +

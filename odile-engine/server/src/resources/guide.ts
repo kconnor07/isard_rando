@@ -64,7 +64,7 @@ Règles :
 — une checklist finale de 3 à 8 lignes, chacune vérifiable d'un coup d'œil ;
 — la conclusion rappelle en deux phrases ce que ${args.marque} peut faire ensuite, sans insister.`;
   const { value } = await completeJson(
-    { task: 'writing', prompt, maxTokens: 3400 },
+    { task: 'writing', label: 'post:guide', prompt, maxTokens: 3400 },
     guideSchema,
   );
   return value;

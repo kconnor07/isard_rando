@@ -26,6 +26,7 @@ export async function regeneratePart(opts: RegenerateOptions): Promise<{ ok: tru
     const { value } = await completeJson(
       {
         task: 'writing',
+        label: 'post:regeneration',
         tier: 'best',
         system: `Tu es le copywriter d'Odile AI. Tu réécris la caption d'un post ${post.platform} en gardant sa substance.`,
         prompt: `Caption actuelle :\n${post.caption}\n\nCTA actuel : ${post.cta}\n\nTon :\n${toneToPrompt(tone)}\n\n${
@@ -54,6 +55,7 @@ export async function regeneratePart(opts: RegenerateOptions): Promise<{ ok: tru
   const { value } = await completeJson<SlideContent>(
     {
       task: 'writing',
+      label: 'post:regeneration',
       tier: 'best',
       system: `Tu réécris UNE slide d'un carrousel ${post.platform} d'Odile AI (agence IA pour PME). Slide de type "${current.kind}".`,
       prompt: `Contenu actuel de la slide (JSON) :\n${JSON.stringify(current, null, 2)}\n\nTon :\n${toneToPrompt(
@@ -78,6 +80,6 @@ export async function regeneratePart(opts: RegenerateOptions): Promise<{ ok: tru
 
 /** Petit utilitaire : réponse libre (suggestions de réponses aux commentaires, etc.). */
 export async function freeCompletion(prompt: string, system?: string): Promise<string> {
-  const res = await completeText({ task: 'generic', tier: 'fast', prompt, system, maxTokens: 2000 });
+  const res = await completeText({ task: 'generic', label: 'texte-libre', tier: 'fast', prompt, system, maxTokens: 2000 });
   return res.text;
 }

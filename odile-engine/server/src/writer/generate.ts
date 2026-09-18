@@ -442,7 +442,7 @@ CONTRAINTES :
   **faute de réponse.** »).`;
 
   const { value: generated } = await completeJson<GeneratedPost>(
-    { task: 'writing', tier: 'best', system: WRITER_SYSTEM, prompt, maxTokens: 16000 },
+    { task: 'writing', label: 'post:redaction', tier: 'best', system: WRITER_SYSTEM, prompt, maxTokens: 16000 },
     writerResponseSchema(imagesAllowed),
     { attempts: 3 },
   );

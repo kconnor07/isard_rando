@@ -83,6 +83,7 @@ target = champ visé, problem, fix). Aucun issue si le score passe.`;
         const { value, model } = await completeJson(
           {
             task: 'review',
+            label: `studio:${reviewer.id}`,
             tier: isFinalPass ? 'best' : 'fast',
             system: reviewer.system,
             prompt,

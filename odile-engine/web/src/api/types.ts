@@ -324,5 +324,16 @@ export interface LlmUsageDto {
   plafond: number | null;
   partUtilisee: number | null;
   jours: { jour: string; appels: number; entree: number; sortie: number; cout: number }[];
-  repartition: { task: string; provider: string; appels: number; tokens: number; cout: number }[];
+  repartition: {
+    /** le métier (« post:redaction », « studio:copy »…) ; la tâche pour les lignes d'avant le suivi par métier */
+    label: string;
+    task: string;
+    provider: string;
+    appels: number;
+    tokens: number;
+    cout: number;
+    /** reprises après réponse invalide, et leur coût */
+    reprises: number;
+    coutReprises: number;
+  }[];
 }

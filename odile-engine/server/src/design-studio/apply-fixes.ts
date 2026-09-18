@@ -41,6 +41,7 @@ export async function applyFixes(postId: number, issues: ReviewIssue[]): Promise
   const { value } = await completeJson(
     {
       task: 'writing',
+      label: 'studio:correctifs',
       tier: 'best',
       system: `Tu es le copywriter d'Odile AI. Tu appliques les correctifs demandés par le comité de design
 sur un post ${post.platform}. Tu modifies UNIQUEMENT ce que les correctifs demandent, tu conserves tout le reste.`,

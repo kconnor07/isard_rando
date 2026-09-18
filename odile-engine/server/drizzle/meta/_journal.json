@@ -176,6 +176,13 @@
       "when": 1789640607818,
       "tag": "0024_amplification",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1789738230682,
+      "tag": "0025_detail-consommation",
+      "breakpoints": true
     }
   ]
 }

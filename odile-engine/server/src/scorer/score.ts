@@ -63,6 +63,7 @@ export async function rescoreWithContent(itemIds: number[]): Promise<number> {
       const { value } = await completeJson(
         {
           task: 'scoring',
+          label: 'veille:rescoring',
           tier: 'fast',
           system: SYSTEM,
           prompt: `${RUBRIC}\n\nCette fois tu disposes du texte (ou d'un large extrait) de chaque article :
@@ -120,6 +121,7 @@ export async function runScore(limit = 60): Promise<ScoreSummary> {
     const { value } = await completeJson(
       {
         task: 'scoring',
+        label: 'veille:notation',
         tier: 'fast',
         system: SYSTEM,
         prompt: `${RUBRIC}\n\nItems à noter :\n\n${list}`,

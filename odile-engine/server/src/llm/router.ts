@@ -82,6 +82,8 @@ export async function completeText(req: LlmRequest): Promise<LlmResponse> {
           provider: provider.name,
           model: res.model,
           task: req.task,
+          label: req.label,
+          attempt: req.attempt ?? 1,
           inputTokens: res.inputTokens,
           outputTokens: res.outputTokens,
         });
@@ -122,7 +124,8 @@ export async function completeJson<T>(
   let attemptPrompt = basePrompt;
   let lastModel = '';
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const res = await completeText({ ...req, prompt: attemptPrompt });
+    // Une reprise coûte un appel entier : elle est comptée comme telle, à part.
+    const res = await completeText({ ...req, prompt: attemptPrompt, attempt: attempt + 1 });
     lastModel = res.model;
     try {
       const parsed = schema.safeParse(JSON.parse(extractJson(res.text)));

@@ -32,12 +32,33 @@ function Kpi({ label, value, hint }: { label: string; value: string; hint?: stri
   );
 }
 
-/** Noms des tâches IA, côté humain. */
-const TACHE_LABELS: Record<string, string> = {
-  writing: 'Rédaction (posts, guides)',
-  review: 'Studio de design',
-  scoring: 'Veille — notation',
-  vision_check: 'Contrôle des captures',
+/**
+ * Noms des métiers IA, côté humain. Les clés courtes (writing, review…) sont
+ * celles des lignes enregistrées avant le suivi par métier : elles restent lisibles.
+ */
+const METIER_LABELS: Record<string, string> = {
+  'post:redaction': 'Rédaction du post',
+  'post:regeneration': 'Régénération (légende, slide)',
+  'post:guide': 'Guide PDF promis',
+  'post:diffusion': 'Diffusion sur les autres comptes',
+  'post:amplification': 'Commentaires d’amplification',
+  'studio:art_director': 'Studio — direction artistique',
+  'studio:colorimetry': 'Studio — couleur & lisibilité',
+  'studio:copy': 'Studio — relecture du texte',
+  'studio:engagement': 'Studio — engagement',
+  'studio:correctifs': 'Studio — correctifs appliqués',
+  'visuel:agent': 'Agent visuel (concepts)',
+  'visuel:controle-capture': 'Contrôle des captures',
+  'veille:notation': 'Veille — notation',
+  'veille:rescoring': 'Veille — rescoring plein texte',
+  'veille:recherche-web': 'Veille — recherche web',
+  'blog:article': 'Article de blog',
+  'texte-libre': 'Texte libre',
+  writing: 'Rédaction (avant le détail)',
+  review: 'Studio de design (avant le détail)',
+  scoring: 'Veille — notation (avant le détail)',
+  vision_check: 'Contrôle des captures (avant le détail)',
+  websearch: 'Veille — recherche web',
   generic: 'Divers',
 };
 
@@ -140,12 +161,30 @@ export default function Analytics() {
           {ia.repartition.length > 0 && (
             <div className="mt-3 flex flex-col gap-1">
               <div className="text-[11px] uppercase tracking-wider text-muted">Ce qui consomme, aujourd'hui</div>
-              {ia.repartition.slice(0, 6).map((r) => (
-                <div key={`${r.task}-${r.provider}`} className="flex items-baseline justify-between text-sm">
-                  <span>{TACHE_LABELS[r.task] ?? r.task} <span className="text-xs text-muted">· {r.provider}</span></span>
-                  <span className="mono text-xs text-muted">{r.appels} appel(s) · {r.cout.toFixed(3)} €</span>
+              {ia.repartition.slice(0, 14).map((r) => (
+                <div key={`${r.label}-${r.provider}`} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate">
+                    {METIER_LABELS[r.label] ?? r.label} <span className="text-xs text-muted">· {r.provider}</span>
+                  </span>
+                  <span className="mono shrink-0 text-xs text-muted">
+                    {r.appels} appel(s) · {r.cout.toFixed(3)} €
+                    {r.reprises > 0 && (
+                      <span title="Appels recommencés parce que la réponse précédente était invalide"> · dont {r.reprises} reprise(s), {r.coutReprises.toFixed(3)} €</span>
+                    )}
+                  </span>
                 </div>
               ))}
+              {(() => {
+                // Les reprises en un chiffre : un métier qui recommence se soigne
+                // autrement qu'un métier qui travaille.
+                const reprises = ia.repartition.reduce((n, r) => n + r.reprises, 0);
+                const cout = ia.repartition.reduce((n, r) => n + r.coutReprises, 0);
+                return reprises > 0 ? (
+                  <p className="mt-1 text-xs text-muted">
+                    {reprises} appel(s) sur {ia.aujourdhui.appels} étaient des reprises après une réponse invalide — {cout.toFixed(2)} € du total.
+                  </p>
+                ) : null;
+              })()}
             </div>
           )}
           {ia.aujourdhui.appels === 0 && <p className="mt-2 text-sm text-muted">Aucun appel aujourd'hui.</p>}

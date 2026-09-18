@@ -175,6 +175,7 @@ ${consigneCta}`;
     const { value } = await completeJson(
       {
         task: 'writing',
+        label: 'post:diffusion',
         prompt: `${consigne}\n\nACCROCHE : ${post.hook}\n\nTEXTE D'ORIGINE :\n"""\n${
           vers === 'linkedin' ? enEmplacement(post.caption) : post.caption
         }\n"""\n\nCTA D'ORIGINE : ${post.cta}`,

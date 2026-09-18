@@ -143,6 +143,7 @@ async function texteDeCollegue(post: Post, compte: CompteLinkedIn): Promise<stri
     const { value } = await completeJson(
       {
         task: 'writing',
+        label: 'post:amplification',
         prompt: `Tu écris un commentaire LinkedIn sous le post d'un collègue de la même équipe (${getBrand().name}).
 
 QUI COMMENTE : ${voix}

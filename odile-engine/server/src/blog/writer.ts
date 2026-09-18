@@ -257,7 +257,7 @@ COUVERTURE : coverTitle = un titre court et frappant (≤ 8 mots) pour l'image d
 
 Tout en français. Vouvoiement. Ton d'agence qui explique simplement et prouve. Zéro emoji.`;
 
-  const { value } = await completeJson({ task: 'writing', tier: 'best', prompt, maxTokens: 12000 }, articleSchema, { attempts: 2 });
+  const { value } = await completeJson({ task: 'writing', label: 'blog:article', tier: 'best', prompt, maxTokens: 12000 }, articleSchema, { attempts: 2 });
   return value;
 }
 
