@@ -322,6 +322,14 @@ body {
   background: rgba(255, 255, 255, 0.1);
   color: var(--color-txt);
 }
+/*
+ * Au doigt, une pilule de 28 px se rate une fois sur trois. Sur écran tactile,
+ * les cibles montent à 36-40 px sans changer l'aspect à la souris.
+ */
+@media (pointer: coarse) {
+  .pill-btn { min-height: 36px; min-width: 36px; }
+  .btn-primary, .btn-ghost, .btn-danger, .btn-success { min-height: 40px; }
+}
 /* Bouton porteur d'un état actif (illustration présente) */
 .pill-btn--on {
   background: var(--color-accent-soft);
@@ -374,3 +382,10 @@ body {
 .section-toggle[open] > summary .chev {
   transform: rotate(90deg);
 }
+
+/*
+ * Une URL, un identifiant de trace ou un JSON d'erreur n'ont pas d'espace où
+ * couper : sans ceci, une seule ligne suffisait à faire défiler tout l'écran de
+ * côté sur un téléphone.
+ */
+main { overflow-wrap: anywhere; }

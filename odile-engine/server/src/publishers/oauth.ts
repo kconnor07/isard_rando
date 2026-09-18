@@ -10,7 +10,7 @@ import { requireSession } from '../api/auth.js';
 import { getOauthApps, linkedinAppConfigured, metaAppConfigured } from '../db/oauthApps.js';
 import { getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
 import { db, schema } from '../db/client.js';
-import { expliquerErreurMeta } from './metaErrors.js';
+import { expliquerErreurMeta, resumerErreurMeta } from './metaErrors.js';
 import { deleteToken, getStoredToken, storeToken, updateTokenMeta } from './tokens.js';
 import { droitCommentaire, etatLecture, toutesLesSurfaces } from './linkedinAccounts.js';
 import { GRAPH } from './instagram.js';
@@ -831,8 +831,9 @@ doit être en mode professionnel (Instagram → Paramètres → Type de compte).
     const page = getStoredToken('meta', 'fb_page');
     if (!page) return reply.status(400).send({ error: 'Aucune Page Facebook connectée' });
     const result = await subscribePageWebhooks(page.externalId, page.accessToken);
-    updateTokenMeta('meta', 'fb_page', { webhookInstalled: result.ok, webhookDetail: result.detail, webhookCheckedAt: new Date().toISOString() });
-    if (!result.ok) return reply.status(409).send({ error: `Installation impossible : ${result.detail}` });
+    const detail = result.ok ? result.detail : resumerErreurMeta(result.detail);
+    updateTokenMeta('meta', 'fb_page', { webhookInstalled: result.ok, webhookDetail: detail, webhookCheckedAt: new Date().toISOString() });
+    if (!result.ok) return reply.status(409).send({ error: `Installation impossible : ${detail}` });
     return { ok: true, detail: result.detail };
   });
 

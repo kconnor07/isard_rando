@@ -607,7 +607,23 @@ export default function Setup() {
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {liOrg ? (
-                <button className="btn-ghost !py-1.5 text-xs" disabled={unlinkOrg.isPending} onClick={() => unlinkOrg.mutate()}>
+                <button
+                  className="btn-ghost !py-1.5 text-xs"
+                  disabled={unlinkOrg.isPending}
+                  title="Détacher la page entreprise"
+                  onClick={() =>
+                    void (async () => {
+                      // « Retirer ce profil » et « Supprimer les jetons » demandent confirmation ;
+                      // la page entreprise partait sur un seul clic — un pouce suffit sur un téléphone.
+                      const ok = await dialog.confirm({
+                        title: 'Détacher la page entreprise ?',
+                        message: 'Le moteur ne publiera plus au nom de la page, et les posts déjà prévus pour elle repasseront sur le profil. Relier la page prend une minute.',
+                        confirmLabel: 'Détacher',
+                      });
+                      if (ok) unlinkOrg.mutate();
+                    })()
+                  }
+                >
                   Retirer
                 </button>
               ) : (

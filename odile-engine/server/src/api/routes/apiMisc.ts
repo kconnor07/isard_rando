@@ -9,7 +9,7 @@ import { latestMetricsByPost } from '../../publishers/metrics.js';
 import { clicksByLink } from './apiAnalytics.js';
 import { connectionWarnings } from '../../publishers/refresh.js';
 import { expliquerErreurMeta } from '../../publishers/metaErrors.js';
-import { nextPublishSlot, shouldDraftToday } from '../../scheduler/cadence.js';
+import { nextPublishSlot, shouldDraftToday, sujetsEnAttente } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
 import { loginLimiter } from '../rateLimit.js';
 import { dailyIpHash } from '../../lib/crypto.js';
@@ -83,7 +83,8 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       .all().length;
     const cadence = shouldDraftToday();
     return {
-      awaitingApproval: count(['awaiting_approval', 'reviewing', 'draft']),
+      // Le badge compte les décisions à prendre : un sujet diffusé partout n'en fait qu'une.
+      awaitingApproval: sujetsEnAttente().sujets,
       scheduled: count(['scheduled', 'publishing']),
       published: count(['published']),
       clicks7d,

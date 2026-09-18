@@ -8,15 +8,29 @@ import { nextSlotOccurrence } from '../lib/time.js';
  * - jamais si un brouillon attend déjà une validation (on ne spamme pas l'humain) ;
  * - oui si aucun post « vivant » n'a été créé depuis `cadence.days` jours.
  */
-export function shouldDraftToday(now = new Date()): { due: boolean; reason: string } {
-  const pendingStates = ['draft', 'reviewing', 'awaiting_approval'] as const;
+const PENDING_STATES = ['draft', 'reviewing', 'awaiting_approval'] as const;
+
+/**
+ * Ce qui attend une décision : les sujets, pas les lignes en base.
+ *
+ * Un post diffusé sur quatre comptes fait quatre lignes et une seule validation.
+ * Compter les lignes gonflait le badge (« 44 à valider » pour onze sujets) et
+ * faisait croire à un retard qui n'existait pas.
+ */
+export function sujetsEnAttente(): { sujets: number; posts: number } {
   const pending = db
-    .select({ id: schema.posts.id })
+    .select({ id: schema.posts.id, groupe: schema.posts.broadcastGroup })
     .from(schema.posts)
-    .where(inArray(schema.posts.status, [...pendingStates]))
+    .where(inArray(schema.posts.status, [...PENDING_STATES]))
     .all();
-  if (pending.length > 0) {
-    return { due: false, reason: `${pending.length} post(s) déjà en attente de validation` };
+  return { sujets: new Set(pending.map((p) => p.groupe ?? `post-${p.id}`)).size, posts: pending.length };
+}
+
+export function shouldDraftToday(now = new Date()): { due: boolean; reason: string } {
+  const attente = sujetsEnAttente();
+  if (attente.posts > 0) {
+    const copies = attente.posts > attente.sujets ? ` (${attente.posts} posts, copies comprises)` : '';
+    return { due: false, reason: `${attente.sujets} sujet(s) déjà en attente de validation${copies}` };
   }
 
   const cadence = getCadence();

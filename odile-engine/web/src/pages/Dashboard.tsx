@@ -154,8 +154,8 @@ export default function Dashboard() {
           style={{ '--i': 0 } as React.CSSProperties}
         >
           {summary.warnings.map((w) => (
-            <span key={`${w.provider}-${w.subject}`} className="flex items-center gap-2">
-              <AlertTriangle size={14} className="shrink-0" /> {w.message}
+            <span key={`${w.provider}-${w.subject}`} className="flex min-w-0 items-start gap-2 break-words">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" /> <span className="min-w-0">{w.message}</span>
             </span>
           ))}
           <span className="text-xs text-muted">Ouvrir Connexions & santé →</span>
@@ -269,11 +269,11 @@ export default function Dashboard() {
             >
               <StatusBadge status={post.status} simulated={post.simulated} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[14px] font-semibold group-hover:text-ice">
+                <div className="line-clamp-2 text-[14px] font-semibold group-hover:text-ice">
                   {post.hook || '(sans titre)'}
                 </div>
                 <div className="mono mt-0.5 text-[11px] text-muted">
-                  {CHANNEL_LABELS[post.channel] ?? post.channel} · {post.slideCount} slides
+                  {post.surface ?? CHANNEL_LABELS[post.channel] ?? post.channel} · {post.slideCount} slides
                   {post.scheduledAt ? ` · prévu ${fmtDate(post.scheduledAt)}` : ''}
                 </div>
               </div>

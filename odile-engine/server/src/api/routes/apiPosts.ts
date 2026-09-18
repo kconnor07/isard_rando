@@ -13,7 +13,18 @@ import { executeApprovalAction, schedulePost, unschedulePost } from '../../appro
 import { getDmTriggers, getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
+import { compteDuCanal, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
+
+/**
+ * Le format équivalent sur l'autre plateforme. Un document PDF n'existe pas sur
+ * Instagram, un carrousel d'images n'existe pas sur LinkedIn ; le reel est commun.
+ */
+export function formatPourPlateforme(format: string, platform: 'instagram' | 'linkedin'): string {
+  const table: Record<string, string> =
+    platform === 'instagram' ? { li_doc: 'carousel', li_image: 'static' } : { carousel: 'li_doc', static: 'li_image' };
+  return table[format] ?? format;
+}
 import { runJob } from '../../lib/jobRunner.js';
 import { mirrorToFacebookPage } from '../../publishers/facebook.js';
 import { buildCaption, collectPublishImages } from '../../publishers/types.js';
@@ -67,15 +78,26 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     },
     /** le compte qui publie, en clair : « Alexis Duquenoy », « page Odile AI », « Instagram » */
     surface: surfaceDuPost(post).label,
+    liAccountKey: post.liAccountKey,
     /**
      * Les visuels rendus, dans l'ordre. Valider sans les voir, c'est signer sans
      * lire : la liste sert aux vignettes des écrans de validation et du calendrier.
      */
     vignettes: slides.map((s) => s.renderAssetId).filter((id): id is string => Boolean(id)),
     /** diffusion simultanée : la surface de ce post et celles de ses copies */
-    broadcast: post.broadcastGroup
-      ? { group: post.broadcastGroup, surface: surfaceDuPost(post).label, others: freresDuGroupe(post).map((f) => surfaceDuPost(f).label) }
-      : null,
+    broadcast: (() => {
+      if (!post.broadcastGroup) return null;
+      const freres = freresDuGroupe(post);
+      return {
+        group: post.broadcastGroup,
+        surface: surfaceDuPost(post).label,
+        others: freres.map((f) => surfaceDuPost(f).label),
+        // L'original est le plus ancien du groupe : c'est lui que l'on valide, les
+        // copies suivent. Sans ce repère, l'écran de validation montrait une copie
+        // encore au studio, dont les actions restaient fermées.
+        original: freres.every((f) => f.id > post.id),
+      };
+    })(),
     resource: {
       kind: post.resourceKind,
       title: post.resourceTitle,
@@ -183,11 +205,35 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (data.hook !== undefined) update.hook = data.hook;
     if (data.cta !== undefined) update.cta = data.cta;
     if (data.hashtags !== undefined) update.hashtags = JSON.stringify(data.hashtags);
-    if (data.channel !== undefined) {
-      update.channel = data.channel;
-      update.platform = data.channel === 'ig' ? 'instagram' : 'linkedin';
-    }
     if (data.format !== undefined) update.format = data.format;
+    if (data.channel !== undefined) {
+      const platform = data.channel === 'ig' ? 'instagram' : 'linkedin';
+      update.channel = data.channel;
+      update.platform = platform;
+      const actuel = db.select({ format: schema.posts.format, liAccountKey: schema.posts.liAccountKey }).from(schema.posts).where(eq(schema.posts.id, id)).get();
+      // Changer de canal sans changer de format laissait un « document PDF » sur
+      // Instagram : impubliable, et l'éditeur ne le montrait pas.
+      const format = data.format ?? actuel?.format ?? 'carousel';
+      const equivalent = formatPourPlateforme(format, platform);
+      if (equivalent !== format) update.format = equivalent;
+      // Le compte suit le canal : Instagram n'en a pas, un profil ne publie pas au
+      // nom de la page. Sans compte compatible, le premier de la rotation.
+      if (data.channel === 'ig') update.liAccountKey = null;
+      else {
+        const subject = data.channel === 'li_org' ? 'li_org' : 'li_person';
+        const voulu = data.liAccountKey ?? actuel?.liAccountKey ?? null;
+        const connu = voulu !== null && comptesLinkedIn(subject).some((c) => c.key === voulu);
+        update.liAccountKey = connu ? voulu : (compteDuCanal(data.channel)?.key ?? null);
+      }
+    } else if (data.liAccountKey !== undefined) {
+      const courant = db.select({ channel: schema.posts.channel }).from(schema.posts).where(eq(schema.posts.id, id)).get();
+      if (courant?.channel === 'ig') return reply.status(400).send({ error: 'Un post Instagram n’a pas de compte LinkedIn' });
+      const subject = courant?.channel === 'li_org' ? 'li_org' : 'li_person';
+      if (data.liAccountKey !== null && !comptesLinkedIn(subject).some((c) => c.key === data.liAccountKey)) {
+        return reply.status(400).send({ error: 'Ce compte n’est pas connecté sur ce canal' });
+      }
+      update.liAccountKey = data.liAccountKey;
+    }
     if (data.theme !== undefined) update.theme = data.theme;
     if (data.scheduledAt !== undefined) update.scheduledAt = data.scheduledAt;
     // Le script corrigé n'invalide pas la vidéo déjà fabriquée : c'est « Relancer la vidéo » qui la refait.
@@ -204,7 +250,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
       }
     }
     db.update(schema.posts).set(update).where(eq(schema.posts.id, id)).run();
-    if (data.theme !== undefined || data.format !== undefined) {
+    if (data.theme !== undefined || update.format !== undefined) {
       db.update(schema.slides).set({ renderAssetId: null }).where(eq(schema.slides.postId, id)).run();
     }
     return { ok: true };

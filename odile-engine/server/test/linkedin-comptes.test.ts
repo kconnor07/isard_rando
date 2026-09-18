@@ -201,3 +201,21 @@ describe('santé de la chaîne commentaires (multi-comptes)', async () => {
     expect(payload.body.author).toBe('urn:li:person:P2');
   });
 });
+
+describe('les erreurs Meta parlent français', async () => {
+  const { resumerErreurMeta } = await import('../src/publishers/metaErrors.js');
+
+  it('un jeton refusé devient une consigne, pas un JSON', () => {
+    const brut = 'HTTP 400 : {"error":{"message":"Invalid OAuth access token - Cannot parse access token","type":"OAuthException","code":190,"fbtrace_id":"AAhqaZkXHHU9ZZojupCLCkW"}}';
+    const phrase = resumerErreurMeta(brut);
+    expect(phrase).toContain('Meta n’accepte plus le jeton');
+    expect(phrase).toContain('Reconnecte Instagram');
+    expect(phrase).not.toContain('fbtrace_id');
+  });
+
+  it('une erreur inconnue garde le message de Meta, sans l’identifiant de trace', () => {
+    expect(resumerErreurMeta('HTTP 500 : {"error":{"message":"Service temporarily unavailable","fbtrace_id":"X"}}')).toBe('Meta répond (HTTP 500) : Service temporarily unavailable');
+    expect(resumerErreurMeta('')).toBe('connexion en échec');
+    expect(resumerErreurMeta('x'.repeat(300)).length).toBeLessThanOrEqual(180);
+  });
+});

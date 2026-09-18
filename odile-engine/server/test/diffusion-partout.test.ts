@@ -105,6 +105,20 @@ describe('diffusion simultanée', async () => {
     }
   });
 
+  it('quatre copies d’un sujet comptent pour une seule validation', async () => {
+    const { sujetsEnAttente } = await import('../src/scheduler/cadence.js');
+    const { formatPourPlateforme } = await import('../src/api/routes/apiPosts.js');
+    const attente = sujetsEnAttente();
+    // Le parent Instagram et ses trois copies LinkedIn : un sujet, quatre posts.
+    expect(attente.posts).toBeGreaterThanOrEqual(4);
+    expect(attente.sujets).toBeLessThan(attente.posts);
+    // Un format appartient à sa plateforme ; le reel est commun.
+    expect(formatPourPlateforme('li_doc', 'instagram')).toBe('carousel');
+    expect(formatPourPlateforme('carousel', 'linkedin')).toBe('li_doc');
+    expect(formatPourPlateforme('static', 'linkedin')).toBe('li_image');
+    expect(formatPourPlateforme('reel', 'instagram')).toBe('reel');
+  });
+
   it('programmer l’original programme les copies ; les déprogrammer les ramène toutes en attente', () => {
     const parent = db.select().from(schema.posts).where(eq(schema.posts.channel, 'ig')).all().at(-1)!;
     db.update(schema.posts).set({ status: 'awaiting_approval' }).where(eq(schema.posts.broadcastGroup, parent.broadcastGroup!)).run();

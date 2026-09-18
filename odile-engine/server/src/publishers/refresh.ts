@@ -2,6 +2,7 @@ import { db, schema } from '../db/client.js';
 import { getOauthApps } from '../db/oauthApps.js';
 import { fetchJson, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
+import { resumerErreurMeta } from './metaErrors.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
 import { deriveMetaPage } from './oauth.js';
@@ -194,7 +195,8 @@ async function check(
     updateTokenMeta(provider, subject, { ...(result.meta ?? {}), lastCheck: { at: checkedAt, ok: true, detail: result.detail } }, accountKey);
     return { provider, subject, accountKey, label, ok: true, detail: result.detail, checkedAt };
   } catch (err) {
-    const detail = errorHint(err);
+    // Le détail est stocké tel qu'il sera lu : une phrase, pas un JSON de Graph.
+    const detail = provider === 'meta' ? resumerErreurMeta(errorHint(err)) : errorHint(err);
     updateTokenMeta(provider, subject, { lastCheck: { at: checkedAt, ok: false, detail } }, accountKey);
     return { provider, subject, accountKey, label, ok: false, detail, checkedAt };
   }

@@ -38,10 +38,12 @@ export interface PostSummaryDto {
   };
   /** le compte qui publie, en clair : « Alexis Duquenoy », « page Odile AI », « Instagram » */
   surface?: string;
+  /** compte LinkedIn qui publie (clé de connexion), null pour Instagram */
+  liAccountKey?: string | null;
   /** identifiants des visuels rendus, dans l'ordre (vignettes de validation) */
   vignettes?: string[];
   /** diffusion simultanée : ce post et ses copies sur les autres comptes */
-  broadcast?: { group: string; surface: string; others: string[] } | null;
+  broadcast?: { group: string; surface: string; others: string[]; /** le plus ancien du groupe : celui que l'on valide */ original?: boolean } | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;
   newsTitle: string | null;
   newsUrl: string | null;

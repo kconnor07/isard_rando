@@ -159,6 +159,7 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
     const tokens = db.select().from(schema.oauthTokens).all().map((t) => ({
       provider: t.provider,
       subject: t.subject,
+      accountKey: t.accountKey,
       externalId: t.externalId,
       expiresAt: t.expiresAt,
       scopes: t.scopes,

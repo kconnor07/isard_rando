@@ -17,6 +17,15 @@ export interface CauseMeta {
 
 const TABLE: { test: RegExp; cause: CauseMeta }[] = [
   {
+    // Jeton illisible ou révoqué : la connexion est à refaire, rien d'autre à comprendre.
+    test: /Invalid OAuth access token|Cannot parse access token|Error validating access token/i,
+    cause: {
+      cause: 'Meta n’accepte plus le jeton de connexion.',
+      remede: 'Reconnecte Instagram depuis Connexions & santé : le jeton est refait à neuf.',
+      cotePlateforme: false,
+    },
+  },
+  {
     // Refus au niveau de l'app, pas du jeton : la permission peut être accordée et
     // l'appel refusé quand même. Deux causes réelles, invisibles depuis le jeton.
     test: /\(#3\)|does not have the capability/i,
@@ -78,6 +87,24 @@ const TABLE: { test: RegExp; cause: CauseMeta }[] = [
 ];
 
 /** Cause et marche à suivre pour un message d'erreur Graph brut. `null` si inconnu. */
+/**
+ * Une erreur Meta en une phrase qu'on peut lire sur un téléphone.
+ *
+ * Quand la table connaît la cause, c'est elle qui parle. Sinon on garde le
+ * « message » du JSON que Graph renvoie : un identifiant de trace ne dit rien à
+ * personne, et affiché brut, il faisait déborder l'accueil, Analytics et
+ * Connexions & santé sur mobile.
+ */
+export function resumerErreurMeta(brut: string | null | undefined): string {
+  if (!brut) return 'connexion en échec';
+  const cause = expliquerErreurMeta(brut);
+  if (cause) return `${cause.cause} ${cause.remede}`;
+  const message = /"message"\s*:\s*"([^"]{3,200})"/.exec(brut)?.[1];
+  const code = /HTTP (\d{3})/.exec(brut)?.[1];
+  if (message) return `Meta répond${code ? ` (HTTP ${code})` : ''} : ${message}`;
+  return brut.length > 180 ? `${brut.slice(0, 177)}…` : brut;
+}
+
 export function expliquerErreurMeta(brut: string | null | undefined): CauseMeta | null {
   if (!brut) return null;
   return TABLE.find((e) => e.test.test(brut))?.cause ?? null;

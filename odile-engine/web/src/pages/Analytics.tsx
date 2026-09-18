@@ -120,8 +120,8 @@ export default function Analytics() {
       {overview && overview.warnings.length > 0 && (
         <div className="card mb-5 flex flex-col gap-1 border-white/25 p-4 text-sm">
           {overview.warnings.map((w) => (
-            <div key={`${w.provider}-${w.subject}`} className="flex items-center gap-2">
-              <AlertTriangle size={14} className="shrink-0" /> {w.message}
+            <div key={`${w.provider}-${w.subject}`} className="flex min-w-0 items-start gap-2 break-words">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" /> <span className="min-w-0">{w.message}</span>
             </div>
           ))}
           <Link to="/setup" className="mt-1 text-xs text-accent hover:underline">

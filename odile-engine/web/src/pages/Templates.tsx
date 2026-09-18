@@ -2118,7 +2118,7 @@ export default function Templates() {
       )}
       <div className="grid gap-3 md:grid-cols-2">
         {catalogue?.custom.map((t) => (
-          <div key={t.id} className={`card flex items-center gap-3 p-3 ${editingId === t.id ? 'border-accent/50' : ''}`}>
+          <div key={t.id} className={`card flex flex-wrap items-center gap-3 p-3 ${editingId === t.id ? 'border-accent/50' : ''}`}>
             <div
               className="h-12 w-12 shrink-0 rounded-xl border border-line"
               style={{ background: `linear-gradient(150deg, ${t.bg1}, ${t.bg2} 60%, ${t.accent})` }}

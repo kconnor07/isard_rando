@@ -343,7 +343,7 @@ export default function PostEditor() {
     },
   });
   const patchPost = useMutation({
-    mutationFn: (patch: Partial<Pick<PostDetailDto, 'theme' | 'format' | 'channel'>> & { render?: boolean }) => {
+    mutationFn: (patch: Partial<Pick<PostDetailDto, 'theme' | 'format' | 'channel' | 'liAccountKey'>> & { render?: boolean }) => {
       const { render, ...body } = patch;
       return api.patch(`/api/posts/${id}`, body).then(() => (render ? api.post(`/api/posts/${id}/render`) : undefined));
     },
@@ -357,6 +357,14 @@ export default function PostEditor() {
       setBusy('');
       refresh();
     },
+  });
+
+  // Les comptes LinkedIn connectés : « LinkedIn perso » ne dit pas lequel des
+  // profils publie, et avec deux profils dans l'équipe, ça compte.
+  const { data: comptesLi } = useQuery({
+    queryKey: ['oauth', 'linkedin', 'comptes'],
+    queryFn: () => api.get<{ comptes: { key: string; subject: 'li_person' | 'li_org'; name: string; actif: boolean }[] }>('/api/oauth/linkedin/comptes'),
+    enabled: post?.platform === 'linkedin',
   });
 
   if (enErreur) return <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="Ce post" />;
@@ -445,7 +453,7 @@ export default function PostEditor() {
     <div>
       <PageTitle
         title={post.hook || `Post #${post.id}`}
-        subtitle={`${CHANNEL_LABELS[post.channel] ?? post.channel} · ${FORMAT_LABELS[post.format] ?? post.format} · thème ${post.theme}${post.scheduledAt ? ` · prévu ${fmtDate(post.scheduledAt)}` : ''}${post.clicks ? ` · ${post.clicks} clic(s)` : ''}`}
+        subtitle={`${post.surface ?? CHANNEL_LABELS[post.channel] ?? post.channel} · ${FORMAT_LABELS[post.format] ?? post.format} · thème ${post.theme}${post.scheduledAt ? ` · prévu ${fmtDate(post.scheduledAt)}` : ''}${post.clicks ? ` · ${post.clicks} clic(s)` : ''}`}
         actions={
           <div className="flex items-center gap-2">
             {post.status === 'published' && post.channel === 'ig' && !post.simulated && (
@@ -468,12 +476,21 @@ export default function PostEditor() {
         </div>
       )}
 
+      {post.broadcast && (
+        <p className="mb-4 text-xs text-muted">
+          📣 Ce post part sur <span className="text-txt">{post.broadcast.surface}</span>
+          {post.broadcast.others.length > 0 ? ` · le même sujet part aussi sur ${post.broadcast.others.join(', ')}` : ''} — approuver, programmer ou
+          rejeter vaut pour toutes les copies ; un texte ou un visuel modifié ici ne change que celle-ci.
+        </p>
+      )}
       {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
       {post.resource && post.resource.kind !== 'article' && (
         <div className="card mb-4 p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            {post.resource.kind === 'guide' ? 'Guide livré en message privé' : 'Outil envoyé en message privé'}
+            {post.resource.viaLien
+              ? post.resource.kind === 'guide' ? 'Guide donné par le lien du post' : 'Outil donné par le lien du post'
+              : post.resource.kind === 'guide' ? 'Guide livré en message privé' : 'Outil envoyé en message privé'}
           </div>
           <p className="mt-1 text-sm font-semibold">{post.resource.title ?? '—'}</p>
           {post.resource.url && (
@@ -544,6 +561,27 @@ export default function PostEditor() {
               ))}
             </select>
           </div>
+          {post.platform === 'linkedin' && (
+            <div className="min-w-[11rem]">
+              <label className="label !mb-1">Compte</label>
+              <select
+                className="input"
+                value={post.liAccountKey ?? ''}
+                disabled={!!busy || post.status === 'scheduled'}
+                title={post.status === 'scheduled' ? 'Annule la programmation pour changer de compte' : undefined}
+                onChange={(e) => patchPost.mutate({ liAccountKey: e.target.value || null })}
+              >
+                {(comptesLi?.comptes ?? [])
+                  .filter((c) => c.subject === (post.channel === 'li_org' ? 'li_org' : 'li_person'))
+                  .map((c) => (
+                    <option key={c.key} value={c.key}>{c.name}{c.actif ? '' : ' (en pause)'}</option>
+                  ))}
+                {post.liAccountKey && !(comptesLi?.comptes ?? []).some((c) => c.key === post.liAccountKey) && (
+                  <option value={post.liAccountKey}>{post.surface ?? post.liAccountKey}</option>
+                )}
+              </select>
+            </div>
+          )}
           {busy === 'render' && (
             <span className="mono flex items-center gap-2 pb-2 text-[11px] uppercase tracking-wider text-ice">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" /> rendu des {post.slides.length} slides…

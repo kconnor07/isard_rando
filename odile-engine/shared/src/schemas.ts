@@ -557,6 +557,8 @@ export const patchPostSchema = z.object({
   cta: z.string().max(280).optional(),
   hashtags: z.array(z.string()).max(12).optional(),
   channel: z.enum(CHANNELS).optional(),
+  /** compte LinkedIn qui publie (clé de connexion) ; null = premier de la rotation */
+  liAccountKey: z.string().max(80).nullable().optional(),
   format: z.enum(POST_FORMATS).optional(),
   theme: themeIdSchema.optional(),
   scheduledAt: z.string().datetime().nullable().optional(),

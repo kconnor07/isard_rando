@@ -105,8 +105,15 @@ export default function Approvals() {
       {posts && posts.length === 0 && <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>}
       <div className="flex flex-col gap-4">
         {posts
-          // Diffusion simultanée : une seule carte par sujet — la décision vaut pour toutes les copies.
-          ?.filter((post, i, liste) => !post.broadcast || liste.findIndex((p) => p.broadcast?.group === post.broadcast!.group) === i)
+          // Diffusion simultanée : une seule carte par sujet — la décision vaut pour
+          // toutes les copies. La carte est celle de l'ORIGINAL : les copies naissent
+          // « au studio » et une carte de copie gardait ses actions fermées.
+          ?.filter((post, i, liste) => {
+            if (!post.broadcast) return true;
+            const groupe = post.broadcast.group;
+            const original = liste.find((p) => p.broadcast?.group === groupe && p.broadcast.original);
+            return original ? post.id === original.id : liste.findIndex((p) => p.broadcast?.group === groupe) === i;
+          })
           .map((post) => {
           const busy = pendingId === post.id;
           const inProgress = post.status === 'draft' || post.status === 'reviewing';
@@ -115,7 +122,7 @@ export default function Approvals() {
               <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <StatusBadge status={post.status} simulated={post.simulated} />
                 <span className="text-xs font-semibold text-muted">
-                  {CHANNEL_LABELS[post.channel] ?? post.channel} · {FORMAT_LABELS[post.format] ?? post.format} · thème {post.theme}
+                  {post.surface ?? CHANNEL_LABELS[post.channel] ?? post.channel} · {FORMAT_LABELS[post.format] ?? post.format} · thème {post.theme}
                 </span>
                 {post.reviewSummary && (
                   <span className={`text-xs font-semibold ${post.reviewSummary.passed ? 'text-txt' : 'text-muted'}`}>
