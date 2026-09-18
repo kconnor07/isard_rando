@@ -608,6 +608,15 @@ body {
 }
 .align-center.has-hero .annotation { align-self: center; }
 
+/* --- Reel (9:16) : couverture lisible dans la grille du profil ----------------
+   Instagram recadre la couverture au centre dans la grille (3:4 aujourd'hui, 1:1
+   autrefois) : sur 1920 px de haut, seuls 420 → 1500 px sont sûrs partout. Le bloc
+   de texte reste dans ce carré central ; seul le pied de marque, non essentiel,
+   descend en dessous. L'ajustement automatique mesure la hauteur disponible entre
+   ces marges — aucun titre ne sort avec une ligne coupée par la grille. */
+.format-reel .safe { padding-top: 420px; padding-bottom: 420px; }
+.format-reel.has-hero .safe { padding-bottom: 440px; }
+
 /* --- Pile de notifications (archétype A2) ------------------------------- */
 /* Verre liquide : la carte laisse passer le fond, une arête claire en haut et un
    reflet spéculaire donnent l'épaisseur, l'accent ne teinte que la profondeur. */

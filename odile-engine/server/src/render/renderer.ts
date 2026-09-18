@@ -211,6 +211,8 @@ export function buildSlideHtml(input: SlideRenderInput): string {
     'slide',
     `theme-${input.theme}`,
     `kind-${input.kind}`,
+    // Le format porte ses propres marges (Reel : zone visible dans la grille du profil)
+    `format-${input.format}`,
     input.heroDataUri ? 'has-hero' : '',
     input.monochromeHero ? 'mono-hero' : '',
     input.heroContain ? 'hero-contain' : '',
