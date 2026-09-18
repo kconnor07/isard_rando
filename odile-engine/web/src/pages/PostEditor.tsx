@@ -158,7 +158,7 @@ function SlideCard({
           <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
             {slide.idx + 1} · {SLIDE_KIND_LABELS[slide.kind] ?? slide.kind}
           </span>
-          <div className="pill-bar max-w-full overflow-x-auto">
+          <div className="pill-bar">
             <button
               className="pill-btn pill-btn--text"
               disabled={disabled}
@@ -171,6 +171,15 @@ function SlideCard({
             <button className="pill-btn pill-btn--text" disabled={disabled} onClick={() => void regenerate()} title="Régénérer le texte par l'IA" aria-label="Régénérer le texte par l'IA">
               <RefreshCw size={13} /> <span className="pill-mot">Texte</span>
             </button>
+          </div>
+        </div>
+        {/*
+          L'image a sa propre rangée : les trois façons de la poser, et celle de la
+          retirer, côte à côte. Mélangées aux actions de texte, elles débordaient de
+          la pilule — on ne trouvait plus comment enlever une illustration.
+        */}
+        <div className="mb-2 flex items-center gap-2">
+          <div className="pill-bar pill-bar--wrap">
             <button
               className={`pill-btn pill-btn--text ${slide.heroAssetId ? 'pill-btn--on' : ''}`}
               disabled={disabled}
@@ -198,8 +207,14 @@ function SlideCard({
                 if (f) void uploadImage(f);
               }}
             />
-            {slide.heroAssetId && (
-              <button className="pill-btn pill-btn--text" disabled={disabled} onClick={() => void removeImage()} title="Retirer l'illustration de fond" aria-label="Retirer l'illustration de fond">
+            {(slide.heroAssetId || slide.screenshotAssetId) && (
+              <button
+                className="pill-btn pill-btn--text pill-btn--danger"
+                disabled={disabled}
+                onClick={() => void removeImage()}
+                title={slide.screenshotAssetId && !slide.heroAssetId ? 'Retirer la capture d’écran' : 'Retirer l’illustration'}
+                aria-label={slide.screenshotAssetId && !slide.heroAssetId ? 'Retirer la capture d’écran' : 'Retirer l’illustration'}
+              >
                 <Trash2 size={13} /> <span className="pill-mot">Retirer</span>
               </button>
             )}

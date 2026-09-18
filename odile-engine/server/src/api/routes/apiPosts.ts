@@ -288,7 +288,8 @@ export function registerPostRoutes(app: FastifyInstance): void {
     },
   );
 
-  // Retirer l'illustration d'une slide
+  // Retirer l'illustration d'une slide : l'image générée, celle de la bibliothèque,
+  // celle qu'on a importée, ou la capture d'écran posée par l'agent visuel.
   app.post<{ Params: { id: string; idx: string } }>(
     '/api/posts/:id/slides/:idx/remove-image',
     async (request, reply) => {
@@ -303,8 +304,21 @@ export function registerPostRoutes(app: FastifyInstance): void {
         )
         .get();
       if (!slide) return reply.status(404).send({ error: 'Slide introuvable' });
+      // Une slide « capture d'écran » sans capture n'a plus de sujet : elle redevient
+      // une slide de contenu, avec son titre et son texte intacts. Sinon le rendu
+      // afficherait un cadre de navigateur vide.
+      const kind = slide.kind === 'screenshot' && slide.screenshotAssetId ? 'content' : slide.kind;
+      const content = JSON.parse(slide.content) as Record<string, unknown>;
+      content.kind = kind;
       db.update(schema.slides)
-        .set({ heroAssetId: null, renderAssetId: null, updatedAt: new Date().toISOString() })
+        .set({
+          kind,
+          content: JSON.stringify(content),
+          heroAssetId: null,
+          screenshotAssetId: null,
+          renderAssetId: null,
+          updatedAt: new Date().toISOString(),
+        })
         .where(eq(schema.slides.id, slide.id))
         .run();
       return { ok: true };

@@ -305,6 +305,23 @@ body {
   opacity: 0.35;
   cursor: not-allowed;
 }
+/*
+ * Six actions dans une pilule de 200 px : en défilement horizontal, les trois
+ * dernières n'existaient pas — on ne trouvait plus comment retirer une
+ * illustration. Elles passent à la ligne, toutes visibles d'un coup d'œil.
+ */
+.pill-bar--wrap {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  border-radius: 16px;
+  row-gap: 3px;
+}
+/* Retirer : l'action qui défait. Discrète au repos, franche au survol. */
+.pill-btn--danger:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-txt);
+}
 /* Bouton porteur d'un état actif (illustration présente) */
 .pill-btn--on {
   background: var(--color-accent-soft);
