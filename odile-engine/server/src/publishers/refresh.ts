@@ -5,7 +5,7 @@ import { logger } from '../lib/logger.js';
 import { resumerErreurMeta } from './metaErrors.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
-import { deriveMetaPage } from './oauth.js';
+import { deriveMetaPage, nomDOrganisation } from './oauth.js';
 import { comptesLinkedIn } from './linkedinAccounts.js';
 import { getStoredToken, listStoredTokens, storeToken, updateTokenMeta, type StoredToken, type TokenSubject } from './tokens.js';
 
@@ -233,10 +233,22 @@ export async function checkConnections(): Promise<ConnectionCheck[]> {
           if (!token.scopes.includes('w_organization_social')) {
             throw new Error('droit w_organization_social absent — reconnecte LinkedIn avec l’option « page entreprise »');
           }
-          const org = await fetchJson<{ localizedName?: string }>(`${API}/rest/organizations/${token.externalId}`, {
-            headers: linkedInHeaders(token.accessToken),
-          });
-          return { detail: `page « ${org.localizedName ?? token.externalId} » joignable`, meta: org.localizedName ? { name: org.localizedName } : {} };
+          // Le jeton est celui du profil qui administre la page : s'il répond, la page
+          // publie. Le nom, lui, n'est pas toujours lisible (droit de lecture à part) :
+          // on le prend quand LinkedIn le donne, sinon on garde celui déjà connu ou
+          // saisi dans Connexions — sans déclarer la page en panne pour un nom.
+          const me = await fetchJson<{ sub: string }>(`${API}/v2/userinfo`, { headers: { authorization: `Bearer ${token.accessToken}` } });
+          if (!me.sub) throw new Error('jeton du profil administrateur invalide');
+          const nom = await nomDOrganisation(token.accessToken, token.externalId);
+          const connu = typeof token.meta.name === 'string' && !/^Organisation \d+$/.test(token.meta.name) ? token.meta.name : null;
+          return {
+            detail: nom
+              ? `page « ${nom} » joignable`
+              : connu
+                ? `page « ${connu} » joignable (nom saisi à la main : LinkedIn ne le donne pas à cette app)`
+                : `page ${token.externalId} joignable — son nom n'est pas lisible : saisis-le (bouton « Renommer ») pour qu'elle soit nommée et mentionnable`,
+            meta: nom ? { name: nom } : {},
+          };
         },
         compte.key,
       ),

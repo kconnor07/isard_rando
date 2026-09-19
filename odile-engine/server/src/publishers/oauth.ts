@@ -54,6 +54,33 @@ interface LinkedInTokenResponse {
   scope?: string;
 }
 
+/**
+ * Le nom d'une page, si LinkedIn veut bien le donner. La lecture directe de
+ * l'organisation exige un droit que l'app n'a pas toujours ; la projection sur les
+ * rôles d'administration (« organization~ ») passe avec le seul droit d'admin. En
+ * dernier recours le nom se saisit dans Connexions (le nom reste cosmétique pour
+ * publier, mais il nomme la surface et rend la page identifiable dans les posts).
+ */
+export async function nomDOrganisation(accessToken: string, id: string): Promise<string | null> {
+  try {
+    const org = await fetchJson<{ localizedName?: string }>(`${API}/rest/organizations/${id}`, { headers: linkedInHeaders(accessToken) });
+    if (org.localizedName) return org.localizedName;
+  } catch {
+    /* droit r_organization_social absent : on tente la projection */
+  }
+  try {
+    const acls = await fetchJson<{ elements?: { organization?: string; 'organization~'?: { localizedName?: string } }[] }>(
+      `${API}/rest/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED&count=20&projection=(elements*(organization,organization~(localizedName)))`,
+      { headers: linkedInHeaders(accessToken) },
+    );
+    const nom = (acls.elements ?? []).find((e) => e.organization === `urn:li:organization:${id}`)?.['organization~']?.localizedName;
+    if (nom) return nom;
+  } catch {
+    /* pas de projection non plus : le nom se saisira à la main */
+  }
+  return null;
+}
+
 /** Organisations dont le membre est administrateur (exige r_organization_social). */
 export async function listLinkedInOrgs(accessToken: string): Promise<LinkedInOrg[]> {
   const acls = await fetchJson<{ elements?: { organization?: string }[] }>(
@@ -64,16 +91,7 @@ export async function listLinkedInOrgs(accessToken: string): Promise<LinkedInOrg
   for (const element of acls.elements ?? []) {
     const id = element.organization?.replace('urn:li:organization:', '');
     if (!id) continue;
-    let name = `Organisation ${id}`;
-    try {
-      const org = await fetchJson<{ localizedName?: string }>(`${API}/rest/organizations/${id}`, {
-        headers: linkedInHeaders(accessToken),
-      });
-      if (org.localizedName) name = org.localizedName;
-    } catch {
-      /* le nom est cosmétique */
-    }
-    orgs.push({ id, name });
+    orgs.push({ id, name: (await nomDOrganisation(accessToken, id)) ?? `Organisation ${id}` });
   }
   return orgs;
 }
@@ -465,7 +483,7 @@ export function registerOauthRoutes(app: FastifyInstance): void {
   }));
 
   /** Étiquette et mise en sommeil d'un compte (un compte inactif reste connecté mais ne publie plus). */
-  app.patch<{ Params: { key: string }; Body: { actif?: boolean; role?: string } }>(
+  app.patch<{ Params: { key: string }; Body: { actif?: boolean; role?: string; name?: string } }>(
     '/api/oauth/linkedin/comptes/:key',
     { preHandler: requireSession },
     async (request, reply) => {
@@ -474,6 +492,10 @@ export function registerOauthRoutes(app: FastifyInstance): void {
       const patch: Record<string, unknown> = {};
       if (typeof request.body?.actif === 'boolean') patch.actif = request.body.actif;
       if (typeof request.body?.role === 'string') patch.role = request.body.role.slice(0, 80);
+      // Le nom d'une page que LinkedIn refuse de lire (droit manquant) se saisit à la
+      // main : il nomme la surface partout (calendrier, validation) et rend la page
+      // identifiable (@mention) dans les posts des profils.
+      if (typeof request.body?.name === 'string' && request.body.name.trim().length >= 2) patch.name = request.body.name.trim().slice(0, 80);
       updateTokenMeta('linkedin', compte.subject, patch, compte.key);
       return { ok: true };
     },

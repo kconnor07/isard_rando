@@ -101,7 +101,8 @@ describe('comptes LinkedIn multiples', async () => {
   process.env.DATA_DIR = `${process.cwd()}/var-test-comptes-${process.pid}`;
   process.env.LLM_MODE = 'mock';
   process.env.APP_SECRET ??= 'x'.repeat(48);
-  const { storeToken, listStoredTokens, getStoredToken, deleteToken } = await import('../src/publishers/tokens.js');
+  const tokens = await import('../src/publishers/tokens.js');
+  const { storeToken, listStoredTokens, getStoredToken, deleteToken } = tokens;
   const { comptesLinkedIn, compteDuPost, prochainComptePersonnel, mentionsConnues, actorUrn } = await import(
     '../src/publishers/linkedinAccounts.js'
   );
@@ -148,6 +149,18 @@ describe('comptes LinkedIn multiples', async () => {
     expect(noms).toContain('Odile AI→urn:li:organization:77');
     expect(noms).toContain('Alexis Duquenoy→urn:li:person:sub-alexis');
     deleteToken('linkedin', 'li_person');
+    deleteToken('linkedin', 'li_org');
+  });
+
+  it('une page au nom illisible n’est pas mentionnable ; renommée dans Connexions, elle le devient', () => {
+    const { updateTokenMeta } = tokens;
+    storeToken({ provider: 'linkedin', subject: 'li_org', accountKey: '115786063', externalId: '115786063', accessToken: 't1', meta: { name: 'Organisation 115786063' } });
+    expect(mentionsConnues().some((m) => m.urn === 'urn:li:organization:115786063')).toBe(false);
+    expect(comptesLinkedIn('li_org')[0]!.name).toBe('Organisation 115786063');
+    // ce que fait PATCH /api/oauth/linkedin/comptes/:key avec { name }
+    updateTokenMeta('linkedin', 'li_org', { name: 'Odile AI' }, '115786063');
+    expect(comptesLinkedIn('li_org')[0]!.name).toBe('Odile AI');
+    expect(mentionsConnues().map((m) => `${m.nom}→${m.urn}`)).toContain('Odile AI→urn:li:organization:115786063');
     deleteToken('linkedin', 'li_org');
   });
 });

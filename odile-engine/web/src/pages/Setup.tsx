@@ -302,8 +302,8 @@ export default function Setup() {
   });
   const profils = (comptes?.comptes ?? []).filter((c) => c.subject === 'li_person');
   const majCompte = useMutation({
-    mutationFn: (args: { key: string; actif?: boolean; role?: string }) =>
-      api.patch<{ ok: boolean }>(`/api/oauth/linkedin/comptes/${encodeURIComponent(args.key)}`, { actif: args.actif, role: args.role }),
+    mutationFn: (args: { key: string; actif?: boolean; role?: string; name?: string }) =>
+      api.patch<{ ok: boolean }>(`/api/oauth/linkedin/comptes/${encodeURIComponent(args.key)}`, { actif: args.actif, role: args.role, name: args.name }),
     onSuccess: () => {
       refreshAll();
     },
@@ -335,6 +335,16 @@ export default function Setup() {
       confirmLabel: 'Enregistrer',
     });
     if (role !== null) majCompte.mutate({ key: c.key, role });
+  };
+  /** LinkedIn ne donne pas toujours le nom d'une page à l'app : on le saisit, il nomme la page partout et la rend mentionnable. */
+  const renommerPage = async (key: string, actuel: string) => {
+    const name = await dialog.prompt({
+      title: 'Nom de la page entreprise',
+      message: 'Tel qu’il apparaît sur LinkedIn (ex. « Odile AI »). Il nomme la page dans le calendrier et la validation, et permet de l’identifier (@) dans les posts des profils.',
+      initial: /^Organisation \d+$/.test(actuel) ? '' : actuel,
+      confirmLabel: 'Enregistrer',
+    });
+    if (name && name.trim().length >= 2) majCompte.mutate({ key, name: name.trim() });
   };
   const { data: orgs } = useQuery({
     queryKey: ['oauth', 'linkedin', 'orgs'],
@@ -606,6 +616,16 @@ export default function Setup() {
               )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {liOrg && (
+                <button
+                  className={`btn-ghost !py-1.5 text-xs ${/^Organisation \d+$/.test(String(liOrg.meta?.name ?? '')) || !liOrg.meta?.name ? 'border-accent/60' : ''}`}
+                  disabled={majCompte.isPending}
+                  title="Saisir le nom de la page tel qu’il apparaît sur LinkedIn"
+                  onClick={() => void renommerPage(liOrg.externalId, String(liOrg.meta?.name ?? `Organisation ${liOrg.externalId}`))}
+                >
+                  Renommer
+                </button>
+              )}
               {liOrg ? (
                 <button
                   className="btn-ghost !py-1.5 text-xs"
