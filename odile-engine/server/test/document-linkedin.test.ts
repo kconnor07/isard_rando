@@ -90,3 +90,36 @@ describe('document PDF LinkedIn', async () => {
     expect(appels[1]!.body).toBe('<22 octets>');
   });
 });
+
+describe('le PDF se feuillette avant l’envoi', async () => {
+  const fs = await import('node:fs');
+  const { eq } = await import('drizzle-orm');
+  const sharp = (await import('sharp')).default;
+  const { db, schema } = await import('../src/db/client.js');
+  const { saveAsset } = await import('../src/render/renderer.js');
+  const { documentDuPost } = await import('../src/publishers/linkedinDocument.js');
+
+  it('le dashboard ouvre le fichier que LinkedIn recevra, refait seulement si une slide change', async () => {
+    const post = db
+      .insert(schema.posts)
+      .values({ platform: 'linkedin', channel: 'li_personal', format: 'li_doc', theme: 'odile-nuit', status: 'reviewing', hook: 'Doc à feuilleter', caption: 'x', cta: 'x', hashtags: '[]' })
+      .returning()
+      .get();
+    const png = await sharp({ create: { width: 108, height: 135, channels: 3, background: '#123456' } }).png().toBuffer();
+    const rendre = (idx: number) => {
+      const slide = db.insert(schema.slides).values({ postId: post.id, idx, kind: 'hook', content: JSON.stringify({ kind: 'hook', title: 'T' }) }).returning().get();
+      db.update(schema.slides).set({ renderAssetId: saveAsset(png, 'render', { postId: post.id, slideId: slide.id }) }).where(eq(schema.slides.id, slide.id)).run();
+      return slide;
+    };
+    const premiere = rendre(0);
+    rendre(1);
+    const un = await documentDuPost(post.id);
+    expect(un.pages).toBe(2);
+    expect(fs.readFileSync(un.path).subarray(0, 4).toString()).toBe('%PDF');
+    // Rien n'a changé : même fichier, pas de nouvelle fabrication
+    expect((await documentDuPost(post.id)).assetId).toBe(un.assetId);
+    // Une slide re-rendue : le PDF est refait
+    db.update(schema.slides).set({ renderAssetId: saveAsset(png, 'render', { postId: post.id, slideId: premiere.id }) }).where(eq(schema.slides.id, premiere.id)).run();
+    expect((await documentDuPost(post.id)).assetId).not.toBe(un.assetId);
+  }, 60_000);
+});

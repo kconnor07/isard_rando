@@ -485,6 +485,18 @@ export default function PostEditor() {
       )}
       {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
+      {post.format === 'li_doc' && !inProgress && post.slideCount > 0 && (
+        <div className="card mb-4 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted">Document PDF LinkedIn</div>
+          <p className="mt-1 text-sm">
+            {post.slideCount} page{post.slideCount > 1 ? 's' : ''} — le fichier exact que LinkedIn recevra, assemblé à partir des slides ci-dessous.
+            Une slide modifiée le refait à l’ouverture.
+          </p>
+          <a href={`/api/posts/${post.id}/document.pdf`} target="_blank" rel="noreferrer" className="btn-ghost mt-3 !py-1.5 text-xs">
+            Ouvrir le PDF
+          </a>
+        </div>
+      )}
       {post.resource && post.resource.kind !== 'article' && (
         <div className="card mb-4 p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted">

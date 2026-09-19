@@ -1,20 +1,10 @@
 import fs from 'node:fs';
-import { eq } from 'drizzle-orm';
-import { RENDER_SIZES } from '@odile/shared';
 import { config } from '../config.js';
-import { db, schema } from '../db/client.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { compteDuPost, jetonDuCompte, mentionsConnues } from './linkedinAccounts.js';
-import { envoyerDocumentLinkedIn, fabriquerPdfDocument, titreDocument } from './linkedinDocument.js';
+import { documentDuPost, envoyerDocumentLinkedIn, titreDocument } from './linkedinDocument.js';
 import type { Publisher, PublishInput, PublishResult } from './types.js';
-
-/** Chemin sur disque d'un asset fraîchement enregistré. */
-function assetPath(assetId: string): string {
-  const asset = db.select().from(schema.assets).where(eq(schema.assets.id, assetId)).get();
-  if (!asset) throw new Error(`Asset ${assetId} introuvable`);
-  return asset.path;
-}
 
 export const API = 'https://api.linkedin.com';
 /** Version d'API LinkedIn (format AAAAMM) : chaque version vit ~1 an — `LINKEDIN_VERSION` dans .env pour avancer sans redéployer le code. */
@@ -251,14 +241,8 @@ export class LinkedInPublisher implements Publisher {
         ? await envoyerDocumentLinkedIn({
             token: stored.accessToken,
             owner,
-            fichier: assetPath(
-              await fabriquerPdfDocument({
-                images: input.images,
-                largeur: RENDER_SIZES.li_doc.width,
-                hauteur: RENDER_SIZES.li_doc.height,
-                postId: input.post.id,
-              }),
-            ),
+            // Le même fichier que le dashboard a permis de feuilleter (refait si une slide a changé)
+            fichier: (await documentDuPost(input.post.id)).path,
           })
         : null;
     const imageUrns: string[] = [];

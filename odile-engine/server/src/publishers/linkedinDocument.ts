@@ -14,12 +14,15 @@
  * Limites de l'API : PDF (entre autres), 100 Mo et 300 pages maximum.
  */
 import fs from 'node:fs';
+import { and, desc, eq } from 'drizzle-orm';
+import { RENDER_SIZES } from '@odile/shared';
+import { db, schema } from '../db/client.js';
 import { getBrowser } from '../render/browser.js';
 import { saveAsset } from '../render/renderer.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { API, linkedInHeaders } from './linkedin.js';
-import type { PublishInput } from './types.js';
+import { collectPublishImages, type PublishInput } from './types.js';
 
 interface InitDocument {
   value: { document: string; uploadUrl: string; uploadUrlExpiresAt?: number };
@@ -67,13 +70,50 @@ export async function fabriquerPdfDocument(args: {
       printBackground: true,
       margin: { top: '0', right: '0', bottom: '0', left: '0' },
     });
-    return saveAsset(Buffer.from(pdf), 'document', { postId: args.postId }, undefined, {
-      ext: 'pdf',
-      mime: 'application/pdf',
-    });
+    // Les rendus assemblés sont notés dans le fichier : tant qu'ils n'ont pas changé,
+    // le même PDF sert au dashboard et à l'envoi (voir documentDuPost).
+    return saveAsset(
+      Buffer.from(pdf),
+      'document',
+      { postId: args.postId, extraMeta: { pages: args.images.map((image) => image.assetId) } },
+      undefined,
+      { ext: 'pdf', mime: 'application/pdf' },
+    );
   } finally {
     await page.close().catch(() => undefined);
   }
+}
+
+function pagesDuDocument(meta: string | null): string[] {
+  try {
+    const pages = meta ? (JSON.parse(meta) as { pages?: unknown }).pages : null;
+    return Array.isArray(pages) ? pages.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Le PDF du post, prêt à ouvrir : celui déjà fabriqué si les slides n'ont pas
+ * changé depuis, sinon refait à partir des rendus du moment. Le dashboard
+ * feuillette ainsi exactement le fichier que LinkedIn recevra — avant, le PDF
+ * n'existait qu'au moment de l'envoi et personne ne pouvait le voir.
+ */
+export async function documentDuPost(postId: number): Promise<{ assetId: string; path: string; pages: number }> {
+  const images = collectPublishImages(postId);
+  const pages = images.map((image) => image.assetId);
+  const existant = db
+    .select()
+    .from(schema.assets)
+    .where(and(eq(schema.assets.postId, postId), eq(schema.assets.kind, 'document')))
+    .orderBy(desc(schema.assets.createdAt))
+    .all()
+    .find((asset) => fs.existsSync(asset.path) && pagesDuDocument(asset.meta).join(',') === pages.join(','));
+  if (existant) return { assetId: existant.id, path: existant.path, pages: pages.length };
+  const assetId = await fabriquerPdfDocument({ images, largeur: RENDER_SIZES.li_doc.width, hauteur: RENDER_SIZES.li_doc.height, postId });
+  const asset = db.select().from(schema.assets).where(eq(schema.assets.id, assetId)).get();
+  if (!asset) throw new Error('Document PDF introuvable après fabrication');
+  return { assetId, path: asset.path, pages: pages.length };
 }
 
 /** Déclare puis envoie le PDF ; renvoie l'URN du document à poser dans le post. */

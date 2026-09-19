@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { customAlphabet } from 'nanoid';
@@ -14,6 +15,7 @@ import { getDmTriggers, getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
 import { compteDuCanal, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
+import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 
 /**
@@ -190,6 +192,35 @@ export function registerPostRoutes(app: FastifyInstance): void {
       ? db.select({ id: schema.clicks.id }).from(schema.clicks).where(eq(schema.clicks.linkId, post.linkId)).all().length
       : 0;
     return { ...postSummary(post), slides, reviews, clicks, visualOverrides: parseVisualOverrides(post.visualOverrides) };
+  });
+
+  /**
+   * Le document PDF d'un post LinkedIn, tel que LinkedIn le recevra : à feuilleter
+   * avant de valider. Refait si une slide a changé depuis la dernière fabrication.
+   */
+  app.get<{ Params: { id: string } }>('/api/posts/:id/document.pdf', async (request, reply) => {
+    const post = db.select().from(schema.posts).where(eq(schema.posts.id, Number(request.params.id))).get();
+    if (!post) return reply.status(404).send({ error: 'Post introuvable' });
+    if (post.format !== 'li_doc') return reply.status(400).send({ error: 'Ce post n’est pas un document PDF' });
+    let doc: Awaited<ReturnType<typeof documentDuPost>>;
+    try {
+      doc = await documentDuPost(post.id);
+    } catch (err) {
+      return reply.status(409).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+    const nom =
+      post.hook
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60) || 'document';
+    return reply
+      .type('application/pdf')
+      .header('content-disposition', `inline; filename="${nom}.pdf"`)
+      .header('cache-control', 'no-store')
+      .send(fs.createReadStream(doc.path));
   });
 
   app.patch<{ Params: { id: string } }>('/api/posts/:id', async (request, reply) => {
