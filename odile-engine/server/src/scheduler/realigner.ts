@@ -39,11 +39,17 @@ export interface OptionsDeRealignement {
   hashtags?: boolean;
   /** ajouter un appel à commenter à un post LinkedIn qui n'en a pas (un texte validé ne s'allonge pas en silence) */
   motcle?: boolean;
+  /**
+   * toucher au texte (lien reposé, adresse retirée, mot-clé remplacé, appel ajouté).
+   * À false, seuls le compte, le format et la date sont corrigés : un post déjà
+   * validé ne change pas de texte sans que le fondateur l'ait demandé.
+   */
+  texte?: boolean;
 }
 
 /** Corrections sans modèle : sûres, idempotentes, applicables au démarrage. */
 export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}): { corrections: string[]; post: Post } {
-  const { hashtags: couperHashtags = true, motcle: ajouterMotcle = true } = opts;
+  const { hashtags: couperHashtags = true, motcle: ajouterMotcle = true, texte: toucherAuTexte = true } = opts;
   const corrections: string[] = [];
   const update: Partial<Post> = {};
   let caption = post.caption;
@@ -84,7 +90,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
   // Seule une vraie adresse justifie de réécrire la légende : sans ce garde-fou, le
   // simple nettoyage des espaces comptait comme une « adresse retirée » sur des
   // posts qui n'en avaient jamais eu.
-  if (post.platform === 'instagram' && (ADRESSE.test(caption) || ADRESSE.test(cta))) {
+  if (toucherAuTexte && post.platform === 'instagram' && (ADRESSE.test(caption) || ADRESSE.test(cta))) {
     const propre = sansLien(caption);
     const ctaPropre = sansLien(cta);
     if (propre !== caption || ctaPropre !== cta) {
@@ -93,7 +99,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
       corrections.push('adresse retirée de la légende Instagram');
     }
   }
-  if (post.platform === 'linkedin' && post.linkId) {
+  if (toucherAuTexte && post.platform === 'linkedin' && post.linkId) {
     const lien = db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get();
     if (lien) {
       const url = `${config.PUBLIC_URL.replace(/\/+$/, '')}/r/${lien.code}`;
@@ -121,7 +127,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
   }
   // Un post LinkedIn sans mot à commenter n'ouvre aucune conversation : on lui donne
   // le mot de diagnostic et l'appel qui va avec, quand on a le droit de l'allonger.
-  if (post.platform === 'linkedin' && !post.commentTriggerKeyword && ajouterMotcle) {
+  if (toucherAuTexte && post.platform === 'linkedin' && !post.commentTriggerKeyword && ajouterMotcle) {
     const dm = getDmTriggers();
     const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
     if (dm.linkedinOffer === 'diagnostic' && liste.length > 0) {
@@ -134,7 +140,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
   // OUTIL…) est remplacé tel quel dans le texte, sans réécriture — et la slide qui
   // l'imprime sera refaite avant de partir.
   let motcle = update.commentTriggerKeyword ?? post.commentTriggerKeyword;
-  if (post.platform === 'linkedin' && motcle) {
+  if (toucherAuTexte && post.platform === 'linkedin' && motcle) {
     const dm = getDmTriggers();
     const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
     if (dm.linkedinOffer === 'diagnostic' && liste.length > 0 && !liste.includes(motcle.toUpperCase())) {
@@ -149,7 +155,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
     }
   }
   // Le mot-clé promis doit être demandé quelque part : sinon la ligne vient du CTA validé.
-  if (motcle && !new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(caption)) {
+  if (toucherAuTexte && motcle && !new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(caption)) {
     const dm = getDmTriggers();
     const ligne = new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(cta)
       ? cta.trim()
@@ -268,16 +274,18 @@ export async function realignerTout(opts: { modele?: boolean } = {}): Promise<{ 
 
 /**
  * Au démarrage : les corrections sûres seulement, pour que le calendrier dise vrai.
- * Un post déjà programmé n'est touché que pour ce qui l'empêcherait de partir (lien,
- * adresse, mot-clé, compte) — pas pour du cosmétique — et chaque retouche est
- * consignée : un texte validé ne change pas sans trace.
+ * Un post déjà programmé ne change pas de texte : il ne reçoit que son compte, son
+ * format et sa date. Ce qui lui manque encore reste visible (⛔ au calendrier,
+ * compteur « Réaligner … dont N programmés ») et, s'il part sans avoir été corrigé,
+ * le worker le refuse et le remet à valider. Le texte validé ne bouge que sur un
+ * geste du fondateur.
  */
 export function reparerAuDemarrage(): void {
   let n = 0;
   for (const post of postsAVerifier()) {
     try {
       const programme = post.status === 'scheduled';
-      const { corrections } = realignerSansModele(post, { hashtags: !programme, motcle: !programme });
+      const { corrections } = realignerSansModele(post, { hashtags: !programme, motcle: !programme, texte: !programme });
       if (corrections.length > 0) {
         n++;
         logger.info({ postId: post.id, status: post.status, corrections }, programme ? 'post programmé réparé au démarrage' : 'post réparé au démarrage');

@@ -186,6 +186,32 @@ describe('copie non adaptée, garde-fou de publication et réparations', async (
     expect(r3.post.caption).toContain('Le guide.');
   });
 
+  it('au démarrage, un post programmé garde son texte ; « Réaligner » le corrige à la demande', async () => {
+    const { reparerAuDemarrage } = await import('../src/scheduler/realigner.js');
+    const { createLink } = await import('../src/shortener/index.js');
+    const caption = 'Vous perdez du temps.\n\nCommente GUIDE si vous voulez un diagnostic.';
+    const post = creer({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'carousel', status: 'scheduled', scheduledAt: new Date(Date.now() + 86400_000).toISOString(), caption, cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE' });
+    const lien = createLink('https://source.test/article', { postId: post.id, label: `post-${post.id}` });
+    db.update(schema.posts).set({ linkId: lien.id }).where(eq(schema.posts.id, post.id)).run();
+    reparerAuDemarrage();
+    const apres = db.select().from(schema.posts).where(eq(schema.posts.id, post.id)).get()!;
+    expect(apres.caption).toBe(caption);
+    expect(apres.cta).toBe('Commente GUIDE');
+    expect(apres.commentTriggerKeyword).toBe('GUIDE');
+    expect(apres.status).toBe('scheduled');
+    // Le format, lui, suit la plateforme (pas un changement de texte)
+    expect(apres.format).toBe('li_doc');
+    expect(verifierPost(apres).map((p) => p.code)).toEqual(expect.arrayContaining(['lien-absent', 'motcle-hors-liste']));
+    // Sur demande, tout se corrige et le post garde son créneau
+    const r = await realignerPost(post.id, { modele: false });
+    expect(r.corrections.join(' | ')).toMatch(/lien de la ressource reposé/);
+    expect(r.corrections.join(' | ')).toMatch(/mot-clé GUIDE remplacé par/);
+    const fin = db.select().from(schema.posts).where(eq(schema.posts.id, post.id)).get()!;
+    expect(fin.status).toBe('scheduled');
+    expect(fin.caption).toContain(`https://odile.test/r/${lien.code}`);
+    expect(verifierPost(fin).map((p) => p.code)).not.toContain('lien-absent');
+  });
+
   it('sansLien garde l’espace française avant « ? » et « ! »', () => {
     expect(sansLien('Vous perdez du temps ? Oui ! Voir : https://x.test/a .')).toBe('Vous perdez du temps ? Oui ! Voir.');
     expect(sansLien('Tout est là {{link}} , promis.')).toBe('Tout est là, promis.');

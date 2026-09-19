@@ -4,7 +4,12 @@ import { eq } from 'drizzle-orm';
 import { customAlphabet } from 'nanoid';
 import sharp from 'sharp';
 import { config } from '../config.js';
-import { apercuTunnel } from '../approvals/tunnel.js';
+import { apercuTunnel, type ApercuTunnel } from '../approvals/tunnel.js';
+
+/** Le même libellé que le dashboard : un lien Instagram ne figure jamais dans la légende, il part en privé. */
+function libelleDuLien(t: Pick<ApercuTunnel, 'platform' | 'lienDansLePost'>): string {
+  return t.lienDansLePost ? 'Lien dans le post' : t.platform === 'instagram' ? 'Lien (en privé seulement)' : 'Lien (absent du texte)';
+}
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getBrand, getDmTriggers } from '../db/settingsRepo.js';
 import { createToken } from '../lib/signedToken.js';
@@ -128,7 +133,7 @@ export async function sendApprovalEmail(
   const blocTunnel = tunnel
     ? `<div style="margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#f4f6fb;border:1px solid #dfe5f0">
       <p style="margin:0 0 6px;color:#0a0a12;font-size:13px;font-weight:700">Ce que recevra la personne</p>
-      ${tunnel.lien ? `<p style="margin:4px 0;color:#556;font-size:13px"><b>Lien du post :</b> <a href="${escapeHtml(tunnel.lien.shortUrl)}" style="color:#0077cc">${escapeHtml(tunnel.lien.shortUrl)}</a> → <a href="${escapeHtml(tunnel.lien.cible)}" style="color:#0077cc">${escapeHtml(tunnel.lien.cible.slice(0, 90))}</a></p>` : ''}
+      ${tunnel.lien ? `<p style="margin:4px 0;color:#556;font-size:13px"><b>${libelleDuLien(tunnel)} :</b> <a href="${escapeHtml(tunnel.lien.shortUrl)}" style="color:#0077cc">${escapeHtml(tunnel.lien.shortUrl)}</a> → <a href="${escapeHtml(tunnel.lien.cible)}" style="color:#0077cc">${escapeHtml(tunnel.lien.cible.slice(0, 90))}</a></p>` : ''}
       <p style="margin:4px 0;color:#556;font-size:13px"><b>Ressource :</b> ${escapeHtml(tunnel.ressource.libelle)}${tunnel.ressource.url ? ` — <a href="${escapeHtml(tunnel.ressource.url)}" style="color:#0077cc">${tunnel.ressource.kind === 'guide' ? 'ouvrir le PDF' : 'voir la page'}</a>` : ''}${tunnel.ressource.erreur ? ` <span style="color:#b45309">(fabrication en échec : ${escapeHtml(tunnel.ressource.erreur.slice(0, 120))})</span>` : ''}</p>
       ${ligne('Réponse sous le commentaire :', tunnel.reponseLinkedIn)}
       ${tunnel.dmInstagram ? ligne('Message privé (1) :', tunnel.dmInstagram.etape1) + ligne('Message privé (2, après réponse) :', tunnel.dmInstagram.etape2) : ''}
@@ -244,7 +249,7 @@ ${
   tunnel
     ? `
 Ce que recevra la personne :
-${tunnel.lien ? `- Lien du post : ${tunnel.lien.shortUrl} → ${tunnel.lien.cible}\n` : ''}- Ressource : ${tunnel.ressource.libelle}${tunnel.ressource.url ? ` (${tunnel.ressource.url})` : ''}
+${tunnel.lien ? `- ${libelleDuLien(tunnel)} : ${tunnel.lien.shortUrl} → ${tunnel.lien.cible}\n` : ''}- Ressource : ${tunnel.ressource.libelle}${tunnel.ressource.url ? ` (${tunnel.ressource.url})` : ''}
 ${tunnel.reponseLinkedIn ? `- Réponse sous le commentaire : ${tunnel.reponseLinkedIn}\n` : ''}${tunnel.dmInstagram ? `- Message privé : ${tunnel.dmInstagram.etape1}${tunnel.dmInstagram.etape2 ? ` | puis : ${tunnel.dmInstagram.etape2}` : ''}\n` : ''}${tunnel.avertissements.map((a) => `- ⚠ ${a}\n`).join('')}`
     : ''
 }

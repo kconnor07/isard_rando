@@ -59,7 +59,7 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
             {t.lien.clics > 0 ? <span className="text-muted"> · {t.lien.clics} clic{t.lien.clics > 1 ? 's' : ''}</span> : null}
           </Ligne>
         )}
-        <Ligne label={t.ressource.viaLien ? 'Donnée par le lien' : t.motcle ? `Après « ${t.motcle} »` : 'Ressource'}>
+        <Ligne label={t.ressource.viaLien && t.lienDansLePost ? 'Ce que donne le lien' : t.motcle ? `Ce qu’elle reçoit après « ${t.motcle} »` : 'Ressource'}>
           {t.ressource.libelle.charAt(0).toUpperCase() + t.ressource.libelle.slice(1)}
           {t.ressource.url ? <> — {ouvrir(t.ressource.url, t.ressource.kind === 'guide' ? 'ouvrir le PDF' : 'voir la page')}</> : null}
           {t.ressource.erreur ? <span className="text-accent"> · fabrication en échec : {t.ressource.erreur}</span> : null}
@@ -70,7 +70,7 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
           </Ligne>
         )}
         {t.motcle && t.platform === 'linkedin' && (
-          <Ligne label={`Commente ${t.motcle}`}>
+          <Ligne label={`Si elle commente ${t.motcle}`}>
             {t.reponseLinkedIn ? (
               <>
                 réponse sous le commentaire{t.reponseManuelle ? <span className="text-accent"> (à coller soi-même)</span> : null} : <Citation texte={t.reponseLinkedIn} />
@@ -94,7 +94,7 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
           </Ligne>
         )}
         {t.dmInstagram && (
-          <Ligne label={`Commente ${t.motcle}`}>
+          <Ligne label={`Si elle commente ${t.motcle}`}>
             message privé : <Citation texte={t.dmInstagram.etape1} />
             {t.dmInstagram.etape2 ? (
               <>

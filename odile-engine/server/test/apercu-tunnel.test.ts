@@ -45,6 +45,7 @@ describe('ce que recevra la personne, vu avant validation', async () => {
       ]),
     );
     expect(t.dmInstagram).toBeNull();
+    expect(t.lienDansLePost).toBe(true);
   });
 
   it('Instagram : message privé en deux temps quand la porte d’abonnement est active, réponse publique, légende Facebook', () => {
@@ -54,12 +55,16 @@ describe('ce que recevra la personne, vu avant validation', async () => {
       .values({ platform: 'instagram', channel: 'ig', format: 'carousel', theme: 'odile-nuit', status: 'awaiting_approval', hook: 'h', caption: 'Texte.\n\nCommente OUTIL et je t’envoie l’accès en message privé.', cta: 'Commente OUTIL', hashtags: '["#IA"]', commentTriggerKeyword: 'OUTIL', resourceKind: 'outil', resourceTitle: 'Fireflies', resourceUrl: 'https://fireflies.ai' })
       .returning()
       .get();
+    // Tout post a un lien court, Instagram compris : il ne figure pas dans la légende, il part en privé.
+    const lien = createLink('https://odileai.com/outil', { postId: post.id, label: `post-${post.id}` });
+    db.update(schema.posts).set({ linkId: lien.id }).where(eq(schema.posts.id, post.id)).run();
     const t = apercuTunnel(post.id)!;
-    expect(t.lien).toBeNull();
+    expect(t.lien?.shortUrl).toContain(`/r/${lien.code}`);
+    expect(t.lienDansLePost).toBe(false);
     expect(t.ressource.libelle).toBe('l’accès à Fireflies');
     // Premier message sans lien (il demande une réponse), le lien part au second
     expect(t.dmInstagram?.etape1).not.toMatch(/https?:\/\//);
-    expect(t.dmInstagram?.etape2).toContain('https://odileai.com');
+    expect(t.dmInstagram?.etape2).toContain(`/r/${lien.code}`);
     expect(t.reponsePublique).toBeTruthy();
     expect(t.captionFacebook).not.toMatch(/commente OUTIL et je/i);
     expect(t.captionFacebook).toMatch(/sur (notre )?Instagram/);
