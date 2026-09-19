@@ -45,7 +45,15 @@ export interface PostSummaryDto {
   /** identifiants des visuels rendus, dans l'ordre (vignettes de validation) */
   vignettes?: string[];
   /** diffusion simultanée : ce post et ses copies sur les autres comptes */
-  broadcast?: { group: string; surface: string; others: string[]; /** le plus ancien du groupe : celui que l'on valide */ original?: boolean } | null;
+  broadcast?: {
+    group: string;
+    surface: string;
+    others: string[];
+    /** le plus ancien du groupe : celui que l'on valide */
+    original?: boolean;
+    /** les copies, ouvrables une à une */
+    members?: { id: number; surface: string; status: string; scheduledAt: string | null; platform: string }[];
+  } | null;
   reviewSummary: { iterations: number; finalScores: Record<string, number>; passed: boolean } | null;
   newsTitle: string | null;
   newsUrl: string | null;

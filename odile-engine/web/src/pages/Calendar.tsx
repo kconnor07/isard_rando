@@ -4,8 +4,9 @@ import { useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, humanizeError } from '../api/client';
 import type { ActionOutcomeDto, PostDetailDto, PostSummaryDto, SlotDto } from '../api/types';
-import { CHANNEL_LABELS, Empty, fmtDate, FORMAT_LABELS, PageTitle, StatusBadge } from '../components/shared';
+import { CHANNEL_LABELS, Empty, fmtDate, FORMAT_LABELS, PageTitle, Problemes, StatusBadge } from '../components/shared';
 import { toast } from '../components/Toaster';
+import { CeQueRecevraLaPersonne } from '../components/CeQueRecevraLaPersonne';
 import {
   aujourdhuiYmd,
   depuisChampLocal,
@@ -466,7 +467,21 @@ export default function Calendar() {
                   </div>
                   {detailQ.data.broadcast && (
                     <div className="mt-2 text-xs text-muted">
-                      Même sujet sur : {detailQ.data.broadcast.others.join(' · ')}
+                      Même sujet sur :
+                      {detailQ.data.broadcast.members && detailQ.data.broadcast.members.length > 0 ? (
+                        <ul className="mt-1 flex flex-col gap-0.5">
+                          {detailQ.data.broadcast.members.map((m) => (
+                            <li key={m.id}>
+                              <button className="text-txt underline decoration-white/30 hover:text-ice" onClick={() => setApercu(m.id)}>
+                                {m.surface}
+                              </button>
+                              {m.scheduledAt ? ` — ${fmtDate(m.scheduledAt)}` : m.status === 'published' ? ' — publié' : ' — pas encore programmé'}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        ` ${detailQ.data.broadcast.others.join(' · ')}`
+                      )}
                     </div>
                   )}
                 </div>
@@ -501,13 +516,11 @@ export default function Calendar() {
                   {detailQ.data.hashtags.length > 0 && <p className="mt-1.5 text-xs text-muted">{detailQ.data.hashtags.join(' ')}</p>}
                 </div>
 
-                {/* Ce que le post promet */}
-                {detailQ.data.commentTriggerKeyword && (
-                  <div className="mb-4 text-xs text-muted">
-                    Mot à commenter : <span className="mono text-ice">{detailQ.data.commentTriggerKeyword}</span>
-                    {detailQ.data.resource?.title ? ` · envoie « ${detailQ.data.resource.title} »` : ''}
-                  </div>
-                )}
+                {/* Ce que le post promet, et ce que le moteur donnera vraiment */}
+                {detailQ.data.problemes && detailQ.data.problemes.length > 0 && <Problemes liste={detailQ.data.problemes} compact />}
+                <div className="mb-4">
+                  <CeQueRecevraLaPersonne postId={detailQ.data.id} compact />
+                </div>
 
                 <div className="mt-auto flex flex-wrap gap-2 pt-2">
                   <Link className="btn-primary !py-1.5 text-xs" to={`/posts/${detailQ.data.id}`}>

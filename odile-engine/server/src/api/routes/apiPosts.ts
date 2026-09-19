@@ -17,6 +17,7 @@ import { db, schema } from '../../db/client.js';
 import { compteDuCanal, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
+import { apercuTunnel } from '../../approvals/tunnel.js';
 import { verifierPost } from '../../writer/conformite.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 
@@ -96,6 +97,9 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
         group: post.broadcastGroup,
         surface: surfaceDuPost(post).label,
         others: freres.map((f) => surfaceDuPost(f).label),
+        // Les copies elles-mêmes : le fondateur peut ouvrir chacune (texte, lien, mot-clé)
+        // au lieu de valider l'original sans les avoir vues.
+        members: freres.map((f) => ({ id: f.id, surface: surfaceDuPost(f).label, status: f.status, scheduledAt: f.scheduledAt, platform: f.platform })),
         // L'original est le plus ancien du groupe : c'est lui que l'on valide, les
         // copies suivent. Sans ce repère, l'écran de validation montrait une copie
         // encore au studio, dont les actions restaient fermées.
@@ -196,6 +200,13 @@ export function registerPostRoutes(app: FastifyInstance): void {
       ? db.select({ id: schema.clicks.id }).from(schema.clicks).where(eq(schema.clicks.linkId, post.linkId)).all().length
       : 0;
     return { ...postSummary(post), slides, reviews, clicks, visualOverrides: parseVisualOverrides(post.visualOverrides) };
+  });
+
+  /** Ce que recevra la personne : lien et cible, ressource, réponses, DM, amorce, légende Facebook, identifications — avant validation. */
+  app.get<{ Params: { id: string } }>('/api/posts/:id/tunnel', async (request, reply) => {
+    const apercu = apercuTunnel(Number(request.params.id));
+    if (!apercu) return reply.status(404).send({ error: 'Post introuvable' });
+    return apercu;
   });
 
   /** Réaligne tous les posts modifiables avec la stratégie en vigueur (le modèle réécrit ce qui l'exige si `modele` est vrai). */

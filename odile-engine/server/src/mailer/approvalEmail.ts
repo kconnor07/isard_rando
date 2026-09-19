@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { customAlphabet } from 'nanoid';
 import sharp from 'sharp';
 import { config } from '../config.js';
+import { apercuTunnel } from '../approvals/tunnel.js';
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getBrand, getDmTriggers } from '../db/settingsRepo.js';
 import { createToken } from '../lib/signedToken.js';
@@ -119,6 +120,24 @@ export async function sendApprovalEmail(
   // ouvre le diagnostic. Dire « elle recevra le guide » serait faux deux fois.
   const dm = getDmTriggers();
   const viaLien = post.platform === 'linkedin' && dm.linkedinOffer === 'diagnostic';
+  // Ce que recevra la personne, tel que le moteur le composera : lien et cible, réponse,
+  // message privé, amorce — pour valider en connaissance de cause, depuis l'email aussi.
+  const tunnel = apercuTunnel(post.id);
+  const ligne = (label: string, texte: string | null | undefined) =>
+    texte ? `<p style="margin:4px 0;color:#556;font-size:13px"><b>${label}</b> ${escapeHtml(texte)}</p>` : '';
+  const blocTunnel = tunnel
+    ? `<div style="margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#f4f6fb;border:1px solid #dfe5f0">
+      <p style="margin:0 0 6px;color:#0a0a12;font-size:13px;font-weight:700">Ce que recevra la personne</p>
+      ${tunnel.lien ? `<p style="margin:4px 0;color:#556;font-size:13px"><b>Lien du post :</b> <a href="${escapeHtml(tunnel.lien.shortUrl)}" style="color:#0077cc">${escapeHtml(tunnel.lien.shortUrl)}</a> → <a href="${escapeHtml(tunnel.lien.cible)}" style="color:#0077cc">${escapeHtml(tunnel.lien.cible.slice(0, 90))}</a></p>` : ''}
+      <p style="margin:4px 0;color:#556;font-size:13px"><b>Ressource :</b> ${escapeHtml(tunnel.ressource.libelle)}${tunnel.ressource.url ? ` — <a href="${escapeHtml(tunnel.ressource.url)}" style="color:#0077cc">${tunnel.ressource.kind === 'guide' ? 'ouvrir le PDF' : 'voir la page'}</a>` : ''}${tunnel.ressource.erreur ? ` <span style="color:#b45309">(fabrication en échec : ${escapeHtml(tunnel.ressource.erreur.slice(0, 120))})</span>` : ''}</p>
+      ${ligne('Réponse sous le commentaire :', tunnel.reponseLinkedIn)}
+      ${tunnel.dmInstagram ? ligne('Message privé (1) :', tunnel.dmInstagram.etape1) + ligne('Message privé (2, après réponse) :', tunnel.dmInstagram.etape2) : ''}
+      ${ligne('Réponse publique :', tunnel.reponsePublique)}
+      ${ligne('Commentaire d’amorce :', tunnel.amorce)}
+      ${tunnel.mentions.length ? ligne('Identifiés :', tunnel.mentions.map((m) => `${m.nom} (${m.statut === 'identifiee' ? '@' : m.statut === 'en-clair' ? 'en clair' : 'absent'})`).join(', ')) : ''}
+      ${tunnel.avertissements.map((a) => `<p style="margin:4px 0;color:#b45309;font-size:12px">⚠ ${escapeHtml(a)}</p>`).join('')}
+    </div>`
+    : '';
   const blocRessource = post.commentTriggerKeyword
     ? post.resourceError
       ? `<div style="margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fff4ed;border:1px solid #f4c9a8;color:#8a4b12;font-size:13px">
@@ -181,6 +200,7 @@ export async function sendApprovalEmail(
     <p style="margin:10px 0 2px;color:#556;font-size:13px">🕒 Si tu approuves, publication programmée : <b>${fmtParis(slot)}</b> (heure de Paris)</p>
     ${autresSurfaces.length ? `<p style="margin:6px 0 2px;color:#556;font-size:13px">📣 Partira aussi, avec la même validation, sur : <b>${escapeHtml(autresSurfaces.join(', '))}</b></p>` : ''}
     ${ligneVideo}
+    ${blocTunnel}
   </td></tr>
   <tr><td align="center" style="padding:10px 20px">
     <table role="presentation" cellpadding="0" cellspacing="0">${slideRows.join('')}</table>
@@ -220,7 +240,14 @@ Caption :
 ${post.caption}
 
 ${hashtags}
-
+${
+  tunnel
+    ? `
+Ce que recevra la personne :
+${tunnel.lien ? `- Lien du post : ${tunnel.lien.shortUrl} → ${tunnel.lien.cible}\n` : ''}- Ressource : ${tunnel.ressource.libelle}${tunnel.ressource.url ? ` (${tunnel.ressource.url})` : ''}
+${tunnel.reponseLinkedIn ? `- Réponse sous le commentaire : ${tunnel.reponseLinkedIn}\n` : ''}${tunnel.dmInstagram ? `- Message privé : ${tunnel.dmInstagram.etape1}${tunnel.dmInstagram.etape2 ? ` | puis : ${tunnel.dmInstagram.etape2}` : ''}\n` : ''}${tunnel.avertissements.map((a) => `- ⚠ ${a}\n`).join('')}`
+    : ''
+}
 Approuver : ${urlFor('approve')}
 Modifier  : ${urlFor('edit')}
 Rejeter   : ${urlFor('reject')}

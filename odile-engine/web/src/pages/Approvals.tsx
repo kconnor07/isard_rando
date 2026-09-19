@@ -7,6 +7,7 @@ import type { PostSummaryDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import { CHANNEL_LABELS, Empty, EtatErreur, FORMAT_LABELS, PageTitle, Problemes, StatusBadge, fmtDate } from '../components/shared';
 import { toast } from '../components/Toaster';
+import { CeQueRecevraLaPersonne } from '../components/CeQueRecevraLaPersonne';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 
 interface ActionOutcome {
@@ -162,28 +163,27 @@ export default function Approvals() {
                 {post.hook || '(sans titre)'}
               </Link>
               {post.newsTitle && <p className="mt-1 text-xs text-muted">Source : {post.newsTitle}</p>}
-              {post.resource?.error ? (
-                <p className="mt-1 text-xs text-accent">
-                  ⚠ Ressource promise en échec — la personne qui commente recevra l’article source à la place. {post.resource.error}
-                </p>
-              ) : post.resource && post.resource.kind !== 'article' ? (
-                <p className="mt-1 text-xs text-muted">
-                  🎁 Elle recevra {post.resource.kind === 'guide' ? 'le guide' : 'l’accès à l’outil'}
-                  {post.resource.title ? ` « ${post.resource.title} »` : ''}
-                  {post.resource.url && (
-                    <>
-                      {' · '}
-                      <a href={post.resource.url} target="_blank" rel="noreferrer" className="hover:text-ice">
-                        {post.resource.kind === 'guide' ? 'ouvrir le PDF' : 'voir la page'}
-                      </a>
-                    </>
-                  )}
-                </p>
-              ) : null}
               {post.broadcast && (
                 <p className="mt-1 text-xs text-muted">
                   📣 {post.broadcast.surface}
-                  {post.broadcast.others.length > 0 ? ` · partira aussi sur ${post.broadcast.others.join(', ')} avec la même validation` : ''}
+                  {post.broadcast.members && post.broadcast.members.length > 0 ? (
+                    <>
+                      {' · partira aussi, avec la même validation, sur '}
+                      {post.broadcast.members.map((m, i) => (
+                        <span key={m.id}>
+                          {i > 0 ? ', ' : ''}
+                          <Link to={`/posts/${m.id}`} className="text-txt underline decoration-white/30 hover:text-ice" title="Voir cette copie : texte, lien, mot-clé">
+                            {m.surface}
+                          </Link>
+                          {m.status === 'awaiting_approval' && (posts ?? []).find((p) => p.id === m.id)?.error ? <span className="text-accent"> (à corriger)</span> : null}
+                        </span>
+                      ))}
+                    </>
+                  ) : post.broadcast.others.length > 0 ? (
+                    ` · partira aussi sur ${post.broadcast.others.join(', ')} avec la même validation`
+                  ) : (
+                    ''
+                  )}
                 </p>
               )}
               {/* Valider sans voir, c'est signer sans lire : les visuels d'abord. */}
@@ -211,6 +211,7 @@ export default function Approvals() {
               )}
               {post.error && <p className="mt-1.5 text-xs text-accent">{post.error}</p>}
               <Problemes liste={post.problemes} />
+              {!inProgress && <CeQueRecevraLaPersonne postId={post.id} />}
               {inProgress ? (
                 <p className="mt-4 flex items-center gap-2 text-xs text-muted">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />

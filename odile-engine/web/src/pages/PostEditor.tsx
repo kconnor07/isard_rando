@@ -7,6 +7,7 @@ import type { LibraryImageDto, PostDetailDto, SlideDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
 import LibraryPicker from '../components/LibraryPicker';
 import { toast } from '../components/Toaster';
+import { CeQueRecevraLaPersonne } from '../components/CeQueRecevraLaPersonne';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 import VisualAgentPanel from '../components/VisualAgentPanel';
 import { CHANNEL_LABELS, EtatErreur, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge, Problemes } from '../components/shared';
@@ -498,22 +499,9 @@ export default function PostEditor() {
           </a>
         </div>
       )}
-      {post.resource && post.resource.kind !== 'article' && (
+      {!inProgress && (
         <div className="card mb-4 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">
-            {post.resource.viaLien
-              ? post.resource.kind === 'guide' ? 'Guide donné par le lien du post' : 'Outil donné par le lien du post'
-              : post.resource.kind === 'guide' ? 'Guide livré en message privé' : 'Outil envoyé en message privé'}
-          </div>
-          <p className="mt-1 text-sm font-semibold">{post.resource.title ?? '—'}</p>
-          {post.resource.url && (
-            <a href={post.resource.url} target="_blank" rel="noreferrer" className="btn-ghost mt-3 !py-1.5 text-xs">
-              {post.resource.kind === 'guide' ? 'Ouvrir le PDF' : 'Ouvrir la page'}
-            </a>
-          )}
-          {post.resource.error && (
-            <p className="mt-2 text-xs text-muted">Fabrication en échec : {post.resource.error} — le lien retombe sur l’article source.</p>
-          )}
+          <CeQueRecevraLaPersonne postId={post.id} />
         </div>
       )}
 
