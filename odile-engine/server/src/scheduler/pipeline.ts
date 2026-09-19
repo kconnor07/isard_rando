@@ -116,7 +116,15 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
   });
   if (ressource) {
     db.update(schema.posts)
-      .set({ resourceKind: ressource.kind, resourceTitle: ressource.title, resourceUrl: ressource.url, resourceAssetId: ressource.assetId ?? null })
+      .set({
+        resourceKind: ressource.kind,
+        resourceTitle: ressource.title,
+        resourceUrl: ressource.url,
+        resourceAssetId: ressource.assetId ?? null,
+        // Une relance réussie efface l'échec précédent ; le secours (article) le garde,
+        // pour que le contrôle « guide manquant » continue de le dire.
+        ...(ressource.kind === 'article' ? {} : { resourceError: null }),
+      })
       .where(eq(schema.posts.id, draft.postId))
       .run();
     const post = db.select().from(schema.posts).where(eq(schema.posts.id, draft.postId)).get();

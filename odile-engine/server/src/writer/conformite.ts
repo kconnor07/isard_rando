@@ -35,7 +35,8 @@ export interface Probleme {
     | 'guide-manquant'
     | 'date-orpheline'
     | 'rdv-manquant'
-    | 'copie-non-adaptee';
+    | 'copie-non-adaptee'
+    | 'porte-abonnement';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
@@ -52,7 +53,11 @@ export function echecDAdaptation(error: string | null | undefined): boolean {
   return /^(texte non adapté|plafond IA du jour)/i.test(error ?? '');
 }
 
-const PROMESSE_DM = /message priv|en DM\b|en MP\b|messagerie|je t[’']envoie|je vous envoie/i;
+/**
+ * Ce qui promet un envoi en privé. « messagerie » seul n'en fait pas partie : c'est
+ * le sujet le plus fréquent des posts (trier ses emails), pas une promesse.
+ */
+export const PROMESSE_DM = /message priv|en DM\b|en MP\b|(?:en|par) messagerie|je t[’']envoie|je vous envoie|re[çc]ois(?:-le)? en (?:DM|MP)\b/i;
 const ADRESSE = /https?:\/\/|www\.|\{\{link\}\}/i;
 const RENVOI_LINKEDIN = /lien (dans|en) (la )?description|sur linkedin|sous ce post linkedin/i;
 
@@ -110,7 +115,7 @@ export function verifierPost(post: Post): Probleme[] {
       problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, reecriture: true, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });
     }
     if (motcle && diagnostic && !dm.diagnosticKeywords.map((k) => k.toUpperCase()).includes(motcle.toUpperCase())) {
-      problemes.push({ code: 'motcle-hors-liste', niveau: 'attention', corrigeable: false, reecriture: true, message: `Le mot « ${motcle} » n’est pas un mot de diagnostic (${dm.diagnosticKeywords.join(', ')}) : la réponse proposera quand même le rendez-vous, mais le texte peut promettre autre chose.` });
+      problemes.push({ code: 'motcle-hors-liste', niveau: 'attention', corrigeable: true, message: `Le mot « ${motcle} » n’est pas un mot de diagnostic (${dm.diagnosticKeywords.join(', ')}) : « Réaligner » le remplace dans le texte et sur la slide.` });
     }
     if (caption.length > 3000) problemes.push({ code: 'trop-long', niveau: 'bloquant', corrigeable: false, message: `Texte de ${caption.length} caractères : LinkedIn en accepte 3 000.` });
     else if (caption.length > 1500) problemes.push({ code: 'trop-long', niveau: 'attention', corrigeable: false, message: `Texte long (${caption.length} caractères) : sur LinkedIn, au-delà de 1 200 le post est moins lu.` });
@@ -128,17 +133,24 @@ export function verifierPost(post: Post): Probleme[] {
       problemes.push({ code: 'parle-de-linkedin', niveau: 'attention', corrigeable: false, message: 'L’appel à l’action parle d’un lien en description ou de LinkedIn : sur Instagram, c’est le mot-clé qui envoie la ressource.' });
     }
     if (caption.length > 2200) problemes.push({ code: 'trop-long', niveau: 'bloquant', corrigeable: false, message: `Légende de ${caption.length} caractères : Instagram en accepte 2 200.` });
+    if (dm.requireFollow && motcle && PROMESSE_DM.test(blocFinal(caption)) && !/abonn/i.test(caption)) {
+      problemes.push({ code: 'porte-abonnement', niveau: 'attention', corrigeable: false, message: 'La porte d’abonnement est active (Réglages → Commentaire → DM) : le premier message demandera de s’abonner avant d’envoyer, alors que le texte promet un envoi direct. Dis-le dans la légende (« abonne-toi et commente… ») ou désactive la porte.' });
+    }
     if (hashtags.length > HASHTAGS_MAX.instagram) problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtags.length} hashtags : au-delà de ${HASHTAGS_MAX.instagram}, Instagram n’en tient plus compte.` });
   }
 
   if (motcle && !captionPorteLeMotCle(caption, motcle)) {
     problemes.push({ code: 'motcle-absent', niveau: 'bloquant', corrigeable: true, message: `Le texte ne demande pas « Commente ${motcle} » : personne ne saura quoi commenter.` });
   }
-  if (/\bvous\b/i.test(caption) && /\b(tu|t[’']|tes|ton|ta)\b/i.test(caption)) {
+  if (/(?<!rendez-)\bvous\b/i.test(caption) && /\b(tu|t[’']|tes|ton|ta)\b/i.test(caption)) {
     problemes.push({ code: 'tu-vous', niveau: 'attention', corrigeable: false, message: 'Tutoiement et vouvoiement se mélangent dans le texte.' });
   }
   if (post.resourceKind === 'guide' && !post.resourceAssetId && !post.resourceUrl) {
     problemes.push({ code: 'guide-manquant', niveau: 'bloquant', corrigeable: false, message: `Le guide promis n’existe pas${post.resourceError ? ` (${post.resourceError.slice(0, 120)})` : ''} : relance la fabrication ou change la promesse.` });
+  } else if (post.resourceError && post.resourceKind !== 'guide' && /\bguide\b|checklist|\bkit\b|\bmod[èe]le\b/i.test(`${caption}\n${post.cta ?? ''}`)) {
+    // La fabrication du guide a échoué et le secours (l'article source) a pris sa
+    // place : le texte, lui, promet toujours un guide.
+    problemes.push({ code: 'guide-manquant', niveau: 'bloquant', corrigeable: false, message: `Le guide promis n’a pas pu être fabriqué (${post.resourceError.slice(0, 120)}) : la personne recevrait l’article source à la place. Relance la fabrication ou change la promesse.` });
   }
   if (post.scheduledAt && !['scheduled', 'publishing', 'published'].includes(post.status)) {
     problemes.push({ code: 'date-orpheline', niveau: 'attention', corrigeable: true, message: 'Une date de publication traîne sur un post qui n’est pas programmé.' });

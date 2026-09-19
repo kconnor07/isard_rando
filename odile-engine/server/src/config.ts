@@ -10,7 +10,9 @@ const envSchema = z.object({
   /** Secret maître : signatures HMAC + chiffrement des tokens OAuth. 32+ caractères. */
   APP_SECRET: z.string().min(16).default('dev-secret-change-me-in-production!'),
   ADMIN_PASSWORD: z.string().min(4).default('odile'),
-  DATA_DIR: z.string().default(path.resolve(process.cwd(), 'var')),
+  // Sous vitest, jamais la base réelle : un test qui oublie DATA_DIR travaillerait
+  // dans var/ et y effacerait les jetons LinkedIn/Meta de la machine.
+  DATA_DIR: z.string().default(path.resolve(process.cwd(), process.env.VITEST ? `var-test-auto-${process.pid}` : 'var')),
 
   /** live = vrais appels LLM ; mock = réponses canées (tests sans clé) */
   LLM_MODE: z.enum(['live', 'mock']).default('live'),

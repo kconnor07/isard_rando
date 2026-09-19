@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
-import { CHANNEL_LABELS, Empty, EtatErreur, FORMAT_LABELS, PageTitle, Problemes, StatusBadge, fmtDate } from '../components/shared';
+import { CHANNEL_LABELS, Empty, EtatErreur, FORMAT_LABELS, MotifErreur, PageTitle, Problemes, StatusBadge, fmtDate } from '../components/shared';
 import { toast } from '../components/Toaster';
 import { CeQueRecevraLaPersonne } from '../components/CeQueRecevraLaPersonne';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
@@ -72,12 +72,32 @@ export default function Approvals() {
     mutationFn: () => api.post<{ ok: boolean; message: string }>('/api/posts/realigner', { modele: true }),
     onSuccess: (r) => {
       invalidate();
+      void qc.invalidateQueries({ queryKey: ['realigner', 'etat'] });
       toast.success(r.message);
     },
     onError: (err) => toast.error(err instanceof Error ? err.message : String(err)),
   });
+  // Ce que « Réaligner » toucherait vraiment : tous les posts modifiables, y compris
+  // ceux déjà programmés, qui ne sont pas dans cette liste.
+  const { data: etatRealigner } = useQuery({
+    queryKey: ['realigner', 'etat'],
+    queryFn: () => api.get<{ total: number; programmes: number; reecritures: number; ids: number[] }>('/api/posts/realigner/etat'),
+    refetchInterval: 30_000,
+  });
+  const confirmerRealignement = async () => {
+    const e = etatRealigner;
+    if (e && e.reecritures > 0) {
+      const ok = await dialog.confirm({
+        title: 'Réaligner avec la stratégie ?',
+        message: `${e.total} post${e.total > 1 ? 's' : ''} à corriger${e.programmes ? `, dont ${e.programmes} déjà programmé${e.programmes > 1 ? 's' : ''}` : ''}. Les liens, adresses, mots-clés, hashtags et comptes sont corrigés sans rien réécrire. ${e.reecritures} post${e.reecritures > 1 ? 's' : ''} promet${e.reecritures > 1 ? 'tent' : ''} encore un message privé ou n’${e.reecritures > 1 ? 'ont' : 'a'} pas été adapté${e.reecritures > 1 ? 's' : ''} : le modèle ${e.reecritures > 1 ? 'les' : 'le'} réécrit, et ${e.reecritures > 1 ? 'ils reviennent' : 'il revient'} à valider (déprogrammé${e.reecritures > 1 ? 's' : ''} si besoin).`,
+        confirmLabel: 'Réaligner',
+      });
+      if (!ok) return;
+    }
+    realignerTout.mutate();
+  };
   const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : schedule.isPending ? schedule.variables?.id : realigner.isPending ? realigner.variables : null;
-  const aRealigner = (posts ?? []).filter((p) => (p.problemes ?? []).some((q) => q.corrigeable || q.reecriture)).length;
+  const aRealigner = etatRealigner?.total ?? (posts ?? []).filter((p) => (p.problemes ?? []).some((q) => q.corrigeable || q.reecriture)).length;
   const scheduleAt = async (post: PostSummaryDto) => {
     const value = await dialog.prompt({
       title: 'Programmer à une date',
@@ -123,8 +143,13 @@ export default function Approvals() {
         subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez."
         actions={
           aRealigner > 0 ? (
-            <button className="btn-ghost" disabled={realignerTout.isPending} onClick={() => realignerTout.mutate()} title="Repose les liens, retire les adresses d’Instagram, borne les hashtags, attribue les comptes et fait réécrire ce qui promet encore un message privé sur LinkedIn">
-              <Wand2 size={14} /> {realignerTout.isPending ? 'Réalignement…' : `Réaligner ${aRealigner} post${aRealigner > 1 ? 's' : ''} avec la stratégie`}
+            <button
+              className="btn-ghost"
+              disabled={realignerTout.isPending}
+              onClick={() => void confirmerRealignement()}
+              title="Repose les liens, retire les adresses d’Instagram, remplace les mots-clés hors liste, borne les hashtags, attribue les comptes — et fait réécrire par le modèle ce qui promet encore un message privé sur LinkedIn (ces posts reviennent à valider). Traite aussi les posts déjà programmés."
+            >
+              <Wand2 size={14} /> {realignerTout.isPending ? 'Réalignement…' : `Réaligner ${aRealigner} post${aRealigner > 1 ? 's' : ''} avec la stratégie${etatRealigner?.programmes ? ` (dont ${etatRealigner.programmes} programmé${etatRealigner.programmes > 1 ? 's' : ''})` : ''}`}
             </button>
           ) : undefined
         }
@@ -214,7 +239,7 @@ export default function Approvals() {
                   {post.resource?.viaLien ? ' — il ouvre le diagnostic, pas la ressource (elle est dans le lien du post)' : ''}
                 </p>
               )}
-              {post.error && <p className="mt-1.5 text-xs text-accent">{post.error}</p>}
+              {post.error && <MotifErreur error={post.error} className="mt-1.5 text-xs text-accent" />}
               <Problemes liste={post.problemes} />
               {!inProgress && <CeQueRecevraLaPersonne postId={post.id} />}
               {inProgress ? (
@@ -245,7 +270,7 @@ export default function Approvals() {
                     </div>
                   </details>
                   {(post.problemes ?? []).some((q) => q.corrigeable || q.code === 'dm-promis') && (
-                    <button className="btn-ghost" disabled={busy} onClick={() => realigner.mutate(post.id)} title="Corrige ce qui se corrige seul ; fait réécrire la fin du post s’il promet encore un message privé">
+                    <button className="btn-ghost" disabled={busy} onClick={() => realigner.mutate(post.id)} title="Corrige ce qui se corrige seul (lien, adresse, mot-clé, hashtags, compte) ; si le post promet encore un message privé, le modèle le réécrit et il revient à valider">
                       <Wand2 size={13} /> Réaligner
                     </button>
                   )}

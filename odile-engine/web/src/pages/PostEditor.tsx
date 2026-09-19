@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Check, Image as ImageIcon, Images as LibraryIcon, Mail, Pencil, RefreshCw, Trash2, Upload, X, Zap, CalendarClock } from 'lucide-react';
+import { Check, Image as ImageIcon, Images as LibraryIcon, Mail, Pencil, RefreshCw, Trash2, Upload, Wand2, X, Zap, CalendarClock } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, humanizeError, upload } from '../api/client';
@@ -10,7 +10,7 @@ import { toast } from '../components/Toaster';
 import { CeQueRecevraLaPersonne } from '../components/CeQueRecevraLaPersonne';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 import VisualAgentPanel from '../components/VisualAgentPanel';
-import { CHANNEL_LABELS, EtatErreur, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge, Problemes } from '../components/shared';
+import { CHANNEL_LABELS, EtatErreur, fmtDate, FORMAT_LABELS, MotifErreur, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge, Problemes } from '../components/shared';
 
 const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications'] as const;
 /** Statuts pendant lesquels le post évolue tout seul (pipeline, studio, publication) : l'éditeur se rafraîchit */
@@ -421,6 +421,20 @@ export default function PostEditor() {
       done: outcomeMessage('Post programmé'),
     })();
   };
+  const realigner = async () => {
+    const reecrit = (post.problemes ?? []).some((q) => q.reecriture && q.niveau === 'bloquant');
+    if (reecrit) {
+      const ok = await dialog.confirm({
+        title: 'Faire réécrire ce post ?',
+        message: `Le texte promet encore un message privé ou n’a pas été adapté : le modèle le réécrit (même sujet, même compte, lien et mot de diagnostic en place)${post.status === 'scheduled' ? ', et le post est déprogrammé pour être relu' : ''}.`,
+        confirmLabel: 'Réécrire',
+      });
+      if (!ok) return;
+    }
+    await run('realigner', () => api.post<{ ok: boolean; message: string }>(`/api/posts/${post.id}/realigner`, { modele: true }), {
+      done: (r) => (r as { message?: string })?.message,
+    })();
+  };
   const reject = async () => {
     const reason = await dialog.prompt({
       title: 'Rejeter ce post ?',
@@ -469,8 +483,8 @@ export default function PostEditor() {
 
       {post.error && post.status !== 'published' && (
         <div className="card mb-4 border-white/25 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wider text-muted">Fabrication interrompue</div>
-          <p className="mt-1 text-sm">{post.error}</p>
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted">{/^Ce post ne peut pas partir|^texte non adapté|^plafond IA/i.test(post.error) ? 'À corriger avant de partir' : 'Fabrication interrompue'}</div>
+          <MotifErreur error={post.error} className="mt-1 text-sm" />
           <button className="btn-primary mt-3 !py-1.5 text-xs" disabled={retryFabrication.isPending} onClick={() => retryFabrication.mutate()}>
             {retryFabrication.isPending ? 'Relance…' : 'Relancer la fabrication'}
           </button>
@@ -485,6 +499,14 @@ export default function PostEditor() {
         </p>
       )}
       <Problemes liste={post.problemes} />
+      {(post.problemes ?? []).some((q) => q.corrigeable || q.reecriture) && (
+        <div className="mb-4 mt-2 flex flex-wrap items-center gap-2">
+          <button className="btn-ghost !py-1.5 text-xs" disabled={!!busy} onClick={() => void realigner()} title="Corrige ce qui se corrige seul (lien, adresse, mot-clé, hashtags, compte) ; si le post promet encore un message privé, le modèle le réécrit et il revient à valider">
+            <Wand2 size={13} /> {busy === 'realigner' ? 'Réalignement…' : 'Réaligner avec la stratégie'}
+          </button>
+          <span className="text-xs text-muted">ou corrige le texte à la main ci-dessous.</span>
+        </div>
+      )}
       {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
       {post.format === 'li_doc' && !inProgress && post.slideCount > 0 && (

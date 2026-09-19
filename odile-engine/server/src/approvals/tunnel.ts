@@ -17,7 +17,7 @@ import { legendePourFacebook } from '../publishers/facebook.js';
 import { commentary } from '../publishers/linkedin.js';
 import { compteDuPost, droitCommentaire, mentionsConnues } from '../publishers/linkedinAccounts.js';
 import { targetWithUtm } from '../shortener/index.js';
-import { buildReply, choisirVariante, contexteDuCommentaire, lienRdv, nommerRessource } from '../webhooks/commentDm.js';
+import { buildReply, choisirVariante, contexteDuCommentaire, lienRdv, nommerRessource, REPONSE_PUBLIQUE_PORTE } from '../webhooks/commentDm.js';
 
 type Post = typeof schema.posts.$inferSelect;
 
@@ -32,10 +32,14 @@ export interface ApercuTunnel {
   platform: 'linkedin' | 'instagram';
   motcle: string | null;
   lien: { shortUrl: string; cible: string; clics: number } | null;
+  /** le lien figure dans le texte publié (LinkedIn) ; sinon il ne part qu'en privé (Instagram) */
+  lienDansLePost: boolean;
   ressource: { kind: string; titre: string | null; url: string | null; erreur: string | null; viaLien: boolean; libelle: string };
   document: { pages: number; url: string } | null;
   amorce: string | null;
   reponseLinkedIn: string | null;
+  /** nombre de formulations parmi lesquelles la réponse est tirée à chaque commentaire (1 = toujours celle-ci) */
+  reponseVariantes: number;
   /** LinkedIn ne laisse pas lire les commentaires de ce compte : la réponse sera manuelle */
   reponseManuelle: boolean;
   dmInstagram: { etape1: string; etape2: string | null } | null;
@@ -99,6 +103,7 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
 
   let amorce: string | null = null;
   let reponseLinkedIn: string | null = null;
+  let reponseVariantes = 1;
   let reponseManuelle = false;
   if (platform === 'linkedin') {
     if (getAmplification().enabled && getAmplification().firstComment) amorce = texteAmorce(post);
@@ -107,6 +112,7 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
       const variantes = dm.linkedinOffer === 'diagnostic' && lienDansLePost ? dm.diagnosticReplyVariants : dm.linkedinReplyVariants;
       const modele = choisirVariante(variantes, post.id) ?? dm.replyTemplate;
       reponseLinkedIn = dm.publicReply ? buildReply(modele, contexte) : null;
+      reponseVariantes = Math.max(1, variantes.filter((v) => v.trim()).length);
       const compte = compteDuPost(post);
       reponseManuelle = !compte || !droitCommentaire(compte).peutLire;
       if (reponseManuelle) avertissements.push('LinkedIn ne laisse pas lire les commentaires de ce compte : la réponse ci-dessus est à coller soi-même sous chaque commentaire.');
@@ -123,7 +129,11 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
       dmInstagram = dm.requireFollow
         ? { etape1: buildReply(dm.askFollowTemplate, contexte), etape2: buildReply(dm.thanksTemplate, contexte) }
         : { etape1: buildReply(dm.replyTemplate, contexte), etape2: null };
-      reponsePublique = dm.publicReply ? (choisirVariante(dm.publicReplyVariants, post.id) ? buildReply(choisirVariante(dm.publicReplyVariants, post.id)!, contexte) : null) : null;
+      // Porte fermée : la réponse publique ne dit pas « tout y est » (le lien n'est pas
+      // encore parti) — elle renvoie vers le message privé, comme l'exécution.
+      const modelePublic = dm.requireFollow ? REPONSE_PUBLIQUE_PORTE : choisirVariante(dm.publicReplyVariants, post.id);
+      reponsePublique = dm.publicReply && modelePublic ? buildReply(modelePublic, contexte) : null;
+      reponseVariantes = dm.requireFollow ? 1 : Math.max(1, dm.publicReplyVariants.filter((v) => v.trim()).length);
       if (dm.requireFollow) avertissements.push('Porte d’abonnement active : le premier message demande de s’abonner et de répondre ; le lien part au second message.');
     }
     if (getFbMirror().enabled || (post.broadcastGroup && getCadence().broadcast)) {
@@ -141,6 +151,7 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
     platform,
     motcle,
     lien,
+    lienDansLePost: platform === 'linkedin' && /\/r\/[a-z2-9]{6,}/i.test(post.caption),
     ressource: {
       kind: post.resourceKind ?? 'article',
       titre: post.resourceTitle,
@@ -152,6 +163,7 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
     document,
     amorce,
     reponseLinkedIn,
+    reponseVariantes,
     reponseManuelle,
     dmInstagram,
     reponsePublique,

@@ -21,6 +21,18 @@ export function avertissementsDuTunnel(): ConnectionWarning[] {
       message: 'Aucun lien de rendez-vous : sur LinkedIn, la réponse au mot-clé et le bouton des guides renvoient vers la page d’accueil — renseigne-le dans Réglages → Commentaire → DM.',
     });
   }
+  // Un mot du langage courant déclenche le tunnel sur « merci pour l'info » : DM
+  // d'abonnement et réponse publique partent à qui n'a rien demandé.
+  const courants = ['INFO', 'OK', 'OUI', 'MERCI', 'TOP', 'SUPER', 'BRAVO', 'GO', 'MOI'];
+  const trop = [...dm.keywords, ...dm.diagnosticKeywords].map((k) => k.toUpperCase()).filter((k) => courants.includes(k));
+  if (trop.length > 0) {
+    out.push({
+      provider: 'meta',
+      subject: 'tunnel',
+      level: 'warn',
+      message: `Mot-clé trop courant : « ${[...new Set(trop)].join(' », « ')} » se dit dans n’importe quel commentaire (« merci pour l’info ») et déclencherait le message privé à tort — choisis un mot rare (Réglages → Commentaire → DM).`,
+    });
+  }
   for (const page of comptesLinkedIn('li_org')) {
     if (/^Organisation \d+$/.test(page.name) || page.name === 'Page entreprise') {
       out.push({

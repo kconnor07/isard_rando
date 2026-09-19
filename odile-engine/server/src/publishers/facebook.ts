@@ -3,6 +3,7 @@ import { logger } from '../lib/logger.js';
 import { GRAPH } from './instagram.js';
 import { getStoredToken } from './tokens.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
+import { PROMESSE_DM } from '../writer/conformite.js';
 import type { PublishInput } from './types.js';
 
 /** Publier sur une Page exige cette permission, distincte de celles d'Instagram. */
@@ -39,7 +40,7 @@ export function captionFacebook(args: {
   // tout cela ne se tient sur une Page (Meta n'y relaie aucun commentaire).
   const cle = motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const motif = new RegExp(`commente[sz]?\\s*[«"'“]?\\s*${cle}`, 'i');
-  const promesse = /message priv|en DM\b|en MP\b|abonne-toi|messagerie/i;
+  const promesse = new RegExp(`${PROMESSE_DM.source}|abonne-toi`, 'i');
   const nettoye = caption
     .split('\n')
     .filter((ligne) => !motif.test(ligne) && !promesse.test(ligne))

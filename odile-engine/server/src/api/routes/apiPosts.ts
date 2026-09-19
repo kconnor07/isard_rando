@@ -19,7 +19,7 @@ import { getStoredToken } from '../../publishers/tokens.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
 import { apercuTunnel } from '../../approvals/tunnel.js';
-import { echecDAdaptation, verifierPost } from '../../writer/conformite.js';
+import { echecDAdaptation, postsAVerifier, verifierPost } from '../../writer/conformite.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 
 /**
@@ -219,6 +219,24 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const apercu = apercuTunnel(Number(request.params.id));
     if (!apercu) return reply.status(404).send({ error: 'Post introuvable' });
     return apercu;
+  });
+
+  /**
+   * Ce que « Réaligner » toucherait : tous les posts modifiables, programmés compris.
+   * L'écran « À valider » ne liste pas les programmés : sans ce compte, le bouton
+   * manquait quand seuls des posts déjà programmés étaient à corriger.
+   */
+  app.get('/api/posts/realigner/etat', async () => {
+    const concernes = postsAVerifier()
+      .map((p) => ({ id: p.id, status: p.status, problemes: verifierPost(p) }))
+      .filter((p) => p.problemes.some((q) => q.corrigeable || q.reecriture));
+    return {
+      total: concernes.length,
+      programmes: concernes.filter((p) => p.status === 'scheduled').length,
+      // Ceux que le modèle réécrira (et déprogrammera s'ils sont programmés)
+      reecritures: concernes.filter((p) => p.problemes.some((q) => q.reecriture && q.niveau === 'bloquant')).length,
+      ids: concernes.map((p) => p.id),
+    };
   });
 
   /** Réaligne tous les posts modifiables avec la stratégie en vigueur (le modèle réécrit ce qui l'exige si `modele` est vrai). */

@@ -5,7 +5,7 @@ import { api, humanizeError } from '../api/client';
 import { useDialog } from '../components/Dialog';
 import { toast } from '../components/Toaster';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
-import { Empty, EtatErreur, PageTitle, fmtDate } from '../components/shared';
+import { Empty, EtatErreur, MotifErreur, PageTitle, fmtDate } from '../components/shared';
 
 interface ArticleDto {
   id: number;
@@ -262,10 +262,10 @@ export default function Blog() {
                 </button>
                 {a.metaDescription && <p className="mt-1 text-sm text-muted">{a.metaDescription}</p>}
                 {a.error && (
-                  <p className="mt-1 text-xs text-accent">
-                    {a.status === 'failed' ? 'La rédaction n’a pas abouti — clique « Réécrire ». ' : ''}
-                    <span className="text-muted">{a.error}</span>
-                  </p>
+                  <div className="mt-1 text-xs text-accent">
+                    {a.status === 'failed' ? <p>La rédaction n’a pas abouti — clique « Réécrire ».</p> : null}
+                    <MotifErreur error={a.error} className="text-muted" />
+                  </div>
                 )}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">

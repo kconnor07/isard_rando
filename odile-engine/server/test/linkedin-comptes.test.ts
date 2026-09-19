@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+// Avant tout import : la configuration lit l'environnement au chargement.
+process.env.DATA_DIR = `${process.cwd()}/var-test-comptes-${process.pid}`;
+process.env.LLM_MODE = 'mock';
+process.env.APP_SECRET ??= 'x'.repeat(48);
+
 describe('texte LinkedIn : identifications et échappement', async () => {
   const { commentary } = await import('../src/publishers/linkedin.js');
 
@@ -99,9 +104,6 @@ describe('le lien dans la caption', async () => {
 });
 
 describe('comptes LinkedIn multiples', async () => {
-  process.env.DATA_DIR = `${process.cwd()}/var-test-comptes-${process.pid}`;
-  process.env.LLM_MODE = 'mock';
-  process.env.APP_SECRET ??= 'x'.repeat(48);
   const tokens = await import('../src/publishers/tokens.js');
   const { storeToken, listStoredTokens, getStoredToken, deleteToken } = tokens;
   const { comptesLinkedIn, compteDuPost, prochainComptePersonnel, mentionsConnues, actorUrn } = await import(

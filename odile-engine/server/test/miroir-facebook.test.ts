@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+process.env.DATA_DIR = `${process.cwd()}/var-test-miroir-${process.pid}`;
+process.env.LLM_MODE = 'mock';
+process.env.APP_SECRET ??= 'x'.repeat(48);
+
 const image = (i: number) => ({ idx: i, assetId: `a${i}`, path: `/tmp/a${i}.png`, publicUrl: `https://exemple.test/public-assets/a${i}.jpg` });
 const input = (n: number) => ({ post: {} as never, images: Array.from({ length: n }, (_, i) => image(i)), caption: 'Légende du post\n\n#ia #pme' });
 

@@ -154,7 +154,11 @@ export async function completeJson<T>(
         ? basePrompt
         : precedent
           ? `${req.prompt}\n\nTa réponse précédente (ci-dessous) est presque bonne mais invalide : ${cause}.\nNe la réécris pas. Renvoie UNIQUEMENT un objet JSON {"corrections":[{"path":"…","value":…}]} : un élément par champ à corriger, « path » étant le chemin indiqué (ex. "sections.2.paragraphs.1", "metaTitle"), « value » la nouvelle valeur complète de ce champ, conforme aux contraintes. Aucun autre texte.\n\nRÉPONSE PRÉCÉDENTE :\n${precedent.texte.slice(0, 60_000)}`
-          : `${basePrompt}\n\nTa réponse précédente était inutilisable (${cause}). ${/tronqu/.test(cause) ? 'Fais plus court : ' : ''}Renvoie uniquement le JSON complet.`;
+          : `${basePrompt}\n\nTa réponse précédente était inutilisable (${cause}). ${
+              /tronqu/.test(cause)
+                ? 'Elle a été coupée avant la fin : tu as plus de place cette fois. Respecte les longueurs demandées, sans texte hors JSON ni répétition, et ferme bien toutes les accolades. '
+                : ''
+            }Renvoie uniquement le JSON complet.`;
     const res = await completeText({ ...req, prompt: cible, attempt: attempt + 1, ...(maxTokens ? { maxTokens } : {}) });
     lastModel = res.model;
     extrait = res.text.slice(0, 600);

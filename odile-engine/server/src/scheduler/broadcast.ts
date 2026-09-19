@@ -20,6 +20,7 @@ import { completeJson } from '../llm/router.js';
 import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import { getStoredToken } from '../publishers/tokens.js';
 import { createLink } from '../shortener/index.js';
+import { PROMESSE_DM } from '../writer/conformite.js';
 import { avecLien, bornerHashtags, captionPorteLeMotCle, optionsDuLien, sansLien } from '../writer/generate.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 
@@ -85,11 +86,15 @@ export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>)
  * parte avec un mot-clé qu'elle ne demande pas ou une promesse impossible.
  */
 function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | null) {
-  return z.object({ caption: z.string().min(1).max(2900), cta: z.string().max(280) }).superRefine((v, ctx) => {
+  // Instagram coupe à 2 200 caractères, hashtags compris : on garde de la marge.
+  const max = vers === 'instagram' ? 2000 : 2900;
+  return z.object({ caption: z.string().min(1).max(max), cta: z.string().max(280) }).superRefine((v, ctx) => {
     if (motcle && !captionPorteLeMotCle(v.caption, motcle)) {
       ctx.addIssue({ code: 'custom', path: ['caption'], message: `la légende doit contenir « Commente ${motcle} » (ce mot exactement)` });
     }
-    if (vers === 'linkedin' && /message priv|en DM\b|en MP\b|messagerie/i.test(v.caption)) {
+    // Même motif que le contrôle de conformité : sinon le modèle rend un texte que la
+    // validation refuse ensuite, et chaque « Réaligner » recommence sans converger.
+    if (vers === 'linkedin' && (PROMESSE_DM.test(v.caption) || PROMESSE_DM.test(v.cta))) {
       ctx.addIssue({ code: 'custom', path: ['caption'], message: 'sur LinkedIn rien ne part en message privé : le lien est dans le post, le mot-clé ouvre le diagnostic' });
     }
     if (vers === 'instagram' && /https?:\/\/|\{\{link\}\}|www\./i.test(v.caption)) {

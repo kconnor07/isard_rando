@@ -142,6 +142,39 @@ export function Skeleton({ className = '' }: { className?: string }) {
   return <div className={`skeleton ${className}`} aria-hidden="true" />;
 }
 
+/**
+ * Le motif d'un échec, en français simple. Le moteur garde le message technique
+ * (utile au diagnostic) ; l'écran dit ce qui s'est passé et quoi faire.
+ */
+export function humaniserErreur(error: string): { titre: string; detail: string } {
+  const m = /^Réponse LLM invalide après (\d+) tentatives? \(modèle ([^,)]+), tâche ([^)]+)\)(?: — (.*))?$/s.exec(error.trim());
+  if (m) {
+    return {
+      titre: `Le modèle (${m[2]}) n’a pas rendu un texte exploitable après ${m[1]} essais — relance ; si ça se répète, change de modèle dans Réglages.`,
+      detail: m[4] ? `Cause technique : ${m[4]}` : '',
+    };
+  }
+  if (/^plafond IA du jour/i.test(error)) return { titre: 'Le plafond de dépense IA du jour est atteint : le texte d’origine a été gardé. Réessaie demain ou relève le plafond dans Réglages.', detail: '' };
+  if (/^texte non adapté/i.test(error)) return { titre: 'Le texte n’a pas pu être adapté à ce compte : « Réaligner » le fait réécrire, ou corrige-le à la main.', detail: error };
+  return { titre: error, detail: '' };
+}
+
+/** Un motif d'échec affiché au fondateur : phrase claire d'abord, cause technique repliée. */
+export function MotifErreur({ error, className = '' }: { error: string; className?: string }) {
+  const { titre, detail } = humaniserErreur(error);
+  return (
+    <p className={className}>
+      {titre}
+      {detail ? (
+        <details className="mt-0.5 text-muted">
+          <summary className="cursor-pointer">détail technique</summary>
+          <span className="break-words">{detail}</span>
+        </details>
+      ) : null}
+    </p>
+  );
+}
+
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   return new Intl.DateTimeFormat('fr-FR', {

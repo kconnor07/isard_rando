@@ -96,12 +96,20 @@ export function choisirVariante(variantes: string[], graine: number): string | n
  * se passe en privé — et son texte dépend du sort du message privé : renvoi vers
  * les DM s'il est parti, invitation à écrire sinon.
  */
-export async function repondreEnPublic(commentId: number, dmParti: boolean, lien: string): Promise<void> {
+/**
+ * Ce que la réponse publique dit quand la porte d'abonnement est fermée : le lien
+ * n'est pas encore parti, « tout y est » serait faux. On renvoie vers le message privé.
+ */
+export const REPONSE_PUBLIQUE_PORTE = 'Je t’ai écrit en message privé 🙂 réponds-moi là-bas et je t’envoie tout.';
+
+export async function repondreEnPublic(commentId: number, dmParti: boolean, lien: string, opts: { porteFermee?: boolean } = {}): Promise<void> {
   const comment = db.select().from(schema.comments).where(eq(schema.comments.id, commentId)).get();
   if (!comment || comment.publicReplyStatus === 'sent' || !comment.externalId) return;
   const settings = getDmTriggers();
   if (!settings.publicReply) return;
-  const modele = choisirVariante(dmParti ? settings.publicReplyVariants : settings.publicReplyFallbackVariants, commentId);
+  const modele = opts.porteFermee
+    ? REPONSE_PUBLIQUE_PORTE
+    : choisirVariante(dmParti ? settings.publicReplyVariants : settings.publicReplyFallbackVariants, commentId);
   if (!modele) return;
   const texte = buildReply(modele, contexteDuCommentaire(comment.postId, comment.matchedKeyword));
 
@@ -356,7 +364,7 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
       .run();
     db.update(schema.comments).set({ dmStatus: 'sent' }).where(eq(schema.comments.id, commentId)).run();
     logger.info({ commentId, matched }, 'DM simulé (mode dry)');
-    await repondreEnPublic(commentId, true, lien);
+    await repondreEnPublic(commentId, true, lien, { porteFermee });
     return;
   }
 
@@ -388,7 +396,7 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
       .where(eq(schema.comments.id, commentId))
       .run();
     logger.info({ commentId, matched, porteFermee }, porteFermee ? 'invitation à répondre envoyée (porte d’abonnement)' : 'private reply envoyée');
-    await repondreEnPublic(commentId, true, lien);
+    await repondreEnPublic(commentId, true, lien, { porteFermee });
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     db.insert(schema.dmEvents)

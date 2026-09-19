@@ -3,9 +3,9 @@ import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import type { TokenPayload } from '../lib/signedToken.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
-import { freresDuGroupe } from '../scheduler/broadcast.js';
+import { freresDuGroupe, surfaceDuPost } from '../scheduler/broadcast.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
-import { echecDAdaptation, motifDeRefus, verifierPost } from '../writer/conformite.js';
+import { bloquants, echecDAdaptation, motifDeRefus, verifierPost } from '../writer/conformite.js';
 
 export interface ActionContext {
   ip?: string;
@@ -76,10 +76,10 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     }
     markActed(approval.id, 'approve', ctx.ip);
     logger.info({ postId: post.id, scheduledAt }, 'post approuvé');
-    cascaderApprobation(post, scheduledAt, now, Boolean(ctx.publishNow));
+    const retenues = cascaderApprobation(post, scheduledAt, now, Boolean(ctx.publishNow));
     return {
       ok: true,
-      message: ctx.publishNow ? 'Approuvé — publication dans une minute.' : chosen ? 'Approuvé et programmé à la date choisie.' : 'Approuvé et programmé au prochain créneau.',
+      message: `${ctx.publishNow ? 'Approuvé — publication dans une minute.' : chosen ? 'Approuvé et programmé à la date choisie.' : 'Approuvé et programmé au prochain créneau.'}${mentionDesRetenues(retenues)}`,
       postId: post.id,
       scheduledAt: scheduledAt.toISOString(),
     };
@@ -124,9 +124,11 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
  * « Publier maintenant » reste immédiat pour tout le groupe. Une copie déjà publiée
  * ou déjà programmée à la main n'est pas touchée.
  */
-function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeSuite = false): void {
+function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeSuite = false): string[] {
   // Dernier créneau retenu sur chaque plateforme : le suivant se calcule après lui.
   const dernier = new Map<string, Date>([[post.platform, scheduledAt]]);
+  // Les copies qui ne suivent pas, avec la raison : le fondateur l'apprend tout de suite.
+  const retenues: string[] = [];
   for (const frere of freresDuGroupe(post)) {
     if (!['draft', 'reviewing', 'awaiting_approval', 'rejected', 'failed'].includes(frere.status)) continue;
     // Une copie non conforme ne suit pas la validation en silence : elle reste à
@@ -137,6 +139,7 @@ function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeS
       const error = echecDAdaptation(frere.error) ? frere.error : refusCopie;
       db.update(schema.posts).set({ status: 'awaiting_approval', error, updatedAt: now }).where(eq(schema.posts.id, frere.id)).run();
       logger.warn({ postId: frere.id, avec: post.id, refus: refusCopie }, 'copie non programmée avec l’original');
+      retenues.push(`${surfaceDuPost(frere).label} (#${frere.id}) : ${bloquants(verifierPost(frere)).map((p) => p.message).join(' ')}`);
       continue;
     }
     let quand = scheduledAt;
@@ -151,6 +154,13 @@ function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeS
       .run();
     logger.info({ postId: frere.id, avec: post.id, scheduledAt: quand }, 'copie approuvée avec l’original');
   }
+  return retenues;
+}
+
+/** Une phrase à ajouter au message de succès quand des copies restent à valider. */
+function mentionDesRetenues(retenues: string[]): string {
+  if (retenues.length === 0) return '';
+  return ` ${retenues.length === 1 ? 'Une copie reste à valider' : `${retenues.length} copies restent à valider`} : ${retenues.join(' · ')}`;
 }
 
 /** Rejeter l'original rejette ses copies encore en attente. */
@@ -227,8 +237,8 @@ export function schedulePost(postId: number, at: string): ActionOutcome {
     db.update(schema.newsItems).set({ status: 'used' }).where(eq(schema.newsItems.id, post.newsItemId)).run();
   }
   logger.info({ postId, scheduledAt: when }, post.status === 'scheduled' ? 'post reprogrammé' : 'post programmé');
-  cascaderApprobation(post, when, now);
-  return { ok: true, message: post.status === 'scheduled' ? 'Créneau modifié.' : 'Post programmé.', postId, scheduledAt: when.toISOString() };
+  const retenues = cascaderApprobation(post, when, now);
+  return { ok: true, message: `${post.status === 'scheduled' ? 'Créneau modifié.' : 'Post programmé.'}${mentionDesRetenues(retenues)}`, postId, scheduledAt: when.toISOString() };
 }
 
 /** Annule la programmation d'un post : il revient dans la file de validation. */

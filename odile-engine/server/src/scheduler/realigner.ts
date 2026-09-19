@@ -17,7 +17,7 @@ import { logger } from '../lib/logger.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
 import { renderPost } from '../render/renderer.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
-import { bloquants, postsAVerifier, verifierPost, type Probleme } from '../writer/conformite.js';
+import { bloquants, echecDAdaptation, postsAVerifier, verifierPost, type Probleme } from '../writer/conformite.js';
 import { bornerHashtags, relierLeLien, sansLien } from '../writer/generate.js';
 import { adapterLegende, motcleDeSurface } from './broadcast.js';
 
@@ -96,8 +96,25 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
       }
     }
   }
+  // Sur LinkedIn, le mot commenté ouvre le diagnostic : un mot hors liste (GUIDE,
+  // OUTIL…) est remplacé tel quel dans le texte, sans réécriture — et la slide qui
+  // l'imprime sera refaite avant de partir.
+  let motcle = post.commentTriggerKeyword;
+  if (post.platform === 'linkedin' && motcle) {
+    const dm = getDmTriggers();
+    const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
+    if (dm.linkedinOffer === 'diagnostic' && liste.length > 0 && !liste.includes(motcle.toUpperCase())) {
+      const nouveau = liste[post.id % liste.length]!;
+      const ancien = new RegExp(`\\b${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
+      caption = caption.replace(ancien, nouveau);
+      cta = cta.replace(ancien, nouveau);
+      update.commentTriggerKeyword = nouveau;
+      db.update(schema.slides).set({ renderAssetId: null }).where(and(eq(schema.slides.postId, post.id), eq(schema.slides.kind, 'cta'))).run();
+      corrections.push(`mot-clé ${motcle} remplacé par ${nouveau} (mot de diagnostic)`);
+      motcle = nouveau;
+    }
+  }
   // Le mot-clé promis doit être demandé quelque part : sinon la ligne vient du CTA validé.
-  const motcle = post.commentTriggerKeyword;
   if (motcle && !new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(caption)) {
     const dm = getDmTriggers();
     const ligne = new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(cta)
@@ -138,9 +155,13 @@ export async function reecrireAvecLeModele(post: Post): Promise<{ reecrit: boole
     vers,
   );
   const texte = await adapterLegende(post, de, vers, compte, motcle);
-  if (texte.echec) return { reecrit: false, corrections: [] };
+  if (texte.echec) return { reecrit: false, corrections: [`réécriture impossible : ${texte.echec}`] };
   const lien = post.linkId ? db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get() : null;
   const url = lien ? `${config.PUBLIC_URL.replace(/\/+$/, '')}/r/${lien.code}` : '';
+  // Le modèle a rendu le même texte : rien à remplacer, et surtout rien à déprogrammer.
+  // (Une copie « non adaptée » compte quand même comme adaptée : l'adaptation a eu lieu.)
+  const identique = texte.caption.replaceAll('{{link}}', url) === post.caption && texte.cta.replaceAll('{{link}}', url) === post.cta && texte.motcle === post.commentTriggerKeyword;
+  if (identique && !echecDAdaptation(post.error)) return { reecrit: false, corrections: ['le modèle n’a rien changé au texte'] };
   const now = new Date().toISOString();
   const etaitProgramme = post.status === 'scheduled';
   db.update(schema.posts)
@@ -182,7 +203,8 @@ export async function realignerPost(postId: number, opts: { modele?: boolean } =
   let reecrit = false;
   let courant = sur.post;
   const encore = verifierPost(courant);
-  if (opts.modele && encore.some((p) => p.reecriture)) {
+  // Seul un défaut bloquant justifie de faire réécrire (et déprogrammer) un post.
+  if (opts.modele && encore.some((p) => p.reecriture && p.niveau === 'bloquant')) {
     const r = await reecrireAvecLeModele(courant);
     reecrit = r.reecrit;
     corrections = [...corrections, ...r.corrections];

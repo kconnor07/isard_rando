@@ -94,7 +94,7 @@ describe('completeJson : reprises économes', async () => {
       await expect(completeJson({ task: 'generic', label: 'test:tronque', prompt: 'x', maxTokens: 50 }, schema)).rejects.toThrow(
         /après 2 tentatives .*test:tronque.*JSON non parsable/,
       );
-      expect(b.prompts[1]).toContain('Fais plus court');
+      expect(b.prompts[1]).toContain('plus de place');
       expect(b.prompts[1]).toContain('tronquée');
     } finally {
       b.restaurer();

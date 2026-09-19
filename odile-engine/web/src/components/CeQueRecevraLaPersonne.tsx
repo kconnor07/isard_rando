@@ -6,10 +6,12 @@ export interface ApercuTunnelDto {
   platform: 'linkedin' | 'instagram';
   motcle: string | null;
   lien: { shortUrl: string; cible: string; clics: number } | null;
+  lienDansLePost: boolean;
   ressource: { kind: string; titre: string | null; url: string | null; erreur: string | null; viaLien: boolean; libelle: string };
   document: { pages: number; url: string } | null;
   amorce: string | null;
   reponseLinkedIn: string | null;
+  reponseVariantes: number;
   reponseManuelle: boolean;
   dmInstagram: { etape1: string; etape2: string | null } | null;
   reponsePublique: string | null;
@@ -51,7 +53,7 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
       <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted">Ce que recevra la personne</div>
       <div className="flex flex-col gap-1.5">
         {t.lien && (
-          <Ligne label="Lien du post">
+          <Ligne label={t.lienDansLePost ? 'Lien dans le post' : t.platform === 'instagram' ? 'Lien (en privé seulement)' : 'Lien (absent du texte)'}>
             {ouvrir(t.lien.shortUrl, t.lien.shortUrl.replace(/^https?:\/\//, ''))} <span className="text-muted">→</span> {ouvrir(t.lien.cible, t.lien.cible.replace(/^https?:\/\//, '').slice(0, 70))}
             {t.lien.clics > 0 ? <span className="text-muted"> · {t.lien.clics} clic{t.lien.clics > 1 ? 's' : ''}</span> : null}
           </Ligne>
@@ -71,6 +73,7 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
             {t.reponseLinkedIn ? (
               <>
                 réponse sous le commentaire{t.reponseManuelle ? <span className="text-accent"> (à coller soi-même)</span> : null} : <Citation texte={t.reponseLinkedIn} />
+                {t.reponseVariantes > 1 ? <span className="text-muted"> (l’une des {t.reponseVariantes} formulations réglées, tirée au sort à chaque commentaire)</span> : null}
               </>
             ) : (
               <span className="text-muted">aucune réponse automatique (réglage)</span>
@@ -90,6 +93,7 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
               <>
                 {' '}
                 <span className="text-muted">· en public :</span> <Citation texte={t.reponsePublique} />
+                {t.reponseVariantes > 1 ? <span className="text-muted"> (l’une des {t.reponseVariantes} formulations réglées)</span> : null}
               </>
             ) : null}
           </Ligne>

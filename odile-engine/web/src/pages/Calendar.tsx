@@ -232,6 +232,11 @@ export default function Calendar() {
               </span>
             )}
             <Icone size={11} className="text-muted" />
+            {(post.problemes ?? []).some((q) => q.niveau === 'bloquant') && (
+              <span className="shrink-0 text-[10px]" title={`Ne partira pas en l’état : ${(post.problemes ?? []).filter((q) => q.niveau === 'bloquant').map((q) => q.message).join(' ')} — ouvre le post et clique « Réaligner ».`}>
+                ⛔
+              </span>
+            )}
             {!compact && <StatusBadge status={post.status} simulated={post.simulated} />}
             {post.broadcast && (
               <span className="mono text-[9px] text-muted" title={`Même sujet sur : ${post.broadcast.others.join(', ')}`}>
