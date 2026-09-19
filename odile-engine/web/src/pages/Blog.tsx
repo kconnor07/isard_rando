@@ -261,7 +261,12 @@ export default function Blog() {
                   {a.title || a.brief || `Article #${a.id}`}
                 </button>
                 {a.metaDescription && <p className="mt-1 text-sm text-muted">{a.metaDescription}</p>}
-                {a.error && <p className="mt-1 text-xs text-accent">{a.error}</p>}
+                {a.error && (
+                  <p className="mt-1 text-xs text-accent">
+                    {a.status === 'failed' ? 'La rédaction n’a pas abouti — clique « Réécrire ». ' : ''}
+                    <span className="text-muted">{a.error}</span>
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 {['awaiting_approval', 'rejected', 'failed', 'scheduled'].includes(a.status) && a.title && (
@@ -275,7 +280,7 @@ export default function Blog() {
                   </>
                 )}
                 {!['published', 'publishing', 'drafting'].includes(a.status) && (
-                  <button className="btn-ghost !py-1.5 text-xs" disabled={regenerer.isPending} onClick={() => regenerer.mutate(a.id)} title="Même sujet, texte neuf">
+                  <button className={`${a.status === 'failed' ? 'btn-primary' : 'btn-ghost'} !py-1.5 text-xs`} disabled={regenerer.isPending} onClick={() => regenerer.mutate(a.id)} title="Même sujet, texte neuf">
                     <RefreshCw size={12} /> Réécrire
                   </button>
                 )}

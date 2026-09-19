@@ -130,7 +130,11 @@ export default function Approvals() {
         }
       />
       {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="La file de validation" />}
-      {posts && posts.length === 0 && <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>}
+      {posts && posts.length === 0 && (
+        <Empty action={<Link to="/news" className="btn-primary">Choisir un sujet</Link>}>
+          Aucun post en attente — la machine prépare la suite au prochain cycle.
+        </Empty>
+      )}
       <div className="flex flex-col gap-4">
         {posts
           // Diffusion simultanée : une seule carte par sujet — la décision vaut pour
@@ -150,11 +154,12 @@ export default function Approvals() {
               <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <StatusBadge status={post.status} simulated={post.simulated} />
                 <span className="text-xs font-semibold text-muted">
-                  {post.surface ?? CHANNEL_LABELS[post.channel] ?? post.channel} · {FORMAT_LABELS[post.format] ?? post.format} · thème {post.theme}
+                  {post.surface ?? CHANNEL_LABELS[post.channel] ?? post.channel} · {FORMAT_LABELS[post.format] ?? post.format}
                 </span>
-                {post.reviewSummary && (
-                  <span className={`text-xs font-semibold ${post.reviewSummary.passed ? 'text-txt' : 'text-muted'}`}>
-                    studio : {post.reviewSummary.iterations} itér. · {Object.values(post.reviewSummary.finalScores).join(' / ')}
+                {/* Le studio n'a pas besoin de montrer ses quatre notes : passé, ou à regarder. */}
+                {post.reviewSummary && !post.reviewSummary.passed && (
+                  <span className="text-xs font-semibold text-muted" title={`Notes du studio : ${Object.values(post.reviewSummary.finalScores).join(' / ')}`}>
+                    studio : à regarder
                   </span>
                 )}
                 <span className="ml-auto text-xs text-muted">{fmtDate(post.createdAt)}</span>
@@ -218,19 +223,27 @@ export default function Approvals() {
                   {post.pipelineStep ?? (post.status === 'draft' ? 'Rédaction du post…' : 'Studio de design en cours…')} — les actions s’ouvrent à la fin.
                 </p>
               ) : (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   <button className="btn-success" disabled={busy} onClick={() => approve.mutate({ id: post.id, publishNow: false })} title="Programme la publication au prochain créneau configuré">
-                    <Check size={14} /> Approuver (prochain créneau)
-                  </button>
-                  <button className="btn-ghost" disabled={busy} onClick={() => void publishNow(post)}>
-                    <Zap size={14} /> Publier maintenant
-                  </button>
-                  <button className="btn-ghost" disabled={busy} onClick={() => void scheduleAt(post)} title="Choisir la date et l’heure">
-                    <CalendarClock size={14} /> Programmer à…
+                    <Check size={14} /> Approuver
                   </button>
                   <Link to={`/posts/${post.id}`} className="btn-ghost">
                     <Pencil size={13} /> Modifier
                   </Link>
+                  {/* Les deux autres moments de départ, repliés : le cas courant est « au prochain créneau ». */}
+                  <details className="relative">
+                    <summary className="btn-ghost cursor-pointer list-none">
+                      <CalendarClock size={14} /> Autre moment
+                    </summary>
+                    <div className="absolute left-0 z-20 mt-1 flex w-56 flex-col gap-0.5 rounded-2xl border border-line bg-panel p-2 shadow-2xl">
+                      <button className="rounded-xl px-3 py-2 text-left text-sm text-muted hover:text-txt" disabled={busy} onClick={() => void scheduleAt(post)}>
+                        Choisir la date et l’heure…
+                      </button>
+                      <button className="rounded-xl px-3 py-2 text-left text-sm text-muted hover:text-txt" disabled={busy} onClick={() => void publishNow(post)}>
+                        <Zap size={13} className="mr-1 inline" /> Publier dans une minute
+                      </button>
+                    </div>
+                  </details>
                   {(post.problemes ?? []).some((q) => q.corrigeable || q.code === 'dm-promis') && (
                     <button className="btn-ghost" disabled={busy} onClick={() => realigner.mutate(post.id)} title="Corrige ce qui se corrige seul ; fait réécrire la fin du post s’il promet encore un message privé">
                       <Wand2 size={13} /> Réaligner

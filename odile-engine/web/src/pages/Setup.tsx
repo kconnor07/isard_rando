@@ -495,6 +495,14 @@ export default function Setup() {
 
       <div className="card mb-5 p-5">
         <h2 className="mb-3 text-base font-bold">Comptes sociaux</h2>
+        {liOrg && (/^Organisation \d+$/.test(String(liOrg.meta?.name ?? '')) || !liOrg.meta?.name) && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-accent/50 bg-accent-soft/30 px-4 py-3 text-sm">
+            <span>Ta page entreprise n’a pas de nom : elle s’affiche par son numéro et ne peut pas être identifiée (@) dans les posts.</span>
+            <button className="btn-primary !py-1.5 text-xs" onClick={() => void renommerPage(liOrg.externalId, String(liOrg.meta?.name ?? `Organisation ${liOrg.externalId}`))}>
+              Nommer la page
+            </button>
+          </div>
+        )}
         <div className="flex flex-col gap-4">
           {/* ---- LinkedIn profil ---- */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">

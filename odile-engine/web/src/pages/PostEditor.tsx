@@ -447,7 +447,7 @@ export default function PostEditor() {
     await run('regen-caption', async () => {
       await api.post(`/api/posts/${post.id}/regenerate`, { scope: 'caption', instructions: instructions || undefined });
       setCaptionDraft(null);
-    }, { done: 'Caption régénérée' })();
+    }, { done: 'Description régénérée' })();
   };
 
   return (
@@ -661,7 +661,7 @@ export default function PostEditor() {
           {modifiable && <VisualAgentPanel post={post} locked={!!busy} onChanged={refresh} />}
 
           <h2 className="mb-3 mt-8 text-lg font-bold">
-            Caption
+            Description
             {captionDraft !== null && captionDraft !== post.caption && (
               <span className="mono ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-[10px] uppercase tracking-wider text-ice">modifiée</span>
             )}
@@ -695,7 +695,7 @@ export default function PostEditor() {
           </div>
           {post.commentTriggerKeyword && (
             <p className="mt-2 text-sm text-muted">
-              Déclencheur DM : commenter « <b className="text-accent">{post.commentTriggerKeyword}</b> »
+              Mot à commenter : commenter « <b className="text-accent">{post.commentTriggerKeyword}</b> »
             </p>
           )}
         </div>

@@ -48,6 +48,9 @@ const NAV_GROUPS: {
   },
 ];
 
+/** Les pages qu'on ouvre tous les jours : les seules en pilules sur téléphone. */
+const MOBILE_PRINCIPALES = ['/', '/approvals', '/calendar', '/comments'];
+
 function CountBadge({ value, tone }: { value: number; tone: 'solid' | 'outline' }) {
   if (value <= 0) return null;
   return (
@@ -146,23 +149,44 @@ export default function Layout() {
             <LogOut size={13} />
           </button>
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
-          {NAV_GROUPS.flatMap((g) => g.items).map(({ to, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  isActive
-                    ? 'border-accent/45 bg-accent-soft text-ice'
-                    : 'border-line text-muted hover:text-txt'
-                }`
-              }
-            >
-              {label}
-            </NavLink>
-          ))}
+        {/* Sur téléphone : les quatre pages du quotidien en pilules (avec le compteur de posts
+            à valider), le reste replié derrière « Plus » — onze pilules défilantes cachaient
+            Réglages et Connexions hors écran. */}
+        <nav className="flex flex-wrap gap-1 px-3 pb-2">
+          {NAV_GROUPS.flatMap((g) => g.items)
+            .filter(({ to }) => MOBILE_PRINCIPALES.includes(to))
+            .map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={to === '/'}
+                className={({ isActive }) =>
+                  `inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'border-accent/45 bg-accent-soft text-ice'
+                      : 'border-line text-muted hover:text-txt'
+                  }`
+                }
+              >
+                {label}
+                {to === '/approvals' && <CountBadge value={summary?.awaitingApproval ?? 0} tone="solid" />}
+                {to === '/comments' && <CountBadge value={summary?.pendingComments ?? 0} tone="outline" />}
+              </NavLink>
+            ))}
+          <details className="relative">
+            <summary className="cursor-pointer list-none whitespace-nowrap rounded-full border border-line px-3 py-1.5 text-xs font-medium text-muted hover:text-txt">
+              Plus…
+            </summary>
+            <div className="absolute left-0 z-50 mt-1 flex w-56 flex-col gap-0.5 rounded-2xl border border-line bg-panel p-2 shadow-2xl">
+              {NAV_GROUPS.flatMap((g) => g.items)
+                .filter(({ to }) => !MOBILE_PRINCIPALES.includes(to))
+                .map(({ to, label, icon: Icon }) => (
+                  <NavLink key={to} to={to} className={({ isActive }) => `flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${isActive ? 'bg-accent-soft text-ice' : 'text-muted hover:text-txt'}`}>
+                    <Icon size={15} /> {label}
+                  </NavLink>
+                ))}
+            </div>
+          </details>
         </nav>
       </header>
 
