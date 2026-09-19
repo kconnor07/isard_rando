@@ -107,3 +107,135 @@ describe('règles de conformité affinées', async () => {
     await app.close();
   });
 });
+
+describe('mot-clé manquant, format natif, ligne du lien, guides et articles en ligne', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { eq } = await import('drizzle-orm');
+  const { db, schema } = await import('../src/db/client.js');
+  const { config } = await import('../src/config.js');
+  const { setSetting, getDmTriggers, getBlog } = await import('../src/db/settingsRepo.js');
+  const { verifierPost, formatPourPlateforme } = await import('../src/writer/conformite.js');
+  const { realignerSansModele, reparerAuDemarrage } = await import('../src/scheduler/realigner.js');
+  const { createLink } = await import('../src/shortener/index.js');
+  const { reciblerLiensDesGuides } = await import('../src/resources/guide.js');
+  const { fieldDataEtIgnores, publierDansFramer } = await import('../src/blog/framer.js');
+  const { republierArticle } = await import('../src/blog/pipeline.js');
+
+  setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'diagnostic', diagnosticKeywords: ['CAS', 'DIAGNOSTIC', 'AUDIT'], keywords: ['GUIDE'], rdvUrl: '' });
+
+  const creer = (values: Partial<typeof schema.posts.$inferInsert>) =>
+    db
+      .insert(schema.posts)
+      .values({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', theme: 'odile-nuit', status: 'awaiting_approval', hook: 'Accroche', caption: 'x', cta: 'x', hashtags: '[]', ...values })
+      .returning()
+      .get();
+
+  it('un post LinkedIn sans mot-clé reçoit le mot de diagnostic — sauf au démarrage s’il est programmé', () => {
+    const post = creer({ id: 60, caption: 'Vous perdez du temps sur vos devis.\n\nVoilà ce que je ferais.', cta: '', commentTriggerKeyword: null });
+    expect(verifierPost(post).find((p) => p.code === 'motcle-manquant')?.corrigeable).toBe(true);
+    const r = realignerSansModele(post);
+    expect(r.corrections.join(' | ')).toMatch(/mot-clé CAS attribué/);
+    expect(r.corrections.join(' | ')).toMatch(/appel à commenter « CAS » ajouté/);
+    expect(r.post.commentTriggerKeyword).toBe('CAS');
+    expect(r.post.caption).toMatch(/Commente CAS si vous voulez/);
+    expect(verifierPost(r.post).map((p) => p.code)).not.toContain('motcle-manquant');
+    // Programmé : le démarrage n'allonge pas un texte validé
+    const programme = creer({ status: 'scheduled', scheduledAt: new Date(Date.now() + 86400_000).toISOString(), caption: 'Texte validé, sans appel.', cta: '', commentTriggerKeyword: null });
+    reparerAuDemarrage();
+    const apres = db.select().from(schema.posts).where(eq(schema.posts.id, programme.id)).get()!;
+    expect(apres.commentTriggerKeyword).toBeNull();
+    expect(apres.caption).toBe('Texte validé, sans appel.');
+  });
+
+  it('le format suit la plateforme', () => {
+    expect(formatPourPlateforme('carousel', 'linkedin')).toBe('li_doc');
+    expect(formatPourPlateforme('li_doc', 'instagram')).toBe('carousel');
+    expect(formatPourPlateforme('reel', 'linkedin')).toBe('reel');
+    const post = creer({ format: 'carousel', caption: 'Commente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS' });
+    expect(verifierPost(post).find((p) => p.code === 'format-plateforme')?.corrigeable).toBe(true);
+    const r = realignerSansModele(post);
+    expect(r.corrections).toContain('format carousel converti en li_doc');
+    expect(r.post.format).toBe('li_doc');
+  });
+
+  it('une ligne de lien qui parle d’audit redevient une invitation à ouvrir', () => {
+    const post = creer({ caption: 'Vous perdez du temps.\n\nCommente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS', resourceKind: 'article' });
+    const lien = createLink('https://source.test/article', { postId: post.id, label: `post-${post.id}` });
+    const url = `https://odile.test/r/${lien.code}`;
+    db.update(schema.posts).set({ linkId: lien.id, caption: `Vous perdez du temps.\n\nPour un audit gratuit : ${url}\n\nCommente CAS si vous voulez un diagnostic.` }).where(eq(schema.posts.id, post.id)).run();
+    const courant = db.select().from(schema.posts).where(eq(schema.posts.id, post.id)).get()!;
+    expect(verifierPost(courant).find((p) => p.code === 'lien-mal-etiquete')?.message).toMatch(/mène à un article/);
+    const r = realignerSansModele(courant);
+    expect(r.corrections).toContain('ligne du lien réécrite (elle parlait d’audit ou de diagnostic)');
+    expect(r.post.caption).toContain(`C’est ici : ${url}`);
+    expect(r.post.caption).not.toContain('audit gratuit');
+    expect(verifierPost(r.post).map((p) => p.code)).not.toContain('lien-mal-etiquete');
+  });
+
+  it('renseigner le lien de rendez-vous recible les boutons des guides déjà fabriqués', () => {
+    const post = creer({ caption: 'Commente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS' });
+    const guide = createLink('https://odileai.com', { postId: post.id, label: `guide-${post.id}` });
+    const autre = createLink('https://source.test/article', { postId: post.id, label: `post-${post.id}` });
+    expect(reciblerLiensDesGuides('https://odile.test/rdv')).toBeGreaterThanOrEqual(1);
+    expect(db.select().from(schema.links).where(eq(schema.links.id, guide.id)).get()!.targetUrl).toBe('https://odile.test/rdv');
+    expect(db.select().from(schema.links).where(eq(schema.links.id, autre.id)).get()!.targetUrl).toBe('https://source.test/article');
+    expect(reciblerLiensDesGuides('https://odile.test/rdv')).toBe(0);
+    expect(reciblerLiensDesGuides('   ')).toBe(0);
+  });
+
+  it('les champs sans colonne Framer sont nommés, et un article en ligne se met à jour par son identifiant', async () => {
+    const contenu = { slug: 'test-article', title: 'Titre', bodyHtml: '<p>x</p>', excerpt: 'e', coverUrl: null, coverAlt: 'a', date: '2026-09-19', metaTitle: 'MT', metaDescription: 'MD', keywords: ['k'], jsonLd: '{}', author: 'A' };
+    const fields = [{ id: 'f1', name: 'Title', type: 'string' }, { id: 'f2', name: 'Content', type: 'formattedText' }];
+    const { data, ignores } = fieldDataEtIgnores(contenu, { title: 'f1', body: 'f2', excerpt: '', cover: '', date: '', metaTitle: '', metaDescription: '', keywords: '', jsonLd: '', author: '' }, fields);
+    expect(Object.keys(data)).toEqual(['f1', 'f2']);
+    expect(ignores).toEqual(['extrait', 'date', 'balise title', 'méta-description', 'mots-clés', 'JSON-LD', 'auteur']);
+
+    setSetting('blog', { ...getBlog(), collectionId: 'col-1' });
+    const dry = await publierDansFramer(contenu, getBlog(), { itemId: 'item-42' });
+    expect(dry.itemId).toBe('item-42');
+    const fichier = dry.url!.replace('file://', '');
+    expect(JSON.parse(fs.readFileSync(fichier, 'utf8')).itemId).toBe('item-42');
+    expect(fichier.startsWith(config.outboxDir)).toBe(true);
+
+    const article = {
+      slug: 'automatiser-devis-toulouse',
+      title: 'Automatiser ses devis à Toulouse : le guide des PME',
+      metaTitle: 'Automatiser ses devis à Toulouse : guide PME',
+      metaDescription: 'Comment une PME toulousaine automatise ses devis avec l’IA, sans changer d’outil ni recruter : méthode, coûts, délais.',
+      excerpt: 'Un guide concret pour les PME de Toulouse qui veulent envoyer leurs devis plus vite, sans erreur.',
+      coverTitle: 'Devis automatisés',
+      directAnswer: 'Une PME toulousaine peut automatiser ses devis en une semaine, avec ses outils actuels.',
+      primaryKeyword: 'automatiser devis Toulouse',
+      keyTakeaways: ['Un devis part en dix minutes au lieu d’une journée.', 'Aucun changement d’outil n’est nécessaire.', 'Le retour sur investissement se mesure dès le premier mois.'],
+      sections: [
+        { h2: 'Pourquoi automatiser ses devis', paragraphs: ['Parce que chaque heure passée à recopier des lignes est une heure sans client.'] },
+        { h2: 'La méthode en trois étapes', paragraphs: ['On part de vos devis existants, on repère les blocs répétés, on branche l’IA dessus.'] },
+        { h2: 'Ce que ça change à Toulouse', paragraphs: ['Les artisans et cabinets toulousains répondent le jour même : c’est ce qui fait la différence.'] },
+      ],
+      faq: [
+        { question: 'Combien de temps faut-il pour automatiser ses devis ?', answer: 'Une semaine suffit dans la plupart des PME, sans changer d’outil ni former une équipe.' },
+        { question: 'Est-ce que ça marche avec mon logiciel actuel ?', answer: 'Oui : l’automatisation se branche sur ce que vous utilisez déjà, tableur ou logiciel métier.' },
+        { question: 'Combien ça coûte pour une PME ?', answer: 'Beaucoup moins qu’une embauche : le coût se compare à quelques heures de travail par mois.' },
+      ],
+      sources: [{ title: 'Source', url: 'https://source.test' }],
+      keywords: ['devis', 'Toulouse', 'automatisation'],
+      localAngle: 'À Toulouse, les PME…',
+    };
+    const row = db
+      .insert(schema.articles)
+      .values({ slug: article.slug, title: article.title, excerpt: article.excerpt, metaTitle: article.metaTitle, metaDescription: article.metaDescription, content: JSON.stringify(article), status: 'published', framerItemId: 'item-42', publishedUrl: 'https://odileai.com/blog/automatiser-devis-toulouse', publishedAt: '2026-09-01T08:00:00.000Z', createdAt: '2026-09-01T07:00:00.000Z', updatedAt: '2026-09-01T07:00:00.000Z' } as never)
+      .returning()
+      .get();
+    const res = await republierArticle(row.id);
+    expect(res.url).toBe('https://odileai.com/blog/automatiser-devis-toulouse');
+    const apres = db.select().from(schema.articles).where(eq(schema.articles.id, row.id)).get()!;
+    expect(apres.status).toBe('published');
+    expect(apres.jsonLd).toContain('"dateModified"');
+    expect(JSON.parse(apres.jsonLd)['@graph'].find((n: { '@type': string }) => n['@type'] === 'BlogPosting').dateModified >= '2026-09-19').toBe(true);
+    // Un article sans identifiant Framer connu ne se met pas à jour à l'aveugle
+    const orphelin = db.insert(schema.articles).values({ ...row, id: undefined, slug: 'autre', framerItemId: null } as never).returning().get();
+    await expect(republierArticle(orphelin.id)).rejects.toThrow(/item Framer connu/);
+    void path;
+  });
+});

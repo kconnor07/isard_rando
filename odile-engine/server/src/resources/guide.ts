@@ -32,6 +32,20 @@ export interface RessourceLivree {
 }
 
 /** Adresse publique d'un guide livré (le lien part en message privé). */
+/**
+ * Le bouton « Prendre 20 minutes » d'un guide PDF passe par un lien court `guide-N`
+ * dont la cible est figée à la fabrication. Renseigner le lien de rendez-vous après
+ * coup doit atteindre les guides déjà envoyés : on change la cible, pas le PDF.
+ */
+export function reciblerLiensDesGuides(cible: string): number {
+  const propre = cible.trim();
+  if (!propre) return 0;
+  const liens = db.select({ id: schema.links.id, label: schema.links.label, targetUrl: schema.links.targetUrl }).from(schema.links).all().filter((l) => /^guide-\d+$/.test(l.label ?? '') && l.targetUrl !== propre);
+  for (const l of liens) db.update(schema.links).set({ targetUrl: propre }).where(eq(schema.links.id, l.id)).run();
+  if (liens.length > 0) logger.info({ liens: liens.length, cible: propre }, 'liens de rendez-vous des guides reciblés');
+  return liens.length;
+}
+
 export function urlDuGuide(assetId: string): string {
   return `${config.PUBLIC_URL.replace(/\/$/, '')}/guide/${assetId}`;
 }

@@ -71,23 +71,74 @@ export function devinerChamps(fields: ChampFramer[], regles: BlogSettings['field
 
 /** Construit le `fieldData` d'un item à partir de la correspondance des champs. */
 export function fieldDataPour(contenu: ContenuAPublier, champs: BlogSettings['fields'], fields: ChampFramer[]): Record<string, EntreeChamp> {
+  return fieldDataEtIgnores(contenu, champs, fields).data;
+}
+
+/** Libellés lisibles des champs de la correspondance, pour dire ce qui n'arrive pas sur le site. */
+export const LIBELLES_CHAMPS: Record<keyof BlogSettings['fields'], string> = {
+  title: 'titre',
+  body: 'corps',
+  excerpt: 'extrait',
+  cover: 'couverture',
+  date: 'date',
+  metaTitle: 'balise title',
+  metaDescription: 'méta-description',
+  keywords: 'mots-clés',
+  jsonLd: 'JSON-LD',
+  author: 'auteur',
+};
+
+/**
+ * Le `fieldData` et, à côté, les champs qui avaient une valeur mais aucune
+ * colonne où aller : un référencement dont la méta-description ne part pas
+ * doit se voir, pas se deviner.
+ */
+export function fieldDataEtIgnores(contenu: ContenuAPublier, champs: BlogSettings['fields'], fields: ChampFramer[]): { data: Record<string, EntreeChamp>; ignores: string[] } {
   const typeDe = (id: string) => fields.find((f) => f.id === id)?.type ?? 'string';
   const data: Record<string, EntreeChamp> = {};
-  const pose = (id: string, valeur: unknown, extra: Partial<EntreeChamp> = {}) => {
-    if (!id || valeur === null || valeur === undefined || valeur === '') return;
+  const ignores: string[] = [];
+  const pose = (cle: keyof BlogSettings['fields'], valeur: unknown, extra: Partial<EntreeChamp> = {}) => {
+    if (valeur === null || valeur === undefined || valeur === '') return;
+    const id = champs[cle];
+    if (!id) {
+      ignores.push(LIBELLES_CHAMPS[cle]);
+      return;
+    }
     data[id] = { type: typeDe(id), value: valeur, ...extra };
   };
-  pose(champs.title, contenu.title);
-  pose(champs.body, contenu.bodyHtml, { contentType: 'html' });
-  pose(champs.excerpt, contenu.excerpt);
-  pose(champs.cover, contenu.coverUrl, { alt: contenu.coverAlt });
-  pose(champs.date, contenu.date);
-  pose(champs.metaTitle, contenu.metaTitle);
-  pose(champs.metaDescription, contenu.metaDescription);
-  pose(champs.keywords, contenu.keywords.join(', '));
-  pose(champs.jsonLd, contenu.jsonLd, typeDe(champs.jsonLd) === 'formattedText' ? { contentType: 'html' } : {});
-  pose(champs.author, contenu.author);
-  return data;
+  pose('title', contenu.title);
+  pose('body', contenu.bodyHtml, { contentType: 'html' });
+  pose('excerpt', contenu.excerpt);
+  pose('cover', contenu.coverUrl, { alt: contenu.coverAlt });
+  pose('date', contenu.date);
+  pose('metaTitle', contenu.metaTitle);
+  pose('metaDescription', contenu.metaDescription);
+  pose('keywords', contenu.keywords.join(', '));
+  pose('jsonLd', contenu.jsonLd, typeDe(champs.jsonLd) === 'formattedText' ? { contentType: 'html' } : {});
+  pose('author', contenu.author);
+  return { data, ignores };
+}
+
+/**
+ * La correspondance effective des champs (réglée ou devinée) et ce qui reste sans
+ * colonne : le dashboard l'affiche pour que « — automatique — » ne soit plus une
+ * promesse aveugle.
+ */
+export async function correspondanceDesChamps(reglages: BlogSettings): Promise<{ champs: BlogSettings['fields']; manquants: string[]; noms: Record<string, string> }> {
+  const framer = await connexion();
+  try {
+    const collections = await framer.getCollections();
+    const collection = collections.find((c) => c.id === reglages.collectionId);
+    if (!collection) throw new Error('Collection Framer introuvable — rechoisis-la dans les réglages du blog');
+    const fields = (await collection.getFields()).map((f) => ({ id: f.id, name: f.name, type: f.type }));
+    const champs = devinerChamps(fields, reglages.fields);
+    const manquants = (Object.keys(LIBELLES_CHAMPS) as (keyof BlogSettings['fields'])[]).filter((k) => !champs[k]).map((k) => LIBELLES_CHAMPS[k]);
+    const noms: Record<string, string> = {};
+    for (const [k, id] of Object.entries(champs)) if (id) noms[k] = fields.find((f) => f.id === id)?.name ?? id;
+    return { champs, manquants, noms };
+  } finally {
+    await framer.disconnect().catch(() => undefined);
+  }
 }
 
 /** Connexion au projet Framer, partagée avec les autres modules du blog. */
@@ -124,6 +175,8 @@ export interface PublicationFramer {
   itemId: string | null;
   url: string | null;
   draft: boolean;
+  /** champs qui avaient une valeur mais aucune colonne dans la collection (méta, JSON-LD…) */
+  champsIgnores: string[];
 }
 
 /**
@@ -131,13 +184,13 @@ export interface PublicationFramer {
  * brouillon (l'article attend alors dans Framer). En mode dry, le payload part
  * dans var/outbox et rien ne touche Framer.
  */
-export async function publierDansFramer(contenu: ContenuAPublier, reglages: BlogSettings): Promise<PublicationFramer> {
+export async function publierDansFramer(contenu: ContenuAPublier, reglages: BlogSettings, opts: { itemId?: string | null } = {}): Promise<PublicationFramer> {
   if (!reglages.collectionId) throw new Error('Aucune collection Framer choisie pour le blog (Réglages du blog)');
   if (config.PUBLISH_MODE === 'dry') {
     const file = path.join(config.outboxDir, `blog-${contenu.slug}-${Date.now()}.json`);
     fs.mkdirSync(config.outboxDir, { recursive: true });
-    fs.writeFileSync(file, JSON.stringify({ collection: reglages.collectionId, fields: reglages.fields, item: contenu }, null, 2));
-    return { itemId: `dry-${contenu.slug}`, url: `file://${file}`, draft: reglages.publishAsDraft };
+    fs.writeFileSync(file, JSON.stringify({ collection: reglages.collectionId, fields: reglages.fields, itemId: opts.itemId ?? null, item: contenu }, null, 2));
+    return { itemId: opts.itemId ?? `dry-${contenu.slug}`, url: `file://${file}`, draft: reglages.publishAsDraft, champsIgnores: [] };
   }
   const framer = await connexion();
   try {
@@ -149,10 +202,13 @@ export async function publierDansFramer(contenu: ContenuAPublier, reglages: Blog
     if (!champs.title || !champs.body) {
       throw new Error('Impossible de reconnaître les champs « titre » et « corps » de la collection — règle la correspondance dans les réglages du blog');
     }
-    const fieldData = fieldDataPour(contenu, champs, fields);
-    await collection.addItems([{ slug: contenu.slug, draft: reglages.publishAsDraft, fieldData } as never]);
+    const { data: fieldData, ignores } = fieldDataEtIgnores(contenu, champs, fields);
+    if (ignores.length > 0) logger.warn({ slug: contenu.slug, ignores }, 'champs sans colonne Framer : ils ne partent pas sur le site');
+    // Avec l'identifiant de l'item, Framer met à jour au lieu de créer : c'est ainsi
+    // qu'un article déjà en ligne reçoit un texte, une méta ou un JSON-LD refaits.
+    await collection.addItems([{ ...(opts.itemId ? { id: opts.itemId } : {}), slug: contenu.slug, draft: reglages.publishAsDraft, fieldData } as never]);
     const items = await collection.getItems();
-    const item = items.find((i) => i.slug === contenu.slug);
+    const item = items.find((i) => (opts.itemId ? i.id === opts.itemId : i.slug === contenu.slug)) ?? items.find((i) => i.slug === contenu.slug);
     let url: string | null = null;
     if (!reglages.publishAsDraft) {
       const result = await framer.publish();
@@ -172,7 +228,7 @@ export async function publierDansFramer(contenu: ContenuAPublier, reglages: Blog
     } else {
       logger.info({ slug: contenu.slug }, 'article déposé en brouillon dans Framer');
     }
-    return { itemId: item?.id ?? null, url, draft: reglages.publishAsDraft };
+    return { itemId: item?.id ?? opts.itemId ?? null, url, draft: reglages.publishAsDraft, champsIgnores: ignores };
   } finally {
     await framer.disconnect().catch(() => undefined);
   }

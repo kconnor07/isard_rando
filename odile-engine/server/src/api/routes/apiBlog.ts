@@ -2,10 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { articleSchema } from '@odile/shared';
-import { coverUrl, publierArticle, regenererArticle, runBlogPipeline } from '../../blog/pipeline.js';
+import { coverUrl, publierArticle, regenererArticle, republierArticle, runBlogPipeline } from '../../blog/pipeline.js';
 import { fabriquerCouverture } from '../../blog/cover.js';
 import { inventaireDuSite, refaireLesCouvertures } from '../../blog/couvertures.js';
-import { listerCollections } from '../../blog/framer.js';
+import { correspondanceDesChamps, listerCollections } from '../../blog/framer.js';
 import { slugDisponible } from '../../blog/writer.js';
 import { db, schema } from '../../db/client.js';
 import { getBlog } from '../../db/settingsRepo.js';
@@ -180,6 +180,24 @@ export function registerBlogRoutes(app: FastifyInstance): void {
   });
 
   /** Publie tout de suite, sans attendre le job (pour tester la connexion Framer). */
+  /** Repousse un article déjà en ligne (texte, méta, JSON-LD refaits aux règles du moment). */
+  app.post<{ Params: { id: string } }>('/api/blog/articles/:id/republish', async (request, reply) => {
+    try {
+      return await republierArticle(Number(request.params.id));
+    } catch (err) {
+      return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** La correspondance effective des champs de la collection, et ce qui n'a pas de colonne. */
+  app.get('/api/blog/framer/mapping', async (_request, reply) => {
+    try {
+      return await correspondanceDesChamps(getBlog());
+    } catch (err) {
+      return reply.status(400).send({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   app.post<{ Params: { id: string } }>('/api/blog/articles/:id/publish-now', async (request, reply) => {
     try {
       return await publierArticle(Number(request.params.id));

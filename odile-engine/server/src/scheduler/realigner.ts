@@ -17,7 +17,7 @@ import { logger } from '../lib/logger.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
 import { renderPost } from '../render/renderer.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
-import { bloquants, echecDAdaptation, postsAVerifier, verifierPost, type Probleme } from '../writer/conformite.js';
+import { bloquants, echecDAdaptation, formatPourPlateforme, LIGNE_DU_LIEN, postsAVerifier, verifierPost, type Probleme } from '../writer/conformite.js';
 import { bornerHashtags, relierLeLien, sansLien } from '../writer/generate.js';
 import { adapterLegende, motcleDeSurface } from './broadcast.js';
 
@@ -37,15 +37,27 @@ const ADRESSE = /https?:\/\/|www\.|\{\{link\}\}|[a-z0-9-]+\.[a-z]{2,}\/\S/i;
 export interface OptionsDeRealignement {
   /** couper les hashtags en trop (cosmétique : évité sur un post déjà validé) */
   hashtags?: boolean;
+  /** ajouter un appel à commenter à un post LinkedIn qui n'en a pas (un texte validé ne s'allonge pas en silence) */
+  motcle?: boolean;
 }
 
 /** Corrections sans modèle : sûres, idempotentes, applicables au démarrage. */
 export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}): { corrections: string[]; post: Post } {
-  const { hashtags: couperHashtags = true } = opts;
+  const { hashtags: couperHashtags = true, motcle: ajouterMotcle = true } = opts;
   const corrections: string[] = [];
   const update: Partial<Post> = {};
   let caption = post.caption;
   let cta = post.cta;
+
+  // Un document LinkedIn ne se publie pas comme carrousel Instagram, ni l'inverse :
+  // le format suit la plateforme (les slides restent, seul l'emballage change).
+  if (post.platform === 'linkedin' || post.platform === 'instagram') {
+    const natif = formatPourPlateforme(post.format, post.platform);
+    if (natif !== post.format) {
+      update.format = natif as Post['format'];
+      corrections.push(`format ${post.format} converti en ${natif}`);
+    }
+  }
 
   if (post.platform === 'linkedin' && !post.liAccountKey) {
     const compte = compteDuPost(post);
@@ -94,12 +106,34 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
         caption = relierLeLien(post, caption);
         corrections.push('lien de la ressource reposé dans la description');
       }
+      // « Pour un audit : <lien> » alors que le lien mène à l'article : la ligne
+      // redevient une simple invitation à ouvrir, le mot-clé garde le diagnostic.
+      if (getDmTriggers().linkedinOffer === 'diagnostic') {
+        const lignes = caption.split('\n');
+        const i = lignes.findIndex((l) => LIGNE_DU_LIEN.test(l) && /\b(audit|diagnostic|rendez-vous|rdv|20 minutes)\b/i.test(l));
+        if (i !== -1) {
+          lignes[i] = `C’est ici : ${url}`;
+          caption = lignes.join('\n');
+          corrections.push('ligne du lien réécrite (elle parlait d’audit ou de diagnostic)');
+        }
+      }
+    }
+  }
+  // Un post LinkedIn sans mot à commenter n'ouvre aucune conversation : on lui donne
+  // le mot de diagnostic et l'appel qui va avec, quand on a le droit de l'allonger.
+  if (post.platform === 'linkedin' && !post.commentTriggerKeyword && ajouterMotcle) {
+    const dm = getDmTriggers();
+    const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
+    if (dm.linkedinOffer === 'diagnostic' && liste.length > 0) {
+      update.commentTriggerKeyword = liste[post.id % liste.length]!;
+      db.update(schema.slides).set({ renderAssetId: null }).where(and(eq(schema.slides.postId, post.id), eq(schema.slides.kind, 'cta'))).run();
+      corrections.push(`mot-clé ${update.commentTriggerKeyword} attribué (aucun appel à commenter)`);
     }
   }
   // Sur LinkedIn, le mot commenté ouvre le diagnostic : un mot hors liste (GUIDE,
   // OUTIL…) est remplacé tel quel dans le texte, sans réécriture — et la slide qui
   // l'imprime sera refaite avant de partir.
-  let motcle = post.commentTriggerKeyword;
+  let motcle = update.commentTriggerKeyword ?? post.commentTriggerKeyword;
   if (post.platform === 'linkedin' && motcle) {
     const dm = getDmTriggers();
     const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
@@ -243,7 +277,7 @@ export function reparerAuDemarrage(): void {
   for (const post of postsAVerifier()) {
     try {
       const programme = post.status === 'scheduled';
-      const { corrections } = realignerSansModele(post, { hashtags: !programme });
+      const { corrections } = realignerSansModele(post, { hashtags: !programme, motcle: !programme });
       if (corrections.length > 0) {
         n++;
         logger.info({ postId: post.id, status: post.status, corrections }, programme ? 'post programmé réparé au démarrage' : 'post réparé au démarrage');

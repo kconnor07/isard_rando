@@ -19,18 +19,14 @@ import { getStoredToken } from '../../publishers/tokens.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
 import { apercuTunnel } from '../../approvals/tunnel.js';
-import { echecDAdaptation, postsAVerifier, verifierPost } from '../../writer/conformite.js';
+import { echecDAdaptation, formatPourPlateforme, postsAVerifier, verifierPost } from '../../writer/conformite.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 
 /**
  * Le format équivalent sur l'autre plateforme. Un document PDF n'existe pas sur
  * Instagram, un carrousel d'images n'existe pas sur LinkedIn ; le reel est commun.
  */
-export function formatPourPlateforme(format: string, platform: 'instagram' | 'linkedin'): string {
-  const table: Record<string, string> =
-    platform === 'instagram' ? { li_doc: 'carousel', li_image: 'static' } : { carousel: 'li_doc', static: 'li_image' };
-  return table[format] ?? format;
-}
+export { formatPourPlateforme };
 import { runJob } from '../../lib/jobRunner.js';
 import { mirrorToFacebookPage, legendePourFacebook } from '../../publishers/facebook.js';
 import { buildCaption, collectPublishImages } from '../../publishers/types.js';

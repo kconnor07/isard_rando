@@ -526,7 +526,7 @@ export default function Settings() {
         </button>
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="label">Mots-clés déclencheurs (séparés par des virgules)</label>
+            <label className="label">Mots à commenter sur Instagram et Facebook (séparés par des virgules) — sur LinkedIn, ce sont les mots de diagnostic plus bas</label>
             <input className="input" value={form.dm_triggers.keywords.join(', ')}
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, keywords: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
           </div>
@@ -536,7 +536,7 @@ export default function Settings() {
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, replyTemplate: e.target.value })} />
           </div>
           <div className="rounded-xl border border-line p-4">
-            <label className="label !mb-1">Lien envoyé en message privé</label>
+            <label className="label !mb-1">Ce que reçoit la personne (en message privé sur Instagram, par le lien du post sur LinkedIn)</label>
             <select className="input" value={form.dm_triggers.linkTarget ?? 'article'}
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, linkTarget: e.target.value as 'article' | 'fixe' })}>
               <option value="article">L'article source du post</option>
@@ -622,9 +622,6 @@ export default function Settings() {
                   onChange={(e) => set('dm_triggers', { ...form.dm_triggers, rdvLabel: e.target.value })} />
               </div>
             </div>
-            <label className="label mt-4">Message de qualification (envoyé une fois, quand la personne répond après son lien)</label>
-            <textarea className="input" rows={3} value={form.dm_triggers.qualifyTemplate ?? ''}
-              onChange={(e) => set('dm_triggers', { ...form.dm_triggers, qualifyTemplate: e.target.value })} />
             <p className="mt-2 text-xs text-muted">
               Placeholders : <code>{'{{link}}'}</code> le lien de la ressource, <code>{'{{ressource}}'}</code> son titre exact,{' '}
               <code>{'{{motcle}}'}</code> le mot commenté, <code>{'{{prenom}}'}</code> le prénom (LinkedIn),{' '}
@@ -636,7 +633,7 @@ export default function Settings() {
               <input type="checkbox" className="mt-1 accent-sky-500" checked={form.dm_triggers.publicReply ?? true}
                 onChange={(e) => set('dm_triggers', { ...form.dm_triggers, publicReply: e.target.checked })} />
               <span>
-                Répondre aussi publiquement sous le commentaire
+                Répondre publiquement sous le commentaire (Instagram et LinkedIn — décocher coupe les deux)
                 <span className="mt-1 block text-xs text-muted">
                   Cette réponse ne dépend pas de la messagerie Meta : elle part même quand le message privé est
                   refusé, et elle montre aux autres lecteurs que le compte répond.

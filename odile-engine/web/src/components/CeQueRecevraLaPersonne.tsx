@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { toast } from './Toaster';
 
 export interface ApercuTunnelDto {
   postId: number;
@@ -73,6 +74,18 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
             {t.reponseLinkedIn ? (
               <>
                 réponse sous le commentaire{t.reponseManuelle ? <span className="text-accent"> (à coller soi-même)</span> : null} : <Citation texte={t.reponseLinkedIn} />
+                {t.reponseManuelle ? (
+                  <button
+                    type="button"
+                    className="ml-1 rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted hover:text-txt"
+                    title="Copier la réponse, à coller sous le commentaire sur LinkedIn"
+                    onClick={() => {
+                      void navigator.clipboard?.writeText(t.reponseLinkedIn ?? '').then(() => toast.success('Réponse copiée — colle-la sous le commentaire sur LinkedIn'));
+                    }}
+                  >
+                    copier
+                  </button>
+                ) : null}
                 {t.reponseVariantes > 1 ? <span className="text-muted"> (l’une des {t.reponseVariantes} formulations réglées, tirée au sort à chaque commentaire)</span> : null}
               </>
             ) : (

@@ -36,7 +36,10 @@ export interface Probleme {
     | 'date-orpheline'
     | 'rdv-manquant'
     | 'copie-non-adaptee'
-    | 'porte-abonnement';
+    | 'porte-abonnement'
+    | 'motcle-manquant'
+    | 'format-plateforme'
+    | 'lien-mal-etiquete';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
@@ -59,6 +62,17 @@ export function echecDAdaptation(error: string | null | undefined): boolean {
  */
 export const PROMESSE_DM = /message priv|en DM\b|en MP\b|(?:en|par) messagerie|je t[’']envoie|je vous envoie|re[çc]ois(?:-le)? en (?:DM|MP)\b/i;
 const ADRESSE = /https?:\/\/|www\.|\{\{link\}\}/i;
+/** La ligne qui porte le lien court du post. */
+export const LIGNE_DU_LIEN = /\/r\/[a-z2-9]{6,}/i;
+/** Une ligne de lien qui parle d'audit ou de diagnostic alors que le lien mène à la ressource. */
+const ETIQUETTE_RDV = /\b(audit|diagnostic|rendez-vous|rdv|20 minutes)\b/i;
+
+/** Le format natif d'une plateforme : LinkedIn feuillette un document, Instagram un carrousel. */
+export function formatPourPlateforme(format: string, platform: 'instagram' | 'linkedin'): string {
+  const table: Record<string, string> =
+    platform === 'instagram' ? { li_doc: 'carousel', li_image: 'static' } : { carousel: 'li_doc', static: 'li_image' };
+  return table[format] ?? format;
+}
 const RENVOI_LINKEDIN = /lien (dans|en) (la )?description|sur linkedin|sous ce post linkedin/i;
 
 /** Les dernières lignes d'une légende : là où vit l'appel à l'action. */
@@ -111,6 +125,16 @@ export function verifierPost(post: Post): Probleme[] {
     if (post.linkId && diagnostic && !lienDansLeTexte) {
       problemes.push({ code: 'lien-absent', niveau: 'bloquant', corrigeable: true, message: 'Le lien de la ressource n’est pas dans la description : la personne n’a rien à ouvrir, et les réponses automatiques diraient qu’il y est.' });
     }
+    // Sans mot à commenter, le post n'ouvre aucune conversation : c'est le tunnel
+    // qui manque, pas une faute — « Réaligner » ajoute l'appel à commenter.
+    if (!motcle && diagnostic && dm.diagnosticKeywords.length > 0 && ['awaiting_approval', 'draft', 'reviewing', 'scheduled'].includes(post.status)) {
+      problemes.push({ code: 'motcle-manquant', niveau: 'attention', corrigeable: true, message: 'Aucun mot à commenter : ce post n’ouvre pas de conversation. « Réaligner » ajoute l’appel à commenter (diagnostic).' });
+    }
+    // La ligne du lien dit « audit » ou « diagnostic » alors que le lien mène à la ressource.
+    const ligneLien = caption.split('\n').find((l) => LIGNE_DU_LIEN.test(l));
+    if (ligneLien && diagnostic && ETIQUETTE_RDV.test(ligneLien)) {
+      problemes.push({ code: 'lien-mal-etiquete', niveau: 'attention', corrigeable: true, message: `La ligne du lien parle de rendez-vous ou de diagnostic alors qu’elle mène à ${post.resourceKind === 'guide' ? 'un guide' : post.resourceKind === 'outil' ? 'un outil' : 'un article'} : c’est le mot-clé qui ouvre le diagnostic. « Réaligner » réécrit cette ligne.` });
+    }
     if (PROMESSE_DM.test(blocFinal(caption)) || PROMESSE_DM.test(post.cta ?? '')) {
       problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, reecriture: true, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });
     }
@@ -139,6 +163,9 @@ export function verifierPost(post: Post): Probleme[] {
     if (hashtags.length > HASHTAGS_MAX.instagram) problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtags.length} hashtags : au-delà de ${HASHTAGS_MAX.instagram}, Instagram n’en tient plus compte.` });
   }
 
+  if ((post.platform === 'linkedin' || post.platform === 'instagram') && formatPourPlateforme(post.format, post.platform) !== post.format) {
+    problemes.push({ code: 'format-plateforme', niveau: 'attention', corrigeable: true, message: post.platform === 'linkedin' ? 'Format d’Instagram sur LinkedIn : plusieurs slides y sont un document PDF à feuilleter, une seule une image. « Réaligner » convertit le format.' : 'Format LinkedIn sur Instagram : « Réaligner » le convertit en carrousel ou image.' });
+  }
   if (motcle && !captionPorteLeMotCle(caption, motcle)) {
     problemes.push({ code: 'motcle-absent', niveau: 'bloquant', corrigeable: true, message: `Le texte ne demande pas « Commente ${motcle} » : personne ne saura quoi commenter.` });
   }

@@ -128,11 +128,26 @@ export default function Blog() {
     },
     onError: erreur,
   });
+  const avertirChampsIgnores = (ignores?: string[]) => {
+    if (ignores && ignores.length > 0) toast.error(`Sans colonne dans la collection Framer, donc absents du site : ${ignores.join(', ')} — règle la correspondance des champs ci-dessous.`);
+  };
   const publierMaintenant = useMutation({
-    mutationFn: (id: number) => api.post<{ url: string | null; draft: boolean }>(`/api/blog/articles/${id}/publish-now`, {}),
+    mutationFn: (id: number) => api.post<{ url: string | null; draft: boolean; champsIgnores?: string[] }>(`/api/blog/articles/${id}/publish-now`, {}),
     onSuccess: (r) => {
       invalidate();
       toast.success(r.draft ? 'Déposé en brouillon dans Framer' : `Publié${r.url ? ` : ${r.url}` : ''}`);
+      avertirChampsIgnores(r.champsIgnores);
+    },
+    onError: erreur,
+  });
+  // Les articles publiés avant les règles de référencement du moment (entités
+  // locales, maillage, JSON-LD complet) se mettent à jour sur le site sans réécriture.
+  const mettreAJour = useMutation({
+    mutationFn: (id: number) => api.post<{ url: string | null; draft: boolean; champsIgnores?: string[] }>(`/api/blog/articles/${id}/republish`, {}),
+    onSuccess: (r) => {
+      invalidate();
+      toast.success(`Article mis à jour sur le site${r.url ? ` : ${r.url}` : ''}`);
+      avertirChampsIgnores(r.champsIgnores);
     },
     onError: erreur,
   });
@@ -284,6 +299,16 @@ export default function Blog() {
                     <RefreshCw size={12} /> Réécrire
                   </button>
                 )}
+                {a.status === 'published' && (
+                  <button
+                    className="btn-ghost !py-1.5 text-xs"
+                    disabled={mettreAJour.isPending}
+                    onClick={() => mettreAJour.mutate(a.id)}
+                    title="Repousse texte, méta et données structurées vers le site, aux règles de référencement du moment — sans réécrire l'article"
+                  >
+                    <RefreshCw size={12} /> Mettre à jour sur le site
+                  </button>
+                )}
                 {a.coverUrl && (
                   <button
                     className="btn-ghost !py-1.5 text-xs"
@@ -350,6 +375,14 @@ function ReglagesBlog() {
     queryKey: ['blog', 'framer', 'collections'],
     queryFn: () => api.get<CollectionsDto>('/api/blog/framer/collections'),
     enabled: false,
+    retry: false,
+  });
+  // Ce que « — automatique — » donne vraiment : les champs reconnus, et ceux qui
+  // n'ont aucune colonne (ils ne partent pas sur le site).
+  const mapping = useQuery({
+    queryKey: ['blog', 'framer', 'mapping', data?.blog?.collectionId, JSON.stringify(data?.blog?.fields ?? {})],
+    queryFn: () => api.get<{ champs: Record<string, string>; manquants: string[]; noms: Record<string, string> }>('/api/blog/framer/mapping'),
+    enabled: Boolean(data?.blog?.collectionId),
     retry: false,
   });
   const save = useMutation({
@@ -470,6 +503,15 @@ function ReglagesBlog() {
                 ))}
               </select>
             </div>
+            {collection && mapping.data && (
+              <p className={`text-xs sm:col-span-2 ${mapping.data.manquants.length ? 'text-accent' : 'text-muted'}`}>
+                {mapping.data.manquants.length
+                  ? `Sans colonne dans cette collection (n’arrivent pas sur le site) : ${mapping.data.manquants.join(', ')}. Crée ces champs dans Framer ou choisis-les ci-dessous.`
+                  : 'Tous les champs ont une colonne : titre, corps, méta et données structurées partent sur le site.'}
+                {' '}
+                Reconnus : {CHAMPS.filter((ch) => mapping.data!.noms[ch.key]).map((ch) => `${ch.label.replace(/ \(.*\)$/, '')} → ${mapping.data!.noms[ch.key]}`).join(' · ')}
+              </p>
+            )}
             {collection &&
               CHAMPS.map((ch) => (
                 <div key={ch.key}>

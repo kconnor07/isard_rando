@@ -119,6 +119,16 @@ export function registerSettingsRoutes(app: FastifyInstance): void {
     const parsed = entry.schema.safeParse(request.body);
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
     setSetting(request.params.key, parsed.data);
+    // Le lien de rendez-vous vaut aussi pour les guides déjà fabriqués : leur bouton
+    // passe par un lien court dont on change la cible.
+    if (request.params.key === 'dm_triggers') {
+      const { rdvUrl } = parsed.data as { rdvUrl?: string };
+      if (rdvUrl?.trim()) {
+        const { reciblerLiensDesGuides } = await import('../../resources/guide.js');
+        const n = reciblerLiensDesGuides(rdvUrl);
+        return { ok: true, value: parsed.data, guidesRecibles: n };
+      }
+    }
     return { ok: true, value: parsed.data };
   });
 

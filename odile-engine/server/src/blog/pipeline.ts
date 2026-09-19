@@ -166,15 +166,60 @@ async function prevenir(articleId: number, titre: string): Promise<boolean> {
   }
 }
 
+/**
+ * Repousse un article déjà en ligne vers Framer : texte, méta, JSON-LD et
+ * couverture recalculés aux règles du moment (entités locales, maillage, fiche
+ * locale de la marque). Les articles publiés avant ces règles n'avaient aucun
+ * moyen d'en profiter.
+ */
+export async function republierArticle(articleId: number): Promise<{ url: string | null; draft: boolean; champsIgnores: string[] }> {
+  const row = db.select().from(schema.articles).where(eq(schema.articles.id, articleId)).get();
+  if (!row) throw new Error(`Article ${articleId} introuvable`);
+  if (row.status !== 'published') throw new Error('Seul un article déjà publié se met à jour sur le site');
+  if (!row.framerItemId || row.framerItemId.startsWith('dry-')) {
+    // Publié à la main ou avant que l'identifiant soit gardé : on ne sait pas quel item toucher.
+    throw new Error('Cet article n’est pas relié à un item Framer connu : republie-le depuis Framer, ou rejette-le et réécris-le');
+  }
+  const reglages = getBlog();
+  const article = articleSchema.parse(JSON.parse(row.content));
+  const maintenant = new Date().toISOString();
+  const derive = deriverArticle({ ...row, updatedAt: maintenant }, article, reglages);
+  const contenu: ContenuAPublier = {
+    slug: row.slug,
+    title: row.title,
+    bodyHtml: derive.bodyHtml,
+    excerpt: row.excerpt,
+    coverUrl: coverUrl(row.coverAssetId),
+    coverAlt: article.coverTitle,
+    date: row.publishedAt ?? maintenant,
+    metaTitle: row.metaTitle,
+    metaDescription: row.metaDescription,
+    keywords: article.keywords,
+    jsonLd: derive.jsonLd,
+    author: reglages.authorName,
+  };
+  const res = await publierDansFramer(contenu, reglages, { itemId: row.framerItemId });
+  // L'adresse en ligne ne bouge que si Framer en rend une vraie (en simulation, c'est un fichier).
+  const url = res.url && /^https?:/.test(res.url) ? res.url : row.publishedUrl;
+  db.update(schema.articles)
+    .set({ publishedUrl: url, bodyHtml: derive.bodyHtml, jsonLd: derive.jsonLd, error: null, updatedAt: maintenant })
+    .where(eq(schema.articles.id, articleId))
+    .run();
+  logger.info({ articleId, slug: row.slug, ignores: res.champsIgnores }, 'article mis à jour sur le site');
+  return { url, draft: res.draft, champsIgnores: res.champsIgnores };
+}
+
 /** Publie un article dans Framer, maintenant. */
-export async function publierArticle(articleId: number): Promise<{ url: string | null; draft: boolean }> {
+export async function publierArticle(articleId: number): Promise<{ url: string | null; draft: boolean; champsIgnores: string[] }> {
   const row = db.select().from(schema.articles).where(eq(schema.articles.id, articleId)).get();
   if (!row) throw new Error(`Article ${articleId} introuvable`);
   const reglages = getBlog();
   const article = articleSchema.parse(JSON.parse(row.content));
   db.update(schema.articles).set({ status: 'publishing', updatedAt: new Date().toISOString() }).where(eq(schema.articles.id, articleId)).run();
   try {
-    const derive = deriverArticle({ ...row, publishedAt: new Date().toISOString() }, article, reglages);
+    // Publié et modifié à l'instant : le JSON-LD ne doit pas dater la modification d'avant la parution.
+    const maintenant = new Date().toISOString();
+    const derive = deriverArticle({ ...row, publishedAt: maintenant, updatedAt: maintenant }, article, reglages);
     const contenu: ContenuAPublier = {
       slug: row.slug,
       title: row.title,
@@ -195,7 +240,7 @@ export async function publierArticle(articleId: number): Promise<{ url: string |
       .set({ status: 'published', framerItemId: res.itemId, publishedUrl: res.url, publishedAt: now, bodyHtml: derive.bodyHtml, jsonLd: derive.jsonLd, error: null, updatedAt: now })
       .where(eq(schema.articles.id, articleId))
       .run();
-    return { url: res.url, draft: res.draft };
+    return { url: res.url, draft: res.draft, champsIgnores: res.champsIgnores };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     db.update(schema.articles).set({ status: 'failed', error: message.slice(0, 700), updatedAt: new Date().toISOString() }).where(eq(schema.articles.id, articleId)).run();
