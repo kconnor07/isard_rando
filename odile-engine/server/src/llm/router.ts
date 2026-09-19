@@ -7,7 +7,12 @@ import { anthropicProvider } from './anthropic.js';
 import { geminiProvider } from './gemini.js';
 import { mockProvider } from './mock.js';
 import {
+  appliquerCorrections,
+  corrigerDepassements,
+  correctionsSchema,
+  decrireIssues,
   extractJson,
+  reparerJson,
   zodToPromptSchema,
   type LlmProvider,
   type LlmRequest,
@@ -109,9 +114,16 @@ export async function completeText(req: LlmRequest): Promise<LlmResponse> {
 }
 
 /**
- * Complétion JSON validée par zod : le schéma est injecté dans le prompt,
- * la réponse est extraite/parselée ; une nouvelle tentative est faite avec
- * le message d'erreur si la validation échoue.
+ * Complétion JSON validée par zod. Le schéma est injecté dans le prompt ; la
+ * réponse est extraite, réparée (syntaxe) puis validée.
+ *
+ * Quand elle ne passe pas, on n'écrit pas tout une seconde fois : d'abord les
+ * dépassements modestes sont corrigés sans appel (chaîne coupée sur un mot,
+ * tableau raccourci) ; ensuite le modèle reçoit SA réponse et la liste des défauts,
+ * et ne renvoie que les champs à corriger (quelques lignes, pas un article) ; en
+ * dernier recours seulement, tout est régénéré avec les défauts en consigne.
+ * Une réponse coupée par max_tokens est régénérée en demandant plus court.
+ * L'erreur finale dit la cause : le fondateur la lit sur le post ou l'article.
  */
 export async function completeJson<T>(
   req: LlmRequest,
@@ -120,25 +132,76 @@ export async function completeJson<T>(
 ): Promise<{ value: T; model: string }> {
   const maxAttempts = Math.max(1, opts.attempts ?? 2);
   const jsonSchema = zodToPromptSchema(schema);
-  const basePrompt = `${req.prompt}\n\nRéponds UNIQUEMENT avec un objet JSON valide (aucun texte autour, pas de bloc de code) conforme à ce schéma JSON :\n${jsonSchema}`;
-  let attemptPrompt = basePrompt;
+  const basePrompt = `${req.prompt}\n\nRéponds UNIQUEMENT avec un objet JSON valide (aucun texte autour, pas de bloc de code) conforme à ce schéma JSON — respecte les longueurs maximales (maxLength, maxItems), elles sont vérifiées :\n${jsonSchema}`;
   let lastModel = '';
+  let cause = '';
+  /** dernière réponse lisible (objet JSON) : sert de base à une correction ciblée */
+  let precedent: { objet: unknown; texte: string } | null = null;
+  let extrait = '';
+
+  const valider = (objet: unknown): { ok: true; value: T } | { ok: false; issues: z.core.$ZodIssue[] } => {
+    const parsed = schema.safeParse(objet);
+    return parsed.success ? { ok: true, value: parsed.data } : { ok: false, issues: parsed.error.issues };
+  };
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    // Une reprise coûte un appel entier : elle est comptée comme telle, à part.
-    const res = await completeText({ ...req, prompt: attemptPrompt, attempt: attempt + 1 });
+    // Une reprise coûte un appel : elle est comptée comme telle, à part.
+    const cible =
+      attempt === 0
+        ? basePrompt
+        : precedent
+          ? `${req.prompt}\n\nTa réponse précédente (ci-dessous) est presque bonne mais invalide : ${cause}.\nNe la réécris pas. Renvoie UNIQUEMENT un objet JSON {"corrections":[{"path":"…","value":…}]} : un élément par champ à corriger, « path » étant le chemin indiqué (ex. "sections.2.paragraphs.1", "metaTitle"), « value » la nouvelle valeur complète de ce champ, conforme aux contraintes. Aucun autre texte.\n\nRÉPONSE PRÉCÉDENTE :\n${precedent.texte.slice(0, 60_000)}`
+          : `${basePrompt}\n\nTa réponse précédente était inutilisable (${cause}). ${/tronqu/.test(cause) ? 'Fais plus court : ' : ''}Renvoie uniquement le JSON complet.`;
+    const res = await completeText({ ...req, prompt: cible, attempt: attempt + 1 });
     lastModel = res.model;
-    try {
-      const parsed = schema.safeParse(JSON.parse(extractJson(res.text)));
-      if (parsed.success) return { value: parsed.data, model: res.model };
-      attemptPrompt = `${basePrompt}\n\nTa réponse précédente était invalide (${parsed.error.issues
-        .slice(0, 3)
-        .map((i) => `${i.path.join('.')}: ${i.message}`)
-        .join(' ; ')}). Corrige et renvoie uniquement le JSON.`;
-    } catch (err) {
-      attemptPrompt = `${basePrompt}\n\nTa réponse précédente n'était pas un JSON parsable (${String(
-        err,
-      ).slice(0, 200)}). Renvoie uniquement le JSON.`;
+    extrait = res.text.slice(0, 600);
+    if (res.truncated) {
+      cause = `réponse tronquée par la limite de ${req.maxTokens ?? 'jetons'} (max_tokens) après ${res.outputTokens ?? '?'} jetons`;
+      precedent = null;
+      continue;
     }
+    // Correction ciblée : on applique les retouches à la réponse précédente
+    if (attempt > 0 && precedent) {
+      try {
+        const patch = correctionsSchema.safeParse(JSON.parse(reparerJson(extractJson(res.text))));
+        if (patch.success) {
+          appliquerCorrections(precedent.objet, patch.data.corrections);
+          const verdict = valider(precedent.objet);
+          if (verdict.ok) return { value: verdict.value, model: res.model };
+          corrigerDepassements(precedent.objet, verdict.issues);
+          const encore = valider(precedent.objet);
+          if (encore.ok) return { value: encore.value, model: res.model };
+          cause = decrireIssues(encore.issues, precedent.objet);
+          precedent = { objet: precedent.objet, texte: JSON.stringify(precedent.objet) };
+          continue;
+        }
+      } catch {
+        /* le modèle n'a pas renvoyé de corrections lisibles : on retombe sur la lecture normale */
+      }
+    }
+    let objet: unknown;
+    try {
+      objet = JSON.parse(reparerJson(extractJson(res.text)));
+    } catch (err) {
+      cause = `JSON non parsable (${String(err).slice(0, 160)})`;
+      precedent = null;
+      continue;
+    }
+    const verdict = valider(objet);
+    if (verdict.ok) return { value: verdict.value, model: res.model };
+    // Dépassements modestes : réglés sur place, sans nouvel appel
+    if (corrigerDepassements(objet, verdict.issues) > 0) {
+      const encore = valider(objet);
+      if (encore.ok) {
+        logger.info({ task: req.task, label: req.label }, 'réponse JSON ajustée sans nouvel appel (longueurs)');
+        return { value: encore.value, model: res.model };
+      }
+      cause = decrireIssues(encore.issues, objet);
+    } else {
+      cause = decrireIssues(verdict.issues, objet);
+    }
+    precedent = { objet, texte: JSON.stringify(objet) };
   }
-  throw new Error(`Réponse LLM invalide après 2 tentatives (modèle ${lastModel}, tâche ${req.task})`);
+  logger.warn({ task: req.task, label: req.label, model: lastModel, cause, extrait }, 'réponse LLM invalide');
+  throw new Error(`Réponse LLM invalide après ${maxAttempts} tentatives (modèle ${lastModel}, tâche ${req.label ?? req.task}) — ${cause}`);
 }

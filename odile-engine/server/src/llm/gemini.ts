@@ -40,6 +40,7 @@ export const geminiProvider: LlmProvider = {
       model,
       inputTokens: response.usageMetadata?.promptTokenCount,
       outputTokens: response.usageMetadata?.candidatesTokenCount,
+      truncated: response.candidates?.[0]?.finishReason === 'MAX_TOKENS',
     };
   },
 };
