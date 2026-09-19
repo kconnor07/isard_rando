@@ -6,7 +6,7 @@ import { resumerErreurMeta } from './metaErrors.js';
 import { GRAPH } from './instagram.js';
 import { API, linkedInHeaders } from './linkedin.js';
 import { deriveMetaPage, nomDOrganisation } from './oauth.js';
-import { comptesLinkedIn } from './linkedinAccounts.js';
+import { comptesLinkedIn, controleEnPanne, type DernierControle } from './linkedinAccounts.js';
 import { getStoredToken, listStoredTokens, storeToken, updateTokenMeta, type StoredToken, type TokenSubject } from './tokens.js';
 
 const DAY = 86400000;
@@ -24,6 +24,20 @@ function errorHint(err: unknown): string {
     return `HTTP ${err.status} : ${err.body.slice(0, 160)}`;
   }
   return String(err).slice(0, 200);
+}
+
+/**
+ * Pourquoi un contrôle a échoué : la plateforme refuse le jeton ou le droit (le
+ * compte ne publiera pas tant qu'on ne le reconnecte pas), ou bien elle n'a pas
+ * répondu (délai, 5xx, coupure) — et le compte, lui, est probablement intact.
+ * Seule la première famille met un compte « en panne » ; la seconde se signale
+ * sans rien bloquer, sinon un hoquet de LinkedIn suffisait à refuser les
+ * validations et à sortir un profil de la rotation.
+ */
+export function causeDeLEchec(err: unknown): 'auth' | 'reseau' {
+  if (err instanceof HttpError) return err.status === 401 || err.status === 403 ? 'auth' : 'reseau';
+  const texte = err instanceof Error ? err.message : String(err);
+  return /jeton|expir|r[ée]voqu|droit|permission|invalide|scope/i.test(texte) ? 'auth' : 'reseau';
 }
 
 export interface RefreshSummary {
@@ -197,7 +211,9 @@ async function check(
   } catch (err) {
     // Le détail est stocké tel qu'il sera lu : une phrase, pas un JSON de Graph.
     const detail = provider === 'meta' ? resumerErreurMeta(errorHint(err)) : errorHint(err);
-    updateTokenMeta(provider, subject, { lastCheck: { at: checkedAt, ok: false, detail } }, accountKey);
+    const cause = causeDeLEchec(err);
+    const status = err instanceof HttpError ? err.status : null;
+    updateTokenMeta(provider, subject, { lastCheck: { at: checkedAt, ok: false, detail, cause, status } }, accountKey);
     return { provider, subject, accountKey, label, ok: false, detail, checkedAt };
   }
 }
@@ -317,9 +333,19 @@ export function connectionWarnings(now = Date.now()): ConnectionWarning[] {
     const meta = row.meta ? (JSON.parse(row.meta) as Record<string, unknown>) : {};
     const label = labels[row.subject] ?? row.subject;
     const nom = typeof meta.name === 'string' && meta.name ? ` ${meta.name}` : '';
-    const lastCheck = meta.lastCheck as { ok?: boolean; detail?: string } | undefined;
+    const lastCheck = meta.lastCheck as DernierControle | undefined;
     if (lastCheck && lastCheck.ok === false) {
-      warnings.push({ provider: row.provider, subject: row.subject, level: 'error', message: `${label}${nom} : ${lastCheck.detail ?? 'connexion en échec'}` });
+      // Un refus de la plateforme est une erreur à corriger ; un délai réseau au
+      // dernier test se signale seulement — le compte reste utilisé.
+      const panne = controleEnPanne(lastCheck);
+      warnings.push({
+        provider: row.provider,
+        subject: row.subject,
+        level: panne ? 'error' : 'warn',
+        message: panne
+          ? `${label}${nom} : ${lastCheck.detail ?? 'connexion en échec'}`
+          : `${label}${nom} : la plateforme n’a pas répondu au dernier test (${lastCheck.detail ?? 'erreur passagère'}) — le compte reste utilisé, « Tester » pour vérifier`,
+      });
       continue;
     }
     // Lecture des commentaires refusée : le tunnel commentaire → ressource est muet

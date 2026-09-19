@@ -77,7 +77,7 @@ export default function Approvals() {
     onError: (err) => toast.error(err instanceof Error ? err.message : String(err)),
   });
   const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : schedule.isPending ? schedule.variables?.id : realigner.isPending ? realigner.variables : null;
-  const aRealigner = (posts ?? []).filter((p) => (p.problemes ?? []).some((q) => q.corrigeable || q.code === 'dm-promis')).length;
+  const aRealigner = (posts ?? []).filter((p) => (p.problemes ?? []).some((q) => q.corrigeable || q.reecriture)).length;
   const scheduleAt = async (post: PostSummaryDto) => {
     const value = await dialog.prompt({
       title: 'Programmer à une date',

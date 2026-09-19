@@ -79,6 +79,8 @@ export interface ProblemeDto {
   code: string;
   niveau: 'bloquant' | 'attention';
   message: string;
+  /** une réécriture par le modèle (« Réaligner ») sait le corriger */
+  reecriture?: boolean;
   corrigeable: boolean;
 }
 

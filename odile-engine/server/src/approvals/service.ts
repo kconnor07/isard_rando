@@ -5,7 +5,7 @@ import type { TokenPayload } from '../lib/signedToken.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
 import { freresDuGroupe } from '../scheduler/broadcast.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
-import { motifDeRefus, verifierPost } from '../writer/conformite.js';
+import { echecDAdaptation, motifDeRefus, verifierPost } from '../writer/conformite.js';
 
 export interface ActionContext {
   ip?: string;
@@ -133,7 +133,9 @@ function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeS
     // valider, avec la raison, pour être corrigée ou rejetée à part.
     const refusCopie = motifDeRefus(verifierPost(frere));
     if (refusCopie) {
-      db.update(schema.posts).set({ status: 'awaiting_approval', error: refusCopie, updatedAt: now }).where(eq(schema.posts.id, frere.id)).run();
+      // La raison d'une adaptation ratée reste : c'est elle que le contrôle relit.
+      const error = echecDAdaptation(frere.error) ? frere.error : refusCopie;
+      db.update(schema.posts).set({ status: 'awaiting_approval', error, updatedAt: now }).where(eq(schema.posts.id, frere.id)).run();
       logger.warn({ postId: frere.id, avec: post.id, refus: refusCopie }, 'copie non programmée avec l’original');
       continue;
     }

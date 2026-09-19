@@ -9,7 +9,7 @@
  * réécrire par le modèle la fin des posts LinkedIn qui promettent encore un message
  * privé — puis les remet à valider, parce qu'un texte réécrit se relit.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getDmTriggers } from '../db/settingsRepo.js';
@@ -31,8 +31,17 @@ export interface Realignement {
   reecrit: boolean;
 }
 
+/** Une adresse qu'Instagram ne montrera pas : c'est elle, et elle seule, qui justifie de toucher la légende. */
+const ADRESSE = /https?:\/\/|www\.|\{\{link\}\}|[a-z0-9-]+\.[a-z]{2,}\/\S/i;
+
+export interface OptionsDeRealignement {
+  /** couper les hashtags en trop (cosmétique : évité sur un post déjà validé) */
+  hashtags?: boolean;
+}
+
 /** Corrections sans modèle : sûres, idempotentes, applicables au démarrage. */
-export function realignerSansModele(post: Post): { corrections: string[]; post: Post } {
+export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}): { corrections: string[]; post: Post } {
+  const { hashtags: couperHashtags = true } = opts;
   const corrections: string[] = [];
   const update: Partial<Post> = {};
   let caption = post.caption;
@@ -56,11 +65,14 @@ export function realignerSansModele(post: Post): { corrections: string[]; post: 
     hashtags = [];
   }
   const bornes = bornerHashtags(hashtags, post.platform as 'linkedin' | 'instagram');
-  if (JSON.stringify(bornes) !== post.hashtags) {
+  if (couperHashtags && JSON.stringify(bornes) !== post.hashtags) {
     update.hashtags = JSON.stringify(bornes);
     if (bornes.length !== hashtags.length) corrections.push(`hashtags ramenés à ${bornes.length}`);
   }
-  if (post.platform === 'instagram') {
+  // Seule une vraie adresse justifie de réécrire la légende : sans ce garde-fou, le
+  // simple nettoyage des espaces comptait comme une « adresse retirée » sur des
+  // posts qui n'en avaient jamais eu.
+  if (post.platform === 'instagram' && (ADRESSE.test(caption) || ADRESSE.test(cta))) {
     const propre = sansLien(caption);
     const ctaPropre = sansLien(cta);
     if (propre !== caption || ctaPropre !== cta) {
@@ -110,10 +122,22 @@ export function realignerSansModele(post: Post): { corrections: string[]; post: 
  * à valider — un texte réécrit se relit avant de partir.
  */
 export async function reecrireAvecLeModele(post: Post): Promise<{ reecrit: boolean; corrections: string[] }> {
-  if (post.platform !== 'linkedin') return { reecrit: false, corrections: [] };
-  const compte = compteDuPost(post);
-  const motcle = motcleDeSurface({ id: post.id, platform: 'instagram', commentTriggerKeyword: post.commentTriggerKeyword ?? 'CAS' }, 'linkedin');
-  const texte = await adapterLegende(post, 'linkedin', 'linkedin', compte, motcle);
+  const vers = post.platform as 'linkedin' | 'instagram';
+  if (vers !== 'linkedin' && vers !== 'instagram') return { reecrit: false, corrections: [] };
+  // Une copie dont l'adaptation a échoué porte encore le texte de l'original : on
+  // repart de sa plateforme à lui. Sans groupe, le post se réécrit pour lui-même.
+  const original = post.broadcastGroup
+    ? db.select().from(schema.posts).where(eq(schema.posts.broadcastGroup, post.broadcastGroup)).orderBy(asc(schema.posts.id)).get()
+    : null;
+  const de = (original && original.id !== post.id ? original.platform : vers) as 'linkedin' | 'instagram';
+  const compte = vers === 'linkedin' ? compteDuPost(post) : null;
+  // Le mot-clé se choisit dans la liste de la plateforme d'arrivée (diagnostic sur
+  // LinkedIn, envoi privé sur Instagram) : on présente le post comme venant d'ailleurs.
+  const motcle = motcleDeSurface(
+    { id: post.id, platform: vers === 'linkedin' ? 'instagram' : 'linkedin', commentTriggerKeyword: post.commentTriggerKeyword ?? (vers === 'linkedin' ? 'CAS' : null) },
+    vers,
+  );
+  const texte = await adapterLegende(post, de, vers, compte, motcle);
   if (texte.echec) return { reecrit: false, corrections: [] };
   const lien = post.linkId ? db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get() : null;
   const url = lien ? `${config.PUBLIC_URL.replace(/\/+$/, '')}/r/${lien.code}` : '';
@@ -145,7 +169,7 @@ export async function reecrireAvecLeModele(post: Post): Promise<{ reecrit: boole
   }
   return {
     reecrit: true,
-    corrections: [`fin du post réécrite pour ${compte?.name ?? 'LinkedIn'} (mot-clé ${texte.motcle ?? 'aucun'})${etaitProgramme ? ' — déprogrammé, à revalider' : ''}`],
+    corrections: [`texte réécrit pour ${compte?.name ?? (vers === 'instagram' ? 'Instagram' : 'LinkedIn')} (mot-clé ${texte.motcle ?? 'aucun'})${etaitProgramme ? ' — déprogrammé, à revalider' : ''}`],
   };
 }
 
@@ -158,7 +182,7 @@ export async function realignerPost(postId: number, opts: { modele?: boolean } =
   let reecrit = false;
   let courant = sur.post;
   const encore = verifierPost(courant);
-  if (opts.modele && encore.some((p) => p.code === 'dm-promis' || p.code === 'motcle-hors-liste')) {
+  if (opts.modele && encore.some((p) => p.reecriture)) {
     const r = await reecrireAvecLeModele(courant);
     reecrit = r.reecrit;
     corrections = [...corrections, ...r.corrections];
@@ -186,12 +210,22 @@ export async function realignerTout(opts: { modele?: boolean } = {}): Promise<{ 
   };
 }
 
-/** Au démarrage : les corrections sûres seulement, en silence, pour que le calendrier dise vrai. */
+/**
+ * Au démarrage : les corrections sûres seulement, pour que le calendrier dise vrai.
+ * Un post déjà programmé n'est touché que pour ce qui l'empêcherait de partir (lien,
+ * adresse, mot-clé, compte) — pas pour du cosmétique — et chaque retouche est
+ * consignée : un texte validé ne change pas sans trace.
+ */
 export function reparerAuDemarrage(): void {
   let n = 0;
   for (const post of postsAVerifier()) {
     try {
-      if (realignerSansModele(post).corrections.length > 0) n++;
+      const programme = post.status === 'scheduled';
+      const { corrections } = realignerSansModele(post, { hashtags: !programme });
+      if (corrections.length > 0) {
+        n++;
+        logger.info({ postId: post.id, status: post.status, corrections }, programme ? 'post programmé réparé au démarrage' : 'post réparé au démarrage');
+      }
     } catch (err) {
       logger.warn({ postId: post.id, err: String(err).slice(0, 200) }, 'réparation au démarrage en échec');
     }

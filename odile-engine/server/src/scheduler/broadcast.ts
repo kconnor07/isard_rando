@@ -58,10 +58,12 @@ function libelle(c: CompteLinkedIn): string {
  */
 export function surfacesConnectees(): SurfaceDiffusion[] {
   const surfaces: SurfaceDiffusion[] = [];
-  for (const c of comptesLinkedIn('li_person').filter((c) => c.actif)) {
+  // Un compte en panne ne reçoit pas de copie : elle coûterait une réécriture par
+  // le modèle pour un post que la validation refuserait ensuite.
+  for (const c of comptesLinkedIn('li_person').filter((c) => c.actif && !c.enPanne)) {
     surfaces.push({ channel: 'li_personal', platform: 'linkedin', liAccountKey: c.key, label: libelle(c) });
   }
-  for (const c of comptesLinkedIn('li_org').filter((c) => c.actif)) {
+  for (const c of comptesLinkedIn('li_org').filter((c) => c.actif && !c.enPanne)) {
     surfaces.push({ channel: 'li_org', platform: 'linkedin', liAccountKey: c.key, label: libelle(c) });
   }
   if (getStoredToken('meta', 'ig_user')) {

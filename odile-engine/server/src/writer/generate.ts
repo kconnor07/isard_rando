@@ -463,8 +463,12 @@ const porteUnLien = (ligne: string) => ligne.includes('{{link}}') || /https?:\/\
  */
 function nettoyer(texte: string, transformer: (ligne: string) => string): string {
   const lignes = texte.split('\n').flatMap((ligne) => {
+    // Une adresse retirée en milieu de phrase laisse « voir ici : . » : on resserre
+    // avant le point et la virgule — pas avant « ? » ni « ! », que le français espace.
     const nette = transformer(ligne)
-      .replace(/[ \t]+([.,!?])/g, '$1')
+      .replace(/[ \t]+([.,])/g, '$1')
+      // « Le guide : . » — le deux-points n'introduit plus rien : il part avec l'adresse.
+      .replace(/\s*[:：]([.,])/g, '$1')
       .replace(/[ \t]{2,}/g, ' ')
       .trimEnd();
     if (porteUnLien(ligne) && !porteUnLien(nette) && (!nette.trim() || /[:：>→»]$/.test(nette.trim()))) return [];

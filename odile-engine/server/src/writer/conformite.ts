@@ -34,11 +34,22 @@ export interface Probleme {
     | 'tu-vous'
     | 'guide-manquant'
     | 'date-orpheline'
-    | 'rdv-manquant';
+    | 'rdv-manquant'
+    | 'copie-non-adaptee';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
   corrigeable: boolean;
+  /** une réécriture par le modèle (« Réaligner ») sait le corriger */
+  reecriture?: boolean;
+}
+
+/**
+ * Une copie dont l'adaptation a échoué porte la raison dans `error` (voir
+ * `adapterLegende`) : son texte est celui du parent, pas celui de sa plateforme.
+ */
+export function echecDAdaptation(error: string | null | undefined): boolean {
+  return /^(texte non adapté|plafond IA du jour)/i.test(error ?? '');
 }
 
 const PROMESSE_DM = /message priv|en DM\b|en MP\b|messagerie|je t[’']envoie|je vous envoie/i;
@@ -66,6 +77,15 @@ export function verifierPost(post: Post): Probleme[] {
   if (caption.includes('{{link}}') || (post.cta ?? '').includes('{{link}}')) {
     problemes.push({ code: 'lien-placeholder', niveau: 'bloquant', corrigeable: true, message: 'Le marqueur {{link}} est resté dans le texte au lieu de l’adresse.' });
   }
+  if (echecDAdaptation(post.error)) {
+    problemes.push({
+      code: 'copie-non-adaptee',
+      niveau: 'bloquant',
+      corrigeable: false,
+      reecriture: true,
+      message: `Le texte n’a pas été adapté à ce compte (${(post.error ?? '').replace(/ — texte d’origine conservé.*$/, '').slice(0, 140)}) : « Réaligner » le fait réécrire, ou corrige-le dans l’éditeur.`,
+    });
+  }
 
   if (post.platform === 'linkedin') {
     const compte = compteDuPost(post);
@@ -87,10 +107,10 @@ export function verifierPost(post: Post): Probleme[] {
       problemes.push({ code: 'lien-absent', niveau: 'bloquant', corrigeable: true, message: 'Le lien de la ressource n’est pas dans la description : la personne n’a rien à ouvrir, et les réponses automatiques diraient qu’il y est.' });
     }
     if (PROMESSE_DM.test(blocFinal(caption)) || PROMESSE_DM.test(post.cta ?? '')) {
-      problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });
+      problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, reecriture: true, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });
     }
     if (motcle && diagnostic && !dm.diagnosticKeywords.map((k) => k.toUpperCase()).includes(motcle.toUpperCase())) {
-      problemes.push({ code: 'motcle-hors-liste', niveau: 'attention', corrigeable: false, message: `Le mot « ${motcle} » n’est pas un mot de diagnostic (${dm.diagnosticKeywords.join(', ')}) : la réponse proposera quand même le rendez-vous, mais le texte peut promettre autre chose.` });
+      problemes.push({ code: 'motcle-hors-liste', niveau: 'attention', corrigeable: false, reecriture: true, message: `Le mot « ${motcle} » n’est pas un mot de diagnostic (${dm.diagnosticKeywords.join(', ')}) : la réponse proposera quand même le rendez-vous, mais le texte peut promettre autre chose.` });
     }
     if (caption.length > 3000) problemes.push({ code: 'trop-long', niveau: 'bloquant', corrigeable: false, message: `Texte de ${caption.length} caractères : LinkedIn en accepte 3 000.` });
     else if (caption.length > 1500) problemes.push({ code: 'trop-long', niveau: 'attention', corrigeable: false, message: `Texte long (${caption.length} caractères) : sur LinkedIn, au-delà de 1 200 le post est moins lu.` });

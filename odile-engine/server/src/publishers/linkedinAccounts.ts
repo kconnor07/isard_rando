@@ -70,11 +70,34 @@ function etatDuJeton(subject: 'li_person' | 'li_org', token: StoredToken): { enP
   if (subject === 'li_org' && !token.scopes.includes('w_organization_social')) {
     return { enPanne: true, panne: 'droit de publication absent — reconnecter LinkedIn avec l’option « page entreprise »' };
   }
-  const check = token.meta.lastCheck as { ok?: boolean; detail?: string } | undefined;
-  if (check && check.ok === false) {
-    return { enPanne: true, panne: `dernier contrôle en échec : ${String(check.detail ?? '').slice(0, 140)}` };
+  const check = token.meta.lastCheck as DernierControle | undefined;
+  if (check && controleEnPanne(check)) {
+    return { enPanne: true, panne: `LinkedIn refuse ce compte : ${String(check.detail ?? '').slice(0, 140)}` };
   }
   return { enPanne: false, panne: '' };
+}
+
+/** Ce que le bouton « Tester » (ou le contrôle quotidien) a laissé sur le jeton. */
+export interface DernierControle {
+  at?: string;
+  ok?: boolean;
+  detail?: string;
+  /** refus de la plateforme (jeton, droit) ou simple absence de réponse (réseau, 5xx) */
+  cause?: 'auth' | 'reseau';
+  status?: number | null;
+}
+
+/**
+ * Un contrôle raté ne met le compte en panne que si la plateforme a REFUSÉ le
+ * jeton ou le droit. Un délai ou une erreur de son côté n'est pas une panne du
+ * compte : on le signale, on ne bloque rien. Les contrôles enregistrés avant que
+ * la cause soit notée sont lus à leur texte.
+ */
+export function controleEnPanne(check: DernierControle): boolean {
+  if (check.ok !== false) return false;
+  if (check.cause) return check.cause === 'auth';
+  if (typeof check.status === 'number') return check.status === 401 || check.status === 403;
+  return /jeton|expir|r[ée]voqu|droit|permission|invalide|scope|\b40[13]\b/i.test(check.detail ?? '');
 }
 
 /** Tous les comptes d'un type, dans l'ordre de connexion. */
@@ -108,7 +131,8 @@ export function compteDuPost(post: { channel: string; liAccountKey?: string | nu
     const exact = comptes.find((c) => c.key === post.liAccountKey);
     if (exact) return exact;
   }
-  return comptes.find((c) => c.actif) ?? comptes[0]!;
+  // Un compte en panne ne prend pas le relais d'un autre : il ne publierait pas.
+  return comptes.find((c) => c.actif && !c.enPanne) ?? comptes.find((c) => c.actif) ?? comptes[0]!;
 }
 
 /**
@@ -118,7 +142,9 @@ export function compteDuPost(post: { channel: string; liAccountKey?: string | nu
  * arrivent le même jour se partagent donc la cadence sans réglage à faire.
  */
 export function prochainComptePersonnel(): CompteLinkedIn | null {
-  const actifs = comptesLinkedIn('li_person').filter((c) => c.actif);
+  // Un profil en panne (jeton expiré, droit refusé) sort du tour de rôle : lui
+  // écrire un post, c'est un post qui ne partira pas.
+  const actifs = comptesLinkedIn('li_person').filter((c) => c.actif && !c.enPanne);
   if (actifs.length === 0) return null;
   if (actifs.length === 1) return actifs[0]!;
   const dernier = new Map<string, string>();
@@ -143,7 +169,7 @@ export function prochainComptePersonnel(): CompteLinkedIn | null {
  */
 export function compteDuCanal(channel: string): CompteLinkedIn | null {
   if (channel === 'li_personal') return prochainComptePersonnel();
-  if (channel === 'li_org') return comptesLinkedIn('li_org').find((c) => c.actif) ?? null;
+  if (channel === 'li_org') return comptesLinkedIn('li_org').find((c) => c.actif && !c.enPanne) ?? null;
   return null;
 }
 

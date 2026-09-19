@@ -46,7 +46,7 @@ export function avertissementsDuTunnel(): ConnectionWarning[] {
       provider: 'linkedin',
       subject: 'posts',
       level: 'error',
-      message: `${programmesBloques.length} post(s) programmé(s) ne tiendront pas leurs promesses en l’état (${programmesBloques.map((p) => `#${p.id}`).join(', ')}) : ouvre « À valider » et clique « Réaligner ».`,
+      message: `${programmesBloques.length} post(s) programmé(s) ne tiendront pas leurs promesses en l’état (${programmesBloques.map((p) => `#${p.id}`).join(', ')}) : ils ne partiront pas et reviendront à valider. Dans « À valider », le bouton « Réaligner … avec la stratégie » les corrige dès maintenant (il traite aussi les posts programmés).`,
     });
   }
   return out;

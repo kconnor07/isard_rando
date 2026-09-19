@@ -19,7 +19,7 @@ import { getStoredToken } from '../../publishers/tokens.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
 import { apercuTunnel } from '../../approvals/tunnel.js';
-import { verifierPost } from '../../writer/conformite.js';
+import { echecDAdaptation, verifierPost } from '../../writer/conformite.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 
 /**
@@ -287,6 +287,11 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (data.caption !== undefined) update.caption = data.caption;
     if (data.hook !== undefined) update.hook = data.hook;
     if (data.cta !== undefined) update.cta = data.cta;
+    // Un texte corrigé à la main n'est plus « non adapté » : la raison s'efface.
+    if (data.caption !== undefined || data.cta !== undefined) {
+      const courant = db.select({ error: schema.posts.error }).from(schema.posts).where(eq(schema.posts.id, id)).get();
+      if (echecDAdaptation(courant?.error)) update.error = null;
+    }
     if (data.hashtags !== undefined) update.hashtags = JSON.stringify(data.hashtags);
     if (data.format !== undefined) update.format = data.format;
     if (data.channel !== undefined) {

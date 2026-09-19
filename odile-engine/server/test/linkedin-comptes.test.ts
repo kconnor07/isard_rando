@@ -70,7 +70,8 @@ describe('le lien dans la caption', async () => {
   const { avecLien, sansLien } = await import('../src/writer/generate.js');
 
   it('sansLien retire le placeholder et les URL sans laisser de trou (Instagram)', () => {
-    expect(sansLien('Le guide ici : {{link}} .\n\nSource : Les Échos https://lesechos.fr/x')).toBe('Le guide ici :.\n\nSource : Les Échos');
+    // Le deux-points qui n'introduit plus rien part avec l'adresse : « Le guide ici. »
+    expect(sansLien('Le guide ici : {{link}} .\n\nSource : Les Échos https://lesechos.fr/x')).toBe('Le guide ici.\n\nSource : Les Échos');
     expect(sansLien('Commente GUIDE 👇')).toBe('Commente GUIDE 👇');
     // Une étiquette privée de son adresse ne reste pas ouverte sur le vide…
     expect(sansLien('Commente GUIDE.\n\nOu directement ici : https://o/r/abc')).toBe('Commente GUIDE.');

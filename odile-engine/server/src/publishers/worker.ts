@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getCadence, getFbMirror } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
+import { motifDeRefus, verifierPost } from '../writer/conformite.js';
 import { renderPost } from '../render/renderer.js';
 import { sendMail } from '../mailer/smtp.js';
 import { facebookMirrorDryPayload, legendePourFacebook, mirrorToFacebookPage } from './facebook.js';
@@ -79,6 +80,8 @@ export interface PublishWorkerSummary {
   processed: number;
   published: number;
   failed: number;
+  /** posts non conformes remis à valider au lieu de partir */
+  refuses: number;
 }
 
 /** Traite les publications dont l'échéance est passée (état pending). */
@@ -91,7 +94,7 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
     .limit(5)
     .all();
 
-  const summary: PublishWorkerSummary = { processed: 0, published: 0, failed: 0 };
+  const summary: PublishWorkerSummary = { processed: 0, published: 0, failed: 0, refuses: 0 };
   for (const job of due) {
     summary.processed++;
     // Verrouillage optimiste : ne prendre le job que s'il est toujours pending
@@ -108,6 +111,33 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
         .set({ state: 'canceled', finishedAt: new Date().toISOString(), lastError: 'Post absent ou statut incompatible' })
         .where(eq(schema.publishJobs.id, job.id))
         .run();
+      continue;
+    }
+
+    // Programmé avant un changement de règle, ou compte tombé en panne depuis : un
+    // post qui ne tiendrait pas ses promesses ne part pas. Il revient à valider,
+    // avec la raison, au lieu de publier un lien absent ou un message privé impossible.
+    const refus = motifDeRefus(verifierPost(post));
+    if (refus) {
+      const quand = new Date().toISOString();
+      db.update(schema.publishJobs)
+        .set({ state: 'canceled', finishedAt: quand, lastError: refus.slice(0, 800) })
+        .where(eq(schema.publishJobs.id, job.id))
+        .run();
+      db.update(schema.posts)
+        .set({ status: 'awaiting_approval', scheduledAt: null, approvedAt: null, error: refus.slice(0, 800), updatedAt: quand })
+        .where(eq(schema.posts.id, post.id))
+        .run();
+      summary.refuses++;
+      logger.warn({ postId: post.id, refus }, 'publication refusée : le post ne tiendrait pas ses promesses, remis à valider');
+      await sendMail({
+        kind: 'error',
+        to: getApprovalEmail().to,
+        postId: post.id,
+        subject: `[Odile] ⛔ Post « ${post.hook.slice(0, 50)} » non publié : à corriger`,
+        html: `<p>Le post prévu n’est pas parti : il ne tiendrait pas ses promesses en l’état.</p><p>${refus.replace(/</g, '&lt;')}</p><p>Il est revenu dans « À valider » : clique « Réaligner » ou corrige-le, puis valide-le à nouveau.</p>`,
+        text: `Le post prévu n’est pas parti : ${refus} Il est revenu dans « À valider ».`,
+      });
       continue;
     }
 
