@@ -29,6 +29,10 @@ export interface CompteLinkedIn {
   expiresAt: string | null;
   scopes: string;
   connectedAt: string | null;
+  /** jeton expiré ou dernier contrôle de santé en échec : le compte ne publiera pas */
+  enPanne: boolean;
+  /** pourquoi, en une phrase, quand il est en panne */
+  panne: string;
 }
 
 /** URN acteur d'un compte : ce que LinkedIn attend en `author` (posts) et `actor` (commentaires). */
@@ -50,7 +54,27 @@ function toCompte(subject: 'li_person' | 'li_org', token: StoredToken): CompteLi
     expiresAt: token.expiresAt,
     scopes: token.scopes,
     connectedAt: (meta.connectedAt as string | undefined) ?? null,
+    ...etatDuJeton(subject, token),
   };
+}
+
+/**
+ * Un compte « en panne » ne publiera pas : jeton expiré, dernier contrôle de santé en
+ * échec, ou page sans droit de publication. Le calendrier, la validation et
+ * l'amplification le savent avant d'y programmer quoi que ce soit.
+ */
+function etatDuJeton(subject: 'li_person' | 'li_org', token: StoredToken): { enPanne: boolean; panne: string } {
+  if (token.expiresAt && new Date(token.expiresAt).getTime() < Date.now()) {
+    return { enPanne: true, panne: 'jeton expiré — reconnecter ce compte dans Connexions & santé' };
+  }
+  if (subject === 'li_org' && !token.scopes.includes('w_organization_social')) {
+    return { enPanne: true, panne: 'droit de publication absent — reconnecter LinkedIn avec l’option « page entreprise »' };
+  }
+  const check = token.meta.lastCheck as { ok?: boolean; detail?: string } | undefined;
+  if (check && check.ok === false) {
+    return { enPanne: true, panne: `dernier contrôle en échec : ${String(check.detail ?? '').slice(0, 140)}` };
+  }
+  return { enPanne: false, panne: '' };
 }
 
 /** Tous les comptes d'un type, dans l'ordre de connexion. */

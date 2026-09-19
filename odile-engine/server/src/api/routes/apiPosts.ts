@@ -28,7 +28,7 @@ export function formatPourPlateforme(format: string, platform: 'instagram' | 'li
   return table[format] ?? format;
 }
 import { runJob } from '../../lib/jobRunner.js';
-import { mirrorToFacebookPage } from '../../publishers/facebook.js';
+import { mirrorToFacebookPage, legendePourFacebook } from '../../publishers/facebook.js';
 import { buildCaption, collectPublishImages } from '../../publishers/types.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
@@ -461,7 +461,8 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (post.platform !== 'instagram') return reply.status(409).send({ error: 'La recopie ne concerne que les posts Instagram' });
     try {
       const images = collectPublishImages(post.id);
-      const mirror = await mirrorToFacebookPage({ post, images, caption: buildCaption(post) });
+      // Même légende que le miroir automatique : sans « Commente X » que personne ne servirait sur la Page.
+      const mirror = await mirrorToFacebookPage({ post, images, caption: legendePourFacebook(post, post.externalUrl) });
       db.update(schema.posts)
         .set({ fbMirrorPostId: mirror.postId, fbMirrorUrl: mirror.url, fbMirrorError: null })
         .where(eq(schema.posts.id, post.id))

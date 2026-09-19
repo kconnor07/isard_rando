@@ -106,8 +106,12 @@ export function linkLinkedInOrganization(orgId: string, viaCompte?: string): Lin
   const person = getStoredToken('linkedin', 'li_person', viaCompte) ?? getStoredToken('linkedin', 'li_person');
   if (!person) throw new Error('Connecte d’abord le profil LinkedIn personnel');
   const known = (person.meta.orgs as LinkedInOrg[] | undefined)?.find((o) => o.id === orgId);
-  const org: LinkedInOrg = { id: orgId, name: known?.name ?? `Organisation ${orgId}` };
   const ancien = getStoredToken('linkedin', 'li_org', orgId);
+  // Le nom saisi à la main (« Renommer ») survit à une reconnexion : LinkedIn ne le
+  // donne pas toujours, et l'écraser par « Organisation <id> » à chaque renouvellement
+  // rendait la page à nouveau anonyme — et non mentionnable.
+  const nomPropre = (n: unknown) => (typeof n === 'string' && n.trim() && !/^Organisation \d+$/.test(n) && n !== 'Page entreprise' ? n.trim() : null);
+  const org: LinkedInOrg = { id: orgId, name: nomPropre(known?.name) ?? nomPropre(ancien?.meta.name) ?? `Organisation ${orgId}` };
   storeToken({
     provider: 'linkedin',
     subject: 'li_org',

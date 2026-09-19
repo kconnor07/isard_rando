@@ -210,9 +210,12 @@ export function lienRdv(): string {
  * description du post — renvoyer le même lien n'apprendrait rien à personne : la
  * réponse dit où il se trouve et propose le rendez-vous.
  */
-export function modeleDeReponse(platform: string): string {
+export function modeleDeReponse(platform: string, post?: { caption?: string | null } | null): string {
   const s = getDmTriggers();
   if (platform !== 'linkedin' || s.linkedinOffer !== 'diagnostic') return s.replyTemplate;
+  // Un post d'avant la stratégie n'a pas le lien dans sa description : la réponse doit
+  // alors le donner, sinon elle renvoie la personne vers un lien qui n'existe pas.
+  if (post && typeof post.caption === 'string' && !post.caption.includes('/r/')) return s.replyTemplate;
   return `Merci {{prenom}} 🙂 {{ressource}} est en lien dans le post. Si vous voulez ${s.diagnosticPromise}, c’est ici : {{rdv}}`;
 }
 
@@ -270,7 +273,8 @@ export function preparerSansMotCle(commentId: number): boolean {
   if (!post?.commentTriggerKeyword) return false;
   if (!interetProbable(comment.text)) return false;
   const contexte = contexteDuCommentaire(comment.postId, post.commentTriggerKeyword, prenomDuCommentaire(comment.authorName));
-  const texte = buildReply(modeleDeReponse(comment.platform), contexte);
+  const postDuCommentaire = comment.postId ? (db.select({ caption: schema.posts.caption }).from(schema.posts).where(eq(schema.posts.id, comment.postId)).get() ?? null) : null;
+  const texte = buildReply(modeleDeReponse(comment.platform, postDuCommentaire), contexte);
   db.update(schema.comments).set({ suggestedReply: texte }).where(eq(schema.comments.id, commentId)).run();
   logger.info({ commentId }, 'commentaire sans mot-clé : réponse préparée, en attente d’un humain');
   return true;

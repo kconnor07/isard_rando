@@ -11,6 +11,7 @@ import path from 'node:path';
 import type { BlogSettings } from '@odile/shared';
 import { config } from '../config.js';
 import { getOauthApps } from '../db/oauthApps.js';
+import { getBrand } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 
 export interface ChampFramer {
@@ -155,11 +156,19 @@ export async function publierDansFramer(contenu: ContenuAPublier, reglages: Blog
     let url: string | null = null;
     if (!reglages.publishAsDraft) {
       const result = await framer.publish();
-      const hosts = await framer.deploy(result.deployment.id);
-      const host = hosts.find((h) => !/framer\.app$/.test(String((h as { name?: string }).name ?? ''))) ?? hosts[0];
-      const nom = host ? String((host as { name?: string }).name ?? '') : '';
-      if (nom) url = `https://${nom}/blog/${contenu.slug}`;
-      logger.info({ slug: contenu.slug, host: nom }, 'article publié et site déployé');
+      // L'API nomme l'hôte `hostname` (et non `name`) : lire le mauvais champ laissait
+      // l'adresse vide sur tous les articles publiés. Sans domaine personnalisé, `deploy`
+      // ne renvoie rien : l'adresse se déduit alors du site de la marque.
+      type Hote = { hostname?: string; name?: string; isPrimary?: boolean; type?: string };
+      const hosts = (await framer.deploy(result.deployment.id)) as Hote[];
+      const nomDe = (h: Hote | undefined) => String(h?.hostname ?? h?.name ?? '');
+      const host =
+        hosts.find((h) => h.isPrimary && !/framer\.(app|website)$/.test(nomDe(h))) ??
+        hosts.find((h) => !/framer\.(app|website)$/.test(nomDe(h))) ??
+        hosts[0];
+      const nom = nomDe(host);
+      url = nom ? `https://${nom}/blog/${contenu.slug}` : `${(getBrand().siteUrl || 'https://odileai.com').replace(/\/$/, '')}/blog/${contenu.slug}`;
+      logger.info({ slug: contenu.slug, host: nom || 'site de la marque', url }, 'article publié et site déployé');
     } else {
       logger.info({ slug: contenu.slug }, 'article déposé en brouillon dans Framer');
     }

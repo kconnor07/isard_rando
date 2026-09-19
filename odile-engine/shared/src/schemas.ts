@@ -708,9 +708,10 @@ export type BlogSettings = z.infer<typeof blogSettingsSchema>;
 /** Article rédigé par le modèle : structure pensée pour le référencement naturel ET les moteurs génératifs. */
 export const articleSchema = z.object({
   title: z.string().min(10).max(90),
-  slug: z.string().min(3).max(90).regex(/^[a-z0-9-]+$/),
-  metaTitle: z.string().min(10).max(65),
-  metaDescription: z.string().min(50).max(160),
+  /** normalisé par le serveur (slugDisponible) : un accent ou un espace n'est pas une erreur */
+  slug: z.string().min(3).max(120),
+  metaTitle: z.string().min(10).max(70),
+  metaDescription: z.string().min(50).max(165),
   excerpt: z.string().min(40).max(320),
   /** titre court de l'image de couverture (≤ 8 mots) et son mot fort */
   coverTitle: z.string().min(4).max(70),
@@ -721,7 +722,7 @@ export const articleSchema = z.object({
     .array(
       z.object({
         h2: z.string().min(4).max(120),
-        paragraphs: z.array(z.string().min(20).max(1400)).min(1).max(6),
+        paragraphs: z.array(z.string().min(1).max(1400)).min(1).max(6),
         bullets: z.array(z.string().min(3).max(240)).max(8).default([]),
         h3s: z
           .array(z.object({ h3: z.string().min(3).max(120), paragraphs: z.array(z.string().min(20).max(1200)).min(1).max(4) }))

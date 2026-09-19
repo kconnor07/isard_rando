@@ -144,6 +144,9 @@ export async function completeJson<T>(
     return parsed.success ? { ok: true, value: parsed.data } : { ok: false, issues: parsed.error.issues };
   };
 
+  // Une réponse coupée par max_tokens obtient plus de place à la reprise (le SDK exige
+  // le streaming au-delà de ~21 000 jetons : on plafonne en dessous).
+  let maxTokens = req.maxTokens;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     // Une reprise coûte un appel : elle est comptée comme telle, à part.
     const cible =
@@ -152,11 +155,12 @@ export async function completeJson<T>(
         : precedent
           ? `${req.prompt}\n\nTa réponse précédente (ci-dessous) est presque bonne mais invalide : ${cause}.\nNe la réécris pas. Renvoie UNIQUEMENT un objet JSON {"corrections":[{"path":"…","value":…}]} : un élément par champ à corriger, « path » étant le chemin indiqué (ex. "sections.2.paragraphs.1", "metaTitle"), « value » la nouvelle valeur complète de ce champ, conforme aux contraintes. Aucun autre texte.\n\nRÉPONSE PRÉCÉDENTE :\n${precedent.texte.slice(0, 60_000)}`
           : `${basePrompt}\n\nTa réponse précédente était inutilisable (${cause}). ${/tronqu/.test(cause) ? 'Fais plus court : ' : ''}Renvoie uniquement le JSON complet.`;
-    const res = await completeText({ ...req, prompt: cible, attempt: attempt + 1 });
+    const res = await completeText({ ...req, prompt: cible, attempt: attempt + 1, ...(maxTokens ? { maxTokens } : {}) });
     lastModel = res.model;
     extrait = res.text.slice(0, 600);
     if (res.truncated) {
-      cause = `réponse tronquée par la limite de ${req.maxTokens ?? 'jetons'} (max_tokens) après ${res.outputTokens ?? '?'} jetons`;
+      cause = `réponse tronquée par la limite de ${maxTokens ?? 'jetons'} (max_tokens) après ${res.outputTokens ?? '?'} jetons`;
+      maxTokens = Math.min(20_000, Math.round((maxTokens ?? 8_000) * 1.5));
       precedent = null;
       continue;
     }

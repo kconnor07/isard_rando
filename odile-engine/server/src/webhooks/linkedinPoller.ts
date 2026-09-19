@@ -177,7 +177,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
   if (surfaces.length === 0) return resume;
   const settings = getDmTriggers();
   const nosActeurs = new Set(surfaces.map((s) => s.actor));
-  const aRepondre: { commentId: number; compte: CompteLinkedIn; token: string; postUrn: string; commentUrn: string; contexte: ContexteReponse }[] = [];
+  const aRepondre: { commentId: number; compte: CompteLinkedIn; token: string; postUrn: string; commentUrn: string; contexte: ContexteReponse; caption: string | null }[] = [];
   const pourEmail: { compte: string; auteur: string; texte: string; dm: string; postUrl: string | null }[] = [];
 
   for (const post of postsRecents()) {
@@ -235,7 +235,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
       // Sans mot-clé, la réponse est quand même préparée quand le commentaire
       // ressemble à une demande : elle attend un humain dans la boîte « à traiter ».
       const interesse = !matched && Boolean(post.commentTriggerKeyword) && interetProbable(text);
-      const dm = matched || interesse ? composerReponseLinkedIn(modeleDeReponse('linkedin'), { ...contexte, motcle: matched ?? post.commentTriggerKeyword }) : null;
+      const dm = matched || interesse ? composerReponseLinkedIn(modeleDeReponse('linkedin', post), { ...contexte, motcle: matched ?? post.commentTriggerKeyword }) : null;
       const inserted = db
         .insert(schema.comments)
         .values({
@@ -261,6 +261,7 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
       if (!matched || !dm) continue;
       resume.matched++;
       aRepondre.push({
+        caption: post.caption,
         commentId: inserted[0]!.id,
         compte,
         token: token.accessToken,
@@ -277,7 +278,9 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     if (!settings.publicReply) break;
     // Ce que la réponse publique propose : la ressource (elle porte le lien) ou le
     // diagnostic (le lien est déjà dans le post — elle propose le rendez-vous).
-    const variantes = settings.linkedinOffer === 'diagnostic' ? settings.diagnosticReplyVariants : settings.linkedinReplyVariants;
+    // Post d'avant la stratégie, sans lien dans sa description : la réponse porte le lien.
+    const lienDansLePost = typeof item.caption !== 'string' || item.caption.includes('/r/');
+    const variantes = settings.linkedinOffer === 'diagnostic' && lienDansLePost ? settings.diagnosticReplyVariants : settings.linkedinReplyVariants;
     const modele = choisirVariante(variantes, item.commentId);
     if (!modele) break;
     const texte = composerReponseLinkedIn(modele, item.contexte);

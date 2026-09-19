@@ -128,8 +128,11 @@ export function registerJobs(): void {
   // Renouvellement des jetons (LinkedIn refresh_token, jeton utilisateur Meta) avant expiration
   cron.schedule('30 4 * * *', () => {
     void (async () => {
-      const { refreshTokens } = await import('../publishers/refresh.js');
+      const { checkConnections, refreshTokens } = await import('../publishers/refresh.js');
       await runJob('refresh-tokens', refreshTokens);
+      // Puis la vérité du terrain : une page qui a perdu son droit ou un jeton révoqué
+      // ne doit pas rester « vert » jusqu'au prochain clic sur « Tester les connexions ».
+      await runJob('check-connections', async () => ({ comptes: (await checkConnections()).length }));
     })().catch((err) => logger.error({ err: String(err) }, 'refresh-tokens en échec'));
   }, { timezone: TZ });
 

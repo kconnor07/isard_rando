@@ -7,6 +7,7 @@ import {
   type Channel,
   type GeneratedPost,
   type PostFormat,
+  HASHTAGS_MAX,
 } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
@@ -351,7 +352,7 @@ STRATÉGIE LINKEDIN (le texte du post, « caption ») :
   cliquable ce qu'il parvient à retrouver ; le reste restera du texte, ce n'est pas grave.
   Une identification n'a de valeur que si elle est justifiée : jamais de tag gratuit.
 - Nomme ${brand.name} une fois, naturellement, dans la dernière ligne (le moteur l'identifiera).
-- hashtags : 3 à 5, pas davantage — LinkedIn n'en tient pas compte au-delà.
+- hashtags : exactement 3 — LinkedIn n'en tient pas compte au-delà, et ils ne vont pas dans le texte (le moteur les ajoute).
 - ORDRE DE FIN DE POST, sans rien d'autre entre les lignes :
   1. une ligne vide ;
 ${
@@ -534,9 +535,35 @@ export function relierLeLien(
   return avecLien(texte, `${config.PUBLIC_URL}/r/${lien.code}`, optionsDuLien(post.commentTriggerKeyword));
 }
 
-/** Retire placeholder et URL d'un texte qui n'en veut aucun (Instagram), sans laisser de trou. */
+/**
+ * Retire placeholder et URL d'un texte qui n'en veut aucun (Instagram), sans laisser
+ * de trou. Les adresses sans « https:// » (« www.site.fr », « odile.ai/demo ») partent
+ * aussi : un modèle en invente parfois, et une adresse inventée est pire qu'aucune.
+ */
 export function sansLien(texte: string): string {
-  return nettoyer(texte, (ligne) => ligne.replaceAll('{{link}}', '').replace(/https?:\/\/\S+/gi, ''));
+  return nettoyer(texte, (ligne) =>
+    ligne
+      .replaceAll('{{link}}', '')
+      .replace(/https?:\/\/\S+/gi, '')
+      .replace(/(?:^|\s)(?:www\.[a-z0-9.-]+\.[a-z]{2,}\S*|[a-z0-9-]+\.[a-z]{2,}\/\S+)/gi, ' '),
+  );
+}
+
+/**
+ * Les hashtags que la plateforme prend vraiment en compte : LinkedIn en ignore
+ * au-delà de trois, Instagram n'en récompense plus au-delà de cinq. Dédoublonnés,
+ * préfixés, coupés — le modèle en propose parfois huit.
+ */
+export function bornerHashtags(bruts: string[], platform: 'linkedin' | 'instagram'): string[] {
+  const vus = new Set<string>();
+  const propres: string[] = [];
+  for (const h of bruts) {
+    const tag = `#${h.replace(/^#+/, '').replace(/[^\p{L}\p{N}_]/gu, '')}`;
+    if (tag.length < 3 || vus.has(tag.toLowerCase())) continue;
+    vus.add(tag.toLowerCase());
+    propres.push(tag);
+  }
+  return propres.slice(0, HASHTAGS_MAX[platform]);
 }
 
 function persistDraft(args: {
@@ -571,7 +598,7 @@ function persistDraft(args: {
       hook: generated.hook,
       caption: generated.caption,
       cta: generated.cta,
-      hashtags: JSON.stringify(generated.hashtags.map((h) => (h.startsWith('#') ? h : `#${h}`))),
+      hashtags: JSON.stringify(bornerHashtags(generated.hashtags, platform)),
       commentTriggerKeyword: generated.commentTrigger?.enabled
         ? generated.commentTrigger.keyword.toUpperCase()
         : null,
@@ -598,11 +625,10 @@ function persistDraft(args: {
   // il accompagne le mot-clé au lieu de le remplacer : commenter nourrit le post,
   // le lien sert ceux qui veulent aller droit au but.
   const motcle = generated.commentTrigger?.enabled ? generated.commentTrigger.keyword.toUpperCase() : null;
-  const caption =
-    platform === 'linkedin'
-      ? avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle))
-      : generated.caption.replaceAll('{{link}}', link.shortUrl);
-  const cta = generated.cta.replaceAll('{{link}}', link.shortUrl);
+  // Sur Instagram aucune adresse : le lien part en message privé, jamais dans la
+  // légende (une URL y est illisible et non cliquable, et elle trahit le tunnel).
+  const caption = platform === 'linkedin' ? avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle)) : sansLien(generated.caption);
+  const cta = platform === 'linkedin' ? generated.cta.replaceAll('{{link}}', link.shortUrl) : sansLien(generated.cta);
   db.update(schema.posts)
     .set({ caption, cta, linkId: link.id })
     .where(eq(schema.posts.id, post.id))

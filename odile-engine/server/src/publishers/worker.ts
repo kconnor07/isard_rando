@@ -7,8 +7,7 @@ import { getApprovalEmail, getCadence, getFbMirror } from '../db/settingsRepo.js
 import { logger } from '../lib/logger.js';
 import { renderPost } from '../render/renderer.js';
 import { sendMail } from '../mailer/smtp.js';
-import { nommerRessource } from '../webhooks/commentDm.js';
-import { captionFacebook, facebookMirrorDryPayload, mirrorToFacebookPage } from './facebook.js';
+import { facebookMirrorDryPayload, legendePourFacebook, mirrorToFacebookPage } from './facebook.js';
 import { instagramDryPayload, InstagramPublisher } from './instagram.js';
 import { linkedInDryPayload, LinkedInPublisher } from './linkedin.js';
 import { buildCaption, collectPublishImages, collectPublishVideo, DryRunPublisher, type Publisher } from './types.js';
@@ -32,15 +31,7 @@ async function mirrorOnFacebook(
   if (!getFbMirror().enabled && !(post.broadcastGroup && getCadence().broadcast)) return;
   // Le mot-clé ne marche pas sur une Page : le moteur ne lit que les commentaires
   // Instagram. La légende renvoie donc là où la promesse est tenue.
-  const input = {
-    ...entree,
-    caption: captionFacebook({
-      caption: entree.caption,
-      motcle: post.commentTriggerKeyword,
-      ressource: nommerRessource(post),
-      urlInstagram,
-    }),
-  };
+  const input = { ...entree, caption: legendePourFacebook(post, urlInstagram) };
   try {
     if (config.PUBLISH_MODE === 'dry') {
       const payload = facebookMirrorDryPayload(input);

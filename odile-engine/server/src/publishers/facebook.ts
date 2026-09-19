@@ -2,6 +2,7 @@ import { fetchJson } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { GRAPH } from './instagram.js';
 import { getStoredToken } from './tokens.js';
+import { nommerRessource } from '../webhooks/commentDm.js';
 import type { PublishInput } from './types.js';
 
 /** Publier sur une Page exige cette permission, distincte de celles d'Instagram. */
@@ -27,20 +28,42 @@ export function captionFacebook(args: {
   /** ce qui est promis, nommé : « le guide « … » » */
   ressource: string;
   urlInstagram: string | null;
+  /** hashtags du post, posés APRÈS le renvoi (jamais entre le texte et lui) */
+  hashtags?: string[];
 }): string {
   const { caption, motcle, ressource, urlInstagram } = args;
-  if (!motcle) return caption;
-  const motif = new RegExp(`commente\\s+${motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
+  const tags = (args.hashtags ?? []).join(' ');
+  const avecTags = (t: string) => (tags ? `${t}\n\n${tags}` : t);
+  if (!motcle) return avecTags(caption);
+  // « Commente X », « Commentez « X » », et toute promesse de message privé : rien de
+  // tout cela ne se tient sur une Page (Meta n'y relaie aucun commentaire).
+  const cle = motcle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const motif = new RegExp(`commente[sz]?\\s*[«"'“]?\\s*${cle}`, 'i');
+  const promesse = /message priv|en DM\b|en MP\b|abonne-toi|messagerie/i;
   const nettoye = caption
     .split('\n')
-    .filter((ligne) => !motif.test(ligne))
+    .filter((ligne) => !motif.test(ligne) && !promesse.test(ligne))
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
   const renvoi = urlInstagram
     ? `👉 Pour recevoir ${ressource}, commente ${motcle} sous cette publication sur Instagram : ${urlInstagram}`
     : `👉 Pour recevoir ${ressource}, commente ${motcle} sous cette publication sur notre Instagram.`;
-  return `${nettoye}\n\n${renvoi}`;
+  return avecTags(`${nettoye}\n\n${renvoi}`);
+}
+
+/** La légende Facebook d'un post Instagram, calculée d'un seul endroit (miroir automatique ou recopie manuelle). */
+export function legendePourFacebook(
+  post: { caption: string; hashtags: string; commentTriggerKeyword: string | null; resourceKind?: string | null; resourceTitle?: string | null },
+  urlInstagram: string | null,
+): string {
+  let hashtags: string[] = [];
+  try {
+    hashtags = JSON.parse(post.hashtags) as string[];
+  } catch {
+    hashtags = [];
+  }
+  return captionFacebook({ caption: post.caption, motcle: post.commentTriggerKeyword, ressource: nommerRessource(post), urlInstagram, hashtags });
 }
 
 /**

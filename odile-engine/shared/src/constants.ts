@@ -129,6 +129,13 @@ export const JOB_STATES = ['pending', 'running', 'done', 'failed', 'canceled'] a
 export type JobState = (typeof JOB_STATES)[number];
 
 /** Dimensions des visuels par format (px). */
+/**
+ * Hashtags réellement pris en compte par chaque plateforme : LinkedIn n'en lit que
+ * trois, Instagram cesse d'en tenir compte au-delà de cinq. Le rédacteur, la
+ * diffusion et le réalignement des anciens posts s'y tiennent.
+ */
+export const HASHTAGS_MAX = { linkedin: 3, instagram: 5 } as const;
+
 export const RENDER_SIZES: Record<PostFormat, { width: number; height: number }> = {
   carousel: { width: 1080, height: 1350 },
   static: { width: 1080, height: 1350 },

@@ -4,6 +4,7 @@ import { logger } from '../lib/logger.js';
 import type { TokenPayload } from '../lib/signedToken.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
 import { freresDuGroupe } from '../scheduler/broadcast.js';
+import { compteDuPost } from '../publishers/linkedinAccounts.js';
 
 export interface ActionContext {
   ip?: string;
@@ -159,6 +160,10 @@ function cascaderRejet(post: Post, reason: string | null, now: string): void {
  */
 function voisinTropProche(post: Post, when: Date): { hook: string; at: string } | null {
   const marge = 30 * 60_000;
+  // Le compte qui publiera VRAIMENT : un post sans compte attribué part sur le premier
+  // profil actif — le comparer à vide le faisait passer pour un autre compte.
+  const compteDe = (p: Post) => (p.platform === 'linkedin' ? (compteDuPost(p)?.key ?? p.liAccountKey ?? '') : '');
+  const mien = compteDe(post);
   const voisin = db
     .select()
     .from(schema.posts)
@@ -167,7 +172,7 @@ function voisinTropProche(post: Post, when: Date): { hook: string; at: string } 
     .find(
       (p) =>
         p.platform === post.platform &&
-        (p.liAccountKey ?? '') === (post.liAccountKey ?? '') &&
+        compteDe(p) === mien &&
         p.scheduledAt !== null &&
         Math.abs(new Date(p.scheduledAt).getTime() - when.getTime()) < marge,
     );

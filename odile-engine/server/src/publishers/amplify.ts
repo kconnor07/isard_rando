@@ -112,7 +112,7 @@ export function amplificateursDus(args: {
  * à dire : on ne poste rien plutôt qu'un commentaire creux sous son propre post.
  */
 export function texteAmorce(
-  post: Pick<Post, 'commentTriggerKeyword' | 'resourceKind' | 'resourceTitle'>,
+  post: Pick<Post, 'commentTriggerKeyword' | 'resourceKind' | 'resourceTitle'> & { caption?: string | null },
 ): string | null {
   if (!post.commentTriggerKeyword) return null;
   const dm = getDmTriggers();
@@ -120,7 +120,11 @@ export function texteAmorce(
     return `Pour recevoir ${nommerRessource(post)} : commente ${post.commentTriggerKeyword} ici, je te l'envoie en réponse.`;
   }
   // Le lien est dans la description : l'amorce ne le répète pas, elle ouvre la suite.
+  // Sauf si la description ne le porte pas (post d'avant la stratégie) : on ne dit
+  // pas « servez-vous » d'un lien qui n'existe pas.
   const ressource = nommerRessource(post);
+  const lienDansLePost = typeof post.caption !== 'string' || post.caption.includes('/r/');
+  if (!lienDansLePost) return `Si vous voulez ${dm.diagnosticPromise} : commente ${post.commentTriggerKeyword} ici.`;
   return `${ressource.charAt(0).toUpperCase()}${ressource.slice(1)} est en lien dans la description — servez-vous.\n\nEt si vous voulez ${dm.diagnosticPromise} : commente ${post.commentTriggerKeyword} ici.`;
 }
 
@@ -217,8 +221,9 @@ export async function amplifierPostsPublies(now = new Date()): Promise<ResumeAmp
     .all()
     .filter((p) => p.externalPostId);
 
-  // Seuls les comptes actifs qui ont le droit d'écrire un commentaire participent.
-  const equipe = toutesLesSurfaces().filter((c) => c.actif && droitCommentaire(c).peutRepondre);
+  // Seuls les comptes actifs, en état de marche, qui ont le droit d'écrire un commentaire
+  // participent : un jeton expiré ferait rédiger un commentaire (appel IA) pour un 401.
+  const equipe = toutesLesSurfaces().filter((c) => c.actif && !c.enPanne && droitCommentaire(c).peutRepondre);
 
   for (const post of posts) {
     const auteur = compteDuPost(post);

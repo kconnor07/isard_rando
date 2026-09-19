@@ -6,7 +6,7 @@
  * dashboard (page Blog), un email prévient. La publication effective se fait à
  * l'heure programmée par le job « blog-publish-due ».
  */
-import { and, desc, eq, lte } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte } from 'drizzle-orm';
 import { articleSchema, type Article, type BlogSettings } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
@@ -31,8 +31,20 @@ export function coverUrl(assetId: string | null): string | null {
 /** Un article est-il dû, selon la cadence ? */
 export function blogDue(reglages: BlogSettings = getBlog(), now = new Date()): { due: boolean; reason: string } {
   if (!reglages.enabled) return { due: false, reason: 'blog désactivé' };
-  const dernier = db.select({ createdAt: schema.articles.createdAt }).from(schema.articles).orderBy(desc(schema.articles.id)).limit(1).get();
-  if (!dernier) return { due: true, reason: 'premier article' };
+  // Un brouillon en échec ou rejeté n'est pas un article : il ne repousse pas le
+  // suivant de sept jours. Après un échec, on réessaie dès le lendemain.
+  const dernier = db
+    .select({ createdAt: schema.articles.createdAt, status: schema.articles.status })
+    .from(schema.articles)
+    .where(inArray(schema.articles.status, ['awaiting_approval', 'scheduled', 'publishing', 'published']))
+    .orderBy(desc(schema.articles.id))
+    .limit(1)
+    .get();
+  if (!dernier) {
+    const echec = db.select({ createdAt: schema.articles.createdAt }).from(schema.articles).orderBy(desc(schema.articles.id)).limit(1).get();
+    if (echec && now.getTime() - new Date(echec.createdAt).getTime() < 86400000) return { due: false, reason: 'dernière tentative en échec il y a moins d’un jour' };
+    return { due: true, reason: echec ? 'nouvel essai après un échec' : 'premier article' };
+  }
   const ecart = (now.getTime() - new Date(dernier.createdAt).getTime()) / 86400000;
   return ecart >= reglages.everyDays
     ? { due: true, reason: `dernier article il y a ${Math.floor(ecart)} j` }

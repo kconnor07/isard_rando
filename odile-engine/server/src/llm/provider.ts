@@ -121,6 +121,15 @@ export function couperAuMot(texte: string, max: number): string {
   return `${base.replace(/[\s,;:(\-–]+$/u, '')}…`;
 }
 
+/** Coupe un texte long à la dernière fin de phrase avant `max` ; null s'il n'y en a pas d'assez loin. */
+export function couperALaPhrase(texte: string, max: number): string | null {
+  if (texte.length <= max) return texte;
+  const tranche = texte.slice(0, max);
+  const fin = Math.max(tranche.lastIndexOf('. '), tranche.lastIndexOf('! '), tranche.lastIndexOf('? '), tranche.endsWith('.') ? tranche.length - 1 : -1);
+  if (fin < max * 0.6) return null;
+  return tranche.slice(0, fin + 1).trim();
+}
+
 /**
  * Corrections sans appel au modèle, pour les dépassements modestes : une chaîne
  * un peu trop longue est coupée sur un mot, un tableau trop long perd sa queue.
@@ -137,7 +146,11 @@ export function corrigerDepassements(objet: unknown, issues: z.core.$ZodIssue[])
     const max = Number(issue.maximum);
     if (!Number.isFinite(max)) continue;
     if (typeof valeur === 'string' && valeur.length <= max * 1.15) {
-      ecrireChemin(objet, chemin, couperAuMot(valeur, max));
+      // Un champ court (titre, méta) se coupe sur un mot ; un paragraphe se coupe sur
+      // une fin de phrase, sans ellipse — sinon on publierait un texte visiblement tronqué.
+      const coupe = valeur.length > 300 ? couperALaPhrase(valeur, max) : couperAuMot(valeur, max);
+      if (coupe === null) continue;
+      ecrireChemin(objet, chemin, coupe);
       n++;
     } else if (Array.isArray(valeur) && issue.origin === 'array') {
       ecrireChemin(objet, chemin, valeur.slice(0, max));

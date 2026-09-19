@@ -20,7 +20,8 @@ import { completeJson } from '../llm/router.js';
 import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import { getStoredToken } from '../publishers/tokens.js';
 import { createLink } from '../shortener/index.js';
-import { avecLien, optionsDuLien, sansLien } from '../writer/generate.js';
+import { avecLien, bornerHashtags, captionPorteLeMotCle, optionsDuLien, sansLien } from '../writer/generate.js';
+import { nommerRessource } from '../webhooks/commentDm.js';
 
 const nanoGroupe = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
 
@@ -76,7 +77,35 @@ export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>)
   return surfacesConnectees().filter((s) => !memeSurface(s));
 }
 
-const legendeAdapteeSchema = z.object({ caption: z.string().min(1).max(2900), cta: z.string().max(280) });
+/**
+ * Ce qu'une légende adaptée doit respecter pour sa surface — vérifié à la validation,
+ * pour que le modèle corrige lui-même (boucle de completeJson) au lieu qu'une copie
+ * parte avec un mot-clé qu'elle ne demande pas ou une promesse impossible.
+ */
+function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | null) {
+  return z.object({ caption: z.string().min(1).max(2900), cta: z.string().max(280) }).superRefine((v, ctx) => {
+    if (motcle && !captionPorteLeMotCle(v.caption, motcle)) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: `la légende doit contenir « Commente ${motcle} » (ce mot exactement)` });
+    }
+    if (vers === 'linkedin' && /message priv|en DM\b|en MP\b|messagerie/i.test(v.caption)) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'sur LinkedIn rien ne part en message privé : le lien est dans le post, le mot-clé ouvre le diagnostic' });
+    }
+    if (vers === 'instagram' && /https?:\/\/|\{\{link\}\}|www\./i.test(v.caption)) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'aucune adresse ni {{link}} sur Instagram : la ressource part en message privé' });
+    }
+  });
+}
+
+/** La ligne « Source : … » d'une légende, remise sur le vrai média quand le modèle l'a inventée. */
+export function corrigerLigneSource(caption: string, media: string | null): string {
+  if (!media) return caption;
+  const lignes = caption.split('\n');
+  const i = lignes.findIndex((l) => /^\s*source\s*:/i.test(l));
+  if (i === -1) return caption;
+  if (lignes[i]!.toLowerCase().includes(media.toLowerCase())) return caption;
+  lignes[i] = `Source : ${media}`;
+  return lignes.join('\n');
+}
 
 /**
  * Le lien court du parent redevient un emplacement `{{link}}`.
@@ -88,6 +117,70 @@ const legendeAdapteeSchema = z.object({ caption: z.string().min(1).max(2900), ct
 export function enEmplacement(texte: string): string {
   const base = config.PUBLIC_URL.replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return texte.replace(new RegExp(`${base}/r/[a-z2-9]+`, 'gi'), '{{link}}');
+}
+
+/** Le média et le titre de l'actualité d'origine : ce que la ligne « Source » doit dire. */
+export function sourceReelle(newsItemId: number | null): { media: string; titre: string; url: string } | null {
+  if (!newsItemId) return null;
+  const news = db.select().from(schema.newsItems).where(eq(schema.newsItems.id, newsItemId)).get();
+  if (!news) return null;
+  const source = news.sourceId ? db.select({ name: schema.newsSources.name }).from(schema.newsSources).where(eq(schema.newsSources.id, news.sourceId)).get() : null;
+  return { media: source?.name || mediaDepuisUrl(news.url), titre: news.title, url: news.url };
+}
+
+/** Un nom de média lisible depuis l'adresse de l'article (« actuia.com » → « ActuIA »). */
+export function mediaDepuisUrl(url: string): string {
+  let hote = '';
+  try {
+    hote = new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+  const connus: Record<string, string> = {
+    'actuia.com': 'ActuIA',
+    'journaldunet.com': 'JDN',
+    'techcrunch.com': 'TechCrunch',
+    'lesechos.fr': 'Les Echos',
+    'frenchweb.fr': 'FrenchWeb',
+    'siecledigital.fr': 'Siècle Digital',
+    'maddyness.com': 'Maddyness',
+    'theverge.com': 'The Verge',
+    'wired.com': 'Wired',
+    'venturebeat.com': 'VentureBeat',
+    'zdnet.fr': 'ZDNet',
+    'numerama.com': 'Numerama',
+    '01net.com': '01net',
+    'usine-digitale.fr': 'L’Usine Digitale',
+    'blogdumoderateur.com': 'Blog du Modérateur',
+    'openai.com': 'OpenAI',
+    'anthropic.com': 'Anthropic',
+    'blog.google': 'Google',
+    'microsoft.com': 'Microsoft',
+    'youtube.com': 'YouTube',
+    'github.com': 'GitHub',
+    'news.ycombinator.com': 'Hacker News',
+    'reddit.com': 'Reddit',
+  };
+  if (connus[hote]) return connus[hote]!;
+  const racine = hote.split('.').slice(-2, -1)[0] ?? hote;
+  return racine ? racine.charAt(0).toUpperCase() + racine.slice(1) : hote;
+}
+
+function nomsDeclares(mentions: string | null): string[] {
+  try {
+    const liste = mentions ? (JSON.parse(mentions) as { nom?: string }[]) : [];
+    return liste.map((m) => m.nom?.trim() ?? '').filter((n) => n.length >= 2);
+  } catch {
+    return [];
+  }
+}
+
+/** Comment nommer la ressource sur la ligne du lien : ce qu'elle est, pas ce qu'on aimerait qu'elle soit. */
+function libelleRessource(post: { resourceKind?: string | null; resourceTitle?: string | null }): string {
+  const titre = post.resourceTitle?.trim();
+  if (post.resourceKind === 'guide') return titre ? `Le guide « ${titre} »` : 'Le guide';
+  if (post.resourceKind === 'outil') return titre ? `L’accès à ${titre}` : 'L’accès à l’outil';
+  return 'L’analyse complète';
 }
 
 /** La voix du compte qui publiera la copie : « je » pour un profil, « nous » pour la page. */
@@ -115,13 +208,19 @@ jamais un résumé neutre ni un communiqué.`;
  * copies identiques ; en mode mock ou sans budget, le texte d'origine est conservé.
  */
 export async function adapterLegende(
-  post: Pick<Post, 'caption' | 'cta' | 'commentTriggerKeyword' | 'hook'>,
+  post: Pick<Post, 'caption' | 'cta' | 'commentTriggerKeyword' | 'hook'> &
+    Partial<Pick<Post, 'newsItemId' | 'resourceKind' | 'resourceTitle' | 'mentions'>>,
   de: 'linkedin' | 'instagram',
   vers: 'linkedin' | 'instagram',
   compte?: CompteLinkedIn | null,
   motcleCible?: string | null,
-): Promise<{ caption: string; cta: string; motcle: string | null }> {
+): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string }> {
   const dm = getDmTriggers();
+  const brand = getBrand();
+  const source = sourceReelle(post.newsItemId ?? null);
+  // Les noms que la réécriture doit garder tels quels : ce sont eux que le publisher
+  // transforme en identifications ; reformulés, ils disparaîtraient en silence.
+  const nomsAGarder = [brand.name, ...nomsDeclares(post.mentions ?? null)];
   // LinkedIn garde le lien (sous forme d'emplacement) ; Instagram n'en montre aucun.
   const pose = (t: { caption: string; cta: string }, motcle: string | null) =>
     vers === 'linkedin'
@@ -138,7 +237,7 @@ export async function adapterLegende(
   // Même plateforme et même voix : il n'y a rien à réécrire.
   if ((de === vers && !compte) || config.LLM_MODE === 'mock') return brut;
   const verdict = verifierBudget('writing');
-  if (!verdict.autorise) return brut;
+  if (!verdict.autorise) return { ...brut, echec: 'plafond IA du jour atteint — texte d’origine conservé' };
   const motcleVoulu = motcleCible ?? post.commentTriggerKeyword;
   const motcle = motcleVoulu ?? 'le mot-clé';
   // Ce que l'appel à l'action promet dépend de la plateforme : sur LinkedIn le lien
@@ -149,44 +248,55 @@ export async function adapterLegende(
       ? `APPEL À L'ACTION : « Commente ${motcle} » (ce mot exactement) pour recevoir la ressource en
 message privé. AUCUN lien, AUCUNE URL.`
       : dm.linkedinOffer === 'diagnostic'
-        ? `APPEL À L'ACTION, dans cet ordre et sur deux lignes : d'abord la ressource et son adresse
-(« … : {{link}} », écris {{link}} tel quel, c'est un emplacement), puis « Commente ${motcle} » (ce mot
-exactement) qui n'ouvre PAS la ressource — elle est déjà dans le lien — mais ${dm.diagnosticPromise}.
-AUCUNE autre URL.`
+        ? `APPEL À L'ACTION, dans cet ordre et sur deux lignes : d'abord la ressource et son adresse,
+en la nommant pour ce qu'elle est — « ${libelleRessource(post)} : {{link}} » (écris {{link}} tel quel,
+c'est un emplacement ; ne présente JAMAIS ce lien comme un audit ou un diagnostic, il mène à ${nommerRessource(post)}) —
+puis « Commente ${motcle} » (ce mot exactement) qui n'ouvre PAS la ressource — elle est déjà dans le lien — mais ${dm.diagnosticPromise}.
+AUCUNE autre URL, aucune promesse de message privé (impossible sur LinkedIn).`
         : `APPEL À L'ACTION : « Commente ${motcle} » (ce mot exactement), puis juste en dessous la ligne
 « Ou directement ici : {{link}} » — écris {{link}} tel quel, c'est un emplacement. AUCUNE autre URL.`;
+  const ligneSource = source ? `SOURCE RÉELLE de l'information : ${source.media} — « ${source.titre} ». La ligne « Source : ${source.media} » doit le dire mot pour mot ; n'invente ni média ni date.` : '';
+  const ligneNoms = `NOMS À CONSERVER TELS QUELS (ils seront identifiés) : ${nomsAGarder.join(', ')}. Ne mélange jamais tutoiement et vouvoiement.`;
   const consigne =
     de === vers
       ? `Ce texte part aussi sur d'autres comptes de la même équipe. Réécris-le ENTIÈREMENT pour celui-ci :
 même information, même source, même longueur — mais une autre entrée en matière, un autre angle, d'autres
 formulations. Quelqu'un qui verrait les deux posts ne doit pas lire un copier-coller.
+Nomme ${brand.name} une fois, naturellement, dans la dernière ligne. ${ligneSource}
+${ligneNoms}
 ${consigneCta}
 ${compte ? consigneVoix(compte) : ''}`
       : vers === 'linkedin'
-        ? `Adapte ce texte de post Instagram pour LinkedIn : 500 à 1 000 caractères, jamais plus de 1 200 ;
+        ? `Réécris ce texte de post Instagram pour LinkedIn — pas une traduction : une autre entrée en matière,
+un autre angle, d'autres formulations. 500 à 1 000 caractères, jamais plus de 1 200 ;
 l'accroche tient dans les 200 premiers caractères ; une idée par ligne ; nomme la source en clair
-(« Source : … ») ; nomme ${getBrand().name} une fois dans la dernière ligne.
+(« Source : … ») ; nomme ${brand.name} une fois dans la dernière ligne. ${ligneSource}
+${ligneNoms}
 ${consigneCta}
 ${compte ? consigneVoix(compte) : ''}`
         : `Adapte ce texte de post LinkedIn pour Instagram : ton plus chaleureux et direct, tutoiement,
-1 200 à 2 000 caractères, aéré, quelques émojis sobres.
+1 200 à 2 000 caractères, aéré, quelques émojis sobres. ${ligneSource}
+${ligneNoms}
 ${consigneCta}`;
   try {
     const { value } = await completeJson(
       {
         task: 'writing',
         label: 'post:diffusion',
+        // Même modèle que le parent : une copie écrite par un modèle plus petit se voit.
+        tier: 'best',
         prompt: `${consigne}\n\nACCROCHE : ${post.hook}\n\nTEXTE D'ORIGINE :\n"""\n${
           vers === 'linkedin' ? enEmplacement(post.caption) : post.caption
         }\n"""\n\nCTA D'ORIGINE : ${post.cta}`,
-        maxTokens: 1200,
+        maxTokens: 2500,
       },
-      legendeAdapteeSchema,
+      legendeAdapteeSchema(vers, motcleVoulu),
     );
-    return pose(value, motcleVoulu);
+    return pose({ ...value, caption: corrigerLigneSource(value.caption, source?.media ?? null) }, motcleVoulu);
   } catch (err) {
-    logger.warn({ err: String(err).slice(0, 200) }, 'adaptation de légende impossible — texte d’origine conservé');
-    return brut;
+    const cause = String(err).slice(0, 200);
+    logger.warn({ err: cause }, 'adaptation de légende impossible — texte d’origine conservé');
+    return { ...brut, echec: `texte non adapté à ce compte (${cause.slice(0, 120)}) — texte d’origine conservé, à réécrire` };
   }
 }
 
@@ -239,7 +349,7 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
   // Une adaptation par surface : changer de plateforme demande une traduction,
   // changer de compte demande une autre voix. Deux surfaces identiques la partagent.
   const cleSurface = (s: SurfaceDiffusion) => `${s.platform}|${s.liAccountKey ?? ''}`;
-  const textes = new Map<string, { caption: string; cta: string; motcle: string | null }>();
+  const textes = new Map<string, { caption: string; cta: string; motcle: string | null; echec?: string }>();
   for (const surface of aFaire) {
     if (textes.has(cleSurface(surface))) continue;
     const compte =
@@ -281,8 +391,11 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
         hook: parent.hook,
         caption: texte.caption,
         cta: texte.cta,
-        hashtags: parent.hashtags,
+        hashtags: JSON.stringify(bornerHashtags(JSON.parse(parent.hashtags) as string[], surface.platform)),
         commentTriggerKeyword: texte.motcle,
+        // Une adaptation ratée n'est pas masquée : la copie porte la raison, le
+        // fondateur la voit avant de valider, au lieu d'un texte du parent qui part.
+        error: texte.echec ?? null,
         resourceKind: parent.resourceKind,
         resourceTitle: parent.resourceTitle,
         resourceUrl: parent.resourceUrl,

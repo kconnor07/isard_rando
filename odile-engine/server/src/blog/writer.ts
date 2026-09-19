@@ -240,14 +240,17 @@ RÉFÉRENCEMENT NATUREL (SEO) — règles impératives :
 - Maillage interne : 2 à 4 liens vers ces pages du site, choisis quand ils servent le lecteur :
 ${pages}
 - slug court (3 à 6 mots, sans accent, tirets).
+- LONGUEURS VÉRIFIÉES (dépasser fait échouer l'article) : metaTitle ≤ 60 caractères ; metaDescription 130 à 150 ;
+  excerpt 1 à 2 phrases, 150 à 280 caractères ; coverAccentWord = UN mot du coverTitle ; chaque paragraphe ≤ 1 200
+  caractères (coupe en deux au-delà) ; chaque réponse de FAQ ≤ 600 caractères ; keyTakeaways ≤ 200 caractères chacun.
 
 MOTEURS GÉNÉRATIFS (GEO — ChatGPT, Perplexity, Google AI Overviews, Claude) — règles impératives :
 - keyTakeaways : 3 à 6 phrases autonomes qui répondent directement à la question, citables telles quelles.
 - Définis les notions clés en une phrase nette, une fois. Nomme les entités (outils, organismes, lieux, ${brand.name}).
 - Chaque affirmation chiffrée est attribuée (« selon … »). Sources : 2 à 6 références fiables et récentes,
   prises EN PRIORITÉ dans le dossier de veille ci-dessus (leurs URL sont vérifiées). Toute autre source ne
-  s'ajoute que si tu es certain de son adresse exacte — jamais d'URL inventée : dans le doute, cite le titre
-  dans le texte sans ajouter la source.
+  s'ajoute que si tu es certain de son adresse exacte, commençant par https:// — jamais d'URL inventée : dans le
+  doute, cite le titre dans le texte sans ajouter la source (une liste vide vaut mieux qu'une adresse douteuse).
 - FAQ : 3 à 7 questions formulées comme on les pose à un assistant (« Combien coûte… ? », « Est-ce que… ? »),
   réponses complètes en 2 à 5 phrases, qui se suffisent à elles-mêmes.
 - Dernière section : ce que ${brand.name} fait concrètement pour ce type d'entreprise, sans discours commercial creux —
@@ -257,7 +260,7 @@ COUVERTURE : coverTitle = un titre court et frappant (≤ 8 mots) pour l'image d
 
 Tout en français. Vouvoiement. Ton d'agence qui explique simplement et prouve. Zéro emoji.`;
 
-  const { value } = await completeJson({ task: 'writing', label: 'blog:article', tier: 'best', prompt, maxTokens: 12000 }, articleSchema, { attempts: 3 });
+  const { value } = await completeJson({ task: 'writing', label: 'blog:article', tier: 'best', prompt, maxTokens: 16000 }, articleSchema, { attempts: 3 });
   return value;
 }
 

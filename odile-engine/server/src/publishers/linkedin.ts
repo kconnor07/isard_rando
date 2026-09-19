@@ -51,23 +51,32 @@ export function commentary(caption: string, mentions: MentionLinkedIn[] = []): s
   // Chaque nom n'est identifié qu'une fois, à sa première apparition ; les plages
   // sont posées du début à la fin sans se chevaucher.
   const plages: { debut: number; fin: number; urn: string }[] = [];
-  const bas = texte.toLowerCase();
   for (const m of utiles) {
-    const nom = m.nom.trim().toLowerCase();
-    let depuis = 0;
-    while (depuis <= bas.length) {
-      const pos = bas.indexOf(nom, depuis);
-      if (pos === -1) break;
-      const fin = pos + nom.length;
+    // Le nom LinkedIn peut porter un émoji (« Khaled 💻 Aboubakar ») que le texte n'a
+    // pas : on cherche les mots du nom, séparés par n'importe quoi de décoratif.
+    const mots = m.nom
+      .trim()
+      .split(/[\s\p{Extended_Pictographic}\p{S}]+/u)
+      .filter(Boolean)
+      .map((mot) => mot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    if (mots.length === 0) continue;
+    const motif = new RegExp(mots.join('[\\s\\p{Extended_Pictographic}\\p{S}]*'), 'giu');
+    let trouve: RegExpExecArray | null;
+    while ((trouve = motif.exec(texte)) !== null) {
+      const pos = trouve.index;
+      const fin = pos + trouve[0].length;
+      if (fin === pos) {
+        motif.lastIndex++;
+        continue;
+      }
       const libre = !plages.some((p) => pos < p.fin && fin > p.debut);
       // Mot entier seulement : « Odile » ne doit pas identifier « Odilette ».
-      const avant = pos === 0 ? ' ' : bas[pos - 1]!;
-      const apres = fin >= bas.length ? ' ' : bas[fin]!;
+      const avant = pos === 0 ? ' ' : texte[pos - 1]!;
+      const apres = fin >= texte.length ? ' ' : texte[fin]!;
       if (libre && !/[\p{L}\p{N}]/u.test(avant) && !/[\p{L}\p{N}]/u.test(apres)) {
         plages.push({ debut: pos, fin, urn: m.urn });
         break;
       }
-      depuis = fin;
     }
   }
   if (plages.length === 0) return escapeLittle(texte);
