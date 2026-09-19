@@ -6,6 +6,7 @@ import { coverUrl, publierArticle, regenererArticle, runBlogPipeline } from '../
 import { fabriquerCouverture } from '../../blog/cover.js';
 import { inventaireDuSite, refaireLesCouvertures } from '../../blog/couvertures.js';
 import { listerCollections } from '../../blog/framer.js';
+import { slugDisponible } from '../../blog/writer.js';
 import { db, schema } from '../../db/client.js';
 import { getBlog } from '../../db/settingsRepo.js';
 import { logger } from '../../lib/logger.js';
@@ -65,6 +66,10 @@ export function registerBlogRoutes(app: FastifyInstance): void {
     const a = db.select().from(schema.articles).where(eq(schema.articles.id, id)).get();
     if (!a) return reply.status(404).send({ error: 'Article introuvable' });
     if (['publishing', 'published'].includes(a.status)) return reply.status(400).send({ error: 'Article déjà publié' });
+    // Un slug choisi à la main doit rester unique : l'index de la table le refuserait en 500.
+    if (parsed.data.slug !== undefined && slugDisponible(parsed.data.slug, id) !== parsed.data.slug) {
+      return reply.status(400).send({ error: 'Ce slug est déjà pris par un autre article — choisis-en un autre.' });
+    }
     // Le contenu structuré suit les corrections de titre, pour que HTML et JSON-LD restent cohérents.
     const patch: Partial<ArticleRow> = { ...parsed.data, updatedAt: new Date().toISOString() };
     if (parsed.data.title || parsed.data.metaDescription || parsed.data.metaTitle || parsed.data.excerpt || parsed.data.slug) {

@@ -15,7 +15,7 @@ import { logger } from '../lib/logger.js';
 import { sendMail } from '../mailer/smtp.js';
 import { fabriquerCouverture } from './cover.js';
 import { publierDansFramer, type ContenuAPublier } from './framer.js';
-import { articleHtml, articleJsonLd, choisirSujet, redigerArticle, slugDisponible, sujetDepuisArticle } from './writer.js';
+import { articleHtml, articleJsonLd, choisirSujet, redigerArticle, slugDisponible, sujetDepuisArticle, type SujetArticle } from './writer.js';
 
 type ArticleRow = typeof schema.articles.$inferSelect;
 
@@ -64,11 +64,27 @@ export interface BlogPipelineSummary {
   emailed: boolean;
 }
 
+/**
+ * Ouvre le brouillon en base avec un slug provisoire unique. Le slug définitif
+ * n'existe qu'une fois l'article rédigé ; en attendant, la valeur vide par défaut
+ * faisait tomber la seconde insertion sur l'index unique (« UNIQUE constraint
+ * failed: articles.slug ») dès qu'une rédaction précédente avait échoué avant
+ * de nommer son article — et le blog ne pouvait plus rien rédiger.
+ */
+export function ouvrirBrouillon(sujet: Pick<SujetArticle, 'brief' | 'newsItemId'>): ArticleRow {
+  const provisoire = `brouillon-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return db
+    .insert(schema.articles)
+    .values({ status: 'drafting', brief: sujet.brief, newsItemId: sujet.newsItemId, slug: provisoire })
+    .returning()
+    .get();
+}
+
 /** Rédige un nouvel article (sujet choisi automatiquement, ou l'actualité donnée) et le met en attente de validation. */
 export async function runBlogPipeline(opts: { newsItemId?: number } = {}): Promise<BlogPipelineSummary> {
   const reglages = getBlog();
   const sujet = choisirSujet(reglages, opts.newsItemId);
-  const row = db.insert(schema.articles).values({ status: 'drafting', brief: sujet.brief, newsItemId: sujet.newsItemId }).returning().get();
+  const row = ouvrirBrouillon(sujet);
   try {
     const article = await redigerArticle(sujet, reglages);
     await enregistrerRedaction(row.id, article, reglages);

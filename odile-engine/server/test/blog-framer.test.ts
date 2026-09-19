@@ -170,3 +170,18 @@ describe('le blog est nourri par la veille', async () => {
     expect(repris.matiere).toContain('URL : https://echos.fr/');
   });
 });
+
+describe('deux brouillons ne se disputent plus le slug vide', async () => {
+  const { db, schema } = await import('../src/db/client.js');
+  const { ouvrirBrouillon } = await import('../src/blog/pipeline.js');
+  it('un brouillon après une rédaction en échec (slug jamais nommé) s’insère quand même', () => {
+    // Un ancien brouillon resté avec le slug vide par défaut, comme en production avant le correctif
+    db.insert(schema.articles).values({ status: 'failed', brief: 'échec', slug: '' }).run();
+    const a = ouvrirBrouillon({ brief: 'sujet A', newsItemId: null });
+    const b = ouvrirBrouillon({ brief: 'sujet B', newsItemId: null });
+    expect(a.slug).toMatch(/^brouillon-/);
+    expect(b.slug).toMatch(/^brouillon-/);
+    expect(a.slug).not.toBe(b.slug);
+    expect(a.status).toBe('drafting');
+  });
+});
