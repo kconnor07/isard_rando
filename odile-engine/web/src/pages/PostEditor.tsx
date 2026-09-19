@@ -568,8 +568,8 @@ export default function PostEditor() {
               <select
                 className="input"
                 value={post.liAccountKey ?? ''}
-                disabled={!!busy || post.status === 'scheduled'}
-                title={post.status === 'scheduled' ? 'Annule la programmation pour changer de compte' : undefined}
+                disabled={!!busy}
+                title={post.status === 'scheduled' ? 'Le post reste programmé à la même heure, sur le nouveau compte' : undefined}
                 onChange={(e) => patchPost.mutate({ liAccountKey: e.target.value || null })}
               >
                 {(comptesLi?.comptes ?? [])

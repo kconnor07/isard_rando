@@ -3,7 +3,7 @@ import { CalendarClock, ChevronLeft, ChevronRight, FileText, Film, Images, Image
 import { useState, type DragEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, humanizeError } from '../api/client';
-import type { ActionOutcomeDto, PostDetailDto, PostSummaryDto, SlotDto } from '../api/types';
+import type { ActionOutcomeDto, PostDetailDto, PostSummaryDto, SlotDto, SurfaceDto } from '../api/types';
 import { CHANNEL_LABELS, Empty, fmtDate, FORMAT_LABELS, PageTitle, Problemes, StatusBadge } from '../components/shared';
 import { toast } from '../components/Toaster';
 import { CeQueRecevraLaPersonne } from '../components/CeQueRecevraLaPersonne';
@@ -25,8 +25,17 @@ import {
 const SEMAINES = 4;
 const DOW_SHORT = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
 const PLATEFORME_COURT: Record<string, string> = { instagram: 'IG', linkedin: 'LI' };
-/** Ordre de la file : d'abord ce qui attend une validation, puis les échecs, puis les rejetés. */
-const ORDRE_FILE = ['awaiting_approval', 'failed', 'rejected'];
+/** Ordre de la file : d'abord ce qui attend une validation, puis les échecs. */
+const ORDRE_FILE = ['awaiting_approval', 'failed'];
+/** Une couleur par compte, stable sur la période : on reconnaît Khaled, Alexis, la page, Instagram d'un coup d'œil. */
+const COULEURS = ['bg-accent/80 text-white', 'bg-emerald-500/80 text-white', 'bg-violet-500/80 text-white', 'bg-pink-500/80 text-white', 'bg-amber-500/80 text-black', 'bg-sky-500/80 text-white'];
+const CLE_SANS_COMPTE = 'sans-compte';
+
+/** La clé de surface d'un post : « ig », la clé du compte, ou « sans-compte ». */
+function cleDe(post: PostSummaryDto): string {
+  if (post.platform === 'instagram') return 'ig';
+  return post.surfaceKey ?? CLE_SANS_COMPTE;
+}
 
 const ICONE_FORMAT: Record<string, typeof FileText> = {
   li_doc: FileText,
@@ -55,7 +64,7 @@ interface Element {
 export default function Calendar() {
   const qc = useQueryClient();
   const [offsetSemaines, setOffsetSemaines] = useState(0);
-  const [plateforme, setPlateforme] = useState<'tous' | 'linkedin' | 'instagram'>('tous');
+  /** la surface choisie : « tous », « ig », « fb », la clé d'un compte LinkedIn, ou « sans-compte » */
   const [compte, setCompte] = useState('tous');
   /** post choisi dans la file, en attente d'un créneau (clic-clic, et doigt sur mobile) */
   const [enMain, setEnMain] = useState<number | null>(null);
@@ -87,9 +96,12 @@ export default function Calendar() {
   });
   const fileQ = useQuery({
     queryKey: ['posts', 'schedulable'],
-    queryFn: () => api.get<PostSummaryDto[]>('/api/posts?status=awaiting_approval,rejected,failed'),
+    // Un post rejeté n'est pas « à programmer » : il reste dans l'éditeur si l'on veut le reprendre.
+    queryFn: () => api.get<PostSummaryDto[]>('/api/posts?status=awaiting_approval,failed'),
     select: (list) => [...list].sort((a, b) => ORDRE_FILE.indexOf(a.status) - ORDRE_FILE.indexOf(b.status)),
   });
+  // Les surfaces viennent des connexions, pas des posts : un compte fraîchement connecté est là tout de suite.
+  const surfacesQ = useQuery({ queryKey: ['surfaces'], queryFn: () => api.get<SurfaceDto[]>('/api/surfaces') });
 
   const invalider = () => {
     for (const k of ['calendar', 'schedule', 'posts', 'summary']) void qc.invalidateQueries({ queryKey: [k] });
@@ -105,14 +117,36 @@ export default function Calendar() {
     onError: (err) => toast.error(humanizeError(err)),
   });
 
-  const posts = (postsQ.data ?? []).filter(
-    (p) => (plateforme === 'tous' || p.platform === plateforme) && (compte === 'tous' || (p.surface ?? '') === compte),
-  );
-  const file = (fileQ.data ?? []).filter(
-    (p) => (plateforme === 'tous' || p.platform === plateforme) && (compte === 'tous' || (p.surface ?? '') === compte),
-  );
-  /** Les comptes qui apparaissent sur la période ou dans la file : de quoi filtrer sans réglage. */
-  const comptes = [...new Set([...(postsQ.data ?? []), ...(fileQ.data ?? [])].map((p) => p.surface).filter((s): s is string => Boolean(s)))];
+  /** Un post appartient-il à la surface choisie ? Facebook = les posts Instagram qui partent aussi sur la Page. */
+  const surLaSurface = (p: PostSummaryDto) =>
+    compte === 'tous' ? true : compte === 'fb' ? p.platform === 'instagram' && Boolean(p.facebook?.prevu) : cleDe(p) === compte;
+  const posts = (postsQ.data ?? []).filter(surLaSurface);
+  const file = (fileQ.data ?? []).filter(surLaSurface);
+  const tousLesPosts = [...(postsQ.data ?? []), ...(fileQ.data ?? [])];
+  /** Les puces de comptes : chaque surface connectée, puis Facebook, puis « sans compte » s'il en reste. */
+  const puces: { key: string; label: string; initiales: string; n: number; enPanne?: boolean; panne?: string; platform: SurfaceDto['platform'] | null }[] = [
+    { key: 'tous', label: 'Tous', initiales: '', n: tousLesPosts.length, platform: null },
+    ...(surfacesQ.data ?? []).map((s) => ({
+      key: s.key,
+      label: s.label,
+      initiales: s.initiales,
+      n: tousLesPosts.filter((p) => (s.key === 'fb' ? p.platform === 'instagram' && Boolean(p.facebook?.prevu) : cleDe(p) === s.key)).length,
+      enPanne: s.enPanne,
+      panne: s.panne,
+      platform: s.platform,
+    })),
+  ];
+  const sansCompte = tousLesPosts.filter((p) => cleDe(p) === CLE_SANS_COMPTE).length;
+  if (sansCompte > 0) puces.push({ key: CLE_SANS_COMPTE, label: 'Sans compte', initiales: '?', n: sansCompte, platform: 'linkedin' });
+  const couleurDe = (cle: string) => {
+    const i = puces.findIndex((p) => p.key === cle && p.key !== 'tous');
+    if (cle === CLE_SANS_COMPTE) return 'bg-white/20 text-txt';
+    return COULEURS[(i < 0 ? 0 : i) % COULEURS.length]!;
+  };
+  const initialesDe = (p: PostSummaryDto) => puces.find((x) => x.key === cleDe(p))?.initiales ?? (p.platform === 'instagram' ? 'IG' : '?');
+  const puceChoisie = puces.find((p) => p.key === compte) ?? puces[0]!;
+  /** la plateforme des créneaux à montrer : celle de la surface choisie */
+  const plateforme: 'tous' | 'linkedin' | 'instagram' = compte === 'tous' ? 'tous' : puceChoisie.platform === 'facebook' ? 'instagram' : (puceChoisie.platform ?? 'tous');
 
   // ---- Répartition par jour (heure de Paris) --------------------------------
   const parJour = new Map<string, Element[]>();
@@ -186,10 +220,18 @@ export default function Calendar() {
           } text-xs ${deplacable ? 'cursor-grab active:cursor-grabbing' : ''} ${glisse === post.id ? 'opacity-40' : ''}`}
           title={deplacable ? 'Glisse-le sur un autre créneau pour le déplacer' : undefined}
         >
-          <div className="flex items-center gap-1.5">
-            <span className="mono text-[11px] text-ice">{parisHm(el.at)}</span>
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <span className="mono shrink-0 whitespace-nowrap text-[11px] text-ice">{parisHm(el.at)}</span>
+            {/* La pastille du compte : on sait qui publie sans lire la ligne tronquée. */}
+            <span className={`mono shrink-0 whitespace-nowrap rounded-md px-1 text-[9px] font-bold leading-4 ${couleurDe(cleDe(post))}`} title={post.surface ?? PLATEFORME_COURT[post.platform]}>
+              {initialesDe(post)}
+            </span>
+            {post.facebook?.prevu && (
+              <span className="mono shrink-0 whitespace-nowrap text-[9px] text-muted" title={post.facebook.error ? `Miroir Facebook en échec : ${post.facebook.error}` : 'Part aussi sur la Page Facebook (miroir)'}>
+                +FB{post.facebook.error ? ' ⚠' : ''}
+              </span>
+            )}
             <Icone size={11} className="text-muted" />
-            <span className="mono text-[10px] uppercase text-muted">{PLATEFORME_COURT[post.platform] ?? post.platform}</span>
             {!compact && <StatusBadge status={post.status} simulated={post.simulated} />}
             {post.broadcast && (
               <span className="mono text-[9px] text-muted" title={`Même sujet sur : ${post.broadcast.others.join(', ')}`}>
@@ -206,7 +248,7 @@ export default function Calendar() {
           >
             {post.hook || '(sans titre)'}
           </button>
-          {post.surface && <div className="truncate text-[10px] text-muted">{post.surface}</div>}
+          {post.surface && <div className={`truncate text-[10px] ${cleDe(post) === CLE_SANS_COMPTE ? 'text-accent' : 'text-muted'}`}>{cleDe(post) === CLE_SANS_COMPTE ? 'compte non choisi' : post.surface}</div>}
           {deplacable && (
             <button
               className={`mt-1 text-[10px] text-muted underline decoration-white/30 hover:text-txt ${compact ? '' : ''}`}
@@ -253,7 +295,7 @@ export default function Calendar() {
     <div>
       <PageTitle
         title="Calendrier de publication"
-        subtitle="Tout est à l’heure de Paris. Glisse un post de la file sur un créneau libre — ou clique le post puis le créneau."
+        subtitle="Tout est à l’heure de Paris. Clique un post pour voir ce qui part et le déplacer ; un post de la file se pose sur un créneau libre."
         actions={
           <>
             <button className="btn-ghost" onClick={() => ouvrirPicker(new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000).toISOString())}>
@@ -274,32 +316,41 @@ export default function Calendar() {
         }
       />
 
-      {/* Période + filtres */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* Période + une puce par compte : chacun voit ses posts et ses heures */}
+      <div className="mb-1 flex flex-wrap items-center gap-2">
         <span className="mono text-[11px] uppercase tracking-[0.14em] text-muted">{periode(debut, fin)}</span>
-        <span className="hidden text-muted/40 sm:inline">·</span>
-        {(['tous', 'linkedin', 'instagram'] as const).map((p) => (
+      </div>
+      <div className="mb-3 -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0" role="tablist" aria-label="Comptes">
+        {puces.map((p) => (
           <button
-            key={p}
-            className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
-              plateforme === p ? 'border-accent/60 bg-accent-soft/50 text-ice' : 'border-line text-muted hover:text-txt'
+            key={p.key}
+            role="tab"
+            aria-selected={compte === p.key}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+              compte === p.key ? 'border-accent/60 bg-accent-soft/50 text-ice' : 'border-line text-muted hover:text-txt'
             }`}
-            onClick={() => setPlateforme(p)}
+            onClick={() => setCompte(p.key)}
+            title={p.enPanne ? `${p.label} : ${p.panne}` : p.label}
           >
-            {p === 'tous' ? 'Toutes plateformes' : p === 'linkedin' ? 'LinkedIn' : 'Instagram'}
+            {p.initiales && <span className={`mono rounded-md px-1 text-[9px] font-bold leading-4 ${couleurDe(p.key)}`}>{p.initiales}</span>}
+            <span className="max-w-[9rem] truncate">{p.label}</span>
+            <span className="mono text-[10px] opacity-70">{p.n}</span>
+            {p.enPanne && <span title={p.panne}>⚠</span>}
           </button>
         ))}
-        {comptes.length > 1 && (
-          <select className="input !w-auto !py-1 text-[11px]" value={compte} onChange={(e) => setCompte(e.target.value)} aria-label="Filtrer par compte">
-            <option value="tous">Tous les comptes</option>
-            {comptes.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        )}
       </div>
+      {compte !== 'tous' && (
+        <p className="mb-3 text-xs text-muted">
+          <span className="font-semibold text-txt">{puceChoisie.label}</span> — {puceChoisie.n} post{puceChoisie.n > 1 ? 's' : ''} sur {SEMAINES} semaines
+          {puceChoisie.enPanne ? <span className="text-accent"> · {puceChoisie.panne}</span> : null}
+          {compte === CLE_SANS_COMPTE ? ' · ces posts partiront sur le premier profil actif : choisis leur compte dans l’éditeur' : ''}
+          {compte === 'fb' ? ' · la Page reçoit une copie de chaque post Instagram, à la même heure' : ''}
+          {(() => {
+            const prochain = (slotsQ.data ?? []).find((s) => !s.past && !s.postId && (plateforme === 'tous' || s.platform === plateforme));
+            return prochain ? ` · prochain créneau libre : ${fmtDate(prochain.at)}` : '';
+          })()}
+        </p>
+      )}
 
       {enErreur && (
         <div className="mb-3 flex items-center gap-3 rounded-2xl border border-line bg-white/[0.03] p-3 text-sm">
@@ -320,7 +371,7 @@ export default function Calendar() {
       {file.length > 0 && (
         <div className="mb-4 rounded-2xl border border-line bg-white/[0.02] p-3">
           <div className="mb-2 flex items-center gap-2">
-            <span className="label !mb-0">File d'attente ({file.length})</span>
+            <span className="label !mb-0">À programmer ({file.length})</span>
             {enMain ? (
               <span className="flex items-center gap-2 text-[11px] text-ice">
                 Post choisi — clique maintenant un créneau libre
@@ -350,8 +401,8 @@ export default function Calendar() {
                   } ${glisse === post.id ? 'opacity-40' : ''}`}
                 >
                   <div className="mb-1 flex items-center gap-1.5">
+                    <span className={`mono rounded-md px-1 text-[9px] font-bold leading-4 ${couleurDe(cleDe(post))}`}>{initialesDe(post)}</span>
                     <Icone size={11} className="text-muted" />
-                    <span className="mono text-[10px] uppercase text-muted">{PLATEFORME_COURT[post.platform] ?? post.platform}</span>
                     <StatusBadge status={post.status} simulated={post.simulated} />
                   </div>
                   <div className="line-clamp-2 font-semibold">{post.hook || `Post #${post.id}`}</div>
@@ -465,6 +516,20 @@ export default function Calendar() {
                         ? `Publié le ${fmtDate(detailQ.data.publishedAt)}`
                         : 'Pas encore programmé'}
                   </div>
+                  {detailQ.data.platform === 'linkedin' && !detailQ.data.surfaceKey && (
+                    <div className="mt-2 text-xs text-accent">
+                      Compte non choisi : partira sur le premier profil actif. <Link to={`/posts/${detailQ.data.id}`} className="underline">Choisir le compte</Link>
+                    </div>
+                  )}
+                  {detailQ.data.facebook?.prevu && (
+                    <div className="mt-2 text-xs text-muted">
+                      {detailQ.data.facebook.error
+                        ? `Miroir Facebook en échec : ${detailQ.data.facebook.error}`
+                        : detailQ.data.facebook.url
+                          ? <>Aussi sur la Page Facebook — <a className="underline" href={detailQ.data.facebook.url} target="_blank" rel="noreferrer">voir</a></>
+                          : 'Part aussi sur la Page Facebook (miroir), à la même heure, avec une légende adaptée.'}
+                    </div>
+                  )}
                   {detailQ.data.broadcast && (
                     <div className="mt-2 text-xs text-muted">
                       Même sujet sur :

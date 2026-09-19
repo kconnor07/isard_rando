@@ -42,6 +42,10 @@ export interface PostSummaryDto {
   surface?: string;
   /** compte LinkedIn qui publie (clé de connexion), null pour Instagram */
   liAccountKey?: string | null;
+  /** clé de surface : « ig », la clé du compte LinkedIn, ou null = compte non attribué */
+  surfaceKey?: string | null;
+  /** miroir Facebook d'un post Instagram */
+  facebook?: { prevu: boolean; url: string | null; error: string | null } | null;
   /** identifiants des visuels rendus, dans l'ordre (vignettes de validation) */
   vignettes?: string[];
   /** diffusion simultanée : ce post et ses copies sur les autres comptes */
@@ -58,6 +62,17 @@ export interface PostSummaryDto {
   newsTitle: string | null;
   newsUrl: string | null;
   slideCount: number;
+}
+
+export interface SurfaceDto {
+  key: string;
+  platform: 'linkedin' | 'instagram' | 'facebook';
+  channel: string;
+  label: string;
+  initiales: string;
+  actif: boolean;
+  enPanne: boolean;
+  panne: string;
 }
 
 export interface ProblemeDto {

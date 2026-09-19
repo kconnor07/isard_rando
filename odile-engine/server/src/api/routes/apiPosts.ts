@@ -11,10 +11,11 @@ import {
   schedulePostSchema,
 } from '@odile/shared';
 import { executeApprovalAction, schedulePost, unschedulePost } from '../../approvals/service.js';
-import { getDmTriggers, getPublishSlots } from '../../db/settingsRepo.js';
+import { getCadence, getDmTriggers, getFbMirror, getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
 import { compteDuCanal, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
+import { getStoredToken } from '../../publishers/tokens.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
 import { apercuTunnel } from '../../approvals/tunnel.js';
@@ -84,6 +85,17 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     /** le compte qui publie, en clair : « Alexis Duquenoy », « page Odile AI », « Instagram » */
     surface: surfaceDuPost(post).label,
     liAccountKey: post.liAccountKey,
+    /** clé de la surface pour filtrer sans ambiguïté : « ig », la clé du compte, ou null = compte non attribué */
+    surfaceKey: post.channel === 'ig' ? 'ig' : (post.liAccountKey ?? null),
+    /** miroir Facebook d'un post Instagram : prévu, publié (adresse) ou en échec */
+    facebook:
+      post.platform === 'instagram'
+        ? {
+            prevu: getFbMirror().enabled || Boolean(post.broadcastGroup && getCadence().broadcast),
+            url: post.fbMirrorUrl,
+            error: post.fbMirrorError,
+          }
+        : null,
     /**
      * Les visuels rendus, dans l'ordre. Valider sans les voir, c'est signer sans
      * lire : la liste sert aux vignettes des écrans de validation et du calendrier.
@@ -617,6 +629,30 @@ export function registerPostRoutes(app: FastifyInstance): void {
       }
     }
     return out.sort((a, b) => a.at.localeCompare(b.at));
+  });
+
+  /**
+   * Les surfaces où le moteur peut publier : chaque profil LinkedIn (actif ou en pause),
+   * la page, Instagram, et la Page Facebook quand le miroir est actif. Vient des
+   * connexions, pas des posts : un compte fraîchement connecté apparaît tout de suite.
+   */
+  app.get('/api/surfaces', async () => {
+    const initiales = (label: string) =>
+      label
+        .replace(/^page\s+/i, '')
+        .split(/[\s\p{Extended_Pictographic}\p{S}-]+/u)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((m) => m.charAt(0).toUpperCase())
+        .join('') || label.slice(0, 2).toUpperCase();
+    const out: { key: string; platform: 'linkedin' | 'instagram' | 'facebook'; channel: string; label: string; initiales: string; actif: boolean; enPanne: boolean; panne: string }[] = [];
+    for (const c of comptesLinkedIn('li_person')) out.push({ key: c.key, platform: 'linkedin', channel: 'li_personal', label: c.name, initiales: initiales(c.name), actif: c.actif, enPanne: c.enPanne, panne: c.panne });
+    for (const c of comptesLinkedIn('li_org')) out.push({ key: c.key, platform: 'linkedin', channel: 'li_org', label: `page ${c.name}`, initiales: initiales(c.name), actif: c.actif, enPanne: c.enPanne, panne: c.panne });
+    if (getStoredToken('meta', 'ig_user')) out.push({ key: 'ig', platform: 'instagram', channel: 'ig', label: 'Instagram', initiales: 'IG', actif: true, enPanne: false, panne: '' });
+    if (getStoredToken('meta', 'fb_page') && (getFbMirror().enabled || getCadence().broadcast)) {
+      out.push({ key: 'fb', platform: 'facebook', channel: 'ig', label: 'Facebook (miroir)', initiales: 'FB', actif: true, enPanne: false, panne: '' });
+    }
+    return out;
   });
 
   app.get<{ Querystring: { from?: string; to?: string } }>('/api/calendar', async (request) => {
