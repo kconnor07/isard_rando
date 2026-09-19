@@ -28,6 +28,8 @@ export interface PostSummaryDto {
   };
   createdAt: string;
   commentTriggerKeyword: string | null;
+  /** ce qui empêcherait le post de tenir ses promesses, en phrases (vide = conforme) */
+  problemes?: ProblemeDto[];
   /** vidéo avatar : état de fabrication et adresse du MP4 */
   video?: {
     status: 'none' | 'pending' | 'ready' | 'failed';
@@ -48,6 +50,13 @@ export interface PostSummaryDto {
   newsTitle: string | null;
   newsUrl: string | null;
   slideCount: number;
+}
+
+export interface ProblemeDto {
+  code: string;
+  niveau: 'bloquant' | 'attention';
+  message: string;
+  corrigeable: boolean;
 }
 
 export interface SlideDto {

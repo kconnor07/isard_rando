@@ -75,7 +75,9 @@ export function collectPublishVideo(post: typeof schema.posts.$inferSelect): Pub
 
 /** Caption finale : texte + hashtags. */
 export function buildCaption(post: typeof schema.posts.$inferSelect): string {
-  const hashtags = (JSON.parse(post.hashtags) as string[]).join(' ');
+  // Un hashtag déjà écrit dans la légende n'est pas répété en pied de post.
+  const bas = post.caption.toLowerCase();
+  const hashtags = (JSON.parse(post.hashtags) as string[]).filter((h) => !new RegExp(`${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').toLowerCase()}(?![\\p{L}\\p{N}_])`, 'u').test(bas)).join(' ');
   return hashtags ? `${post.caption}\n\n${hashtags}` : post.caption;
 }
 

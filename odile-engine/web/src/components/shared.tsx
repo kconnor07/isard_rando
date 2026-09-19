@@ -153,3 +153,30 @@ export function fmtDate(iso: string | null | undefined): string {
     minute: '2-digit',
   }).format(new Date(iso));
 }
+
+
+/**
+ * Les défauts d'un post, en phrases, avant de valider : un bloquant empêche de
+ * programmer, une attention prévient. « Réaligner » corrige ce qui se corrige seul.
+ */
+export function Problemes({ liste, compact = false }: { liste?: { niveau: 'bloquant' | 'attention'; message: string }[]; compact?: boolean }) {
+  if (!liste || liste.length === 0) return null;
+  const bloquants = liste.filter((p) => p.niveau === 'bloquant');
+  const attentions = liste.filter((p) => p.niveau === 'attention');
+  return (
+    <div className={`rounded-xl border ${bloquants.length ? 'border-accent/50 bg-accent-soft/30' : 'border-line bg-white/[0.03]'} ${compact ? 'mt-2 px-3 py-2 text-[11px]' : 'mt-3 px-3.5 py-2.5 text-xs'}`}>
+      {bloquants.length > 0 && (
+        <div className="font-semibold text-txt">
+          {bloquants.length === 1 ? 'Ne partira pas en l’état' : `${bloquants.length} points empêchent l’envoi`}
+        </div>
+      )}
+      <ul className="mt-0.5 flex flex-col gap-0.5">
+        {[...bloquants, ...attentions].map((p, i) => (
+          <li key={i} className={p.niveau === 'bloquant' ? 'text-txt' : 'text-muted'}>
+            {p.niveau === 'bloquant' ? '⛔' : '⚠'} {p.message}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

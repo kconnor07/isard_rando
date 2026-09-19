@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { CalendarClock, Check, Pencil, X, Zap } from 'lucide-react';
+import { CalendarClock, Check, Pencil, Wand2, X, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import type { PostSummaryDto } from '../api/types';
 import { useDialog } from '../components/Dialog';
-import { CHANNEL_LABELS, Empty, EtatErreur, FORMAT_LABELS, PageTitle, StatusBadge, fmtDate } from '../components/shared';
+import { CHANNEL_LABELS, Empty, EtatErreur, FORMAT_LABELS, PageTitle, Problemes, StatusBadge, fmtDate } from '../components/shared';
 import { toast } from '../components/Toaster';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 
@@ -59,7 +59,24 @@ export default function Approvals() {
       toast.success(outcome?.scheduledAt ? `Programmé ${fmtDate(outcome.scheduledAt)}` : outcome?.message || 'Post programmé');
     },
   });
-  const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : schedule.isPending ? schedule.variables?.id : null;
+  const realigner = useMutation({
+    mutationFn: (id: number) => api.post<{ ok: boolean; message: string }>(`/api/posts/${id}/realigner`, { modele: true }),
+    onSuccess: (r) => {
+      invalidate();
+      toast.success(r.message);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : String(err)),
+  });
+  const realignerTout = useMutation({
+    mutationFn: () => api.post<{ ok: boolean; message: string }>('/api/posts/realigner', { modele: true }),
+    onSuccess: (r) => {
+      invalidate();
+      toast.success(r.message);
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : String(err)),
+  });
+  const pendingId = approve.isPending ? approve.variables?.id : reject.isPending ? reject.variables?.id : schedule.isPending ? schedule.variables?.id : realigner.isPending ? realigner.variables : null;
+  const aRealigner = (posts ?? []).filter((p) => (p.problemes ?? []).some((q) => q.corrigeable || q.code === 'dm-promis')).length;
   const scheduleAt = async (post: PostSummaryDto) => {
     const value = await dialog.prompt({
       title: 'Programmer à une date',
@@ -100,7 +117,17 @@ export default function Approvals() {
           <img src={`/public-assets/${zoom}.jpg`} alt="" className="max-h-full max-w-full rounded-xl" />
         </div>
       )}
-      <PageTitle title="Posts à valider" subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez." />
+      <PageTitle
+        title="Posts à valider"
+        subtitle="Rien ne part sans votre accord — approuvez, modifiez ou rejetez."
+        actions={
+          aRealigner > 0 ? (
+            <button className="btn-ghost" disabled={realignerTout.isPending} onClick={() => realignerTout.mutate()} title="Repose les liens, retire les adresses d’Instagram, borne les hashtags, attribue les comptes et fait réécrire ce qui promet encore un message privé sur LinkedIn">
+              <Wand2 size={14} /> {realignerTout.isPending ? 'Réalignement…' : `Réaligner ${aRealigner} post${aRealigner > 1 ? 's' : ''} avec la stratégie`}
+            </button>
+          ) : undefined
+        }
+      />
       {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="La file de validation" />}
       {posts && posts.length === 0 && <Empty>Aucun post en attente — la machine prépare la suite au prochain cycle.</Empty>}
       <div className="flex flex-col gap-4">
@@ -182,6 +209,8 @@ export default function Approvals() {
                   {post.resource?.viaLien ? ' — il ouvre le diagnostic, pas la ressource (elle est dans le lien du post)' : ''}
                 </p>
               )}
+              {post.error && <p className="mt-1.5 text-xs text-accent">{post.error}</p>}
+              <Problemes liste={post.problemes} />
               {inProgress ? (
                 <p className="mt-4 flex items-center gap-2 text-xs text-muted">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
@@ -201,6 +230,11 @@ export default function Approvals() {
                   <Link to={`/posts/${post.id}`} className="btn-ghost">
                     <Pencil size={13} /> Modifier
                   </Link>
+                  {(post.problemes ?? []).some((q) => q.corrigeable || q.code === 'dm-promis') && (
+                    <button className="btn-ghost" disabled={busy} onClick={() => realigner.mutate(post.id)} title="Corrige ce qui se corrige seul ; fait réécrire la fin du post s’il promet encore un message privé">
+                      <Wand2 size={13} /> Réaligner
+                    </button>
+                  )}
                   <button className="btn-danger ml-auto" disabled={busy} onClick={() => void rejectPost(post)}>
                     <X size={14} /> Rejeter
                   </button>

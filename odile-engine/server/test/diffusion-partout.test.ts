@@ -21,7 +21,8 @@ describe('diffusion simultanée', async () => {
     storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'moi', externalId: 'moi', accessToken: 't', meta: { name: 'Moi' } });
     storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'alexis', externalId: 'alexis', accessToken: 't', meta: { name: 'Alexis Duquenoy' } });
     storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'pause', externalId: 'pause', accessToken: 't', meta: { name: 'En pause', actif: false } });
-    storeToken({ provider: 'linkedin', subject: 'li_org', accountKey: '77', externalId: '77', accessToken: 't', meta: { name: 'Odile AI' } });
+    // La page a le droit de publier : sans lui, une copie ne serait pas programmée (et c'est voulu).
+    storeToken({ provider: 'linkedin', subject: 'li_org', accountKey: '77', externalId: '77', accessToken: 't', scopes: 'w_organization_social', meta: { name: 'Odile AI' } });
     storeToken({ provider: 'meta', subject: 'ig_user', externalId: 'ig1', accessToken: 't', meta: { igUsername: 'odile.ai' } });
   });
 

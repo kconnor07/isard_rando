@@ -16,6 +16,8 @@ import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
 import { compteDuCanal, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
+import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
+import { verifierPost } from '../../writer/conformite.js';
 import { freresDuGroupe, surfaceDuPost } from '../../scheduler/broadcast.js';
 
 /**
@@ -112,6 +114,8 @@ function postSummary(post: typeof schema.posts.$inferSelect) {
     },
     createdAt: post.createdAt,
     commentTriggerKeyword: post.commentTriggerKeyword,
+    // Ce qui empêcherait le post de tenir ses promesses, en phrases : vu avant d'approuver.
+    problemes: ['draft', 'reviewing', 'awaiting_approval', 'scheduled', 'rejected', 'failed'].includes(post.status) ? verifierPost(post) : [],
     reviewSummary: post.reviewSummary ? JSON.parse(post.reviewSummary) : null,
     newsTitle: news?.title ?? null,
     newsUrl: news?.url ?? null,
@@ -192,6 +196,31 @@ export function registerPostRoutes(app: FastifyInstance): void {
       ? db.select({ id: schema.clicks.id }).from(schema.clicks).where(eq(schema.clicks.linkId, post.linkId)).all().length
       : 0;
     return { ...postSummary(post), slides, reviews, clicks, visualOverrides: parseVisualOverrides(post.visualOverrides) };
+  });
+
+  /** Réaligne tous les posts modifiables avec la stratégie en vigueur (le modèle réécrit ce qui l'exige si `modele` est vrai). */
+  app.post<{ Body: { modele?: boolean } }>('/api/posts/realigner', async (request) => {
+    const resume = await realignerTout({ modele: request.body?.modele !== false });
+    return {
+      ok: true,
+      ...resume,
+      message: `${resume.posts} posts vérifiés · ${resume.corriges} corrigés · ${resume.reecrits} réécrits (à revalider) · ${resume.bloquants} encore bloqués`,
+    };
+  });
+
+  app.post<{ Params: { id: string }; Body: { modele?: boolean } }>('/api/posts/:id/realigner', async (request, reply) => {
+    const id = Number(request.params.id);
+    if (!db.select({ id: schema.posts.id }).from(schema.posts).where(eq(schema.posts.id, id)).get()) return reply.status(404).send({ error: 'Post introuvable' });
+    const r = await realignerPost(id, { modele: request.body?.modele !== false });
+    const bloques = r.restants.filter((p) => p.niveau === 'bloquant');
+    return {
+      ok: true,
+      ...r,
+      message:
+        r.corrections.length === 0 && bloques.length === 0
+          ? 'Rien à corriger : le post est conforme.'
+          : `${r.corrections.length ? r.corrections.join(' · ') : 'aucune correction automatique'}${bloques.length ? ` — reste à corriger à la main : ${bloques.map((p) => p.message).join(' ')}` : ''}`,
+    };
   });
 
   /**

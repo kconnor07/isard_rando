@@ -8,6 +8,7 @@ import { db, schema } from '../../db/client.js';
 import { latestMetricsByPost } from '../../publishers/metrics.js';
 import { clicksByLink } from './apiAnalytics.js';
 import { connectionWarnings } from '../../publishers/refresh.js';
+import { avertissementsDuTunnel } from '../../webhooks/controleTunnel.js';
 import { expliquerErreurMeta } from '../../publishers/metaErrors.js';
 import { nextPublishSlot, shouldDraftToday, sujetsEnAttente } from '../../scheduler/cadence.js';
 import { checkPassword, hasValidSession, issueSession, SESSION_COOKIE } from '../auth.js';
@@ -92,7 +93,7 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       engagement7d,
       pendingComments,
       cadence,
-      warnings: connectionWarnings(),
+      warnings: [...connectionWarnings(), ...avertissementsDuTunnel()],
       nextSlots: {
         instagram: nextPublishSlot('instagram').toISOString(),
         linkedin: nextPublishSlot('linkedin').toISOString(),

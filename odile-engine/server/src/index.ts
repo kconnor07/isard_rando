@@ -5,9 +5,17 @@ import { closeBrowser } from './render/browser.js';
 import { startServer } from './api/server.js';
 import { registerJobs } from './scheduler/jobs.js';
 import { seedSourcesIfEmpty } from './scraper/sources.js';
+import { reparerAuDemarrage } from './scheduler/realigner.js';
 
 async function main(): Promise<void> {
   seedSourcesIfEmpty();
+  // Les posts en attente disent vrai dès le démarrage : compte attribué, lien reposé,
+  // adresses retirées d'Instagram, hashtags bornés, dates orphelines effacées.
+  try {
+    reparerAuDemarrage();
+  } catch (err) {
+    logger.warn({ err: String(err).slice(0, 200) }, 'réparation au démarrage en échec');
+  }
   const app = await startServer();
   if (!config.DISABLE_SCHEDULER) registerJobs();
   else logger.warn('scheduler désactivé (DISABLE_SCHEDULER=1)');

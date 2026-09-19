@@ -5,6 +5,7 @@ import type { TokenPayload } from '../lib/signedToken.js';
 import { nextPublishSlot } from '../scheduler/cadence.js';
 import { freresDuGroupe } from '../scheduler/broadcast.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
+import { motifDeRefus, verifierPost } from '../writer/conformite.js';
 
 export interface ActionContext {
   ip?: string;
@@ -49,6 +50,10 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     if (chosen && (Number.isNaN(chosen.getTime()) || chosen.getTime() < Date.now() + 60_000)) {
       return { ok: false, message: 'La date choisie est passée ou invalide.', postId: post.id };
     }
+    // Un post qui ne tiendrait pas ses promesses (lien absent, message privé promis sur
+    // LinkedIn, compte hors service…) n'est pas programmé : on le dit, on ne le laisse pas partir.
+    const refus = motifDeRefus(verifierPost(post));
+    if (refus) return { ok: false, message: refus, postId: post.id };
     const scheduledAt = ctx.publishNow
       ? new Date(Date.now() + 60 * 1000)
       : (chosen ?? nextPublishSlot(post.platform as 'linkedin' | 'instagram'));
@@ -124,6 +129,14 @@ function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeS
   const dernier = new Map<string, Date>([[post.platform, scheduledAt]]);
   for (const frere of freresDuGroupe(post)) {
     if (!['draft', 'reviewing', 'awaiting_approval', 'rejected', 'failed'].includes(frere.status)) continue;
+    // Une copie non conforme ne suit pas la validation en silence : elle reste à
+    // valider, avec la raison, pour être corrigée ou rejetée à part.
+    const refusCopie = motifDeRefus(verifierPost(frere));
+    if (refusCopie) {
+      db.update(schema.posts).set({ status: 'awaiting_approval', error: refusCopie, updatedAt: now }).where(eq(schema.posts.id, frere.id)).run();
+      logger.warn({ postId: frere.id, avec: post.id, refus: refusCopie }, 'copie non programmée avec l’original');
+      continue;
+    }
     let quand = scheduledAt;
     if (!toutDeSuite) {
       quand = nextPublishSlot(frere.platform as 'linkedin' | 'instagram', dernier.get(frere.platform) ?? scheduledAt);
@@ -188,6 +201,8 @@ export function schedulePost(postId: number, at: string): ActionOutcome {
   if (!['awaiting_approval', 'rejected', 'failed', 'scheduled', 'approved'].includes(post.status)) {
     return { ok: false, message: `Ce post est « ${post.status} » — il ne peut pas être programmé.`, postId };
   }
+  const refus = motifDeRefus(verifierPost(post));
+  if (refus) return { ok: false, message: refus, postId };
   const voisin = voisinTropProche(post, when);
   if (voisin) {
     return {

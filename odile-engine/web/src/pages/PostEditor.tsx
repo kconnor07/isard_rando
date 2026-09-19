@@ -9,7 +9,7 @@ import LibraryPicker from '../components/LibraryPicker';
 import { toast } from '../components/Toaster';
 import { depuisChampLocal, pourChampLocal } from '../lib/paris';
 import VisualAgentPanel from '../components/VisualAgentPanel';
-import { CHANNEL_LABELS, EtatErreur, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge } from '../components/shared';
+import { CHANNEL_LABELS, EtatErreur, fmtDate, FORMAT_LABELS, PageTitle, SLIDE_FIELD_LABELS, SLIDE_KIND_LABELS, StatusBadge, Problemes } from '../components/shared';
 
 const SLIDE_KINDS = ['hook', 'content', 'value_prop', 'screenshot', 'cta', 'notifications'] as const;
 /** Statuts pendant lesquels le post évolue tout seul (pipeline, studio, publication) : l'éditeur se rafraîchit */
@@ -483,6 +483,7 @@ export default function PostEditor() {
           rejeter vaut pour toutes les copies ; un texte ou un visuel modifié ici ne change que celle-ci.
         </p>
       )}
+      <Problemes liste={post.problemes} />
       {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
       {post.format === 'li_doc' && !inProgress && post.slideCount > 0 && (

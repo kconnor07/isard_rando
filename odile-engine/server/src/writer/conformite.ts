@@ -1,0 +1,147 @@
+/**
+ * Un post est-il conforme à sa plateforme et à son compte ?
+ *
+ * Ce contrôle dit, en phrases simples, ce qui empêcherait un post de tenir ses
+ * promesses : sur LinkedIn le lien de la ressource doit être dans la description et
+ * rien ne part en message privé ; sur Instagram aucune adresse, le mot-clé envoie la
+ * ressource en privé ; le compte qui publie doit exister et fonctionner. Il sert
+ * trois fois : à l'écran de validation (le fondateur voit avant d'approuver), au
+ * moment d'approuver ou de programmer (un défaut bloquant est refusé), et au
+ * réalignement des anciens posts (ce qui est corrigeable est corrigé).
+ */
+import { config } from '../config.js';
+import { db, schema } from '../db/client.js';
+import { getDmTriggers } from '../db/settingsRepo.js';
+import { compteDuPost } from '../publishers/linkedinAccounts.js';
+import { captionPorteLeMotCle } from './generate.js';
+import { HASHTAGS_MAX } from '@odile/shared';
+
+type Post = typeof schema.posts.$inferSelect;
+
+export interface Probleme {
+  code:
+    | 'compte-en-panne'
+    | 'compte-non-attribue'
+    | 'lien-absent'
+    | 'lien-placeholder'
+    | 'dm-promis'
+    | 'motcle-absent'
+    | 'motcle-hors-liste'
+    | 'url-instagram'
+    | 'parle-de-linkedin'
+    | 'trop-long'
+    | 'hashtags'
+    | 'tu-vous'
+    | 'guide-manquant'
+    | 'date-orpheline'
+    | 'rdv-manquant';
+  niveau: 'bloquant' | 'attention';
+  message: string;
+  /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
+  corrigeable: boolean;
+}
+
+const PROMESSE_DM = /message priv|en DM\b|en MP\b|messagerie|je t[’']envoie|je vous envoie/i;
+const ADRESSE = /https?:\/\/|www\.|\{\{link\}\}/i;
+const RENVOI_LINKEDIN = /lien (dans|en) (la )?description|sur linkedin|sous ce post linkedin/i;
+
+/** Les dernières lignes d'une légende : là où vit l'appel à l'action. */
+function blocFinal(caption: string): string {
+  return caption.trim().split('\n').slice(-4).join('\n');
+}
+
+export function verifierPost(post: Post): Probleme[] {
+  const problemes: Probleme[] = [];
+  const dm = getDmTriggers();
+  const diagnostic = dm.linkedinOffer === 'diagnostic';
+  const caption = post.caption ?? '';
+  const motcle = post.commentTriggerKeyword;
+  let hashtags: string[] = [];
+  try {
+    hashtags = JSON.parse(post.hashtags) as string[];
+  } catch {
+    hashtags = [];
+  }
+
+  if (caption.includes('{{link}}') || (post.cta ?? '').includes('{{link}}')) {
+    problemes.push({ code: 'lien-placeholder', niveau: 'bloquant', corrigeable: true, message: 'Le marqueur {{link}} est resté dans le texte au lieu de l’adresse.' });
+  }
+
+  if (post.platform === 'linkedin') {
+    const compte = compteDuPost(post);
+    if (!compte) {
+      // En simulation (PUBLISH_MODE=dry) rien ne part vraiment : l'absence de compte n'y bloque pas.
+      if (config.PUBLISH_MODE !== 'dry') {
+        problemes.push({ code: 'compte-en-panne', niveau: 'bloquant', corrigeable: false, message: 'Aucun compte LinkedIn connecté pour ce canal.' });
+      }
+    } else {
+      if (compte.enPanne) {
+        problemes.push({ code: 'compte-en-panne', niveau: 'bloquant', corrigeable: false, message: `${compte.name} ne peut pas publier : ${compte.panne}.` });
+      }
+      if (!post.liAccountKey) {
+        problemes.push({ code: 'compte-non-attribue', niveau: 'attention', corrigeable: true, message: `Aucun compte choisi : le post partirait sur ${compte.name}.` });
+      }
+    }
+    const lienDansLeTexte = caption.includes(`${config.PUBLIC_URL.replace(/\/+$/, '')}/r/`) || /\/r\/[a-z2-9]{6,}/i.test(caption);
+    if (post.linkId && diagnostic && !lienDansLeTexte) {
+      problemes.push({ code: 'lien-absent', niveau: 'bloquant', corrigeable: true, message: 'Le lien de la ressource n’est pas dans la description : la personne n’a rien à ouvrir, et les réponses automatiques diraient qu’il y est.' });
+    }
+    if (PROMESSE_DM.test(blocFinal(caption)) || PROMESSE_DM.test(post.cta ?? '')) {
+      problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });
+    }
+    if (motcle && diagnostic && !dm.diagnosticKeywords.map((k) => k.toUpperCase()).includes(motcle.toUpperCase())) {
+      problemes.push({ code: 'motcle-hors-liste', niveau: 'attention', corrigeable: false, message: `Le mot « ${motcle} » n’est pas un mot de diagnostic (${dm.diagnosticKeywords.join(', ')}) : la réponse proposera quand même le rendez-vous, mais le texte peut promettre autre chose.` });
+    }
+    if (caption.length > 3000) problemes.push({ code: 'trop-long', niveau: 'bloquant', corrigeable: false, message: `Texte de ${caption.length} caractères : LinkedIn en accepte 3 000.` });
+    else if (caption.length > 1500) problemes.push({ code: 'trop-long', niveau: 'attention', corrigeable: false, message: `Texte long (${caption.length} caractères) : sur LinkedIn, au-delà de 1 200 le post est moins lu.` });
+    if (hashtags.length > HASHTAGS_MAX.linkedin) problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtags.length} hashtags : LinkedIn n’en tient compte que de ${HASHTAGS_MAX.linkedin}.` });
+    if (diagnostic && motcle && !dm.rdvUrl.trim()) {
+      problemes.push({ code: 'rdv-manquant', niveau: 'attention', corrigeable: false, message: 'Aucun lien de rendez-vous réglé : la réponse au mot-clé renverra vers la page d’accueil du site (Réglages → Commentaire → DM).' });
+    }
+  }
+
+  if (post.platform === 'instagram') {
+    if (ADRESSE.test(caption) || ADRESSE.test(post.cta ?? '')) {
+      problemes.push({ code: 'url-instagram', niveau: 'bloquant', corrigeable: true, message: 'Une adresse figure dans la légende : sur Instagram elle n’est pas cliquable, et la ressource part en message privé.' });
+    }
+    if (RENVOI_LINKEDIN.test(blocFinal(caption))) {
+      problemes.push({ code: 'parle-de-linkedin', niveau: 'attention', corrigeable: false, message: 'L’appel à l’action parle d’un lien en description ou de LinkedIn : sur Instagram, c’est le mot-clé qui envoie la ressource.' });
+    }
+    if (caption.length > 2200) problemes.push({ code: 'trop-long', niveau: 'bloquant', corrigeable: false, message: `Légende de ${caption.length} caractères : Instagram en accepte 2 200.` });
+    if (hashtags.length > HASHTAGS_MAX.instagram) problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtags.length} hashtags : au-delà de ${HASHTAGS_MAX.instagram}, Instagram n’en tient plus compte.` });
+  }
+
+  if (motcle && !captionPorteLeMotCle(caption, motcle)) {
+    problemes.push({ code: 'motcle-absent', niveau: 'bloquant', corrigeable: true, message: `Le texte ne demande pas « Commente ${motcle} » : personne ne saura quoi commenter.` });
+  }
+  if (/\bvous\b/i.test(caption) && /\b(tu|t[’']|tes|ton|ta)\b/i.test(caption)) {
+    problemes.push({ code: 'tu-vous', niveau: 'attention', corrigeable: false, message: 'Tutoiement et vouvoiement se mélangent dans le texte.' });
+  }
+  if (post.resourceKind === 'guide' && !post.resourceAssetId && !post.resourceUrl) {
+    problemes.push({ code: 'guide-manquant', niveau: 'bloquant', corrigeable: false, message: `Le guide promis n’existe pas${post.resourceError ? ` (${post.resourceError.slice(0, 120)})` : ''} : relance la fabrication ou change la promesse.` });
+  }
+  if (post.scheduledAt && !['scheduled', 'publishing', 'published'].includes(post.status)) {
+    problemes.push({ code: 'date-orpheline', niveau: 'attention', corrigeable: true, message: 'Une date de publication traîne sur un post qui n’est pas programmé.' });
+  }
+  return problemes;
+}
+
+export function bloquants(problemes: Probleme[]): Probleme[] {
+  return problemes.filter((p) => p.niveau === 'bloquant');
+}
+
+/** Une phrase pour refuser une action, à partir des défauts bloquants. */
+export function motifDeRefus(problemes: Probleme[]): string | null {
+  const b = bloquants(problemes);
+  if (b.length === 0) return null;
+  return `Ce post ne peut pas partir en l’état : ${b.map((p) => p.message).join(' ')} Clique « Réaligner » ou corrige-le dans l’éditeur.`;
+}
+
+/** Tous les posts encore modifiables, avec leurs défauts (pour l'écran de validation et le réalignement). */
+export function postsAVerifier(): Post[] {
+  return db
+    .select()
+    .from(schema.posts)
+    .all()
+    .filter((p) => ['draft', 'reviewing', 'awaiting_approval', 'scheduled', 'rejected', 'failed'].includes(p.status));
+}
