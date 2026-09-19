@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { BRAND_DEFAULTS, RENDER_SIZES } from '@odile/shared';
+import { BRAND_DEFAULTS, RENDER_SIZES, brandSettingsSchema } from '@odile/shared';
 import { buildSlideHtml } from '../src/render/renderer.js';
 import { TEMPLATES_DIR } from '../src/render/themes.js';
 
-const brand = { ...BRAND_DEFAULTS, logoAssetId: null, avatarAssetId: null, authorLine: '' };
+const brand = brandSettingsSchema.parse({ ...BRAND_DEFAULTS, logoAssetId: null, avatarAssetId: null, authorLine: '' });
 const slide = (format: 'reel' | 'carousel') =>
   buildSlideHtml({
     theme: 'odile-nuit',

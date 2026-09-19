@@ -57,17 +57,51 @@ export const INTENTIONS_LOCALES = [
   'cas concrets : ce que les PME de {ville} automatisent en premier',
 ];
 
-/** Titres déjà publiés : le rédacteur ne doit pas les cannibaliser. */
-function titresRecents(): string[] {
+/** Les articles déjà écrits : titre, adresse et mot-clé — pour ne pas les cannibaliser et pour s'y relier. */
+export function articlesExistants(saufId?: number): { titre: string; slug: string; motcle: string; publie: boolean }[] {
   return db
-    .select({ title: schema.articles.title })
+    .select({ id: schema.articles.id, title: schema.articles.title, slug: schema.articles.slug, content: schema.articles.content, status: schema.articles.status })
     .from(schema.articles)
     .orderBy(desc(schema.articles.id))
-    .limit(25)
+    .limit(40)
     .all()
-    .map((a) => a.title)
-    .filter(Boolean);
+    .filter((a) => a.id !== saufId && a.title && !['failed', 'rejected'].includes(a.status))
+    .map((a) => {
+      let motcle = '';
+      try {
+        motcle = String((JSON.parse(a.content) as { primaryKeyword?: string }).primaryKeyword ?? '');
+      } catch {
+        motcle = '';
+      }
+      return { titre: a.title, slug: a.slug, motcle, publie: a.status === 'published' };
+    });
 }
+
+/** Titres déjà publiés : le rédacteur ne doit pas les cannibaliser. */
+function titresRecents(saufId?: number): string[] {
+  return articlesExistants(saufId).map((a) => a.titre);
+}
+
+/** Les entités toulousaines qu'un moteur génératif peut citer : organismes, zones d'activité, quartiers. */
+const ENTITES_LOCALES: Record<string, string[]> = {
+  toulouse: [
+    'CCI Toulouse Haute-Garonne',
+    'Toulouse Métropole',
+    'Région Occitanie',
+    'French Tech Toulouse',
+    'Aerospace Valley',
+    'la filière aéronautique de Blagnac (Airbus et ses sous-traitants)',
+    'Innopole / Enova à Labège',
+    'Compans-Caffarelli',
+    'Montaudran',
+    'Basso-Cambo',
+    'Portet-sur-Garonne',
+    'Muret',
+    'Colomiers',
+    'l’Oncopole',
+    'le CHU de Toulouse',
+  ],
+};
 
 /** Les sujets d'une actualité, tels que le rescoring les a posés. */
 function sujetsDe(item: Pick<NewsRow, 'topics'>): string[] {
@@ -196,15 +230,21 @@ export function sujetDepuisArticle(row: { brief: string; newsItemId: number | nu
 }
 
 /** Rédige l'article structuré. */
-export async function redigerArticle(sujet: SujetArticle, reglages: BlogSettings): Promise<Article> {
+export async function redigerArticle(sujet: SujetArticle, reglages: BlogSettings, saufId?: number): Promise<Article> {
   const verdict = verifierBudget('writing');
   if (!verdict.autorise) throw new BudgetDepasseError(verdict);
   const brand = getBrand();
   const site = brand.siteUrl || 'https://odileai.com';
-  const pages = reglages.sitePages.length
-    ? reglages.sitePages.map((p) => `- ${p.label} → ${p.path}`).join('\n')
-    : '- Accueil → /\n- Contact → /contact';
-  const dejaPublies = titresRecents();
+  const existants = articlesExistants(saufId);
+  const pages = [
+    ...(reglages.sitePages.length ? reglages.sitePages.map((p) => `- ${p.label} → ${p.path}`) : ['- Accueil → /', '- Contact → /contact']),
+    // Les articles déjà en ligne sont les meilleures cibles de liens : c'est ainsi qu'un
+    // ensemble d'articles sur l'automatisation à Toulouse pèse plus que chacun seul.
+    ...existants.filter((a) => a.publie && a.slug).slice(0, 12).map((a) => `- Article « ${a.titre} » → /blog/${a.slug}`),
+  ].join('\n');
+  const dejaPublies = titresRecents(saufId);
+  const motsClesPris = existants.map((a) => a.motcle).filter(Boolean);
+  const entites = ENTITES_LOCALES[reglages.ville.trim().toLowerCase()] ?? [];
 
   const prompt = `Tu rédiges un article de blog pour le site de ${brand.name} (${site}), agence d'automatisation IA
 pour PME et TPE installée à ${reglages.ville}. Auteur affiché : ${reglages.authorName}.
@@ -229,10 +269,16 @@ ANCRAGE LOCAL : ${reglages.ville} et ses alentours (${reglages.zones.join(', ')}
 naturel et utile — tissu économique local, exemples types d'entreprises d'ici, réalités du terrain —
 jamais du bourrage de mots-clés, jamais de faux clients ni de faux chiffres locaux.
 ${dejaPublies.length ? `\nARTICLES DÉJÀ PUBLIÉS (ne pas refaire le même, ne pas cannibaliser) :\n${dejaPublies.map((t) => `- ${t}`).join('\n')}` : ''}
+${motsClesPris.length ? `MOTS-CLÉS PRINCIPAUX DÉJÀ PRIS (choisis-en un AUTRE pour primaryKeyword) : ${motsClesPris.join(' ; ')}` : ''}
+${entites.length ? `ENTITÉS LOCALES à citer quand c'est utile (jamais toutes, jamais de force) : ${entites.join(', ')}.` : ''}
 
 RÉFÉRENCEMENT NATUREL (SEO) — règles impératives :
-- UNE intention de recherche par article ; le mot-clé principal figure dans title, metaTitle (≤ 60 caractères),
-  metaDescription (120-155 caractères, incitative, avec la ville), le H1 et le premier paragraphe.
+- UNE intention de recherche par article, écrite dans primaryKeyword telle qu'un dirigeant la taperait
+  (« automatisation devis artisan Toulouse », jamais un nom de produit) ; ce mot-clé figure dans title,
+  metaTitle (≤ 60 caractères), metaDescription (120-155 caractères, incitative, avec la ville), le H1 et
+  directAnswer.
+- directAnswer : la réponse à la question de l'article en 2 ou 3 phrases (≤ 400 caractères), autonome,
+  citable telle quelle — c'est le premier paragraphe de la page.
 - 1 200 à 1 800 mots au total. Paragraphes de 2 à 4 phrases. Phrases courtes. Aucun jargon non expliqué.
 - Hiérarchie : 4 à 7 H2 qui répondent chacun à une sous-question, des H3 quand un H2 se subdivise.
 - Des listes quand il y a une énumération, des ordres de grandeur réalistes (fourchettes, pas de chiffres inventés
@@ -272,7 +318,10 @@ export function articleHtml(article: Article, siteUrl: string): string {
     return texte;
   };
   const parts: string[] = [];
-  parts.push(`<p><strong>En bref</strong></p><ul>${article.keyTakeaways.map((k) => `<li>${escapeHtml(k)}</li>`).join('')}</ul>`);
+  // La réponse directe ouvre la page : c'est elle que les moteurs (classiques et
+  // génératifs) reprennent, et elle porte le mot-clé dans le premier paragraphe.
+  if (article.directAnswer?.trim()) parts.push(`<p class="en-bref"><strong>${escapeHtml(article.directAnswer.trim())}</strong></p>`);
+  parts.push(`<h2>En bref</h2><ul class="en-bref">${article.keyTakeaways.map((k) => `<li>${escapeHtml(k)}</li>`).join('')}</ul>`);
   for (const s of article.sections) {
     parts.push(`<h2>${escapeHtml(s.h2)}</h2>`);
     for (const p of s.paragraphs) parts.push(`<p>${escapeHtml(lienInterne(p))}</p>`);
@@ -297,33 +346,93 @@ export function articleHtml(article: Article, siteUrl: string): string {
   return parts.join('\n');
 }
 
-/** Données structurées : Article + FAQPage + l'organisation locale. À injecter sur la page par le site. */
-export function articleJsonLd(article: Article, args: { url: string; siteUrl: string; brand: string; author: string; ville: string; datePublished: string; coverUrl: string | null; logoUrl: string | null }): string {
+/**
+ * Données structurées, à injecter sur la page par le site : l'entreprise locale
+ * (nom, adresse, téléphone, zones servies, réseaux — les mêmes partout, c'est ce
+ * qui compte pour le référencement local), l'auteur, l'article de blog avec ses
+ * dates réelles et ses sources, le fil d'Ariane et la FAQ.
+ */
+export function articleJsonLd(
+  article: Article,
+  args: {
+    url: string;
+    siteUrl: string;
+    brand: string;
+    author: string;
+    ville: string;
+    datePublished: string;
+    coverUrl: string | null;
+    logoUrl: string | null;
+    dateModified?: string;
+    zones?: string[];
+    telephone?: string;
+    rue?: string;
+    codePostal?: string;
+    sameAs?: string[];
+    authorUrl?: string;
+  },
+): string {
+  const site = args.siteUrl.replace(/\/$/, '');
+  const orgId = `${site}/#organization`;
+  const authorId = `${site}/#author`;
+  const zones = (args.zones ?? []).filter(Boolean);
   const org = {
-    '@type': 'Organization',
-    '@id': `${args.siteUrl.replace(/\/$/, '')}/#organization`,
+    '@type': ['Organization', 'ProfessionalService'],
+    '@id': orgId,
     name: args.brand,
     url: args.siteUrl,
-    ...(args.logoUrl ? { logo: { '@type': 'ImageObject', url: args.logoUrl } } : {}),
-    address: { '@type': 'PostalAddress', addressLocality: args.ville, addressCountry: 'FR' },
-    areaServed: args.ville,
+    ...(args.logoUrl ? { logo: { '@type': 'ImageObject', url: args.logoUrl }, image: args.logoUrl } : {}),
+    ...(args.telephone ? { telephone: args.telephone } : {}),
+    address: {
+      '@type': 'PostalAddress',
+      ...(args.rue ? { streetAddress: args.rue } : {}),
+      ...(args.codePostal ? { postalCode: args.codePostal } : {}),
+      addressLocality: args.ville,
+      addressCountry: 'FR',
+    },
+    areaServed: zones.length ? zones.map((z) => ({ '@type': 'AdministrativeArea', name: z })) : args.ville,
+    ...(args.sameAs?.length ? { sameAs: args.sameAs } : {}),
+    knowsAbout: ['automatisation IA', 'agents IA', 'automatisation des PME', 'intelligence artificielle pour TPE'],
   };
+  const author = {
+    '@type': 'Person',
+    '@id': authorId,
+    name: args.author,
+    worksFor: { '@id': orgId },
+    ...(args.authorUrl ? { url: args.authorUrl, sameAs: [args.authorUrl] } : {}),
+  };
+  const texte = [article.directAnswer, ...article.keyTakeaways, ...article.sections.flatMap((s) => [...s.paragraphs, ...s.bullets, ...s.h3s.flatMap((h) => h.paragraphs)]), ...article.faq.map((f) => f.answer)].join(' ');
   const graph = [
     org,
+    author,
     {
-      '@type': 'Article',
+      '@type': 'BlogPosting',
       '@id': `${args.url}#article`,
       headline: article.title,
       description: article.metaDescription,
       inLanguage: 'fr-FR',
       datePublished: args.datePublished,
-      dateModified: args.datePublished,
-      author: { '@type': 'Person', name: args.author, worksFor: { '@id': org['@id'] } },
-      publisher: { '@id': org['@id'] },
+      dateModified: args.dateModified ?? args.datePublished,
+      author: { '@id': authorId },
+      publisher: { '@id': orgId },
       mainEntityOfPage: { '@type': 'WebPage', '@id': args.url },
-      keywords: article.keywords.join(', '),
-      about: [{ '@type': 'Place', name: args.ville }],
+      isPartOf: { '@type': 'Blog', '@id': `${site}/blog#blog`, name: `Blog ${args.brand}` },
+      keywords: [article.primaryKeyword, ...article.keywords].filter(Boolean).join(', '),
+      articleSection: 'Automatisation IA',
+      wordCount: texte.split(/\s+/).filter(Boolean).length,
+      about: [{ '@type': 'Place', name: args.ville }, ...zones.filter((z) => z !== args.ville).slice(0, 5).map((z) => ({ '@type': 'Place', name: z }))],
+      ...(article.sources.length ? { citation: article.sources.map((src) => ({ '@type': 'CreativeWork', name: src.title, url: src.url })) } : {}),
+      speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.en-bref'] },
       ...(args.coverUrl ? { image: [args.coverUrl] } : {}),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      '@id': `${args.url}#breadcrumb`,
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Accueil', item: `${site}/` },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `${site}/blog` },
+        { '@type': 'ListItem', position: 3, name: article.title, item: args.url },
+      ],
     },
     {
       '@type': 'FAQPage',

@@ -34,7 +34,8 @@ describe('article de blog : HTML, données structurées, slug', async () => {
 
   it('le HTML suit la structure SEO/GEO : réponse directe, H2/H3, FAQ, sources, liens internes absolus', () => {
     const html = articleHtml(article, 'https://odileai.com/');
-    expect(html.startsWith('<p><strong>En bref</strong></p><ul><li>')).toBe(true);
+    // La réponse directe ouvre la page quand elle existe ; ici absente, « En bref » vient en premier, en titre.
+    expect(html.startsWith('<h2>En bref</h2><ul class="en-bref"><li>')).toBe(true);
     expect(html).toContain('<h2>Pourquoi maintenant &lt;b&gt;?&lt;/b&gt;</h2>');
     expect(html).toContain('<h3>Le premier process</h3>');
     expect(html).toContain('<h2>Questions fréquentes</h2>');
@@ -43,13 +44,13 @@ describe('article de blog : HTML, données structurées, slug', async () => {
     expect(html).not.toMatch(/\{\{link\}\}/);
   });
 
-  it('le JSON-LD porte Article, FAQPage et l’organisation locale', () => {
+  it('le JSON-LD porte l’entreprise locale, l’auteur, l’article, le fil d’Ariane et la FAQ', () => {
     const json = JSON.parse(
       articleJsonLd(article, { url: 'https://odileai.com/blog/x', siteUrl: 'https://odileai.com', brand: 'Odile AI', author: 'Alexis Duquenoy', ville: 'Toulouse', datePublished: '2026-09-16', coverUrl: 'https://o/c.jpg', logoUrl: null }),
     ) as { '@graph': Record<string, unknown>[] };
     const types = json['@graph'].map((n) => n['@type']);
-    expect(types).toEqual(['Organization', 'Article', 'FAQPage']);
-    const faq = json['@graph'][2] as { mainEntity: unknown[] };
+    expect(types).toEqual([['Organization', 'ProfessionalService'], 'Person', 'BlogPosting', 'BreadcrumbList', 'FAQPage']);
+    const faq = json['@graph'][4] as { mainEntity: unknown[] };
     expect(faq.mainEntity).toHaveLength(3);
     const org = json['@graph'][0] as { address: { addressLocality: string } };
     expect(org.address.addressLocality).toBe('Toulouse');
@@ -115,7 +116,7 @@ describe('chaîne du blog en mode mock', async () => {
     expect(row.slug).toMatch(/^[a-z0-9-]+$/);
     expect(row.coverAssetId).toBeTruthy();
     expect(row.bodyHtml).toContain('<h2>');
-    expect(JSON.parse(row.jsonLd)['@graph']).toHaveLength(3);
+    expect(JSON.parse(row.jsonLd)['@graph']).toHaveLength(5);
     expect(blogDue().due).toBe(false);
 
     const pub = await publierArticle(row.id);

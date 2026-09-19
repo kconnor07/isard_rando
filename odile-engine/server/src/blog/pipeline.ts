@@ -58,14 +58,20 @@ export function deriverArticle(row: ArticleRow, article: Article, reglages: Blog
   return {
     bodyHtml: articleHtml(article, site),
     jsonLd: articleJsonLd(article, {
-      url: `${site}/blog/${row.slug || article.slug}`,
+      url: row.publishedUrl || `${site}/blog/${row.slug || article.slug}`,
       siteUrl: site,
       brand: brand.name,
       author: reglages.authorName,
-      ville: reglages.ville,
+      ville: brand.ville || reglages.ville,
       datePublished: (row.publishedAt ?? row.createdAt).slice(0, 10),
+      dateModified: (row.updatedAt ?? row.publishedAt ?? row.createdAt).slice(0, 10),
       coverUrl: coverUrl(row.coverAssetId),
       logoUrl: brand.logoAssetId ? `${config.PUBLIC_URL.replace(/\/$/, '')}/public-assets/${brand.logoAssetId}.png` : null,
+      zones: reglages.zones,
+      telephone: brand.telephone,
+      rue: brand.rue,
+      codePostal: brand.codePostal,
+      sameAs: brand.sameAs,
     }),
   };
 }
@@ -120,7 +126,7 @@ export async function regenererArticle(articleId: number): Promise<BlogPipelineS
   const reglages = getBlog();
   db.update(schema.articles).set({ status: 'drafting', error: null, updatedAt: new Date().toISOString() }).where(eq(schema.articles.id, articleId)).run();
   try {
-    const article = await redigerArticle(sujetDepuisArticle(row), reglages);
+    const article = await redigerArticle(sujetDepuisArticle(row), reglages, articleId);
     await enregistrerRedaction(articleId, article, reglages);
     return { articleId, title: article.title, emailed: false };
   } catch (err) {

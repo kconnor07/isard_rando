@@ -8,7 +8,7 @@ import type { LibraryImageDto } from '../api/types';
 
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
-  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme' };
+  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme'; telephone?: string; rue?: string; codePostal?: string; ville?: string; sameAs?: string[] };
   cadence: { days: number; rotation: string[]; broadcast?: boolean; docEveryNPosts?: number };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string; linkedinOffer?: 'ressource' | 'diagnostic'; diagnosticKeywords?: string[]; diagnosticPromise?: string };
@@ -244,6 +244,19 @@ export default function Settings() {
             </div></div>
           <div className="sm:col-span-2"><label className="label">Tagline</label>
             <input className="input" value={form.brand.tagline} onChange={(e) => set('brand', { ...form.brand, tagline: e.target.value })} /></div>
+          {/* Fiche locale : les mêmes nom, adresse et téléphone que sur la fiche Google et les réseaux — c'est ce que le référencement local compare. */}
+          <div><label className="label">Téléphone (fiche locale)</label>
+            <input className="input" value={form.brand.telephone ?? ''} placeholder="+33 5 …" onChange={(e) => set('brand', { ...form.brand, telephone: e.target.value })} /></div>
+          <div><label className="label">Ville</label>
+            <input className="input" value={form.brand.ville ?? ''} placeholder="Toulouse" onChange={(e) => set('brand', { ...form.brand, ville: e.target.value })} /></div>
+          <div><label className="label">Adresse (rue)</label>
+            <input className="input" value={form.brand.rue ?? ''} onChange={(e) => set('brand', { ...form.brand, rue: e.target.value })} /></div>
+          <div><label className="label">Code postal</label>
+            <input className="input" value={form.brand.codePostal ?? ''} onChange={(e) => set('brand', { ...form.brand, codePostal: e.target.value })} /></div>
+          <div className="sm:col-span-2"><label className="label">Pages officielles (LinkedIn, Instagram, Facebook… une adresse par ligne)</label>
+            <textarea className="input min-h-20" value={(form.brand.sameAs ?? []).join('\n')}
+              onChange={(e) => set('brand', { ...form.brand, sameAs: e.target.value.split('\n').map((l) => l.trim()).filter((l) => /^https?:\/\//.test(l)) })} />
+            <p className="mt-1 text-[11px] text-muted">Reliées à l’entreprise dans les données structurées des articles : Google et les assistants IA comprennent que c’est la même Odile AI partout.</p></div>
           <div className="sm:col-span-2">
             <label className="label">Logo (PNG/JPG, affiché sur chaque slide)</label>
             <div className="flex items-center gap-3">

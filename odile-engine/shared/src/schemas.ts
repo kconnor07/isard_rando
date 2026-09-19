@@ -45,6 +45,13 @@ export const brandSettingsSchema = z.object({
    * « systeme » garde ceux de la police du serveur (Noto, style Google).
    */
   emojiStyle: z.enum(['aucun', 'systeme']).default('aucun'),
+  // --- Fiche locale (SEO : nom, adresse, téléphone identiques partout ; réseaux liés) ---
+  telephone: z.string().max(40).default(''),
+  rue: z.string().max(120).default(''),
+  codePostal: z.string().max(12).default(''),
+  ville: z.string().max(60).default(''),
+  /** pages officielles de la marque (LinkedIn, Instagram, Facebook…) — `sameAs` des données structurées */
+  sameAs: z.array(z.string().url()).max(12).default([]),
 });
 export type BrandSettings = z.infer<typeof brandSettingsSchema>;
 
@@ -716,6 +723,10 @@ export const articleSchema = z.object({
   /** titre court de l'image de couverture (≤ 8 mots) et son mot fort */
   coverTitle: z.string().min(4).max(70),
   coverAccentWord: z.string().max(30).default(''),
+  /** la réponse à la question de l'article, en 2-3 phrases : le premier paragraphe, celui que les moteurs citent */
+  directAnswer: z.string().max(420).default(''),
+  /** la requête visée, une par article, jamais reprise d'un autre article */
+  primaryKeyword: z.string().max(80).default(''),
   /** la réponse directe, en tête d'article : ce que les moteurs génératifs citent */
   keyTakeaways: z.array(z.string().min(10).max(220)).min(3).max(6),
   sections: z
