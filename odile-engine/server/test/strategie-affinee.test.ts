@@ -363,3 +363,74 @@ describe('blog : alt de couverture, site non publié par-dessus des retouches ; 
     expect(avertissementsDuTunnel().map((w) => w.message).some((m) => /rédaction automatique/.test(m))).toBe(false);
   });
 });
+
+describe('réécrire la fin d’un post, mots trop courants, compte le moins chargé', async () => {
+  const { eq } = await import('drizzle-orm');
+  const { db, schema } = await import('../src/db/client.js');
+  const { setSetting, getDmTriggers } = await import('../src/db/settingsRepo.js');
+  const { storeToken, deleteToken } = await import('../src/publishers/tokens.js');
+  const { separerBlocFinal, reecrireLeBlocFinal } = await import('../src/scheduler/broadcast.js');
+  const { compteLeMoinsCharge } = await import('../src/publishers/linkedinAccounts.js');
+  const { dmTriggerSettingsSchema, MOTS_TROP_COURANTS } = await import('@odile/shared');
+  const { apercuTunnel } = await import('../src/approvals/tunnel.js');
+  const { matchKeyword } = await import('../src/webhooks/commentDm.js');
+
+  it('le corps validé se sépare de l’appel à l’action', () => {
+    const caption = 'Vous perdez une journée par semaine sur vos devis ?\n\nVoilà comment une PME toulousaine a divisé ce temps par six. Odile AI l’a accompagnée.\n\nC’est ici : https://odile.test/r/abcdef\n\nCommente CAS si vous voulez un diagnostic.';
+    const { corps, blocFinal } = separerBlocFinal(caption);
+    expect(corps).toBe('Vous perdez une journée par semaine sur vos devis ?\n\nVoilà comment une PME toulousaine a divisé ce temps par six. Odile AI l’a accompagnée.');
+    expect(blocFinal).toBe('C’est ici : https://odile.test/r/abcdef\n\nCommente CAS si vous voulez un diagnostic.');
+    // Une promesse de message privé fait partie de la fin, elle aussi
+    expect(separerBlocFinal('Le corps du post.\n\nCommente GUIDE, je t’envoie la checklist en message privé.').corps).toBe('Le corps du post.');
+    // Un texte sans appel à l'action n'a pas de fin à remplacer
+    expect(separerBlocFinal('Juste une réflexion.\n\nEt une deuxième ligne.').blocFinal).toBe('');
+  });
+
+  it('en simulation, la réécriture de la fin conserve le texte tel quel', async () => {
+    const texte = await reecrireLeBlocFinal({ id: 1, caption: 'Le corps.\n\nCommente GUIDE, je t’envoie tout en message privé.', cta: 'Commente GUIDE', hook: 'h', commentTriggerKeyword: 'GUIDE' }, 'CAS');
+    expect(texte.caption).toBe('Le corps.\n\nCommente GUIDE, je t’envoie tout en message privé.');
+    expect(texte.echec).toBeUndefined();
+  });
+
+  it('les mots du langage courant sont refusés aux réglages et ignorés par le moteur', () => {
+    expect(MOTS_TROP_COURANTS).toContain('INFO');
+    const base = getDmTriggers();
+    expect(dmTriggerSettingsSchema.safeParse({ ...base, keywords: ['GUIDE', 'INFO'] }).success).toBe(false);
+    expect(dmTriggerSettingsSchema.safeParse({ ...base, keywords: ['GUIDE', 'METHODE'] }).success).toBe(true);
+    expect(dmTriggerSettingsSchema.safeParse({ ...base, diagnosticKeywords: ['CAS', 'OK'] }).success).toBe(false);
+    // Le mot reste reconnu quand il est celui du post : c'est le réglage global qui est bridé
+    expect(matchKeyword('merci pour l’info', ['INFO'])).toBe('INFO');
+  });
+
+  it('sans formulation de réponse LinkedIn réglée, l’aperçu le dit au lieu d’inventer', () => {
+    deleteToken('linkedin', 'li_person');
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'khaled', externalId: 'khaled', accessToken: 't', scopes: 'w_member_social', meta: { name: 'Khaled' } });
+    setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'diagnostic', diagnosticKeywords: ['CAS'], diagnosticReplyVariants: [], linkedinReplyVariants: [], publicReply: true });
+    const post = db
+      .insert(schema.posts)
+      .values({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', theme: 'odile-nuit', status: 'awaiting_approval', hook: 'h', caption: 'Odile AI.\n\nC’est ici : https://odile.test/r/abcdef\n\nCommente CAS si vous voulez un diagnostic.', cta: 'Commente CAS', hashtags: '[]', commentTriggerKeyword: 'CAS' })
+      .returning()
+      .get();
+    const t = apercuTunnel(post.id)!;
+    expect(t.reponseLinkedIn).toBeNull();
+    expect(t.reponseVariantes).toBe(0);
+    expect(t.avertissements.join(' ')).toMatch(/Aucune formulation de réponse LinkedIn/);
+    setSetting('dm_triggers', { ...getDmTriggers(), diagnosticReplyVariants: ['Merci {{prenom}} : {{rdv}}'] });
+    expect(apercuTunnel(post.id)!.reponseLinkedIn).toBeTruthy();
+  });
+
+  it('un post orphelin va au compte le moins chargé, jamais à un compte en panne', () => {
+    deleteToken('linkedin', 'li_person');
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'khaled', externalId: 'khaled', accessToken: 't', scopes: 'w_member_social', meta: { name: 'Khaled' } });
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'lea', externalId: 'lea', accessToken: 't', scopes: 'w_member_social', meta: { name: 'Léa' } });
+    storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'panne', externalId: 'panne', accessToken: 't', scopes: 'w_member_social', meta: { name: 'En panne', lastCheck: { at: '2026-09-19T00:00:00.000Z', ok: false, cause: 'auth', detail: 'jeton expiré' } } });
+    const quand = new Date(Date.now() + 5 * 86400_000).toISOString();
+    for (let i = 0; i < 2; i++) {
+      db.insert(schema.posts).values({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', theme: 'odile-nuit', status: 'scheduled', scheduledAt: quand, hook: `h${i}`, caption: 'x', cta: '', hashtags: '[]' }).run();
+    }
+    expect(compteLeMoinsCharge('li_personal', quand)?.key).toBe('lea');
+    // Loin de ces posts, la charge est nulle partout : le tour de rôle décide, jamais le compte en panne
+    expect(compteLeMoinsCharge('li_personal', new Date(Date.now() + 60 * 86400_000).toISOString())?.enPanne).toBe(false);
+    void eq;
+  });
+});

@@ -324,6 +324,88 @@ export function motcleDeSurface(parent: Pick<Post, 'id' | 'platform' | 'commentT
 }
 
 /**
+ * Où commence l'appel à l'action d'une légende : la suite de lignes finales qui
+ * portent le lien, le « Commente MOT » ou une promesse d'envoi. Tout ce qui précède
+ * est le post que le fondateur a lu et validé — on n'y touche pas.
+ */
+export function separerBlocFinal(caption: string): { corps: string; blocFinal: string } {
+  const lignes = caption.split('\n');
+  const estFinale = (l: string) => !l.trim() || /commente[sz]?\s/i.test(l) || /\{\{link\}\}|\/r\/[a-z2-9]{6,}|https?:\/\//i.test(l) || PROMESSE_DM.test(l) || /^\s*(c[’']est ici|ou directement ici|le lien|👉)/i.test(l);
+  let debut = lignes.length;
+  for (let i = lignes.length - 1; i >= 0; i--) {
+    if (!estFinale(lignes[i]!)) break;
+    debut = i;
+  }
+  // Un texte entièrement « final » n'a pas de corps : on réécrit alors tout.
+  if (debut === 0) return { corps: '', blocFinal: caption.trim() };
+  return { corps: lignes.slice(0, debut).join('\n').trimEnd(), blocFinal: lignes.slice(debut).join('\n').trim() };
+}
+
+/**
+ * Réécrit seulement la FIN d'un post LinkedIn : le corps validé reste mot pour mot,
+ * l'appel à l'action redevient conforme (lien de la ressource, mot de diagnostic,
+ * aucune promesse de message privé). « Réaligner » abîmait un bon post en le
+ * réécrivant en entier ; ici il ne corrige que ce qui cloche.
+ */
+export async function reecrireLeBlocFinal(
+  post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook' | 'commentTriggerKeyword'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle'>>,
+  motcleCible: string | null,
+): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string }> {
+  const dm = getDmTriggers();
+  const { corps, blocFinal } = separerBlocFinal(post.caption);
+  const motcle = motcleCible ?? post.commentTriggerKeyword;
+  const brut = { caption: post.caption, cta: post.cta, motcle };
+  if (config.LLM_MODE === 'mock') return brut;
+  const verdict = verifierBudget('writing');
+  if (!verdict.autorise) return { ...brut, echec: 'plafond IA du jour atteint — texte d’origine conservé' };
+  const mot = motcle ?? 'le mot-clé';
+  const consigne =
+    dm.linkedinOffer === 'diagnostic'
+      ? `Deux lignes, dans cet ordre : d'abord ${libelleRessource(post)} et son adresse — « … : {{link}} » (écris {{link}} tel quel, c'est un emplacement ; ne présente jamais ce lien comme un audit ou un diagnostic, il mène à ${nommerRessource(post)}) — puis « Commente ${mot} » (ce mot exactement), qui n'ouvre PAS la ressource mais ${dm.diagnosticPromise}.`
+      : `Deux lignes : « Commente ${mot} » (ce mot exactement), puis « Ou directement ici : {{link}} » (écris {{link}} tel quel, c'est un emplacement).`;
+  try {
+    const { value } = await completeJson(
+      {
+        task: 'writing',
+        label: 'post:fin-de-post',
+        tier: 'best',
+        prompt: `Voici un post LinkedIn validé. Son texte ne doit PAS changer : réécris UNIQUEMENT son appel à l'action final.
+
+${consigne}
+Sur LinkedIn rien ne part en message privé : n'écris jamais « je t'envoie », « en DM », « en message privé ».
+Même voix et même niveau de langue que le texte (ne mélange pas tutoiement et vouvoiement). Deux lignes, 240 caractères au plus.
+
+TEXTE DU POST (à ne pas réécrire) :
+"""
+${corps || post.hook}
+"""
+
+APPEL À L'ACTION ACTUEL (à remplacer) :
+"""
+${blocFinal}
+"""`,
+        maxTokens: 500,
+      },
+      z
+        .object({ blocFinal: z.string().min(1).max(400), cta: z.string().max(280) })
+        .superRefine((v, ctx) => {
+          if (motcle && !captionPorteLeMotCle(v.blocFinal, motcle)) {
+            ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: `l'appel à l'action doit contenir « Commente ${motcle} » (ce mot exactement)` });
+          }
+          if (PROMESSE_DM.test(v.blocFinal) || PROMESSE_DM.test(v.cta)) {
+            ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: 'sur LinkedIn rien ne part en message privé : le lien est dans le post, le mot-clé ouvre le diagnostic' });
+          }
+        }),
+    );
+    const caption = corps ? `${corps}\n\n${value.blocFinal.trim()}` : value.blocFinal.trim();
+    return { caption: avecLien(caption, '{{link}}', optionsDuLien(motcle)), cta: value.cta.trim() || value.blocFinal.trim(), motcle };
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    return { ...brut, echec: `fin de post non réécrite (${cause.slice(0, 120)}) — texte d’origine conservé, à corriger à la main` };
+  }
+}
+
+/**
  * Recopie un post fabriqué sur chaque surface où il n'est pas encore : mêmes
  * slides rendues, même ressource, lien court propre à chaque copie (les clics
  * restent attribuables au compte). Renvoie les identifiants créés.

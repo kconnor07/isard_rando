@@ -9,7 +9,7 @@
  * Tout ce qui publie, lit des commentaires ou y répond passe par ce module, pour
  * ne jamais avoir à deviner « quel jeton ? » : la réponse est portée par le post.
  */
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, inArray } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { listStoredTokens, updateTokenMeta, type StoredToken, type TokenSubject } from './tokens.js';
 
@@ -158,6 +158,31 @@ export function prochainComptePersonnel(): CompteLinkedIn | null {
   }
   // Jamais publié = passe devant ; sinon le plus ancien passage.
   return actifs.slice().sort((a, b) => (dernier.get(a.key) ?? '').localeCompare(dernier.get(b.key) ?? ''))[0]!;
+}
+
+/**
+ * À quel compte confier un post de ce canal, sans empiler la même journée sur un
+ * seul profil : parmi les comptes actifs et en état de publier, celui qui porte le
+ * moins de posts autour de cette date. À égalité, le tour de rôle décide.
+ */
+export function compteLeMoinsCharge(channel: string, quand?: string | null): CompteLinkedIn | null {
+  const subject: 'li_person' | 'li_org' = channel === 'li_org' ? 'li_org' : 'li_person';
+  const candidats = comptesLinkedIn(subject).filter((c) => c.actif && !c.enPanne);
+  if (candidats.length <= 1) return candidats[0] ?? (channel === 'li_org' ? null : prochainComptePersonnel());
+  const pivot = quand ? new Date(quand).getTime() : Date.now();
+  const proches = db
+    .select({ key: schema.posts.liAccountKey, at: schema.posts.scheduledAt })
+    .from(schema.posts)
+    .where(inArray(schema.posts.status, ['scheduled', 'publishing']))
+    .all()
+    .filter((p) => p.at && Math.abs(new Date(p.at).getTime() - pivot) < 3 * 86400000);
+  const charge = (c: CompteLinkedIn) => proches.filter((p) => p.key === c.key).length;
+  const mini = Math.min(...candidats.map(charge));
+  const exAequo = candidats.filter((c) => charge(c) === mini);
+  if (exAequo.length === 1) return exAequo[0]!;
+  // Départage par le tour de rôle, quand il porte sur des profils personnels.
+  const tour = subject === 'li_person' ? prochainComptePersonnel() : null;
+  return exAequo.find((c) => c.key === tour?.key) ?? exAequo[0]!;
 }
 
 /**

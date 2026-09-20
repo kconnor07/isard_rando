@@ -14,12 +14,12 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getDmTriggers } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
-import { compteDuPost } from '../publishers/linkedinAccounts.js';
+import { compteDuPost, compteLeMoinsCharge } from '../publishers/linkedinAccounts.js';
 import { renderPost } from '../render/renderer.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 import { bloquants, echecDAdaptation, formatPourPlateforme, LIGNE_DU_LIEN, postsAVerifier, verifierPost, type Probleme } from '../writer/conformite.js';
 import { bornerHashtags, relierLeLien, sansLien } from '../writer/generate.js';
-import { adapterLegende, motcleDeSurface } from './broadcast.js';
+import { adapterLegende, motcleDeSurface, reecrireLeBlocFinal } from './broadcast.js';
 
 type Post = typeof schema.posts.$inferSelect;
 
@@ -66,7 +66,9 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
   }
 
   if (post.platform === 'linkedin' && !post.liAccountKey) {
-    const compte = compteDuPost(post);
+    // Le moins chargé autour de la date, pas systématiquement le premier : six posts
+    // orphelins ne doivent pas atterrir le même jour sur le même profil.
+    const compte = compteLeMoinsCharge(post.channel, post.scheduledAt) ?? compteDuPost(post);
     if (compte) {
       update.liAccountKey = compte.key;
       corrections.push(`compte attribué : ${compte.name}`);
@@ -194,7 +196,13 @@ export async function reecrireAvecLeModele(post: Post): Promise<{ reecrit: boole
     { id: post.id, platform: vers === 'linkedin' ? 'instagram' : 'linkedin', commentTriggerKeyword: post.commentTriggerKeyword ?? (vers === 'linkedin' ? 'CAS' : null) },
     vers,
   );
-  const texte = await adapterLegende(post, de, vers, compte, motcle);
+  // Deux réécritures, deux situations. Une copie jamais adaptée porte le texte d'un
+  // autre compte (ou d'une autre plateforme) : tout est à refaire. Un post dont
+  // seule la fin cloche garde son texte — le fondateur l'a lu et validé.
+  const toutEstAFaire = echecDAdaptation(post.error) || vers === 'instagram' || de !== vers;
+  const texte = toutEstAFaire
+    ? await adapterLegende(post, de, vers, compte, motcle)
+    : await reecrireLeBlocFinal(post, motcle);
   if (texte.echec) return { reecrit: false, corrections: [`réécriture impossible : ${texte.echec}`] };
   const lien = post.linkId ? db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get() : null;
   const url = lien ? `${config.PUBLIC_URL.replace(/\/+$/, '')}/r/${lien.code}` : '';
@@ -230,7 +238,9 @@ export async function reecrireAvecLeModele(post: Post): Promise<{ reecrit: boole
   }
   return {
     reecrit: true,
-    corrections: [`texte réécrit pour ${compte?.name ?? (vers === 'instagram' ? 'Instagram' : 'LinkedIn')} (mot-clé ${texte.motcle ?? 'aucun'})${etaitProgramme ? ' — déprogrammé, à revalider' : ''}`],
+    corrections: [
+      `${toutEstAFaire ? 'texte réécrit' : 'fin du post réécrite (le texte validé est conservé)'} pour ${compte?.name ?? (vers === 'instagram' ? 'Instagram' : 'LinkedIn')} (mot-clé ${texte.motcle ?? 'aucun'})${etaitProgramme ? ' — déprogrammé, à revalider' : ''}`,
+    ],
   };
 }
 

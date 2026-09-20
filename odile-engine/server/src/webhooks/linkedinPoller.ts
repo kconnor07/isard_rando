@@ -14,6 +14,7 @@
  * intervalle régulier (voir jobs.ts).
  */
 import { and, eq, gte } from 'drizzle-orm';
+import { MOTS_TROP_COURANTS } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getDmTriggers } from '../db/settingsRepo.js';
@@ -257,10 +258,11 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     // On reconnaît large : le mot du post, ceux de la ressource et ceux du diagnostic.
     // Quelqu'un qui commente « GUIDE » sous un post qui demande « CAS » veut la même
     // chose — le perdre pour une question de vocabulaire serait absurde.
+    // Un mot du langage courant hérité d'anciens réglages ne compte pas : « merci pour
+    // l'info » n'est pas une demande. Le mot propre au post, lui, fait toujours foi.
     const motsCles = [
       ...(post.commentTriggerKeyword ? [post.commentTriggerKeyword] : []),
-      ...settings.keywords,
-      ...settings.diagnosticKeywords,
+      ...[...settings.keywords, ...settings.diagnosticKeywords].filter((m) => !MOTS_TROP_COURANTS.includes(m.trim().toUpperCase())),
     ];
 
     for (const element of elements) {
@@ -331,7 +333,12 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     const lienDansLePost = typeof item.caption !== 'string' || item.caption.includes('/r/');
     const variantes = settings.linkedinOffer === 'diagnostic' && lienDansLePost ? settings.diagnosticReplyVariants : settings.linkedinReplyVariants;
     const modele = choisirVariante(variantes, item.commentId);
-    if (!modele) break;
+    if (!modele) {
+      // Aucune formulation réglée : on le dit (l'aperçu l'annonce déjà) et on passe
+      // au commentaire suivant au lieu d'arrêter toute la tournée.
+      logger.warn({ commentId: item.commentId }, 'aucune formulation de réponse LinkedIn réglée : rien n’est posté');
+      continue;
+    }
     const texte = composerReponseLinkedIn(modele, item.contexte);
     const droit = droitCommentaire(item.compte);
     if (config.PUBLISH_MODE === 'dry') {

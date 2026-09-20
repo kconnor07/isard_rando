@@ -110,9 +110,14 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
     if (motcle) {
       const lienDansLePost = post.caption.includes('/r/');
       const variantes = dm.linkedinOffer === 'diagnostic' && lienDansLePost ? dm.diagnosticReplyVariants : dm.linkedinReplyVariants;
-      const modele = choisirVariante(variantes, post.id) ?? dm.replyTemplate;
-      reponseLinkedIn = dm.publicReply ? buildReply(modele, contexte) : null;
-      reponseVariantes = Math.max(1, variantes.filter((v) => v.trim()).length);
+      // Aucun repli sur le gabarit Instagram : le poller, lui, ne poste rien quand
+      // aucune formulation LinkedIn n'est réglée. L'aperçu doit dire la même chose.
+      const modele = choisirVariante(variantes, post.id);
+      reponseLinkedIn = dm.publicReply && modele ? buildReply(modele, contexte) : null;
+      reponseVariantes = variantes.filter((v) => v.trim()).length;
+      if (dm.publicReply && !modele) {
+        avertissements.push('Aucune formulation de réponse LinkedIn n’est réglée : rien ne partira sous les commentaires (Réglages → Commentaire → DM).');
+      }
       const compte = compteDuPost(post);
       reponseManuelle = !compte || !droitCommentaire(compte).peutLire;
       if (reponseManuelle) avertissements.push('LinkedIn ne laisse pas lire les commentaires de ce compte : la réponse ci-dessus est à coller soi-même sous chaque commentaire.');

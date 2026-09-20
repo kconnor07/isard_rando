@@ -305,10 +305,9 @@ export async function handleInstagramComment(commentId: number): Promise<void> {
   const post = comment.postId
     ? db.select().from(schema.posts).where(eq(schema.posts.id, comment.postId)).get()
     : null;
-  const keywords = [
-    ...(post?.commentTriggerKeyword ? [post.commentTriggerKeyword] : []),
-    ...settings.keywords,
-  ];
+  // Un post qui porte son mot n'écoute que lui : ajouter les mots généraux ferait
+  // partir un message privé sur un mot que ce post n'a jamais demandé.
+  const keywords = post?.commentTriggerKeyword ? [post.commentTriggerKeyword] : settings.keywords;
   const matched = matchKeyword(comment.text, keywords);
   if (!matched) {
     // Pas le mot-clé, mais peut-être un prospect : on prépare une réponse, sans l'envoyer.

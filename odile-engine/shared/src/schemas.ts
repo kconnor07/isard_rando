@@ -88,9 +88,21 @@ export const cadenceSettingsSchema = z.object({
 });
 export type CadenceSettings = z.infer<typeof cadenceSettingsSchema>;
 
+/**
+ * Les mots que l'on entend dans n'importe quel commentaire : « merci pour l'info »,
+ * « ok », « top ». Les prendre pour un déclencheur enverrait un message privé à qui
+ * n'a rien demandé — le tunnel a besoin d'un mot rare.
+ */
+export const MOTS_TROP_COURANTS = ['INFO', 'OK', 'OUI', 'NON', 'MERCI', 'TOP', 'SUPER', 'BRAVO', 'GO', 'MOI', 'SALUT', 'BONJOUR', 'COOL', 'GENIAL'];
+
 export const dmTriggerSettingsSchema = z.object({
   enabled: z.boolean().default(true),
-  keywords: z.array(z.string().min(1).max(40)).max(20),
+  keywords: z
+    .array(z.string().min(1).max(40))
+    .max(20)
+    .refine((mots) => mots.every((m) => !MOTS_TROP_COURANTS.includes(m.trim().toUpperCase())), {
+      message: `Mot trop courant : il se dit dans n’importe quel commentaire (« merci pour l’info ») et déclencherait le message privé à tort. Choisis un mot rare (évite : ${MOTS_TROP_COURANTS.join(', ')}).`,
+    }),
   /**
    * Message qui porte le lien. Placeholders disponibles partout : `{{link}}` (lien
    * court tracké), `{{ressource}}` (le titre de ce qui a été promis — « le guide
@@ -211,7 +223,10 @@ export const dmTriggerSettingsSchema = z.object({
    */
   linkedinOffer: z.enum(['ressource', 'diagnostic']).default('diagnostic'),
   /** mots à commenter sur LinkedIn quand le mot-clé ouvre le diagnostic */
-  diagnosticKeywords: z.array(z.string().min(3).max(14)).max(20).default(['DIAGNOSTIC', 'CAS', 'AUDIT']),
+  diagnosticKeywords: z.array(z.string().min(3).max(14)).max(20).default(['DIAGNOSTIC', 'CAS', 'AUDIT'])
+    .refine((mots) => mots.every((m) => !MOTS_TROP_COURANTS.includes(m.trim().toUpperCase())), {
+      message: `Mot de diagnostic trop courant : choisis un mot rare (évite : ${MOTS_TROP_COURANTS.join(', ')}).`,
+    }),
   /** ce que le diagnostic offre, en une ligne — sert de promesse au rédacteur et aux réponses */
   diagnosticPromise: z
     .string()
