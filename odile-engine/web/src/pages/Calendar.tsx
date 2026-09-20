@@ -156,7 +156,10 @@ export default function Calendar() {
     ajoute(parisYmd(at), { cle: `p${post.id}`, at, kind: 'post', post });
   }
   for (const slot of slotsQ.data ?? []) {
-    if (slot.postId) continue; // le créneau pris est représenté par son post
+    // Un créneau est pris par compte : filtré sur Alexis, le mardi 8 h 30 de Khaled reste libre.
+    const pris =
+      compte === 'tous' || compte === 'fb' ? Boolean(slot.postId) : (slot.posts ?? []).some((p) => p.surfaceKey === compte);
+    if (pris) continue; // le créneau pris est représenté par son post
     if (plateforme !== 'tous' && slot.platform !== plateforme) continue;
     const ymd = parisYmd(slot.at);
     if (slot.past && ymd < aujourdhui) continue; // les créneaux des jours passés n'apprennent rien

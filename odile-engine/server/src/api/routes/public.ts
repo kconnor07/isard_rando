@@ -98,7 +98,7 @@ export function registerPublicRoutes(app: FastifyInstance): void {
         .type('text/html')
         .send(resultPage(false, `Ce lien a déjà été utilisé (action : ${approval.action}).`));
     }
-    const slot = nextPublishSlot(post.platform as 'linkedin' | 'instagram');
+    const slot = nextPublishSlot(post.platform as 'linkedin' | 'instagram', new Date(), { platform: post.platform as 'linkedin' | 'instagram', channel: post.channel, liAccountKey: post.liAccountKey });
     return reply.type('text/html').send(
       approvalLandingPage({
         action: payload.act,

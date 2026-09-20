@@ -125,6 +125,15 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'poll-li-comments en échec'));
   }, { timezone: TZ });
 
+  // Le lendemain d'un post LinkedIn dont les commentaires ne sont pas lisibles par
+  // l'application : un rappel, avec la réponse à coller — sinon personne ne répond.
+  cron.schedule('0 9 * * *', () => {
+    void (async () => {
+      const { rappelerCommentairesLinkedIn } = await import('../webhooks/linkedinPoller.js');
+      await runJob('rappel-li-commentaires', rappelerCommentairesLinkedIn);
+    })().catch((err) => logger.error({ err: String(err) }, 'rappel-li-commentaires en échec'));
+  }, { timezone: TZ });
+
   // Renouvellement des jetons (LinkedIn refresh_token, jeton utilisateur Meta) avant expiration
   cron.schedule('30 4 * * *', () => {
     void (async () => {
@@ -132,7 +141,12 @@ export function registerJobs(): void {
       await runJob('refresh-tokens', refreshTokens);
       // Puis la vérité du terrain : une page qui a perdu son droit ou un jeton révoqué
       // ne doit pas rester « vert » jusqu'au prochain clic sur « Tester les connexions ».
-      await runJob('check-connections', async () => ({ comptes: (await checkConnections()).length }));
+      await runJob('check-connections', async () => {
+        const { alerterComptesRefuses } = await import('../publishers/refresh.js');
+        const checks = await checkConnections();
+        const alerte = await alerterComptesRefuses(checks);
+        return { comptes: checks.length, refuses: checks.filter((c) => !c.ok && c.cause === 'auth').length, alerte };
+      });
     })().catch((err) => logger.error({ err: String(err) }, 'refresh-tokens en échec'));
   }, { timezone: TZ });
 

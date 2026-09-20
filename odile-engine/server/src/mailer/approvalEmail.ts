@@ -103,7 +103,7 @@ export async function sendApprovalEmail(
     ? db.select().from(schema.newsItems).where(eq(schema.newsItems.id, post.newsItemId)).get()
     : null;
   const review = post.reviewSummary ? (JSON.parse(post.reviewSummary) as { iterations: number; finalScores: Record<string, number>; passed: boolean }) : null;
-  const slot = nextPublishSlot(post.platform as 'linkedin' | 'instagram');
+  const slot = nextPublishSlot(post.platform as 'linkedin' | 'instagram', new Date(), { platform: post.platform as 'linkedin' | 'instagram', channel: post.channel, liAccountKey: post.liAccountKey });
   const hashtags = (JSON.parse(post.hashtags) as string[]).join(' ');
 
   const btn = (label: string, url: string, color: string) =>

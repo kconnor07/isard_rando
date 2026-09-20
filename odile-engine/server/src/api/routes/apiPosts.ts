@@ -14,7 +14,7 @@ import { executeApprovalAction, schedulePost, unschedulePost } from '../../appro
 import { getCadence, getDmTriggers, getFbMirror, getPublishSlots } from '../../db/settingsRepo.js';
 import { slotOccurrencesBetween } from '../../lib/time.js';
 import { db, schema } from '../../db/client.js';
-import { compteDuCanal, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
+import { compteDuCanal, compteDuPost, comptesLinkedIn } from '../../publishers/linkedinAccounts.js';
 import { getStoredToken } from '../../publishers/tokens.js';
 import { documentDuPost } from '../../publishers/linkedinDocument.js';
 import { realignerPost, realignerTout } from '../../scheduler/realigner.js';
@@ -619,7 +619,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
     if (to.getTime() - from.getTime() > 70 * 86400000) to.setTime(from.getTime() + 70 * 86400000);
     const slots = getPublishSlots();
     const occupied = db
-      .select({ id: schema.posts.id, hook: schema.posts.hook, platform: schema.posts.platform, scheduledAt: schema.posts.scheduledAt, status: schema.posts.status })
+      .select({ id: schema.posts.id, hook: schema.posts.hook, platform: schema.posts.platform, channel: schema.posts.channel, liAccountKey: schema.posts.liAccountKey, scheduledAt: schema.posts.scheduledAt, status: schema.posts.status })
       .from(schema.posts)
       .where(
         and(
@@ -629,13 +629,23 @@ export function registerPostRoutes(app: FastifyInstance): void {
         ),
       )
       .all();
-    const out: { at: string; platform: 'instagram' | 'linkedin'; past: boolean; postId: number | null; postHook: string | null }[] = [];
+    // Un créneau est pris PAR COMPTE : le calendrier filtré sur Alexis voit libre le
+    // mardi 8 h 30 que Khaled occupe. `posts` porte chaque occupant avec sa surface.
+    const out: {
+      at: string;
+      platform: 'instagram' | 'linkedin';
+      past: boolean;
+      postId: number | null;
+      postHook: string | null;
+      posts: { id: number; hook: string; surfaceKey: string }[];
+    }[] = [];
     for (const platform of ['instagram', 'linkedin'] as const) {
       for (const slot of platform === 'instagram' ? slots.ig : slots.li) {
         for (const at of slotOccurrencesBetween(slot, from, to)) {
-          const taken = occupied.find(
+          const occupants = occupied.filter(
             (p) => p.platform === platform && p.scheduledAt && Math.abs(new Date(p.scheduledAt).getTime() - at.getTime()) < 30 * 60000,
           );
+          const taken = occupants[0];
           out.push({
             at: at.toISOString(),
             platform,
@@ -643,6 +653,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
             past: at.getTime() < now + 2 * 3600000,
             postId: taken?.id ?? null,
             postHook: taken?.hook ?? null,
+                      posts: occupants.map((p) => ({ id: p.id, hook: p.hook, surfaceKey: p.channel === 'ig' ? 'ig' : (compteDuPost(p)?.key ?? p.liAccountKey ?? '') })),
           });
         }
       }

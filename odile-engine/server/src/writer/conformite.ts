@@ -11,7 +11,7 @@
  */
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getDmTriggers } from '../db/settingsRepo.js';
+import { getBrand, getDmTriggers } from '../db/settingsRepo.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
 import { captionPorteLeMotCle } from './generate.js';
 import { HASHTAGS_MAX } from '@odile/shared';
@@ -39,7 +39,8 @@ export interface Probleme {
     | 'porte-abonnement'
     | 'motcle-manquant'
     | 'format-plateforme'
-    | 'lien-mal-etiquete';
+    | 'lien-mal-etiquete'
+    | 'marque-absente';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
@@ -134,6 +135,12 @@ export function verifierPost(post: Post): Probleme[] {
     const ligneLien = caption.split('\n').find((l) => LIGNE_DU_LIEN.test(l));
     if (ligneLien && diagnostic && ETIQUETTE_RDV.test(ligneLien)) {
       problemes.push({ code: 'lien-mal-etiquete', niveau: 'attention', corrigeable: true, message: `La ligne du lien parle de rendez-vous ou de diagnostic alors qu’elle mène à ${post.resourceKind === 'guide' ? 'un guide' : post.resourceKind === 'outil' ? 'un outil' : 'un article'} : c’est le mot-clé qui ouvre le diagnostic. « Réaligner » réécrit cette ligne.` });
+    }
+    // La page entreprise est la seule identification (@) que le moteur sait faire à
+    // coup sûr : un post de profil qui ne la nomme pas n'y renvoie personne.
+    const marque = getBrand().name.trim();
+    if (marque && !caption.toLowerCase().includes(marque.toLowerCase())) {
+      problemes.push({ code: 'marque-absente', niveau: 'attention', corrigeable: false, message: `« ${marque} » n’est pas nommée dans le texte : la page ne sera pas identifiée (@) et personne n’y est renvoyé.` });
     }
     if (PROMESSE_DM.test(blocFinal(caption)) || PROMESSE_DM.test(post.cta ?? '')) {
       problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, reecriture: true, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });

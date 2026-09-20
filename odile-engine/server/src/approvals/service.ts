@@ -2,7 +2,7 @@ import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import type { TokenPayload } from '../lib/signedToken.js';
-import { nextPublishSlot } from '../scheduler/cadence.js';
+import { nextPublishSlot, cleDeSurface, type SurfaceDeCreneau } from '../scheduler/cadence.js';
 import { freresDuGroupe, surfaceDuPost } from '../scheduler/broadcast.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
 import { bloquants, echecDAdaptation, motifDeRefus, verifierPost } from '../writer/conformite.js';
@@ -56,7 +56,7 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
     if (refus) return { ok: false, message: refus, postId: post.id };
     const scheduledAt = ctx.publishNow
       ? new Date(Date.now() + 60 * 1000)
-      : (chosen ?? nextPublishSlot(post.platform as 'linkedin' | 'instagram'));
+      : (chosen ?? nextPublishSlot(post.platform as 'linkedin' | 'instagram', new Date(), { platform: post.platform as 'linkedin' | 'instagram', channel: post.channel, liAccountKey: post.liAccountKey }));
     // « Publier maintenant » sur un post déjà programmé : on avance le créneau
     if (rescheduling) {
       db.update(schema.publishJobs)
@@ -125,8 +125,14 @@ export function executeApprovalAction(payload: TokenPayload, ctx: ActionContext)
  * ou déjà programmée à la main n'est pas touchée.
  */
 function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeSuite = false): string[] {
-  // Dernier créneau retenu sur chaque plateforme : le suivant se calcule après lui.
-  const dernier = new Map<string, Date>([[post.platform, scheduledAt]]);
+  // Dernier créneau retenu sur chaque compte : la copie suivante du même compte se
+  // calcule après lui. Un autre compte prend son propre prochain créneau après
+  // l'original — le même jour s'il en a un, pas deux semaines plus tard.
+  const surfaceDe = (p: Post): SurfaceDeCreneau => ({ platform: p.platform as 'linkedin' | 'instagram', channel: p.channel, liAccountKey: p.liAccountKey });
+  const dernier = new Map<string, Date>([[cleDeSurface(surfaceDe(post)), scheduledAt]]);
+  // Les heures déjà prises par le groupe : deux comptes ont droit au même créneau,
+  // mais le même sujet ne part pas à la même minute depuis trois comptes.
+  const places: number[] = [scheduledAt.getTime()];
   // Les copies qui ne suivent pas, avec la raison : le fondateur l'apprend tout de suite.
   const retenues: string[] = [];
   for (const frere of freresDuGroupe(post)) {
@@ -144,8 +150,15 @@ function cascaderApprobation(post: Post, scheduledAt: Date, now: string, toutDeS
     }
     let quand = scheduledAt;
     if (!toutDeSuite) {
-      quand = nextPublishSlot(frere.platform as 'linkedin' | 'instagram', dernier.get(frere.platform) ?? scheduledAt);
-      dernier.set(frere.platform, quand);
+      const cle = cleDeSurface(surfaceDe(frere));
+      const depuis = dernier.get(cle) ?? scheduledAt;
+      // Strictement après « depuis » : nextPublishSlot ajoute deux heures d'avance à l'instant donné.
+      quand = nextPublishSlot(frere.platform as 'linkedin' | 'instagram', new Date(depuis.getTime() - 2 * 3600_000 + 60_000), surfaceDe(frere));
+      // Même minute qu'une autre copie du groupe : décalée de 45 minutes, le premier
+      // post a le temps de vivre (et d'être commenté par les autres comptes).
+      while (places.some((t) => Math.abs(t - quand.getTime()) < 30 * 60_000)) quand = new Date(quand.getTime() + 45 * 60_000);
+      places.push(quand.getTime());
+      dernier.set(cle, quand);
     }
     db.insert(schema.publishJobs).values({ postId: frere.id, scheduledAt: quand.toISOString() }).run();
     db.update(schema.posts)

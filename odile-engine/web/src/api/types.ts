@@ -212,6 +212,8 @@ export interface SlotDto {
   past: boolean;
   postId: number | null;
   postHook: string | null;
+  /** les occupants du créneau, avec leur surface : un créneau est pris PAR COMPTE */
+  posts?: { id: number; hook: string; surfaceKey: string }[];
 }
 
 export interface PostMetricsDto {

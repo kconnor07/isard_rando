@@ -1,4 +1,7 @@
+import { and, eq, gte } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
+import { getApprovalEmail } from '../db/settingsRepo.js';
+import { sendMail } from '../mailer/smtp.js';
 import { getOauthApps } from '../db/oauthApps.js';
 import { fetchJson, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
@@ -192,6 +195,8 @@ export interface ConnectionCheck {
   ok: boolean;
   detail: string;
   checkedAt: string;
+  /** en échec : refus de la plateforme (jeton, droit) ou simple absence de réponse */
+  cause?: 'auth' | 'reseau';
 }
 
 async function check(
@@ -214,8 +219,37 @@ async function check(
     const cause = causeDeLEchec(err);
     const status = err instanceof HttpError ? err.status : null;
     updateTokenMeta(provider, subject, { lastCheck: { at: checkedAt, ok: false, detail, cause, status } }, accountKey);
-    return { provider, subject, accountKey, label, ok: false, detail, checkedAt };
+    return { provider, subject, accountKey, label, ok: false, detail, checkedAt, cause };
   }
+}
+
+/**
+ * Un compte refusé par sa plateforme (jeton révoqué, droit retiré) se dit par email,
+ * une fois tous les trois jours : le contrôle tourne la nuit, et un avertissement
+ * dans le dashboard n'atteint que celui qui l'ouvre.
+ */
+export async function alerterComptesRefuses(checks: ConnectionCheck[], now = Date.now()): Promise<boolean> {
+  const refuses = checks.filter((c) => !c.ok && c.cause === 'auth');
+  if (refuses.length === 0) return false;
+  const recent = db
+    .select({ id: schema.emailLog.id })
+    .from(schema.emailLog)
+    .where(and(eq(schema.emailLog.kind, 'connexion_refusee'), eq(schema.emailLog.status, 'sent'), gte(schema.emailLog.sentAt, new Date(now - 3 * 86400000).toISOString())))
+    .get();
+  if (recent) return false;
+  const lignes = refuses.map((c) => `<li><b>${escape(c.label)}</b> : ${escape(c.detail)}</li>`).join('');
+  await sendMail({
+    kind: 'connexion_refusee',
+    to: getApprovalEmail().to,
+    subject: `[Odile] ⛔ ${refuses.length} connexion${refuses.length > 1 ? 's' : ''} refusée${refuses.length > 1 ? 's' : ''} — les posts de ce compte ne partiront pas`,
+    html: `<p>Au contrôle de cette nuit, la plateforme a refusé :</p><ul>${lignes}</ul><p>Tant que ce n’est pas reconnecté (Connexions &amp; santé), les posts prévus sur ce compte sont refusés et reviennent à valider.</p>`,
+    text: `Connexions refusées :\n${refuses.map((c) => `- ${c.label} : ${c.detail}`).join('\n')}\nReconnecte le compte dans Connexions & santé.`,
+  });
+  return true;
+}
+
+function escape(t: string): string {
+  return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /** Appelle chaque plateforme avec le jeton stocké : la vérité du terrain, pas la date d'expiration théorique. */

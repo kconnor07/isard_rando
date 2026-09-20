@@ -374,7 +374,7 @@ export const oauthTokens = sqliteTable(
 export const emailLog = sqliteTable('email_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   kind: text('kind', {
-    enum: ['approval', 'reminder', 'li_comment_digest', 'analytics', 'error', 'token_expiry', 'test'],
+    enum: ['approval', 'reminder', 'li_comment_digest', 'li_rappel', 'connexion_refusee', 'analytics', 'error', 'token_expiry', 'test'],
   }).notNull(),
   postId: integer('post_id'),
   to: text('to').notNull(),

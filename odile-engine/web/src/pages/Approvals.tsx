@@ -216,6 +216,24 @@ export default function Approvals() {
                   )}
                 </p>
               )}
+              {post.broadcast?.members?.map((m) => {
+                const copie = (posts ?? []).find((p) => p.id === m.id);
+                if (!copie) return null;
+                return (
+                  <details key={m.id} className="mt-1.5 rounded-lg border border-line px-3 py-1.5 text-xs">
+                    <summary className="cursor-pointer text-muted">
+                      Copie {m.surface}
+                      {(copie.problemes ?? []).some((q) => q.niveau === 'bloquant') ? <span className="text-accent"> · ⛔ à corriger</span> : ''}
+                      {' '}
+                      <span className="text-muted/70">— texte, lien, mot-clé et ce que recevra la personne</span>
+                    </summary>
+                    {copie.error && <MotifErreur error={copie.error} className="mt-1.5 text-accent" />}
+                    <Problemes liste={copie.problemes} compact />
+                    <p className="mt-1.5 whitespace-pre-wrap text-muted">{copie.caption}</p>
+                    <CeQueRecevraLaPersonne postId={m.id} compact />
+                  </details>
+                );
+              })}
               {/* Valider sans voir, c'est signer sans lire : les visuels d'abord. */}
               {post.vignettes && post.vignettes.length > 0 && (
                 <div className="mt-3 flex gap-2 overflow-x-auto pb-1">

@@ -239,3 +239,96 @@ describe('mot-clé manquant, format natif, ligne du lien, guides et articles en 
     void path;
   });
 });
+
+describe('créneaux par compte, rappels et alertes', async () => {
+  const { eq } = await import('drizzle-orm');
+  const { db, schema } = await import('../src/db/client.js');
+  const { setSetting, getDmTriggers, getBrand } = await import('../src/db/settingsRepo.js');
+  const { storeToken, deleteToken } = await import('../src/publishers/tokens.js');
+  const { nextPublishSlot, cleDeSurface } = await import('../src/scheduler/cadence.js');
+  const { schedulePost } = await import('../src/approvals/service.js');
+  const { verifierPost } = await import('../src/writer/conformite.js');
+  const { postsARappeler, rappelerCommentairesLinkedIn } = await import('../src/webhooks/linkedinPoller.js');
+  const { alerterComptesRefuses } = await import('../src/publishers/refresh.js');
+
+  deleteToken('linkedin', 'li_person');
+  deleteToken('linkedin', 'li_org');
+  deleteToken('meta', 'ig_user');
+  storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'khaled', externalId: 'khaled', accessToken: 't', scopes: 'w_member_social', meta: { name: 'Khaled' } });
+  storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'alexis', externalId: 'alexis', accessToken: 't', scopes: 'w_member_social r_member_social', meta: { name: 'Alexis' } });
+  storeToken({ provider: 'linkedin', subject: 'li_org', accountKey: '77', externalId: '77', accessToken: 't', scopes: 'w_organization_social', meta: { name: 'Odile AI' } });
+  storeToken({ provider: 'meta', subject: 'ig_user', externalId: 'ig1', accessToken: 't', meta: { igUsername: 'odile.ai' } });
+  setSetting('publish_slots', { li: [{ dow: 2, time: '08:30' }, { dow: 4, time: '08:30' }], ig: [{ dow: 3, time: '12:00' }] });
+  setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'diagnostic', diagnosticKeywords: ['CAS', 'DIAGNOSTIC', 'AUDIT'], keywords: ['GUIDE'], rdvUrl: 'https://odile.test/rdv' });
+  setSetting('brand', { ...getBrand(), name: 'Odile AI' });
+
+  const creer = (values: Partial<typeof schema.posts.$inferInsert>) =>
+    db
+      .insert(schema.posts)
+      .values({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', theme: 'odile-nuit', status: 'awaiting_approval', hook: 'Accroche', caption: 'Odile AI vous aide.\n\nCommente CAS si vous voulez un diagnostic.', cta: 'Commente CAS', hashtags: '[]', commentTriggerKeyword: 'CAS', ...values })
+      .returning()
+      .get();
+
+  it('un créneau pris par Khaled reste libre pour Alexis et pour la page', () => {
+    const premier = nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'khaled' });
+    const post = creer({ status: 'scheduled', scheduledAt: premier.toISOString(), approvedAt: new Date().toISOString() });
+    db.insert(schema.publishJobs).values({ postId: post.id, scheduledAt: premier.toISOString() }).run();
+    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'alexis' }).getTime()).toBe(premier.getTime());
+    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', channel: 'li_org', liAccountKey: '77' }).getTime()).toBe(premier.getTime());
+    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'khaled' }).getTime()).toBeGreaterThan(premier.getTime());
+    // Sans surface (anciens appels) : tout job compte comme pris
+    expect(nextPublishSlot('linkedin').getTime()).toBeGreaterThan(premier.getTime());
+    expect(cleDeSurface({ platform: 'instagram' })).toBe('ig');
+    expect(cleDeSurface({ platform: 'linkedin', liAccountKey: 'alexis' })).toBe('li_personal:alexis');
+    expect(cleDeSurface({ platform: 'linkedin', channel: 'li_org', liAccountKey: '77' })).toBe('li_org:77');
+  });
+
+  it('une diffusion s’enchaîne compte par compte, juste après l’original, sans attendre deux semaines', () => {
+    const quand = nextPublishSlot('linkedin', new Date(Date.now() + 14 * 86400_000), { platform: 'linkedin', liAccountKey: 'khaled' });
+    const original = creer({ broadcastGroup: 'g3' });
+    const alexis = creer({ broadcastGroup: 'g3', liAccountKey: 'alexis' });
+    const page = creer({ broadcastGroup: 'g3', channel: 'li_org', liAccountKey: '77' });
+    const insta = creer({ broadcastGroup: 'g3', platform: 'instagram', channel: 'ig', liAccountKey: null, format: 'carousel', caption: 'Commente GUIDE et je t’envoie le guide en message privé.', cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE' });
+    const outcome = schedulePost(original.id, quand.toISOString());
+    expect(outcome.ok).toBe(true);
+    const lire = (id: number) => db.select().from(schema.posts).where(eq(schema.posts.id, id)).get()!;
+    const tAlexis = new Date(lire(alexis.id).scheduledAt!).getTime();
+    const tPage = new Date(lire(page.id).scheduledAt!).getTime();
+    const tInsta = new Date(lire(insta.id).scheduledAt!).getTime();
+    // Chaque compte prend SON prochain créneau après l'original : le suivant du calendrier (deux jours), pas la semaine d'après
+    expect(tAlexis).toBeGreaterThan(quand.getTime());
+    expect(tAlexis - quand.getTime()).toBeLessThanOrEqual(2 * 86400_000);
+    // La page a droit au même créneau qu'Alexis, décalée de 45 minutes : jamais la même minute
+    expect(tPage).toBeGreaterThan(tAlexis);
+    expect(tPage - tAlexis).toBe(45 * 60_000);
+    expect(tInsta).toBeGreaterThan(quand.getTime());
+    expect(tInsta - quand.getTime()).toBeLessThanOrEqual(7 * 86400_000);
+  });
+
+  it('un post LinkedIn qui ne nomme pas la marque est signalé', () => {
+    const sans = creer({ caption: 'Vous perdez du temps.\n\nCommente CAS si vous voulez un diagnostic.' });
+    expect(verifierPost(sans).find((p) => p.code === 'marque-absente')?.niveau).toBe('attention');
+    const avec = creer({});
+    expect(verifierPost(avec).map((p) => p.code)).not.toContain('marque-absente');
+  });
+
+  it('le lendemain d’un post dont les commentaires sont illisibles, un rappel part — une fois', async () => {
+    const hier = new Date(Date.now() - 20 * 3600_000).toISOString();
+    const khaled = creer({ status: 'published', publishedAt: hier, externalPostId: 'urn:li:share:1', externalUrl: 'https://www.linkedin.com/feed/update/urn:li:share:1' });
+    creer({ status: 'published', publishedAt: hier, externalPostId: 'urn:li:share:2', liAccountKey: 'alexis' }); // Alexis lit ses commentaires : pas de rappel
+    creer({ status: 'published', publishedAt: new Date(Date.now() - 3 * 86400_000).toISOString(), externalPostId: 'urn:li:share:3' }); // trop vieux
+    const liste = postsARappeler();
+    expect(liste.map((r) => r.post.id)).toEqual([khaled.id]);
+    expect(liste[0]!.reponse).toBeTruthy();
+    expect((await rappelerCommentairesLinkedIn()).rappels).toBe(1);
+    expect((await rappelerCommentairesLinkedIn()).rappels).toBe(0);
+    expect(postsARappeler()).toEqual([]);
+  });
+
+  it('un compte refusé par la plateforme est signalé par email, pas un hoquet réseau, et pas deux fois', async () => {
+    const base = { provider: 'linkedin' as const, subject: 'li_person' as const, label: 'LinkedIn — Khaled', checkedAt: new Date().toISOString() };
+    expect(await alerterComptesRefuses([{ ...base, ok: false, detail: 'HTTP 503', cause: 'reseau' }])).toBe(false);
+    expect(await alerterComptesRefuses([{ ...base, ok: false, detail: 'jeton expiré ou révoqué — reconnecter', cause: 'auth' }])).toBe(true);
+    expect(await alerterComptesRefuses([{ ...base, ok: false, detail: 'jeton expiré ou révoqué — reconnecter', cause: 'auth' }])).toBe(false);
+  });
+});

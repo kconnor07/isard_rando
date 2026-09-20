@@ -20,15 +20,9 @@ import { getApprovalEmail, getDmTriggers } from '../db/settingsRepo.js';
 import { fetchJson } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { sendMail } from '../mailer/smtp.js';
+import { apercuTunnel } from '../approvals/tunnel.js';
 import { API, linkedInHeaders } from '../publishers/linkedin.js';
-import {
-  compteDuPost,
-  droitCommentaire,
-  jetonDuCompte,
-  noterLecture,
-  toutesLesSurfaces,
-  type CompteLinkedIn,
-} from '../publishers/linkedinAccounts.js';
+import { compteDuPost, droitCommentaire, jetonDuCompte, noterLecture, toutesLesSurfaces, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import {
   buildReply,
   choisirVariante,
@@ -169,6 +163,61 @@ function postsRecents(): (typeof schema.posts.$inferSelect)[] {
     )
     .all()
     .filter((p) => p.externalPostId?.startsWith('urn:'));
+}
+
+/**
+ * Les posts LinkedIn d'hier (12 à 48 h) qui demandent un mot à commenter alors que
+ * l'application ne peut pas lire leurs commentaires (droit absent, compte en panne) :
+ * la réponse n'y sera jamais automatique, il faut aller voir soi-même.
+ */
+export function postsARappeler(now = Date.now()): { post: typeof schema.posts.$inferSelect; compte: CompteLinkedIn; reponse: string | null }[] {
+  const out: { post: typeof schema.posts.$inferSelect; compte: CompteLinkedIn; reponse: string | null }[] = [];
+  const dejaRappeles = new Set(
+    db
+      .select({ postId: schema.emailLog.postId })
+      .from(schema.emailLog)
+      .where(and(eq(schema.emailLog.kind, 'li_rappel'), eq(schema.emailLog.status, 'sent')))
+      .all()
+      .map((r) => r.postId),
+  );
+  for (const post of postsRecents()) {
+    if (!post.commentTriggerKeyword || !post.publishedAt || dejaRappeles.has(post.id)) continue;
+    const age = now - new Date(post.publishedAt).getTime();
+    if (age < 12 * 3600_000 || age > 48 * 3600_000) continue;
+    const compte = compteDuPost(post);
+    if (!compte) continue;
+    if (droitCommentaire(compte).peutLire && !compte.enPanne) continue;
+    out.push({ post, compte, reponse: apercuTunnel(post.id)?.reponseLinkedIn ?? null });
+  }
+  return out;
+}
+
+/** Un email par post, le lendemain matin : où aller, quoi coller. */
+export async function rappelerCommentairesLinkedIn(): Promise<{ rappels: number }> {
+  const aRappeler = postsARappeler();
+  if (aRappeler.length === 0) return { rappels: 0 };
+  const blocs = aRappeler
+    .map(
+      ({ post, compte, reponse }) => `<div style="margin:12px 0;padding:12px;border:1px solid #e5e7eb;border-radius:10px">
+<b>${escapeHtml(compte.name)}</b> — ${escapeHtml(post.hook.slice(0, 90))}<br/>
+Mot demandé : <b>${escapeHtml(post.commentTriggerKeyword ?? '')}</b>${post.externalUrl ? ` · <a href="${escapeHtml(post.externalUrl)}">Ouvrir le post →</a>` : ''}
+${reponse ? `<div style="background:#f2f6ff;border-radius:8px;padding:10px;margin-top:8px;font-size:13px">${escapeHtml(reponse)}</div>` : ''}
+</div>`,
+    )
+    .join('');
+  await sendMail({
+    kind: 'li_rappel',
+    to: getApprovalEmail().to,
+    postId: aRappeler[0]!.post.id,
+    subject: `[Odile] 💬 ${aRappeler.length} post${aRappeler.length > 1 ? 's' : ''} LinkedIn à surveiller : va voir les commentaires`,
+    html: `<p>LinkedIn ne laisse pas l’application lire les commentaires de ${[...new Set(aRappeler.map((r) => r.compte.name))].join(', ')} : personne ne répondra au mot-clé à ta place. Voici où aller et quoi coller sous chaque commentaire.</p>${blocs}<p style="color:#889">Copie la réponse, ouvre le post, réponds sous chaque commentaire qui donne le mot. Une minute par lead.</p>`,
+    text: aRappeler.map(({ post, compte, reponse }) => `[${compte.name}] ${post.hook}\nMot : ${post.commentTriggerKeyword}\n${post.externalUrl ?? ''}\nRéponse : ${reponse ?? ''}\n`).join('\n'),
+  });
+  // Un rappel par post : chaque post rappelé est noté, pas seulement le premier.
+  for (const { post } of aRappeler.slice(1)) {
+    db.insert(schema.emailLog).values({ kind: 'li_rappel', postId: post.id, to: getApprovalEmail().to, status: 'sent' }).run();
+  }
+  return { rappels: aRappeler.length };
 }
 
 export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
