@@ -5,7 +5,10 @@
  * posts en attente) mais éparpillées : ici elles deviennent des avertissements avec
  * l'action à faire, à côté de ceux des connexions.
  */
+import { desc, eq } from 'drizzle-orm';
+import { db, schema } from '../db/client.js';
 import { getDmTriggers } from '../db/settingsRepo.js';
+import { getStoredToken } from '../publishers/tokens.js';
 import { comptesLinkedIn, droitCommentaire } from '../publishers/linkedinAccounts.js';
 import type { ConnectionWarning } from '../publishers/refresh.js';
 import { bloquants, postsAVerifier, verifierPost } from '../writer/conformite.js';
@@ -31,6 +34,41 @@ export function avertissementsDuTunnel(): ConnectionWarning[] {
       subject: 'tunnel',
       level: 'warn',
       message: `Mot-clé trop courant : « ${[...new Set(trop)].join(' », « ')} » se dit dans n’importe quel commentaire (« merci pour l’info ») et déclencherait le message privé à tort — choisis un mot rare (Réglages → Commentaire → DM).`,
+    });
+  }
+  // Les messages privés Instagram partent par la Page Facebook liée : sans elle, le
+  // mot-clé ne déclenche rien de privé, quoi que promette la légende.
+  if (getStoredToken('meta', 'ig_user') && !getStoredToken('meta', 'fb_page')) {
+    out.push({
+      provider: 'meta',
+      subject: 'ig_user',
+      level: 'error',
+      message: 'Instagram est connecté sans sa Page Facebook : aucun message privé ne peut partir (Meta les fait passer par la Page). Reconnecte Meta en cochant la Page dans Connexions & santé.',
+    });
+  }
+  // Une rédaction automatique qui échoue ne laissait de trace que dans les journaux :
+  // aucun post, aucun email — le fondateur croyait simplement que rien n'était dû.
+  const derniereRedaction = db
+    .select()
+    .from(schema.jobRuns)
+    .where(eq(schema.jobRuns.jobName, 'draft-if-due'))
+    .orderBy(desc(schema.jobRuns.startedAt))
+    .limit(1)
+    .get();
+  if (derniereRedaction && derniereRedaction.ok === false) {
+    let cause = '';
+    try {
+      const resume = derniereRedaction.summary ? (JSON.parse(derniereRedaction.summary) as { error?: string }) : {};
+      cause = (resume.error ?? '').split('\n')[0]!.slice(0, 160);
+    } catch {
+      cause = '';
+    }
+    const quand = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(derniereRedaction.startedAt));
+    out.push({
+      provider: 'linkedin',
+      subject: 'redaction',
+      level: 'error',
+      message: `La dernière rédaction automatique (${quand}) a échoué${cause ? ` : ${cause}` : ''}. Aucun post n’a été préparé — relance depuis Veille IA (« Générer un post »).`,
     });
   }
   for (const page of comptesLinkedIn('li_org')) {

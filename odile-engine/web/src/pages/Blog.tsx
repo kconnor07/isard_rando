@@ -132,10 +132,14 @@ export default function Blog() {
     if (ignores && ignores.length > 0) toast.error(`Sans colonne dans la collection Framer, donc absents du site : ${ignores.join(', ')} — règle la correspondance des champs ci-dessous.`);
   };
   const publierMaintenant = useMutation({
-    mutationFn: (id: number) => api.post<{ url: string | null; draft: boolean; champsIgnores?: string[] }>(`/api/blog/articles/${id}/publish-now`, {}),
+    mutationFn: (id: number) => api.post<{ url: string | null; draft: boolean; champsIgnores?: string[]; pagesNonPubliees?: string[] }>(`/api/blog/articles/${id}/publish-now`, {}),
     onSuccess: (r) => {
       invalidate();
-      toast.success(r.draft ? 'Déposé en brouillon dans Framer' : `Publié${r.url ? ` : ${r.url}` : ''}`);
+      if (r.pagesNonPubliees && r.pagesNonPubliees.length > 0) {
+        toast.error(`Article déposé, mais le site n’a pas été publié : des modifications attendent dans Framer sur ${r.pagesNonPubliees.join(', ')}. Publie-les (ou annule-les) dans Framer, puis relance.`);
+      } else {
+        toast.success(r.draft ? 'Déposé en brouillon dans Framer' : `Publié${r.url ? ` : ${r.url}` : ''}`);
+      }
       avertirChampsIgnores(r.champsIgnores);
     },
     onError: erreur,

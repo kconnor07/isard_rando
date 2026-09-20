@@ -177,6 +177,16 @@ export interface PublicationFramer {
   draft: boolean;
   /** champs qui avaient une valeur mais aucune colonne dans la collection (méta, JSON-LD…) */
   champsIgnores: string[];
+  /** pages du site avec des modifications non publiées : l'article est déposé, le site n'a PAS été publié */
+  pagesNonPubliees: string[];
+}
+
+/**
+ * Publier le site publie tout : une page « Contact » en cours de refonte partirait
+ * avec l'article. Les pages du blog lui-même ne comptent pas (c'est lui qui change).
+ */
+export function pagesQuiPartiraient(changes: readonly { path: string; status: string }[]): string[] {
+  return changes.filter((c) => !/^\/blog(\/|$)/.test(c.path)).map((c) => `${c.path} (${c.status === 'added' ? 'ajoutée' : c.status === 'removed' ? 'supprimée' : 'modifiée'})`);
 }
 
 /**
@@ -190,7 +200,7 @@ export async function publierDansFramer(contenu: ContenuAPublier, reglages: Blog
     const file = path.join(config.outboxDir, `blog-${contenu.slug}-${Date.now()}.json`);
     fs.mkdirSync(config.outboxDir, { recursive: true });
     fs.writeFileSync(file, JSON.stringify({ collection: reglages.collectionId, fields: reglages.fields, itemId: opts.itemId ?? null, item: contenu }, null, 2));
-    return { itemId: opts.itemId ?? `dry-${contenu.slug}`, url: `file://${file}`, draft: reglages.publishAsDraft, champsIgnores: [] };
+    return { itemId: opts.itemId ?? `dry-${contenu.slug}`, url: `file://${file}`, draft: reglages.publishAsDraft, champsIgnores: [], pagesNonPubliees: [] };
   }
   const framer = await connexion();
   try {
@@ -211,6 +221,17 @@ export async function publierDansFramer(contenu: ContenuAPublier, reglages: Blog
     const item = items.find((i) => (opts.itemId ? i.id === opts.itemId : i.slug === contenu.slug)) ?? items.find((i) => i.slug === contenu.slug);
     let url: string | null = null;
     if (!reglages.publishAsDraft) {
+      // Des retouches en cours ailleurs sur le site ? On ne publie pas par-dessus.
+      let pagesNonPubliees: string[] = [];
+      try {
+        pagesNonPubliees = pagesQuiPartiraient((await framer.getUnpublishedPageChanges()).map((c) => ({ path: c.path, status: c.status })));
+      } catch (err) {
+        logger.warn({ err: String(err).slice(0, 200) }, 'modifications non publiées du site illisibles — publication comme avant');
+      }
+      if (pagesNonPubliees.length > 0) {
+        logger.warn({ slug: contenu.slug, pages: pagesNonPubliees }, 'site non publié : des pages ont des modifications en attente dans Framer');
+        return { itemId: item?.id ?? opts.itemId ?? null, url: null, draft: true, champsIgnores: ignores, pagesNonPubliees };
+      }
       const result = await framer.publish();
       // L'API nomme l'hôte `hostname` (et non `name`) : lire le mauvais champ laissait
       // l'adresse vide sur tous les articles publiés. Sans domaine personnalisé, `deploy`
@@ -228,7 +249,7 @@ export async function publierDansFramer(contenu: ContenuAPublier, reglages: Blog
     } else {
       logger.info({ slug: contenu.slug }, 'article déposé en brouillon dans Framer');
     }
-    return { itemId: item?.id ?? opts.itemId ?? null, url, draft: reglages.publishAsDraft, champsIgnores: ignores };
+    return { itemId: item?.id ?? opts.itemId ?? null, url, draft: reglages.publishAsDraft, champsIgnores: ignores, pagesNonPubliees: [] };
   } finally {
     await framer.disconnect().catch(() => undefined);
   }

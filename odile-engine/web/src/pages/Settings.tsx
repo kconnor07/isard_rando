@@ -48,9 +48,19 @@ interface SourceDto {
   lastError: string | null;
 }
 
+/** Une ancre par section (« /settings#commentaire-dm ») : les renvois du reste de l'app y mènent directement. */
+export function ancreDeSection(title: string): string {
+  return title
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 function Section({ title, children, onSave, saving }: { title: string; children: ReactNode; onSave?: () => void; saving?: boolean }) {
   return (
-    <div className="card mb-5 p-5">
+    <div id={ancreDeSection(title)} className="card mb-5 scroll-mt-4 p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-bold">{title}</h2>
         {onSave && (
@@ -124,6 +134,12 @@ export default function Settings() {
     queryKey: ['library'],
     queryFn: () => api.get<LibraryImageDto[]>('/api/library'),
   });
+  // Arrivée par une ancre (« Réglages → Commentaire → DM ») : on y descend une fois le formulaire chargé.
+  useEffect(() => {
+    if (!form || !window.location.hash) return;
+    const cible = document.getElementById(window.location.hash.slice(1));
+    if (cible) cible.scrollIntoView({ block: 'start' });
+  }, [form]);
   useEffect(() => {
     if (settings && !form) setForm(structuredClone(settings));
   }, [settings]);

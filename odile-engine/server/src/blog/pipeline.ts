@@ -51,6 +51,13 @@ export function blogDue(reglages: BlogSettings = getBlog(), now = new Date()): {
     : { due: false, reason: `prochain dans ${Math.ceil(reglages.everyDays - ecart)} j` };
 }
 
+/** Le texte alternatif de la couverture : le titre de l'image, la marque et la ville — ce que cherchent les moteurs, pas « image ». */
+export function altDeCouverture(article: Pick<Article, 'coverTitle'>, reglages: Pick<BlogSettings, 'ville'>): string {
+  const brand = getBrand();
+  const ville = brand.ville || reglages.ville || 'Toulouse';
+  return `${article.coverTitle} — ${brand.name}${ville ? `, ${ville}` : ''}`.slice(0, 125);
+}
+
 /** Recalcule HTML et JSON-LD d'un article à partir de son contenu structuré. */
 export function deriverArticle(row: ArticleRow, article: Article, reglages: BlogSettings): { bodyHtml: string; jsonLd: string } {
   const site = siteUrl();
@@ -190,7 +197,7 @@ export async function republierArticle(articleId: number): Promise<{ url: string
     bodyHtml: derive.bodyHtml,
     excerpt: row.excerpt,
     coverUrl: coverUrl(row.coverAssetId),
-    coverAlt: article.coverTitle,
+    coverAlt: altDeCouverture(article, reglages),
     date: row.publishedAt ?? maintenant,
     metaTitle: row.metaTitle,
     metaDescription: row.metaDescription,
@@ -210,7 +217,7 @@ export async function republierArticle(articleId: number): Promise<{ url: string
 }
 
 /** Publie un article dans Framer, maintenant. */
-export async function publierArticle(articleId: number): Promise<{ url: string | null; draft: boolean; champsIgnores: string[] }> {
+export async function publierArticle(articleId: number): Promise<{ url: string | null; draft: boolean; champsIgnores: string[]; pagesNonPubliees: string[] }> {
   const row = db.select().from(schema.articles).where(eq(schema.articles.id, articleId)).get();
   if (!row) throw new Error(`Article ${articleId} introuvable`);
   const reglages = getBlog();
@@ -226,7 +233,7 @@ export async function publierArticle(articleId: number): Promise<{ url: string |
       bodyHtml: derive.bodyHtml,
       excerpt: row.excerpt,
       coverUrl: coverUrl(row.coverAssetId),
-      coverAlt: article.coverTitle,
+      coverAlt: altDeCouverture(article, reglages),
       date: new Date().toISOString(),
       metaTitle: row.metaTitle,
       metaDescription: row.metaDescription,
@@ -234,13 +241,26 @@ export async function publierArticle(articleId: number): Promise<{ url: string |
       jsonLd: derive.jsonLd,
       author: reglages.authorName,
     };
-    const res = await publierDansFramer(contenu, reglages);
+    // Un nouvel essai retrouve l'item déjà déposé au lieu d'en créer un second.
+    const res = await publierDansFramer(contenu, reglages, { itemId: row.framerItemId && !row.framerItemId.startsWith('dry-') ? row.framerItemId : null });
     const now = new Date().toISOString();
+    if (res.pagesNonPubliees.length > 0) {
+      // L'article est déposé mais le site n'a pas été publié : des retouches en cours
+      // sur d'autres pages seraient parties avec lui. Nouvel essai au prochain passage.
+      const dansUneHeure = new Date(Date.now() + 3600_000).toISOString();
+      const message = `Site non publié : des modifications non publiées attendent dans Framer sur ${res.pagesNonPubliees.join(', ')}. Publie-les (ou annule-les) dans Framer ; l’article part au prochain essai.`;
+      db.update(schema.articles)
+        .set({ status: 'scheduled', scheduledAt: dansUneHeure, framerItemId: res.itemId, bodyHtml: derive.bodyHtml, jsonLd: derive.jsonLd, error: message, updatedAt: now })
+        .where(eq(schema.articles.id, articleId))
+        .run();
+      logger.warn({ articleId, pages: res.pagesNonPubliees }, 'article déposé, site non publié (retouches en cours)');
+      return { url: null, draft: true, champsIgnores: res.champsIgnores, pagesNonPubliees: res.pagesNonPubliees };
+    }
     db.update(schema.articles)
       .set({ status: 'published', framerItemId: res.itemId, publishedUrl: res.url, publishedAt: now, bodyHtml: derive.bodyHtml, jsonLd: derive.jsonLd, error: null, updatedAt: now })
       .where(eq(schema.articles.id, articleId))
       .run();
-    return { url: res.url, draft: res.draft, champsIgnores: res.champsIgnores };
+    return { url: res.url, draft: res.draft, champsIgnores: res.champsIgnores, pagesNonPubliees: [] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     db.update(schema.articles).set({ status: 'failed', error: message.slice(0, 700), updatedAt: new Date().toISOString() }).where(eq(schema.articles.id, articleId)).run();

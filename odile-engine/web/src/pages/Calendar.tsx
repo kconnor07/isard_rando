@@ -487,7 +487,7 @@ export default function Calendar() {
 
       {!quelqueChose && !enErreur && postsQ.data && slotsQ.data && (
         <div className="mt-4">
-          <Empty action={<Link to="/settings" className="btn-ghost">Régler les créneaux</Link>}>
+          <Empty action={<Link to="/settings#cadence-creneaux" className="btn-ghost">Régler les créneaux</Link>}>
             Rien sur ces {SEMAINES} semaines. Approuve un post dans « À valider », ou clique « Programmer à une date ».
           </Empty>
         </div>

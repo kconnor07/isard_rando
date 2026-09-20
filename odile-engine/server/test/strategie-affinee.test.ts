@@ -332,3 +332,34 @@ describe('créneaux par compte, rappels et alertes', async () => {
     expect(await alerterComptesRefuses([{ ...base, ok: false, detail: 'jeton expiré ou révoqué — reconnecter', cause: 'auth' }])).toBe(false);
   });
 });
+
+describe('blog : alt de couverture, site non publié par-dessus des retouches ; avertissements du tunnel', async () => {
+  const { db, schema } = await import('../src/db/client.js');
+  const { setSetting, getBlog, getBrand } = await import('../src/db/settingsRepo.js');
+  const { storeToken, deleteToken } = await import('../src/publishers/tokens.js');
+  const { altDeCouverture } = await import('../src/blog/pipeline.js');
+  const { pagesQuiPartiraient } = await import('../src/blog/framer.js');
+  const { avertissementsDuTunnel } = await import('../src/webhooks/controleTunnel.js');
+
+  it('l’alt de la couverture nomme la marque et la ville', () => {
+    setSetting('brand', { ...getBrand(), name: 'Odile AI', ville: 'Toulouse' });
+    expect(altDeCouverture({ coverTitle: 'Devis automatisés' }, getBlog())).toBe('Devis automatisés — Odile AI, Toulouse');
+  });
+
+  it('seules les pages hors blog empêchent de publier le site', () => {
+    expect(pagesQuiPartiraient([{ path: '/blog/mon-article', status: 'added' }, { path: '/blog', status: 'updated' }])).toEqual([]);
+    expect(pagesQuiPartiraient([{ path: '/contact', status: 'updated' }, { path: '/tarifs', status: 'added' }, { path: '/blog/x', status: 'added' }])).toEqual(['/contact (modifiée)', '/tarifs (ajoutée)']);
+  });
+
+  it('Instagram sans Page Facebook et rédaction automatique en échec sont signalés', () => {
+    deleteToken('meta', 'fb_page');
+    storeToken({ provider: 'meta', subject: 'ig_user', externalId: 'ig1', accessToken: 't', meta: {} });
+    db.insert(schema.jobRuns).values({ jobName: 'draft-if-due', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), ok: false, summary: JSON.stringify({ error: 'Réponse LLM invalide après 2 tentatives (modèle m, tâche writing) — JSON non parsable\n    at x' }) }).run();
+    const messages = avertissementsDuTunnel().map((w) => w.message);
+    expect(messages.some((m) => /sans sa Page Facebook/.test(m))).toBe(true);
+    expect(messages.some((m) => /dernière rédaction automatique .* a échoué : Réponse LLM invalide/.test(m))).toBe(true);
+    // Une rédaction réussie ensuite efface l'avertissement
+    db.insert(schema.jobRuns).values({ jobName: 'draft-if-due', startedAt: new Date(Date.now() + 1000).toISOString(), finishedAt: new Date(Date.now() + 2000).toISOString(), ok: true, summary: '{}' }).run();
+    expect(avertissementsDuTunnel().map((w) => w.message).some((m) => /rédaction automatique/.test(m))).toBe(false);
+  });
+});
