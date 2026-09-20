@@ -354,7 +354,15 @@ export default function Calendar() {
           {compte === CLE_SANS_COMPTE ? ' · ces posts partiront sur le premier profil actif : choisis leur compte dans l’éditeur' : ''}
           {compte === 'fb' ? ' · la Page reçoit une copie de chaque post Instagram, à la même heure' : ''}
           {(() => {
-            const prochain = (slotsQ.data ?? []).find((s) => !s.past && !s.postId && (plateforme === 'tous' || s.platform === plateforme));
+            // Le prochain créneau libre POUR CE COMPTE : un créneau pris par un autre compte reste le sien.
+            const plateformeDuCompte = compte === 'ig' || compte === 'fb' ? 'instagram' : compte === 'tous' ? null : 'linkedin';
+            const prochain = (slotsQ.data ?? []).find(
+              (s) =>
+                !s.past &&
+                (plateforme === 'tous' || s.platform === plateforme) &&
+                (plateformeDuCompte === null || s.platform === plateformeDuCompte) &&
+                (compte === 'tous' || compte === 'fb' ? !s.postId : !(s.posts ?? []).some((p) => p.surfaceKey === compte)),
+            );
             return prochain ? ` · prochain créneau libre : ${fmtDate(prochain.at)}` : '';
           })()}
         </p>

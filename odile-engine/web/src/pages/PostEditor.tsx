@@ -485,9 +485,12 @@ export default function PostEditor() {
         <div className="card mb-4 border-white/25 p-4">
           <div className="text-xs font-semibold uppercase tracking-wider text-muted">{/^Ce post ne peut pas partir|^texte non adapté|^plafond IA/i.test(post.error) ? 'À corriger avant de partir' : 'Fabrication interrompue'}</div>
           <MotifErreur error={post.error} className="mt-1 text-sm" />
-          <button className="btn-primary mt-3 !py-1.5 text-xs" disabled={retryFabrication.isPending} onClick={() => retryFabrication.mutate()}>
-            {retryFabrication.isPending ? 'Relance…' : 'Relancer la fabrication'}
-          </button>
+          {/* Relancer la fabrication ne répare qu'une fabrication : un texte refusé ou non adapté se corrige par « Réaligner » ou à la main. */}
+          {!/^Ce post ne peut pas partir|^texte non adapté|^plafond IA/i.test(post.error) && (
+            <button className="btn-primary mt-3 !py-1.5 text-xs" disabled={retryFabrication.isPending} onClick={() => retryFabrication.mutate()}>
+              {retryFabrication.isPending ? 'Relance…' : 'Relancer la fabrication'}
+            </button>
+          )}
         </div>
       )}
 

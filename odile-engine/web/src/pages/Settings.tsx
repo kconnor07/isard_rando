@@ -526,7 +526,7 @@ export default function Settings() {
         </button>
         <div className="grid grid-cols-1 gap-4">
           <div>
-            <label className="label">Mots à commenter sur Instagram et Facebook (séparés par des virgules) — sur LinkedIn, ce sont les mots de diagnostic plus bas</label>
+            <label className="label">Mots à commenter sur Instagram (séparés par des virgules) — sur Facebook rien ne se déclenche, sur LinkedIn ce sont les mots de diagnostic plus bas</label>
             <input className="input" value={form.dm_triggers.keywords.join(', ')}
               onChange={(e) => set('dm_triggers', { ...form.dm_triggers, keywords: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
           </div>
