@@ -9,7 +9,9 @@ import { rescoreWithContent } from './score.js';
 
 export const SHORTLIST_SIZE = 10;
 export const SHORTLIST_MIN_SCORE = 50;
-const CANDIDATES = 20;
+const CANDIDATES = 30;
+/** Fenêtre de candidature : deux jours, pour ne pas perdre un bon sujet publié la veille au soir. */
+const FENETRE_HEURES = 48;
 const ENRICH_CONCURRENCY = 3;
 
 export interface ShortlistSummary {
@@ -27,7 +29,7 @@ export interface ShortlistSummary {
  */
 export async function buildDailyShortlist(now = new Date()): Promise<ShortlistSummary> {
   const date = now.toISOString().slice(0, 10);
-  const since = new Date(now.getTime() - 24 * 3600 * 1000).toISOString();
+  const since = new Date(now.getTime() - FENETRE_HEURES * 3600 * 1000).toISOString();
 
   const candidates = db
     .select()

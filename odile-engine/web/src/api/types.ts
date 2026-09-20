@@ -206,6 +206,19 @@ export interface ActionOutcomeDto {
 }
 
 /** Créneau de publication configuré, avec le post qui l'occupe */
+export interface SujetDto {
+  id: number;
+  label: string;
+  reason: string | null;
+  angles: { titre: string; angle: string }[];
+  topics: string[];
+  kind: 'actu' | 'douleur' | 'local' | 'saison';
+  score: number;
+  sourcesCount: number;
+  createdAt: string;
+  items: { id: number; title: string; url: string; sourceId: number | null }[];
+}
+
 export interface SlotDto {
   at: string;
   platform: 'instagram' | 'linkedin';

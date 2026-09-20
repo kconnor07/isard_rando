@@ -39,12 +39,19 @@ describe('veille GitHub', async () => {
 describe('axes élargis de la recherche web', async () => {
   const { axeElargiDuJour } = await import('../src/scraper/websearch.js');
 
-  it('un seul axe par jour, les trois en trois jours', () => {
-    const noms = [0, 1, 2, 3].map((j) => axeElargiDuJour(new Date(Date.UTC(2026, 8, 14 + j, 12))).sourceName);
-    expect(new Set(noms.slice(0, 3)).size).toBe(3);
-    expect(noms[3]).toBe(noms[0]);
-    expect(noms).toContain('LinkedIn FR (posts qui performent)');
-    expect(noms).toContain('YouTube (vidéos du moment)');
-    expect(noms).toContain('Compétences & skills IA');
+  it('un seul axe par jour, les cinq en cinq jours', () => {
+    const noms = [0, 1, 2, 3, 4, 5].map((j) => axeElargiDuJour(new Date(Date.UTC(2026, 8, 14 + j, 12))).sourceName);
+    // Cinq axes distincts, puis la rotation recommence
+    expect(new Set(noms.slice(0, 5)).size).toBe(5);
+    expect(noms[5]).toBe(noms[0]);
+    for (const attendu of [
+      'LinkedIn FR (posts qui performent)',
+      'Douleurs de dirigeants',
+      'YouTube (vidéos du moment)',
+      'Toulouse & Occitanie',
+      'Compétences & skills IA',
+    ]) {
+      expect(noms).toContain(attendu);
+    }
   });
 });

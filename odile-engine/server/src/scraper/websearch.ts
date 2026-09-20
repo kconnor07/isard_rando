@@ -117,6 +117,53 @@ source précise, "summary" = ce que c'est, ce que ça permet, les chiffres s'il 
 pourquoi une PME française devrait s'y intéresser maintenant.`,
 };
 
+const DOULEURS_HARVEST: HarvestSpec = {
+  sourceName: 'Douleurs de dirigeants',
+  weight: 1.4,
+  lang: 'fr',
+  prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
+Cet axe ne cherche PAS de l'actualité : il cherche des PROBLÈMES RÉELS que les dirigeants
+expriment eux-mêmes en ce moment. C'est la matière la plus convaincante pour nos posts, parce
+qu'un lecteur qui se reconnaît dans une douleur lit la suite.
+
+Cherche sur le web (30 derniers jours) ce que des dirigeants de petites entreprises françaises
+ou européennes racontent de leur quotidien : discussions de forums et de groupes (Reddit,
+LinkedIn, forums métiers, communautés d'artisans, de commerçants, de cabinets), enquêtes et
+sondages sur leurs irritants, articles qui rapportent leurs plaintes. Vise les tâches qui
+mangent leur temps : devis, relances de factures impayées, prise de rendez-vous, réponses aux
+mêmes questions clients, saisie comptable, recrutement, gestion des plannings, avis clients,
+réseaux sociaux.
+
+Pour chaque douleur, dis combien de temps ou d'argent elle coûte quand la source le dit.
+
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 3 à 6 items —
+"title" = la douleur formulée comme la dirait un dirigeant (ex : « Je passe mes soirées à
+relancer des factures »), "url" = la source précise, "summary" = qui l'exprime, dans quel
+contexte, avec les chiffres et les verbatims, "why" = ce qu'Odile sait automatiser là-dedans.`,
+};
+
+const LOCAL_HARVEST: HarvestSpec = {
+  sourceName: 'Toulouse & Occitanie',
+  weight: 1.4,
+  lang: 'fr',
+  prompt: `Nous alimentons la veille d'Odile AI, agence d'automatisation IA basée à Toulouse et
+qui s'adresse d'abord aux PME et TPE du territoire toulousain et occitan.
+
+Cherche sur le web (30 derniers jours) ce qui se passe localement et qui peut nourrir un post
+ou un article de blog ancré à Toulouse : entreprises de la région qui adoptent l'IA ou
+l'automatisation, chiffres sur le tissu économique local (nombre d'entreprises, créations,
+secteurs qui recrutent), aides et dispositifs régionaux pour la transformation numérique,
+événements professionnels à Toulouse et en Occitanie, initiatives de la CCI, de la French Tech
+Toulouse, des pôles de compétitivité, réussites d'entreprises locales.
+
+Nomme toujours précisément les entreprises, organismes et lieux : ce sont eux que nos posts
+pourront citer et identifier.
+
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 3 à 6 items —
+"title" en français, "url" = la source précise, "summary" = les faits, les noms et les chiffres,
+"why" = l'angle local qu'on pourra donner à un post ou à un article.`,
+};
+
 /**
  * Les axes élargis tournent : un seul par jour (LinkedIn FR, puis YouTube, puis
  * compétences), pour couvrir les trois en trois jours sans tripler la dépense —
@@ -124,10 +171,13 @@ pourquoi une PME française devrait s'y intéresser maintenant.`,
  * le dashboard (sa source « websearch » porte le réglage).
  */
 export function axeElargiDuJour(now = new Date()): HarvestSpec {
-  const axes = [LINKEDIN_FR_HARVEST, YOUTUBE_HARVEST, SKILLS_HARVEST];
+  const axes = [LINKEDIN_FR_HARVEST, DOULEURS_HARVEST, YOUTUBE_HARVEST, LOCAL_HARVEST, SKILLS_HARVEST];
   const jour = Math.floor(now.getTime() / 86400000);
   return axes[jour % axes.length]!;
 }
+
+/** Tous les axes, pour les tests et pour une récolte manuelle depuis le dashboard. */
+export const AXES_ELARGIS: HarvestSpec[] = [LINKEDIN_FR_HARVEST, DOULEURS_HARVEST, YOUTUBE_HARVEST, LOCAL_HARVEST, SKILLS_HARVEST];
 
 const resultSchema = z.object({
   items: z
@@ -240,7 +290,8 @@ async function harvest(client: Anthropic, spec: HarvestSpec): Promise<WebsearchS
  * Collecte quotidienne par recherche web (Claude + outil serveur web_search),
  * en trois passes : veille générale (cas d'entreprises, social US, études),
  * posts LinkedIn anglophones performants à recycler, puis l'axe élargi du jour
- * (LinkedIn FR, YouTube ou compétences, à tour de rôle). Les items stockent
+ * (LinkedIn FR, douleurs de dirigeants, YouTube, ancrage toulousain ou compétences,
+ * à tour de rôle sur cinq jours). Les items stockent
  * titre + URL + un résumé original écrit par le modèle, puis suivent le circuit
  * normal (scoring → shortlist → réécriture).
  */

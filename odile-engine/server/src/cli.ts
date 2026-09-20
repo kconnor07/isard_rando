@@ -38,6 +38,10 @@ async function main() {
         engagement: await enrichEngagement(newsId),
       }));
     }
+    case 'sujets': {
+      const { construireSujets } = await import('./scorer/sujets.js');
+      return runJob('sujets', () => construireSujets());
+    }
     case 'websearch': {
       const { runWebsearch } = await import('./scraper/websearch.js');
       return runJob('websearch', runWebsearch);
@@ -180,7 +184,7 @@ async function main() {
       return { ok: true };
     }
     default:
-      console.log(`Commandes : scrape | score | shortlist | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | amplify | blog-covers [--tous] | seed | fixture [--title ..] [--url ..]`);
+      console.log(`Commandes : scrape | score | shortlist | sujets | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | amplify | blog-covers [--tous] | seed | fixture [--title ..] [--url ..]`);
       return { ok: false };
   }
 }

@@ -9,6 +9,7 @@ import { runScrape } from '../../scraper/index.js';
 import { runScore } from '../../scorer/score.js';
 import { buildDailyShortlist } from '../../scorer/shortlist.js';
 import { runDraftPipeline } from '../../scheduler/pipeline.js';
+import { construireSujets, itemPrincipal, sujetsDuMoment } from '../../scorer/sujets.js';
 
 export function registerNewsRoutes(app: FastifyInstance): void {
   app.get<{ Querystring: { status?: string; limit?: string } }>('/api/news', async (request) => {
@@ -72,6 +73,67 @@ export function registerNewsRoutes(app: FastifyInstance): void {
       .catch((err) => logger.error({ err: String(err) }, 'pipeline manuel en échec'))
       .finally(() => generating.delete(newsId));
     return { started: true };
+  });
+
+  // ----- Sujets de veille ----------------------------------------------------
+
+  /** Les sujets du moment : ce que le fondateur choisit, au lieu d'articles isolés. */
+  app.get('/api/news/sujets', async () => sujetsDuMoment());
+
+  /** Reconstruit les sujets à partir des items de la semaine (sinon, cron quotidien). */
+  app.post('/api/news/sujets/refresh', async () => {
+    const r = await runJob('sujets', () => construireSujets());
+    return r.result ?? { groupes: 0, crees: 0, ecartesDejaTraites: 0, saison: 0 };
+  });
+
+  /** Écrit un post sur ce sujet, sous l'angle choisi. */
+  app.post<{ Params: { id: string }; Body: { angle?: string; channel?: 'li_personal' | 'li_org' | 'ig'; theme?: string } }>(
+    '/api/news/sujets/:id/ecrire',
+    async (request, reply) => {
+      const id = Number(request.params.id);
+      const sujet = db.select().from(schema.newsSubjects).where(eq(schema.newsSubjects.id, id)).get();
+      if (!sujet) return reply.status(404).send({ error: 'Sujet introuvable' });
+      if (sujet.status !== 'nouveau') return reply.status(409).send({ error: 'Ce sujet a déjà été traité ou écarté' });
+      const theme = request.body?.theme;
+      if (theme && !themeExists(theme)) return reply.status(400).send({ error: 'Thème introuvable' });
+      const itemIds = JSON.parse(sujet.itemIds) as number[];
+      const principal = itemPrincipal(id);
+      // Un sujet de saison n'a pas d'article : le rédacteur part alors du sujet seul,
+      // ce qui suppose qu'une actualité soit disponible pour la matière factuelle.
+      if (!principal && itemIds.length > 0) return reply.status(409).send({ error: 'Les articles de ce sujet ne sont plus disponibles' });
+      if (sujetEnCours.has(id)) return reply.status(409).send({ error: 'Un post est déjà en fabrication pour ce sujet' });
+      sujetEnCours.set(id, { startedAt: new Date().toISOString() });
+      const angle = request.body?.angle?.trim() || undefined;
+      void runJob('pipeline-sujet', async () => {
+        const res = await runDraftPipeline({
+          ...(principal ? { newsItemId: principal } : {}),
+          ...(request.body?.channel ? { channel: request.body.channel } : {}),
+          ...(theme ? { theme } : {}),
+          sujet: { label: sujet.label, reason: sujet.reason, ...(angle ? { angle } : {}) },
+          contexteItemIds: itemIds,
+        });
+        db.update(schema.newsSubjects)
+          .set({ status: 'utilise', postId: res.postId ?? null, updatedAt: new Date().toISOString() })
+          .where(eq(schema.newsSubjects.id, id))
+          .run();
+        return res;
+      })
+        .catch((err) => logger.error({ err: String(err), sujet: id }, 'pipeline depuis un sujet en échec'))
+        .finally(() => sujetEnCours.delete(id));
+      return { started: true };
+    },
+  );
+
+  /** Sujets en fabrication, pour que le dashboard montre l'attente. */
+  const sujetEnCours = new Map<number, { startedAt: string }>();
+  app.get('/api/news/sujets/en-cours', async () => Array.from(sujetEnCours, ([id, v]) => ({ id, startedAt: v.startedAt })));
+
+  app.post<{ Params: { id: string } }>('/api/news/sujets/:id/ecarter', async (request) => {
+    db.update(schema.newsSubjects)
+      .set({ status: 'ecarte', updatedAt: new Date().toISOString() })
+      .where(eq(schema.newsSubjects.id, Number(request.params.id)))
+      .run();
+    return { ok: true };
   });
 
   app.post<{ Params: { id: string } }>('/api/news/:id/discard', async (request) => {

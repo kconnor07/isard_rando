@@ -50,6 +50,15 @@ export function registerJobs(): void {
     void runJob('shortlist', () => buildDailyShortlist());
   }, { timezone: TZ });
 
+  // Sujets du jour : les items de la semaine regroupés par thème, avec leurs angles,
+  // plus les rendez-vous du calendrier des PME. Après la shortlist, qui les a notés.
+  cron.schedule('50 6 * * *', () => {
+    void (async () => {
+      const { construireSujets } = await import('../scorer/sujets.js');
+      await runJob('sujets', () => construireSujets());
+    })().catch((err) => logger.error({ err: String(err) }, 'sujets en échec'));
+  }, { timezone: TZ });
+
   // Apprentissage hebdomadaire (clics → poids des sources + affinités de sujets)
   cron.schedule('50 7 * * 1', () => {
     void (async () => {

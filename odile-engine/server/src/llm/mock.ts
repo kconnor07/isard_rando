@@ -31,6 +31,22 @@ function jetonsEstimes(req: LlmRequest, texte: string): { inputTokens: number; o
 function buildMockText(req: LlmRequest): string {
   switch (req.task) {
     case 'scoring': {
+      // Sujets de veille : le prompt étiquette chaque groupe "[groupe=N]".
+      if (/\[groupe=\d+\]/.test(req.prompt)) {
+        const groupes = [...req.prompt.matchAll(/\[groupe=(\d+)\]/g)].map((m) => Number(m[1]));
+        return JSON.stringify({
+          sujets: groupes.map((g) => ({
+            groupe: g,
+            label: `Mock : le sujet du groupe ${g}, vu par un dirigeant de PME`,
+            reason: 'Mock : plusieurs sources en parlent cette semaine et le sujet touche le quotidien d’une petite entreprise.',
+            angles: [
+              { titre: 'Le cas', angle: 'Mock : une PME qui l’a mis en place, avec le temps gagné et ce que ça a coûté.' },
+              { titre: 'La méthode', angle: 'Mock : les trois étapes concrètes pour y arriver sans changer d’outil.' },
+            ],
+            garder: true,
+          })),
+        });
+      }
       // Le prompt du scorer étiquette chaque item "[id=N]" — on les note tous.
       const ids = [...req.prompt.matchAll(/\[id=(\d+)\]/g)].map((m) => Number(m[1]));
       const score = (id: number, i: number) => ({

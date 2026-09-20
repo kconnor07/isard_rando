@@ -22,6 +22,15 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'Google AI Blog', kind: 'rss', url: 'https://blog.google/technology/ai/rss/', lang: 'en', weight: 1.0 },
   { name: 'MIT Tech Review AI', kind: 'rss', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', lang: 'en', weight: 1.0 },
   { name: 'Product Hunt', kind: 'rss', url: 'https://www.producthunt.com/feed', lang: 'en', weight: 0.9 },
+  // Côté client, pas côté technologie : ce que vivent les dirigeants de TPE/PME
+  // françaises. C'est là que se trouvent les douleurs qu'Odile sait automatiser.
+  { name: 'Dynamique Entrepreneuriale', kind: 'rss', url: 'https://www.dynamique-mag.com/feed', lang: 'fr', weight: 1.2 },
+  { name: 'Petite Entreprise', kind: 'rss', url: 'https://www.petite-entreprise.net/feed', lang: 'fr', weight: 1.2 },
+  // Ancrage toulousain : l'économie locale nourrit les posts et le référencement du blog.
+  { name: 'ToulÉco (Toulouse)', kind: 'rss', url: 'https://www.touleco.fr/spip.php?page=backend', lang: 'fr', weight: 1.4 },
+  // Les questions que les dirigeants posent vraiment (nécessite les clés Reddit ;
+  // sans elles la source dort sans erreur).
+  { name: 'Reddit — dirigeants de PME', kind: 'reddit', url: 'r/smallbusiness+Entrepreneur+freelance/top?t=day&limit=25', lang: 'en', weight: 1.2 },
   { name: 'Hacker News (IA)', kind: 'hn', url: 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=40', lang: 'en', weight: 1.0 },
   { name: 'Maddyness', kind: 'rss', url: 'https://www.maddyness.com/feed/', lang: 'fr', weight: 1.3 },
   { name: 'Usine Digitale', kind: 'rss', url: 'https://www.usine-digitale.fr/rss', lang: 'fr', weight: 1.2 },

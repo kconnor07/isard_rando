@@ -62,6 +62,35 @@ export const newsItems = sqliteTable(
   ],
 );
 
+/**
+ * Un SUJET de veille : plusieurs articles qui parlent de la même chose, ou une
+ * douleur de dirigeant, ou un rendez-vous du calendrier des PME. C'est ce que le
+ * fondateur choisit — un article isolé ne dit pas s'il y a matière à un post.
+ */
+export const newsSubjects = sqliteTable(
+  'news_subjects',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    /** le sujet en une phrase, en français */
+    label: text('label').notNull(),
+    /** pourquoi ce sujet maintenant (ce que le fondateur lit avant de choisir) */
+    reason: text('reason'),
+    /** JSON [{ titre, angle }] : trois façons de le traiter */
+    angles: text('angles').notNull().default('[]'),
+    topics: text('topics').notNull().default('[]'),
+    /** JSON number[] : les items de veille qui le composent */
+    itemIds: text('item_ids').notNull().default('[]'),
+    sourcesCount: integer('sources_count').notNull().default(0),
+    score: real('score').notNull().default(0),
+    kind: text('kind', { enum: ['actu', 'douleur', 'local', 'saison'] }).notNull().default('actu'),
+    status: text('status', { enum: ['nouveau', 'utilise', 'ecarte'] }).notNull().default('nouveau'),
+    postId: integer('post_id'),
+    createdAt: text('created_at').notNull().$defaultFn(now),
+    updatedAt: text('updated_at').notNull().$defaultFn(now),
+  },
+  (t) => [index('news_subjects_status_idx').on(t.status, t.score)],
+);
+
 export const posts = sqliteTable(
   'posts',
   {

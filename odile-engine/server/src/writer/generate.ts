@@ -1,4 +1,4 @@
-import { desc, eq, isNotNull } from 'drizzle-orm';
+import { desc, eq, isNotNull, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   ARCHETYPES,
@@ -34,6 +34,10 @@ export interface DraftOptions {
   channel?: Channel;
   format?: PostFormat;
   theme?: string;
+  /** le sujet choisi par le fondateur, quand le post part d'un sujet et non d'un article */
+  sujet?: { label: string; angle?: string; reason?: string | null };
+  /** sujets de veille supplémentaires à considérer (les autres articles du même sujet) */
+  contexteItemIds?: number[];
 }
 
 export interface DraftResult {
@@ -403,7 +407,24 @@ QUI PARLE : ${compte.name}${compte.role ? `, ${compte.role}` : ''}, depuis son p
 - Bannis le ton communiqué : « nous sommes ravis de », « notre équipe a le plaisir de », « c'est avec fierté que ».`
       : '';
 
-  const prompt = `ACTUALITÉ SOURCE (à transformer en post ${platform === 'instagram' ? 'Instagram' : 'LinkedIn'}) :
+  // Un post qui part d'un SUJET : l'angle commande, l'article n'est que la matière.
+  const contexte = (opts.contexteItemIds ?? []).filter((id) => id !== news.id);
+  const autresArticles = contexte.length
+    ? db
+        .select({ title: schema.newsItems.title, summary: schema.newsItems.summary, url: schema.newsItems.url })
+        .from(schema.newsItems)
+        .where(inArray(schema.newsItems.id, contexte.slice(0, 5)))
+        .all()
+    : [];
+  const blocSujet = opts.sujet
+    ? `SUJET DU POST (c'est lui qui commande, l'article ci-dessous n'est que la matière) :
+${opts.sujet.label}
+${opts.sujet.reason ? `Pourquoi maintenant : ${opts.sujet.reason}\n` : ''}${opts.sujet.angle ? `ANGLE IMPOSÉ : ${opts.sujet.angle}\nTraite le sujet sous CET angle et aucun autre. Si l'article source ne suffit pas, appuie-toi sur ce que tu sais du quotidien des PME françaises, sans inventer de chiffre.\n` : ''}
+${autresArticles.length ? `AUTRES ARTICLES SUR LE MÊME SUJET (pour recouper, pas pour résumer) :\n${autresArticles.map((a) => `- ${a.title}${a.summary ? ` — ${a.summary.slice(0, 180)}` : ''}`).join('\n')}\n` : ''}
+`
+    : '';
+
+  const prompt = `${blocSujet}ACTUALITÉ SOURCE (à transformer en post ${platform === 'instagram' ? 'Instagram' : 'LinkedIn'}) :
 Titre : ${news.title}
 Résumé : ${news.summary ?? '(pas de résumé)'}
 URL : ${news.url}
