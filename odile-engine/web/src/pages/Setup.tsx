@@ -29,6 +29,9 @@ interface CompteLinkedInDto {
   connectedAt: string | null;
   peutRepondre: boolean;
   manque: string;
+  /** ce compte ne publiera pas : jeton mort, droit absent, refus de LinkedIn */
+  enPanne: boolean;
+  panne: string;
   /** dernier passage du lecteur de commentaires sur ce compte */
   lecture: { ok: boolean; detail: string; at: string } | null;
 }
@@ -248,9 +251,12 @@ function AppKeysCard({ apps, onSaved }: { apps: OauthAppsDto; onSaved: () => voi
 }
 
 /** Jours avant expiration (null : jeton sans expiration). */
+function joursRestants(expiresAt: string | null | undefined): number | null {
+  if (!expiresAt) return null;
+  return (new Date(expiresAt).getTime() - Date.now()) / 86400000;
+}
 function daysLeft(token: OauthTokenDto | undefined): number | null {
-  if (!token?.expiresAt) return null;
-  return (new Date(token.expiresAt).getTime() - Date.now()) / 86400000;
+  return joursRestants(token?.expiresAt);
 }
 
 /** « renouvelé automatiquement · expire dans 42 j » / « sans expiration » / « EXPIRÉ » */
@@ -362,11 +368,30 @@ export default function Setup() {
     void qc.invalidateQueries({ queryKey: ['summary'] });
   };
 
-  // La connexion se fait dans cet onglet : la page de retour propose le lien vers le dashboard
+  // La connexion se fait dans cet onglet : la page de retour propose le lien vers le dashboard.
+  // `attendu` (vide = premier venu) nomme le profil qu'on croit reconnecter : si LinkedIn
+  // en renvoie un autre, la page de retour le dit au lieu de laisser croire que c'est fait.
   const connectLinkedIn = useMutation({
-    mutationFn: () => api.get<{ url: string }>(`/api/oauth/linkedin/start${withOrg ? '?org=1' : ''}`),
+    mutationFn: (attendu: string) => {
+      const q = new URLSearchParams();
+      if (withOrg) q.set('org', '1');
+      if (attendu) q.set('attendu', attendu);
+      const qs = q.toString();
+      return api.get<{ url: string }>(`/api/oauth/linkedin/start${qs ? `?${qs}` : ''}`);
+    },
     onSuccess: (data) => location.assign(data.url),
   });
+  const reconnecterCompte = async (c: CompteLinkedInDto) => {
+    const ok = await dialog.confirm({
+      title: `Reconnecter ${c.name} ?`,
+      message:
+        `LinkedIn reconnaît le compte ouvert dans CE navigateur. Si tu n’y es pas connecté en tant que ${c.name}, ` +
+        'c’est ton propre profil qui sera rafraîchi — passe par une fenêtre de navigation privée connectée à son compte. ' +
+        'Dans tous les cas, la page de retour te dira qui a été reconnecté.',
+      confirmLabel: 'Continuer vers LinkedIn',
+    });
+    if (ok) connectLinkedIn.mutate(c.key);
+  };
   const connectMeta = useMutation({
     mutationFn: () => api.get<{ url: string }>(`/api/oauth/meta/start${metaMinimal ? '?minimal=1' : ''}`),
     onSuccess: (data) => location.assign(data.url),
@@ -506,7 +531,8 @@ export default function Setup() {
         <div className="flex flex-col gap-4">
           {/* ---- LinkedIn profil ---- */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
-            <div className="pt-1.5"><Dot ok={Boolean(liToken)} warn={tokenWarn(liToken)} /></div>
+            {/* La pastille du haut résume toute l'équipe : un seul profil en panne et elle s'allume. */}
+            <div className="pt-1.5"><Dot ok={Boolean(liToken)} warn={tokenWarn(liToken) || profils.some((c) => c.actif && c.enPanne)} /></div>
             <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold">LinkedIn — profil personnel</div>
               <div className="text-xs text-muted">
@@ -531,17 +557,34 @@ export default function Setup() {
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
                     Profils de l’équipe ({profils.length}) — les posts « LinkedIn perso » tournent entre les profils actifs
                   </div>
-                  {profils.map((c) => (
+                  {profils.map((c) => {
+                    // L'échéance par ligne est le seul moyen de voir qu'une reconnexion a bien
+                    // atterri ici : une date qui ne bouge pas, c'est un profil qu'on n'a pas touché.
+                    const jours = joursRestants(c.expiresAt);
+                    return (
                     <div key={c.key} className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-white/[0.03] px-3 py-2 text-xs">
-                      <Dot ok={c.actif} warn={c.actif && (!c.peutRepondre || c.lecture?.ok === false)} />
+                      {/* Creux = hors rotation (mis en pause). Plein blanc = actif mais quelque chose cloche. */}
+                      <Dot ok={c.actif} warn={c.actif && (c.enPanne || !c.peutRepondre || c.lecture?.ok === false)} />
                       <span className="font-semibold">{c.name}</span>
                       {c.role && <span className="text-muted">· {c.role}</span>}
+                      {jours !== null && (
+                        <span className={jours <= 10 ? 'text-txt' : 'text-muted'}>· {jours <= 0 ? 'jeton expiré' : `expire dans ${Math.ceil(jours)} j`}</span>
+                      )}
+                      {c.enPanne && <span className="text-txt">· {c.panne}</span>}
                       {!c.peutRepondre && <span className="text-muted">· droit {c.manque} absent : reconnecte ce profil</span>}
                       {/* La lecture des commentaires est le maillon qui casse en silence : LinkedIn
                           ne l'accorde pas à toutes les applications, et sans elle le tunnel est muet. */}
                       {c.lecture?.ok === false && <span className="text-muted">· commentaires illisibles : {c.lecture.detail}</span>}
                       {c.lecture?.ok === true && <span className="text-muted">· commentaires lus ✓</span>}
                       <span className="ml-auto flex items-center gap-1">
+                        <button
+                          className="btn-ghost !px-2 !py-1 text-[11px]"
+                          disabled={connectLinkedIn.isPending || !health.oauth.linkedinConfigured}
+                          onClick={() => void reconnecterCompte(c)}
+                          title="Renouveler le jeton de ce profil (depuis un navigateur connecté à SON compte LinkedIn)"
+                        >
+                          Reconnecter
+                        </button>
                         <button className="btn-ghost !px-2 !py-1 text-[11px]" onClick={() => void etiquetterCompte(c)} title="Étiquette">
                           Étiquette
                         </button>
@@ -558,10 +601,12 @@ export default function Setup() {
                         </button>
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                   <p className="text-[11px] leading-snug text-muted">
-                    Pour ajouter Alexis ou une recrue : la personne ouvre ce dashboard depuis son navigateur (connectée à LinkedIn avec son propre compte)
-                    et clique « Connecter un autre profil ». Le sien vient s’ajouter ici, sans toucher aux autres.
+                    Ajouter une recrue, ou renouveler le jeton de quelqu’un : la personne ouvre ce dashboard depuis son navigateur
+                    (connectée à LinkedIn avec son propre compte) et clique « Connecter un autre profil », ou « Reconnecter » sur sa ligne.
+                    Depuis ton navigateur à toi, LinkedIn répondra toujours avec ton compte : c’est le tien qui serait rafraîchi.
                   </p>
                 </div>
               )}
@@ -575,7 +620,7 @@ export default function Setup() {
               <button
                 className="btn-primary !py-1.5 text-xs"
                 disabled={!health.oauth.linkedinConfigured || connectLinkedIn.isPending}
-                onClick={() => connectLinkedIn.mutate()}
+                onClick={() => connectLinkedIn.mutate('')}
               >
                 {liToken ? 'Connecter un autre profil' : 'Connecter'}
               </button>

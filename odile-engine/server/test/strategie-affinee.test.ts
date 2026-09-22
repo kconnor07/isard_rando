@@ -295,9 +295,11 @@ describe('créneaux par compte, rappels et alertes', async () => {
     const tAlexis = new Date(lire(alexis.id).scheduledAt!).getTime();
     const tPage = new Date(lire(page.id).scheduledAt!).getTime();
     const tInsta = new Date(lire(insta.id).scheduledAt!).getTime();
-    // Chaque compte prend SON prochain créneau après l'original : le suivant du calendrier (deux jours), pas la semaine d'après
+    // Chaque compte prend SON prochain créneau après l'original : le suivant du
+    // calendrier (mardi ou jeudi, donc deux ou cinq jours selon le jour de départ),
+    // jamais le même créneau la semaine d'après.
     expect(tAlexis).toBeGreaterThan(quand.getTime());
-    expect(tAlexis - quand.getTime()).toBeLessThanOrEqual(2 * 86400_000);
+    expect(tAlexis - quand.getTime()).toBeLessThan(7 * 86400_000);
     // La page a droit au même créneau qu'Alexis, décalée de 45 minutes : jamais la même minute
     expect(tPage).toBeGreaterThan(tAlexis);
     expect(tPage - tAlexis).toBe(45 * 60_000);

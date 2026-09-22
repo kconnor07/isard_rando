@@ -18,19 +18,31 @@ import { API, linkedInHeaders } from './linkedin.js';
 
 const nanoState = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
 
-/** state OAuth signé (anti-CSRF), 10 minutes. Le tag mémorise l'option choisie (ex. « org »). */
-function makeState(tag = ''): string {
+/**
+ * state OAuth signé (anti-CSRF), 10 minutes. Le tag mémorise l'option choisie
+ * (ex. « org ») et, après un point, le profil qu'on s'attend à voir revenir.
+ * Ce dernier est le seul moyen de rattraper le malentendu le plus coûteux :
+ * LinkedIn répond toujours avec le compte ouvert dans CE navigateur, si bien
+ * qu'on croit reconnecter un collègue alors qu'on rafraîchit le sien.
+ */
+export function makeState(tag = '', attendu = ''): string {
+  const marque = attendu ? `.${Buffer.from(attendu).toString('base64url')}` : '';
   return createToken({
-    jti: `oauth-${tag ? `${tag}-` : ''}${nanoState()}`,
+    jti: `oauth-${tag ? `${tag}-` : ''}${nanoState()}${marque}`,
     pid: 0,
     act: 'login',
     exp: Math.floor(Date.now() / 1000) + 600,
   });
 }
-function readState(state: string | undefined): { ok: boolean; org: boolean } {
+export function readState(state: string | undefined): { ok: boolean; org: boolean; attendu: string } {
   const payload = state ? verifyToken(state) : null;
-  if (!payload || !payload.jti.startsWith('oauth-')) return { ok: false, org: false };
-  return { ok: true, org: payload.jti.startsWith('oauth-org-') };
+  if (!payload || !payload.jti.startsWith('oauth-')) return { ok: false, org: false, attendu: '' };
+  const point = payload.jti.indexOf('.');
+  return {
+    ok: true,
+    org: payload.jti.startsWith('oauth-org-'),
+    attendu: point > 0 ? Buffer.from(payload.jti.slice(point + 1), 'base64url').toString() : '',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +333,7 @@ export async function deriveMetaPage(
 
 export function registerOauthRoutes(app: FastifyInstance): void {
   // ----- LinkedIn -----------------------------------------------------------
-  app.get<{ Querystring: { org?: string } }>('/api/oauth/linkedin/start', { preHandler: requireSession }, async (request, reply) => {
+  app.get<{ Querystring: { org?: string; attendu?: string } }>('/api/oauth/linkedin/start', { preHandler: requireSession }, async (request, reply) => {
     const apps = getOauthApps();
     if (!linkedinAppConfigured(apps)) {
       return reply.status(400).send({ error: 'Clés de l’app LinkedIn manquantes — renseigne Client ID et Client Secret dans Connexions & santé (ou dans .env)' });
@@ -332,7 +344,10 @@ export function registerOauthRoutes(app: FastifyInstance): void {
     url.searchParams.set('client_id', apps.linkedinClientId);
     url.searchParams.set('redirect_uri', `${config.PUBLIC_URL}/oauth/linkedin/callback`);
     url.searchParams.set('scope', withOrg ? `${LI_SCOPES} ${LI_ORG_SCOPES}` : LI_SCOPES);
-    url.searchParams.set('state', makeState(withOrg ? 'org' : ''));
+    // « Reconnecter ce profil » : on note qui on attend pour pouvoir le dire au retour.
+    const vise = request.query.attendu ?? '';
+    const attendu = vise && getStoredToken('linkedin', 'li_person', vise) ? vise : '';
+    url.searchParams.set('state', makeState(withOrg ? 'org' : '', attendu));
     return { url: url.toString() };
   });
 
@@ -388,6 +403,10 @@ export function registerOauthRoutes(app: FastifyInstance): void {
         // La clé du compte est le `sub` LinkedIn : reconnecter le même profil le met
         // à jour, connecter celui d'un collègue en ajoute un à côté.
         const dejaConnu = getStoredToken('linkedin', 'li_person', userinfo.sub);
+        // Profil visé par le bouton « Reconnecter » : on le lit avant d'écrire, pour
+        // pouvoir le nommer même quand c'est lui qui revient.
+        const cible = st.attendu ? getStoredToken('linkedin', 'li_person', st.attendu) : null;
+        const mauvaisProfil = Boolean(st.attendu) && st.attendu !== userinfo.sub;
         if (dejaConnu) meta.actif = dejaConnu.meta.actif !== false;
         if (dejaConnu?.meta.role) meta.role = dejaConnu.meta.role;
         storeToken({
@@ -416,13 +435,31 @@ export function registerOauthRoutes(app: FastifyInstance): void {
         } else if (st.org && !orgScopes) {
           orgNote = ' Les droits « page entreprise » n’ont pas été accordés (Community Management API).';
         }
-        logger.info({ sub: userinfo.sub, orgScopes, refresh: Boolean(token.refresh_token) }, 'LinkedIn connecté');
+        logger.info({ sub: userinfo.sub, orgScopes, refresh: Boolean(token.refresh_token), mauvaisProfil }, 'LinkedIn connecté');
+        const qui = userinfo.name ?? userinfo.sub;
+        // Le jeton reçu est bon — mais il n'est pas celui qu'on venait chercher, et le
+        // compte visé, lui, n'a pas bougé d'un pouce. Le dire est tout l'intérêt.
+        if (mauvaisProfil) {
+          const vise = String(cible?.meta.name ?? st.attendu);
+          return reply
+            .type('text/html')
+            .send(
+              resultPage(
+                false,
+                `Tu viens de reconnecter « ${qui} », pas « ${vise} ».`,
+                `<p>LinkedIn répond avec le compte ouvert dans ce navigateur : c’est celui de « ${escapeHtml(qui)} » qui vient d’être rafraîchi.
+                « ${escapeHtml(vise)} » garde son jeton en l’état — rien n’est cassé, mais rien n’est réparé non plus.</p>
+<p>Pour y arriver : ouvre une fenêtre de navigation privée, connecte-toi à LinkedIn avec le compte de « ${escapeHtml(vise)} »,
+                puis rouvre le dashboard dans cette même fenêtre et clique « Reconnecter » sur sa ligne.</p>`,
+              ),
+            );
+        }
         return reply
           .type('text/html')
           .send(
             resultPage(
               true,
-              `LinkedIn connecté (${userinfo.name ?? userinfo.sub}). Jeton valable ~60 jours${
+              `${dejaConnu ? 'Profil reconnecté' : 'Profil connecté'} : ${qui}. Jeton valable ~60 jours${
                 token.refresh_token ? ', renouvelé automatiquement par le moteur' : ' — le moteur te préviendra 7 jours avant l’expiration'
               }.${orgNote}`,
             ),
@@ -481,6 +518,9 @@ export function registerOauthRoutes(app: FastifyInstance): void {
       connectedAt: c.connectedAt,
       peutRepondre: droitCommentaire(c).peutRepondre,
       manque: droitCommentaire(c).manque,
+      /** Ce compte ne publiera pas tant que ce n'est pas vide (jeton mort, droit absent). */
+      enPanne: c.enPanne,
+      panne: c.panne,
       /** Lecture des commentaires : ce que LinkedIn a répondu au dernier passage. */
       lecture: etatLecture(c),
     })),

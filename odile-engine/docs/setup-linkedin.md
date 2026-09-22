@@ -29,6 +29,23 @@ un email d'alerte 7 jours avant l'expiration — un clic « Reconnecter » suffi
 Le bouton **Tester les connexions** (Connexions & santé) appelle LinkedIn avec
 le jeton stocké et affiche l'état réel.
 
+### Plusieurs profils : qui est reconnecté ?
+
+LinkedIn ne laisse pas choisir. À la fin du parcours, il répond avec le compte
+ouvert **dans le navigateur qui fait la manip**, et c'est cette ligne-là que le
+moteur met à jour : reconnecter le profil d'un collègue depuis son propre
+navigateur rafraîchit son jeton à soi, pas le sien — sans rien signaler, puisque
+la connexion, elle, a réussi.
+
+- Chaque profil a son bouton **Reconnecter** (Connexions & santé → *Profils de
+  l'équipe*). Si le compte qui revient n'est pas celui qui était visé, la page de
+  retour le dit en toutes lettres au lieu de laisser croire que c'est réglé.
+- La bonne manière : la personne ouvre le dashboard depuis son navigateur, ou
+  depuis une **fenêtre de navigation privée** connectée à son compte LinkedIn.
+- Le contrôle, c'est l'échéance affichée sur sa ligne (« expire dans 54 j ») :
+  après une reconnexion réussie elle repart à ~60 jours, et le motif de panne
+  disparaît sans même relancer « Tester les connexions ».
+
 ℹ️ **Version d'API** : chaque version LinkedIn (`AAAAMM`) vit environ un an.
 Le moteur utilise `LINKEDIN_VERSION` du `.env` (défaut `202608`) ; si LinkedIn
 renvoie `426 Upgrade Required` ou refuse la version, change la valeur dans
