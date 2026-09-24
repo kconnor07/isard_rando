@@ -52,8 +52,44 @@ export const brandSettingsSchema = z.object({
   ville: z.string().max(60).default(''),
   /** pages officielles de la marque (LinkedIn, Instagram, Facebook…) — `sameAs` des données structurées */
   sameAs: z.array(z.string().url()).max(12).default([]),
+  /**
+   * L'adresse du site en fin de chaque post LinkedIn et Facebook, où elle est
+   * cliquable — jamais sur Instagram, par choix : la légende n'y porte aucun lien.
+   * C'est ce qui fait venir les lecteurs chez vous plutôt que chez la source.
+   */
+  siteDansLesPosts: z.boolean().default(true),
+  /** hashtag de la marque, ajouté en tête de chaque post (vide : déduit du nom, « Odile AI » → #OdileAI) */
+  hashtagMarque: z.string().max(40).default(''),
 });
 export type BrandSettings = z.infer<typeof brandSettingsSchema>;
+
+/**
+ * Répertoire des mentions vérifiées : qui le moteur a le droit d'identifier, et
+ * comment. Sur LinkedIn, une identification exige l'identifiant de la page
+ * (urn:li:organization:…) ; sans le droit « page entreprise », LinkedIn refuse de
+ * le chercher par nom — ce répertoire le fournit. Sur Instagram, un @ faux
+ * identifierait un inconnu : seuls les comptes vérifiés y passent.
+ */
+export const mentionRepertoireSchema = z.object({
+  nom: z.string().min(2).max(80),
+  /** autres écritures du même nom dans un texte (« Usine Digitale », « L'Usine Digitale ») */
+  alias: z.array(z.string().min(2).max(80)).max(6).default([]),
+  /** urn:li:organization:1441 (page) — les personnes ne s'identifient pas par l'API */
+  linkedinUrn: z
+    .string()
+    .regex(/^urn:li:organization:\d+$/, 'forme attendue : urn:li:organization:1234')
+    .or(z.literal(''))
+    .default(''),
+  /** compte Instagram, sans le @ */
+  instagram: z
+    .string()
+    .regex(/^[A-Za-z0-9._]{1,30}$/, 'nom de compte Instagram sans @ ni espace')
+    .or(z.literal(''))
+    .default(''),
+});
+export type MentionRepertoire = z.infer<typeof mentionRepertoireSchema>;
+export const mentionsSettingsSchema = z.object({ repertoire: z.array(mentionRepertoireSchema).max(200).default([]) });
+export type MentionsSettings = z.infer<typeof mentionsSettingsSchema>;
 
 export const slotSchema = z.object({
   /** 0 = dimanche … 6 = samedi (convention JS Date.getDay) */
@@ -521,9 +557,13 @@ export const generatedPostSchema = z.object({
         nom: z.string().min(2).max(80),
         type: z.enum(['entreprise', 'personne']).default('entreprise'),
         vanityName: z.string().max(100).optional(),
+        /** compte Instagram officiel, sans @ — le moteur le vérifie avant de l'écrire */
+        instagram: z.string().max(40).optional(),
+        /** le média d'où vient l'information (ligne « Source ») */
+        source: z.boolean().optional(),
       }),
     )
-    .max(4)
+    .max(5)
     .optional(),
 });
 export type GeneratedPost = z.infer<typeof generatedPostSchema>;

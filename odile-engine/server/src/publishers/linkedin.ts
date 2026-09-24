@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { compteDuPost, jetonDuCompte, mentionsConnues } from './linkedinAccounts.js';
+import { mentionsLinkedInDuRepertoire } from '../writer/mentions.js';
 import { documentDuPost, envoyerDocumentLinkedIn, titreDocument } from './linkedinDocument.js';
 import type { Publisher, PublishInput, PublishResult } from './types.js';
 
@@ -128,19 +129,23 @@ interface MentionDeclaree {
  * restent du texte : LinkedIn n'offre aucune recherche de profil aux applications.
  */
 export async function mentionsDuPost(
-  post: { mentions?: string | null },
+  post: { mentions?: string | null; caption?: string | null },
   token: string,
+  texte: string = post.caption ?? '',
 ): Promise<MentionLinkedIn[]> {
-  const mentions = mentionsConnues();
+  // Profils de l'équipe et page, puis tout ce que le répertoire sait identifier
+  // dans ce texte — sans le droit de recherche que LinkedIn réserve à ses partenaires.
+  const mentions = [...mentionsConnues(), ...mentionsLinkedInDuRepertoire(texte)];
+  const dejaLa = (nom: string) => mentions.some((m) => m.nom.toLowerCase() === nom.trim().toLowerCase());
   let declarees: MentionDeclaree[] = [];
   try {
     declarees = post.mentions ? (JSON.parse(post.mentions) as MentionDeclaree[]) : [];
   } catch {
     declarees = [];
   }
-  for (const m of declarees.slice(0, 4)) {
+  for (const m of declarees.slice(0, 5)) {
     const vanity = m.vanityName?.trim().replace(/^.*\/company\//, '').replace(/\/.*$/, '');
-    if ((m.type ?? 'entreprise') !== 'entreprise' || !vanity || !m.nom?.trim()) continue;
+    if ((m.type ?? 'entreprise') !== 'entreprise' || !vanity || !m.nom?.trim() || dejaLa(m.nom)) continue;
     try {
       const res = await fetchJson<{ elements?: { id?: number | string }[] }>(
         `${API}/rest/organizations?q=vanityName&vanityName=${encodeURIComponent(vanity)}`,
@@ -264,7 +269,7 @@ export class LinkedInPublisher implements Publisher {
     // Identifications réelles : la page entreprise, les collègues connectés, et les
     // entreprises de notoriété que le rédacteur a désignées — jamais soi-même. Les noms
     // écrits en clair deviennent des liens cliquables ; les autres restent du texte.
-    const mentions = (await mentionsDuPost(input.post, stored.accessToken)).filter((m) => m.urn !== owner);
+    const mentions = (await mentionsDuPost(input.post, stored.accessToken, input.caption)).filter((m) => m.urn !== owner);
     const body: Record<string, unknown> = {
       author: owner,
       commentary: commentary(input.caption, mentions),

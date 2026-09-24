@@ -7,9 +7,9 @@ import {
   type Channel,
   type GeneratedPost,
   type PostFormat,
-  HASHTAGS_MAX,
 } from '@odile/shared';
 import { config } from '../config.js';
+import { logger } from '../lib/logger.js';
 import { db, schema } from '../db/client.js';
 import {
   getBrand,
@@ -28,6 +28,9 @@ import { ICON_IDS } from '../render/icons.js';
 import { nextShortlistedItem } from '../scorer/shortlist.js';
 import { createLink } from '../shortener/index.js';
 import { toneToPrompt } from './tone.js';
+import { adresseDuSite, avecSite, bornerHashtags, hashtagDeMarque, porteLeSite } from './marque.js';
+import { mentionnerSurInstagram, type MentionDeclaree } from './mentions.js';
+import { corrigerLigneSource, sourceReelle } from './source.js';
 
 export interface DraftOptions {
   newsItemId?: number;
@@ -47,6 +50,15 @@ export interface DraftResult {
   format: PostFormat;
   screenshotUrl: string | null;
 }
+
+/**
+ * Le vocabulaire de hashtags d'Odile : toujours les mêmes thèmes, pour que LinkedIn
+ * et Instagram rangent la marque sous les bons sujets (l'autorité thématique se
+ * construit par la répétition, pas par la variété).
+ */
+const VOCABULAIRE_HASHTAGS =
+  'Vocabulaire maison — thèmes : #AutomatisationIA, #AgentsIA, #IntelligenceArtificielle, #Productivite, #TransformationDigitale ; ' +
+  'publics : #PME, #TPE, #Dirigeants, #Entrepreneurs ; local : #Toulouse. Sans accents, en CamelCase.';
 
 const WRITER_SYSTEM = `Tu es le copywriter senior d'Odile AI (odileai.com), agence française d'automatisation IA
 pour PME et TPE. Tu écris des posts LinkedIn/Instagram à très haute valeur ajoutée qui génèrent
@@ -334,9 +346,8 @@ CE QUE DONNE LE LIEN, et que tu dois déclarer dans "resource" :
 La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`;
 
   // Ce qui fait performer un post LinkedIn : court, sourcé, les acteurs nommés.
-  const sourceNom = news.sourceId
-    ? (db.select({ name: schema.newsSources.name }).from(schema.newsSources).where(eq(schema.newsSources.id, news.sourceId)).get()?.name ?? '')
-    : '';
+  // Le vrai média (le site de l'article), pas le nom du flux qui l'a trouvé.
+  const media = sourceReelle(news.id)?.media ?? '';
   const strategieLinkedIn =
     platform === 'linkedin'
       ? `
@@ -345,18 +356,33 @@ STRATÉGIE LINKEDIN (le texte du post, « caption ») :
   aérées, phrases brèves. Un post long n'est pas lu ; un post court est partagé.
 - Les 200 PREMIERS caractères sont les seuls visibles avant « …voir plus » : l'accroche y
   tient tout entière, avec son chiffre ou sa tension. Pas d'introduction, pas de préambule.
-- SOURCER, toujours : nomme en clair d'où vient l'information (média${sourceNom ? ` — ici « ${sourceNom} »` : ''},
-  et l'auteur ou l'auteure si l'article le donne). Une ligne « Source : … » en fin de post.
-  Un post sourcé est un post crédible.
-- IDENTIFIER, quand l'actualité s'y prête — pas à chaque post : si une entreprise ou une
-  personne de notoriété est au cœur de l'info (le fondateur qui l'annonce, la grande marque
-  qui l'a mis en place), nomme-la en clair dans le texte et déclare-la dans "mentions"
-  (nom exact ; pour une entreprise, son vanityName LinkedIn = la fin de l'URL de sa page,
-  ex. « openai », « microsoft », « les-echos »). Le moteur transformera en identification
-  cliquable ce qu'il parvient à retrouver ; le reste restera du texte, ce n'est pas grave.
-  Une identification n'a de valeur que si elle est justifiée : jamais de tag gratuit.
+- SOURCER, toujours : nomme en clair d'où vient l'information — le NOM EXACT du média${media ? ` (ici « ${media} »)` : ''},
+  et l'auteur ou l'auteure si l'article le donne. Une ligne « Source : … » en fin de post.
+  JAMAIS « une étude », « des chercheurs », « un labo américain », « les équipes de recherche » :
+  un post sourcé est crédible, un post vague ne l'est pas — et il ne rend rien au média.
+  Déclare ce média dans "mentions" avec source: true (et son vanityName LinkedIn s'il a une page).
+- IDENTIFIER (jusqu'à 3 mentions, jamais gratuites) : le média source, et quand l'actualité
+  s'y prête, l'entreprise ou la personne de notoriété au cœur de l'info (le fondateur qui
+  l'annonce, la grande marque qui l'a mis en place). Nomme-les en clair dans le texte et
+  déclare-les dans "mentions" (nom exact ; entreprise : vanityName LinkedIn = la fin de l'URL
+  de sa page, ex. « openai », « usine-digitale » ; instagram = son compte officiel sans @,
+  seulement si tu en es sûr). Le moteur identifie ce qu'il peut vérifier ; le reste reste
+  écrit en clair. Une identification injustifiée est pénalisée par LinkedIn : pas de tag décoratif.
 - Nomme ${brand.name} une fois, naturellement, dans la dernière ligne (le moteur l'identifiera).
-- hashtags : exactement 3 — LinkedIn n'en tient pas compte au-delà, et ils ne vont pas dans le texte (le moteur les ajoute).
+- N'écris PAS l'adresse du site : le moteur termine lui-même le post par « ${brand.name} : ${adresseDuSite(brand.siteUrl)} ».
+- hashtags : 2, hors texte (le moteur place ${hashtagDeMarque(brand)} en tête : 3 au total, LinkedIn ignore le reste) —
+  un thème du vocabulaire maison + un plus précis sur le sujet. ${VOCABULAIRE_HASHTAGS}
+
+CE QUE L'ALGORITHME LINKEDIN RÉCOMPENSE EN 2026 (écris pour ça) :
+- le TEMPS DE LECTURE : des détails concrets, un chiffre sourcé, une mini-histoire — pas de généralités ;
+- les COMMENTAIRES LONGS (plus de 15 mots) : l'appel à commenter demande une vraie réponse
+  (« Commente CAS et dis-moi quelle tâche te prend le plus de temps »), jamais un simple mot ;
+- les ENREGISTREMENTS : une méthode, des étapes, une liste qu'on a envie de garder ;
+- la COHÉRENCE : Odile parle toujours des mêmes trois sujets (automatisation IA des PME,
+  agents IA au quotidien, gains concrets en temps et en ventes) — c'est ce qui construit l'autorité ;
+- un texte HUMAIN : un avis de praticien, des phrases qu'un dirigeant dirait. Le contenu
+  générique « écrit par une IA » est déclassé : bannis « révolutionner », « dans un monde où »,
+  « game changer », « à l'ère de ». Aucun mot anglais laissé tel quel.
 - ORDRE DE FIN DE POST, sans rien d'autre entre les lignes :
   1. une ligne vide ;
 ${
@@ -367,8 +393,8 @@ ${
   3. « Ou directement ici : {{link}} » (le marqueur tel quel, jamais une URL) ;`
 }
   4. « Source : média, auteur » ;
-  5. la mention de ${brand.name}, intégrée à l'une de ces deux lignes ;
-  6. les 3 hashtags.`
+  5. la mention de ${brand.name}, intégrée à l'une de ces deux lignes.
+  (Le moteur ajoute ensuite l'adresse du site et les hashtags : ne les écris pas dans le texte.)`
       : '';
 
   // Vidéo : le script est prononcé par l'avatar de la marque, pas lu à l'écran.
@@ -452,7 +478,18 @@ CONTRAINTES :
   grandeur au quotidien d'une PME française. Marque : ${brand.name} (${brand.handle}).
 - caption : le texte du post (${platform === 'instagram' ? '2 200 caractères max pour Instagram' : '1 200 caractères max pour LinkedIn'}, aéré, sauts de ligne).
   Structure AIDA aussi dans la caption.
-- hashtags : ${platform === 'instagram' ? '3 à 5' : '3'}, ciblés PME/automatisation/IA, sans doublon avec le texte.
+- hashtags : ${
+    platform === 'instagram'
+      ? `4, sans doublon avec le texte (le moteur place ${hashtagDeMarque(brand)} en tête : Instagram n'en accepte que 5) — des hashtags de niche (10 000 à 500 000 publications), jamais des géants génériques. ${VOCABULAIRE_HASHTAGS}`
+      : `2 (le moteur place ${hashtagDeMarque(brand)} en tête : 3 au total), sans doublon avec le texte.`
+  }${
+    platform === 'instagram'
+      ? `
+- Instagram : nomme ${brand.name} une fois dans la légende. AUCUNE adresse, pas même celle du site. Les mots-clés du sujet
+  figurent en clair dans les deux premières lignes (la recherche Instagram lit la légende). Termine par une raison
+  d'enregistrer ou d'envoyer le post à quelqu'un : ce sont les signaux qu'Instagram récompense le plus.`
+      : ''
+  }
 - hook : reprend le titre de la slide 1 (pour l'objet de l'email de validation).
 - screenshotUrl : URL réelle de l'outil/du site à capturer (celle de l'actu ou de l'outil cité), sinon null.
 - Chaque slide : title ≤ 9 mots, body ≤ 2 phrases, bullets ≤ 4 items courts.
@@ -469,7 +506,29 @@ CONTRAINTES :
     { attempts: 3 },
   );
 
-  return persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte });
+  const brouillon = persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte });
+  await finaliserLeTexte(brouillon.postId, platform, news.id, generated.mentions ?? []);
+  return brouillon;
+}
+
+/**
+ * Dernière main au texte, une fois le post enregistré :
+ * - la ligne « Source » nomme le vrai média (le modèle écrit parfois « une étude américaine ») ;
+ * - sur Instagram, les noms cités deviennent des @ quand le compte est vérifié.
+ * Les identifications LinkedIn, elles, se posent à la publication (elles exigent l'API).
+ */
+export async function finaliserLeTexte(postId: number, platform: 'linkedin' | 'instagram', newsItemId: number | null, mentions: MentionDeclaree[]): Promise<void> {
+  const post = db.select({ caption: schema.posts.caption }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  if (!post) return;
+  let caption = corrigerLigneSource(post.caption, sourceReelle(newsItemId)?.media ?? null);
+  if (platform === 'instagram') {
+    try {
+      caption = (await mentionnerSurInstagram(caption, mentions)).caption;
+    } catch (err) {
+      logger.warn({ postId, err: String(err).slice(0, 160) }, 'mentions Instagram non posées — noms laissés en clair');
+    }
+  }
+  if (caption !== post.caption) db.update(schema.posts).set({ caption }).where(eq(schema.posts.id, postId)).run();
 }
 
 const porteUnLien = (ligne: string) => ligne.includes('{{link}}') || /https?:\/\//i.test(ligne);
@@ -529,8 +588,9 @@ export function optionsDuLien(motcle?: string | null): OptionsDuLien {
  * inventée par le modèle est retirée : une seule adresse, la nôtre, traçable.
  */
 export function avecLien(texte: string, url: string, opts: OptionsDuLien = {}): string {
+  // L'adresse du site de la marque n'est pas une URL inventée : elle reste.
   const propre = nettoyer(texte, (ligne) =>
-    ligne.replaceAll('{{link}}', url).replace(/https?:\/\/\S+/gi, (trouve) => (trouve.startsWith(url) ? trouve : '')),
+    ligne.replaceAll('{{link}}', url).replace(/https?:\/\/\S+/gi, (trouve) => (trouve.startsWith(url) || porteLeSite(trouve) ? trouve : '')),
   );
   if (propre.includes(url)) return propre;
   // Le modèle a oublié le lien : on le pose nous-mêmes, contre l'appel à l'action
@@ -574,22 +634,7 @@ export function sansLien(texte: string): string {
   );
 }
 
-/**
- * Les hashtags que la plateforme prend vraiment en compte : LinkedIn en ignore
- * au-delà de trois, Instagram n'en récompense plus au-delà de cinq. Dédoublonnés,
- * préfixés, coupés — le modèle en propose parfois huit.
- */
-export function bornerHashtags(bruts: string[], platform: 'linkedin' | 'instagram'): string[] {
-  const vus = new Set<string>();
-  const propres: string[] = [];
-  for (const h of bruts) {
-    const tag = `#${h.replace(/^#+/, '').replace(/[^\p{L}\p{N}_]/gu, '')}`;
-    if (tag.length < 3 || vus.has(tag.toLowerCase())) continue;
-    vus.add(tag.toLowerCase());
-    propres.push(tag);
-  }
-  return propres.slice(0, HASHTAGS_MAX[platform]);
-}
+export { bornerHashtags };
 
 function persistDraft(args: {
   news: typeof schema.newsItems.$inferSelect;
@@ -652,7 +697,9 @@ function persistDraft(args: {
   const motcle = generated.commentTrigger?.enabled ? generated.commentTrigger.keyword.toUpperCase() : null;
   // Sur Instagram aucune adresse : le lien part en message privé, jamais dans la
   // légende (une URL y est illisible et non cliquable, et elle trahit le tunnel).
-  const caption = platform === 'linkedin' ? avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle)) : sansLien(generated.caption);
+  // Sur LinkedIn, l'adresse du site ferme le post (réglable dans Réglages → Marque).
+  const caption =
+    platform === 'linkedin' ? avecSite(avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle)), 'linkedin') : sansLien(generated.caption);
   const cta = platform === 'linkedin' ? generated.cta.replaceAll('{{link}}', link.shortUrl) : sansLien(generated.cta);
   db.update(schema.posts)
     .set({ caption, cta, linkId: link.id })

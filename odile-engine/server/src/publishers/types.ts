@@ -3,6 +3,7 @@ import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
+import { avecSite, bornerHashtags } from '../writer/marque.js';
 
 export interface PublishInput {
   post: typeof schema.posts.$inferSelect;
@@ -74,11 +75,20 @@ export function collectPublishVideo(post: typeof schema.posts.$inferSelect): Pub
 }
 
 /** Caption finale : texte + hashtags. */
-export function buildCaption(post: typeof schema.posts.$inferSelect): string {
+/**
+ * Le texte qui part vraiment : la légende, l'adresse du site (LinkedIn, Facebook)
+ * et les hashtags, celui de la marque en tête. Posés ici une dernière fois, ils
+ * valent aussi pour un post programmé avant que la règle existe.
+ */
+export function buildCaption(post: typeof schema.posts.$inferSelect, reseau?: 'facebook'): string {
+  const platform = post.platform === 'instagram' ? 'instagram' : 'linkedin';
+  const corps = avecSite(post.caption, reseau ?? platform);
   // Un hashtag déjà écrit dans la légende n'est pas répété en pied de post.
-  const bas = post.caption.toLowerCase();
-  const hashtags = (JSON.parse(post.hashtags) as string[]).filter((h) => !new RegExp(`${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').toLowerCase()}(?![\\p{L}\\p{N}_])`, 'u').test(bas)).join(' ');
-  return hashtags ? `${post.caption}\n\n${hashtags}` : post.caption;
+  const bas = corps.toLowerCase();
+  const hashtags = bornerHashtags(JSON.parse(post.hashtags) as string[], platform)
+    .filter((h) => !new RegExp(`${h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').toLowerCase()}(?![\\p{L}\\p{N}_])`, 'u').test(bas))
+    .join(' ');
+  return hashtags ? `${corps}\n\n${hashtags}` : corps;
 }
 
 /**

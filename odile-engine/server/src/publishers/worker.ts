@@ -173,7 +173,7 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
         .run();
       summary.published++;
       logger.info({ postId: post.id, publisher: publisher.name }, 'publication réussie');
-      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post), video }, result.externalUrl ?? null);
+      await mirrorOnFacebook(post, { post, images, caption: buildCaption(post, 'facebook'), video }, result.externalUrl ?? null);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const retryable = job.attempt + 1 < job.maxAttempts;

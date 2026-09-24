@@ -21,6 +21,7 @@ import {
   blogSettingsSchema,
   videoSettingsSchema,
   llmBudgetSettingsSchema,
+  mentionsSettingsSchema,
 } from '@odile/shared';
 import { config } from '../../config.js';
 import { db, schema } from '../../db/client.js';
@@ -40,6 +41,7 @@ import {
   getBlog,
   getVideo,
   getLlmBudget,
+  getMentions,
   getSettingRaw,
   THEME_DERNIER,
   getPublishSlots,
@@ -64,6 +66,7 @@ const SETTINGS_MAP: Record<string, { schema: z.ZodType; read: () => unknown }> =
   blog: { schema: blogSettingsSchema, read: getBlog },
   video: { schema: videoSettingsSchema, read: getVideo },
   llm_budget: { schema: llmBudgetSettingsSchema, read: getLlmBudget },
+  mentions: { schema: mentionsSettingsSchema, read: getMentions },
   approval_email: { schema: approvalEmailSettingsSchema, read: getApprovalEmail },
   design_studio: { schema: designStudioSettingsSchema, read: getDesignStudio },
   image_gen: { schema: imageGenSettingsSchema, read: getImageGen },

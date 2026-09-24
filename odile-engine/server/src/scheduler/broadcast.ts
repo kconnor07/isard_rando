@@ -21,8 +21,13 @@ import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publisher
 import { getStoredToken } from '../publishers/tokens.js';
 import { createLink } from '../shortener/index.js';
 import { PROMESSE_DM } from '../writer/conformite.js';
-import { avecLien, bornerHashtags, captionPorteLeMotCle, optionsDuLien, sansLien } from '../writer/generate.js';
+import { avecLien, bornerHashtags, captionPorteLeMotCle, finaliserLeTexte, optionsDuLien, sansLien } from '../writer/generate.js';
+import type { MentionDeclaree } from '../writer/mentions.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
+import { avecSite, porteLeSite } from '../writer/marque.js';
+import { corrigerLigneSource, mediaDepuisUrl, sourceReelle } from '../writer/source.js';
+
+export { corrigerLigneSource, mediaDepuisUrl, sourceReelle };
 
 const nanoGroupe = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 12);
 
@@ -35,6 +40,16 @@ export interface SurfaceDiffusion {
   liAccountKey: string | null;
   /** libellé humain : « Alexis Duquenoy », « page Odile AI », « Instagram » */
   label: string;
+}
+
+/** Les mentions déclarées par le rédacteur sur un post (JSON), ou rien. */
+function mentionsDeclarees(json: string | null): MentionDeclaree[] {
+  try {
+    const v = json ? (JSON.parse(json) as unknown) : [];
+    return Array.isArray(v) ? (v as MentionDeclaree[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Une surface, telle qu'un post la désigne. */
@@ -73,10 +88,21 @@ export function surfacesConnectees(): SurfaceDiffusion[] {
   return surfaces;
 }
 
+/**
+ * Le compte LinkedIn sur lequel un post partira vraiment : sa clé s'il en a une,
+ * sinon celui que la publication choisira. Un post sans clé n'est pas « nulle
+ * part » : il partira sur le premier profil actif — et c'est ce profil-là qu'il
+ * occupe déjà dans une diffusion.
+ */
+export function cleEffective(post: Pick<Post, 'channel' | 'liAccountKey'>): string | null {
+  if (post.channel === 'ig') return null;
+  return post.liAccountKey ?? compteDuPost(post)?.key ?? null;
+}
+
 /** Les surfaces qui manquent encore à un post pour couvrir tous les comptes. */
 export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>): SurfaceDiffusion[] {
-  const memeSurface = (s: SurfaceDiffusion) =>
-    s.channel === post.channel && (s.channel === 'ig' || s.liAccountKey === (post.liAccountKey ?? null));
+  const cle = cleEffective(post);
+  const memeSurface = (s: SurfaceDiffusion) => s.channel === post.channel && (s.channel === 'ig' || s.liAccountKey === cle);
   return surfacesConnectees().filter((s) => !memeSurface(s));
 }
 
@@ -97,22 +123,12 @@ function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | n
     if (vers === 'linkedin' && (PROMESSE_DM.test(v.caption) || PROMESSE_DM.test(v.cta))) {
       ctx.addIssue({ code: 'custom', path: ['caption'], message: 'sur LinkedIn rien ne part en message privé : le lien est dans le post, le mot-clé ouvre le diagnostic' });
     }
-    if (vers === 'instagram' && /https?:\/\/|\{\{link\}\}|www\./i.test(v.caption)) {
-      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'aucune adresse ni {{link}} sur Instagram : la ressource part en message privé' });
+    if (vers === 'instagram' && (/https?:\/\/|\{\{link\}\}|www\./i.test(v.caption) || porteLeSite(v.caption))) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'aucune adresse sur Instagram, pas même celle du site : la ressource part en message privé' });
     }
   });
 }
 
-/** La ligne « Source : … » d'une légende, remise sur le vrai média quand le modèle l'a inventée. */
-export function corrigerLigneSource(caption: string, media: string | null): string {
-  if (!media) return caption;
-  const lignes = caption.split('\n');
-  const i = lignes.findIndex((l) => /^\s*source\s*:/i.test(l));
-  if (i === -1) return caption;
-  if (lignes[i]!.toLowerCase().includes(media.toLowerCase())) return caption;
-  lignes[i] = `Source : ${media}`;
-  return lignes.join('\n');
-}
 
 /**
  * Le lien court du parent redevient un emplacement `{{link}}`.
@@ -126,52 +142,7 @@ export function enEmplacement(texte: string): string {
   return texte.replace(new RegExp(`${base}/r/[a-z2-9]+`, 'gi'), '{{link}}');
 }
 
-/** Le média et le titre de l'actualité d'origine : ce que la ligne « Source » doit dire. */
-export function sourceReelle(newsItemId: number | null): { media: string; titre: string; url: string } | null {
-  if (!newsItemId) return null;
-  const news = db.select().from(schema.newsItems).where(eq(schema.newsItems.id, newsItemId)).get();
-  if (!news) return null;
-  const source = news.sourceId ? db.select({ name: schema.newsSources.name }).from(schema.newsSources).where(eq(schema.newsSources.id, news.sourceId)).get() : null;
-  return { media: source?.name || mediaDepuisUrl(news.url), titre: news.title, url: news.url };
-}
 
-/** Un nom de média lisible depuis l'adresse de l'article (« actuia.com » → « ActuIA »). */
-export function mediaDepuisUrl(url: string): string {
-  let hote = '';
-  try {
-    hote = new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-  const connus: Record<string, string> = {
-    'actuia.com': 'ActuIA',
-    'journaldunet.com': 'JDN',
-    'techcrunch.com': 'TechCrunch',
-    'lesechos.fr': 'Les Echos',
-    'frenchweb.fr': 'FrenchWeb',
-    'siecledigital.fr': 'Siècle Digital',
-    'maddyness.com': 'Maddyness',
-    'theverge.com': 'The Verge',
-    'wired.com': 'Wired',
-    'venturebeat.com': 'VentureBeat',
-    'zdnet.fr': 'ZDNet',
-    'numerama.com': 'Numerama',
-    '01net.com': '01net',
-    'usine-digitale.fr': 'L’Usine Digitale',
-    'blogdumoderateur.com': 'Blog du Modérateur',
-    'openai.com': 'OpenAI',
-    'anthropic.com': 'Anthropic',
-    'blog.google': 'Google',
-    'microsoft.com': 'Microsoft',
-    'youtube.com': 'YouTube',
-    'github.com': 'GitHub',
-    'news.ycombinator.com': 'Hacker News',
-    'reddit.com': 'Reddit',
-  };
-  if (connus[hote]) return connus[hote]!;
-  const racine = hote.split('.').slice(-2, -1)[0] ?? hote;
-  return racine ? racine.charAt(0).toUpperCase() + racine.slice(1) : hote;
-}
 
 function nomsDeclares(mentions: string | null): string[] {
   try {
@@ -411,8 +382,19 @@ ${blocFinal}
  * restent attribuables au compte). Renvoie les identifiants créés.
  */
 export async function diffuserPartout(parentId: number): Promise<number[]> {
-  const parent = db.select().from(schema.posts).where(eq(schema.posts.id, parentId)).get();
-  if (!parent) throw new Error(`Post ${parentId} introuvable`);
+  const trouve = db.select().from(schema.posts).where(eq(schema.posts.id, parentId)).get();
+  if (!trouve) throw new Error(`Post ${parentId} introuvable`);
+  // Un post LinkedIn sans compte est d'abord fixé sur celui qui le publiera : sinon
+  // la diffusion lui fabrique aussi une copie pour ce même profil, et les deux
+  // partent ensemble — le même sujet deux fois sur un fil, à la même minute.
+  let parent = trouve;
+  if (parent.platform === 'linkedin' && !parent.liAccountKey) {
+    const cle = cleEffective(parent);
+    if (cle) {
+      db.update(schema.posts).set({ liAccountKey: cle }).where(eq(schema.posts.id, parentId)).run();
+      parent = { ...parent, liAccountKey: cle };
+    }
+  }
   const manquantes = surfacesManquantes(parent);
   if (manquantes.length === 0) return [];
 
@@ -427,7 +409,7 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
     .where(and(eq(schema.posts.broadcastGroup, groupe), ne(schema.posts.id, parentId)))
     .all();
   const aFaire = manquantes.filter(
-    (s) => !dejaLa.some((d) => d.channel === s.channel && (s.channel === 'ig' || d.liAccountKey === s.liAccountKey)),
+    (s) => !dejaLa.some((d) => d.channel === s.channel && (s.channel === 'ig' || cleEffective(d) === s.liAccountKey)),
   );
   if (aFaire.length === 0) return [];
 
@@ -508,11 +490,14 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
     db.update(schema.posts)
       .set({
         linkId: link.id,
-        caption: texte.caption.replaceAll('{{link}}', link.shortUrl),
+        caption:
+          surface.platform === 'linkedin' ? avecSite(texte.caption.replaceAll('{{link}}', link.shortUrl), 'linkedin') : texte.caption.replaceAll('{{link}}', link.shortUrl),
         cta: texte.cta.replaceAll('{{link}}', link.shortUrl),
       })
       .where(eq(schema.posts.id, copie.id))
       .run();
+    // Même source nommée, mêmes @ vérifiés que l'original.
+    await finaliserLeTexte(copie.id, surface.platform, parent.newsItemId, mentionsDeclarees(parent.mentions));
     for (const slide of slides) {
       db.insert(schema.slides)
         .values({

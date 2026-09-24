@@ -6,9 +6,18 @@ import { EtatErreur, FORMAT_LABELS, PageTitle } from '../components/shared';
 import { toast } from '../components/Toaster';
 import type { LibraryImageDto } from '../api/types';
 
+/** Une entrée du répertoire des mentions (Réglages → Mentions). */
+interface MentionEntree {
+  nom: string;
+  alias: string[];
+  linkedinUrn: string;
+  instagram: string;
+}
+
 type AllSettings = Record<string, unknown> & {
   tone: { preset: string; registre: number; emojiLevel: number; ctaStyle: string; customInstructions?: string };
-  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme'; telephone?: string; rue?: string; codePostal?: string; ville?: string; sameAs?: string[] };
+  brand: { name: string; handle: string; siteUrl: string; accentColor: string; tagline: string; logoAssetId: string | null; avatarAssetId?: string | null; authorLine?: string; footerStyle?: 'logo' | 'initiales' | 'logo-nom'; initials?: string; emojiStyle?: 'aucun' | 'systeme'; telephone?: string; rue?: string; codePostal?: string; ville?: string; sameAs?: string[]; siteDansLesPosts?: boolean; hashtagMarque?: string };
+  mentions: { repertoire: MentionEntree[] };
   cadence: { days: number; rotation: string[]; broadcast?: boolean; docEveryNPosts?: number };
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string; linkedinOffer?: 'ressource' | 'diagnostic'; diagnosticKeywords?: string[]; diagnosticPromise?: string };
@@ -147,7 +156,7 @@ export default function Settings() {
   const SECTION_LABELS: Record<string, string> = {
     tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', amplification: 'Amplification', llm_budget: 'Budget IA',
     design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
-    default_theme: 'Thème par défaut', default_format: 'Format par défaut', video: 'Vidéos avatar',
+    default_theme: 'Thème par défaut', default_format: 'Format par défaut', video: 'Vidéos avatar', mentions: 'Mentions',
   };
   /** Enregistre une ou plusieurs clés en une seule action (bouton et message par section). */
   const save = useMutation({
@@ -260,6 +269,21 @@ export default function Settings() {
             </div></div>
           <div className="sm:col-span-2"><label className="label">Tagline</label>
             <input className="input" value={form.brand.tagline} onChange={(e) => set('brand', { ...form.brand, tagline: e.target.value })} /></div>
+          <div className="sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={form.brand.siteDansLesPosts !== false}
+                onChange={(e) => set('brand', { ...form.brand, siteDansLesPosts: e.target.checked })} />
+              Adresse du site en fin de chaque post LinkedIn et Facebook
+            </label>
+            <p className="mt-1 text-[11px] text-muted">
+              « {form.brand.name} : {form.brand.siteUrl.replace(/\/+$/, '')} », cliquable. Jamais sur Instagram : la légende n’y porte aucun lien.
+            </p>
+          </div>
+          <div><label className="label">Hashtag de la marque (en tête de chaque post)</label>
+            <input className="input" value={form.brand.hashtagMarque ?? ''}
+              placeholder={`#${form.brand.name.normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}_]/gu, '')}`}
+              onChange={(e) => set('brand', { ...form.brand, hashtagMarque: e.target.value })} />
+            <p className="mt-1 text-[11px] text-muted">Vide : déduit du nom. Posé en premier sur LinkedIn, Instagram et Facebook.</p></div>
           {/* Fiche locale : les mêmes nom, adresse et téléphone que sur la fiche Google et les réseaux — c'est ce que le référencement local compare. */}
           <div><label className="label">Téléphone (fiche locale)</label>
             <input className="input" value={form.brand.telephone ?? ''} placeholder="+33 5 …" onChange={(e) => set('brand', { ...form.brand, telephone: e.target.value })} /></div>
@@ -380,6 +404,13 @@ export default function Settings() {
             />
           </div>
         </div>
+      </Section>
+
+      <Section title="Mentions (@)" saving={savingOf('mentions')} onSave={() => save.mutate({ key: 'mentions', value: { repertoire: (form.mentions?.repertoire ?? []).filter((m) => m.nom.trim().length >= 2) } })}>
+        <SectionMentions
+          repertoire={form.mentions?.repertoire ?? []}
+          onChange={(repertoire) => set('mentions', { repertoire })}
+        />
       </Section>
 
       <Section title="Cadence & créneaux" saving={savingOf('cadence', 'publish_slots')}
@@ -1164,5 +1195,41 @@ function SectionVideo({
         <video src={essai.url} controls playsInline className="mt-3 w-full max-w-[260px] rounded-2xl border border-line" />
       )}
     </Section>
+  );
+}
+
+/**
+ * Le répertoire des mentions : qui les posts peuvent identifier (@). LinkedIn exige
+ * l'identifiant de la page (le moteur n'a pas le droit de le chercher par nom) ;
+ * Instagram, le nom exact du compte (un @ faux identifierait un inconnu).
+ */
+function SectionMentions({ repertoire, onChange }: { repertoire: MentionEntree[]; onChange: (r: MentionEntree[]) => void }) {
+  const maj = (i: number, patch: Partial<MentionEntree>) => onChange(repertoire.map((m, j) => (j === i ? { ...m, ...patch } : m)));
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs leading-relaxed text-muted">
+        Quand un post cite l’un de ces noms (média source, entreprise, marque), il l’identifie : sur LinkedIn par sa page, sur Instagram par
+        son compte. Les personnes ne s’identifient pas sur LinkedIn par l’API — sauf les profils de l’équipe, reconnus d’office.
+        Identifiant d’une page LinkedIn : ouvrez la page de l’entreprise, cliquez « Voir les employés » — l’adresse contient
+        <code className="mx-1 rounded bg-white/5 px-1">currentCompany=["1441"]</code> : l’identifiant est 1441, à écrire
+        <code className="mx-1 rounded bg-white/5 px-1">urn:li:organization:1441</code>.
+      </p>
+      {repertoire.length === 0 && <p className="text-xs text-muted">Aucune entrée : les noms restent écrits en clair.</p>}
+      {repertoire.map((m, i) => (
+        <div key={i} className="grid gap-2 rounded-2xl border border-line bg-white/[0.03] p-3 sm:grid-cols-[1.2fr_1.2fr_1.4fr_1fr_auto]">
+          <input className="input" placeholder="Nom (ex. L’Usine Digitale)" value={m.nom} onChange={(e) => maj(i, { nom: e.target.value })} />
+          <input className="input" placeholder="Autres écritures, séparées par des virgules" value={m.alias.join(', ')}
+            onChange={(e) => maj(i, { alias: e.target.value.split(',').map((a) => a.trim()).filter((a) => a.length >= 2).slice(0, 6) })} />
+          <input className="input" placeholder="urn:li:organization:1234" value={m.linkedinUrn} onChange={(e) => maj(i, { linkedinUrn: e.target.value.trim() })} />
+          <input className="input" placeholder="compte Instagram (sans @)" value={m.instagram} onChange={(e) => maj(i, { instagram: e.target.value.trim().replace(/^@+/, '') })} />
+          <button className="btn-ghost !px-2 text-xs" title="Retirer" onClick={() => onChange(repertoire.filter((_, j) => j !== i))}>×</button>
+        </div>
+      ))}
+      <div>
+        <button className="btn-ghost !py-1.5 text-xs" onClick={() => onChange([...repertoire, { nom: '', alias: [], linkedinUrn: '', instagram: '' }])}>
+          + Ajouter une mention
+        </button>
+      </div>
+    </div>
   );
 }

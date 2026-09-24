@@ -21,10 +21,15 @@ describe('légendes conformes à leur plateforme', async () => {
     expect(propre).toContain('fireflies.ai');
   });
 
-  it('les hashtags sont dédoublonnés, préfixés et bornés par plateforme', () => {
+  it('les hashtags sont dédoublonnés, préfixés et bornés par plateforme — celui de la marque en tête', () => {
     const bruts = ['IA', '#PME', 'ia', '#no-code', 'automatisation', 'Toulouse', 'agence', 'x'];
-    expect(bornerHashtags(bruts, 'linkedin')).toEqual(['#IA', '#PME', '#nocode']);
+    expect(bornerHashtags(bruts, 'linkedin')).toEqual(['#OdileAI', '#IA', '#PME']);
     expect(bornerHashtags(bruts, 'instagram')).toHaveLength(5);
+    expect(bornerHashtags(bruts, 'instagram')[0]).toBe('#OdileAI');
+    // Déjà proposé par le modèle, sous une autre casse : une seule fois, en tête.
+    expect(bornerHashtags(['#odileai', 'PME', '#OdileAI'], 'linkedin')).toEqual(['#OdileAI', '#PME']);
+    // Sans accents : un même sujet ne se disperse pas entre deux orthographes.
+    expect(bornerHashtags(['#Productivité', 'Productivite'], 'instagram')).toEqual(['#OdileAI', '#Productivite']);
   });
 
   it('la ligne « Source » revient au vrai média, déduit de l’adresse si besoin', () => {

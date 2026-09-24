@@ -84,6 +84,6 @@ describe('conformité et réalignement des posts', async () => {
 
   it('les hashtags déjà dans la légende ne sont pas répétés en pied de post', () => {
     const post = creer({ caption: 'Texte #IA utile.', hashtags: JSON.stringify(['#IA', '#PME']) });
-    expect(buildCaption(post)).toBe('Texte #IA utile.\n\n#PME');
+    expect(buildCaption(post)).toBe('Texte #IA utile.\n\nOdile AI : https://odileai.com\n\n#OdileAI #PME');
   });
 });

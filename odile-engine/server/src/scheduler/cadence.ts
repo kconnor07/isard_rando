@@ -81,6 +81,10 @@ export function nextPublishSlot(platform: 'linkedin' | 'instagram', now = new Da
   if (list.length === 0) return after;
 
   const taken = surface ? creneauxPrisPar(surface) : creneauxPrisTous();
+  // Deux posts trop proches sur un même compte se volent la portée : le second
+  // coupe la diffusion du premier avant qu'il ait circulé (sur LinkedIn, un post
+  // vit 48 à 72 h). Sans surface (anciens appels), seule la même demi-heure compte.
+  const ecart = surface ? ecartMinimal(surface.platform) : 30 * 60 * 1000;
 
   // On explore quatre semaines de créneaux, pas seulement la première : si tous les
   // créneaux de la semaine sont pris, la publication doit glisser au prochain créneau
@@ -89,10 +93,51 @@ export function nextPublishSlot(platform: 'linkedin' | 'instagram', now = new Da
     .flat()
     .sort((a, b) => a.getTime() - b.getTime());
   for (const c of candidates) {
-    const clash = taken.some((t) => Math.abs(t - c.getTime()) < 30 * 60 * 1000);
+    const clash = taken.some((t) => Math.abs(t - c.getTime()) < ecart);
     if (!clash) return c;
   }
   return candidates[candidates.length - 1] ?? after;
+}
+
+/**
+ * L'écart minimal entre deux posts d'un même compte : 20 h sur LinkedIn (au-delà
+ * d'un post par jour, chaque post perd une part de sa portée — rapport van der
+ * Blom 2026), 12 h sur Instagram.
+ */
+export function ecartMinimal(platform: 'linkedin' | 'instagram'): number {
+  return (platform === 'linkedin' ? 20 : 12) * 3600 * 1000;
+}
+
+/**
+ * Le post du même compte qui tombe trop près de celui-ci (programmé, en cours ou
+ * déjà paru), ou null. Sert à l'écran de validation : un glisser-déposer dans le
+ * calendrier peut rapprocher deux posts que l'allocation aurait espacés.
+ */
+export function voisinTropProche(post: {
+  id: number;
+  platform: string;
+  channel: string;
+  liAccountKey: string | null;
+  scheduledAt: string | null;
+}): { id: number; quand: string } | null {
+  if (!post.scheduledAt) return null;
+  const platform = post.platform === 'instagram' ? 'instagram' : 'linkedin';
+  const cle = cleDeSurface({ platform, channel: post.channel, liAccountKey: post.liAccountKey });
+  const t0 = new Date(post.scheduledAt).getTime();
+  const ecart = ecartMinimal(platform);
+  const voisins = db
+    .select({ id: schema.posts.id, platform: schema.posts.platform, channel: schema.posts.channel, liAccountKey: schema.posts.liAccountKey, scheduledAt: schema.posts.scheduledAt, publishedAt: schema.posts.publishedAt })
+    .from(schema.posts)
+    .where(inArray(schema.posts.status, ['scheduled', 'publishing', 'published']))
+    .all();
+  for (const v of voisins) {
+    if (v.id === post.id) continue;
+    const quand = v.publishedAt ?? v.scheduledAt;
+    if (!quand || Math.abs(new Date(quand).getTime() - t0) >= ecart) continue;
+    if (cleDeSurface({ platform: v.platform as 'linkedin' | 'instagram', channel: v.channel, liAccountKey: v.liAccountKey }) !== cle) continue;
+    return { id: v.id, quand };
+  }
+  return null;
 }
 
 function creneauxPrisTous(): number[] {
@@ -104,14 +149,14 @@ function creneauxPrisTous(): number[] {
     .map((j) => new Date(j.scheduledAt).getTime());
 }
 
-/** Les heures déjà prises par cette surface (posts programmés ou en cours de publication). */
+/** Les heures déjà prises par cette surface : posts programmés, en cours, ou parus ces derniers jours. */
 function creneauxPrisPar(surface: SurfaceDeCreneau): number[] {
   const cle = cleDeSurface(surface);
   return db
-    .select({ platform: schema.posts.platform, channel: schema.posts.channel, liAccountKey: schema.posts.liAccountKey, scheduledAt: schema.posts.scheduledAt })
+    .select({ platform: schema.posts.platform, channel: schema.posts.channel, liAccountKey: schema.posts.liAccountKey, scheduledAt: schema.posts.scheduledAt, publishedAt: schema.posts.publishedAt, status: schema.posts.status })
     .from(schema.posts)
-    .where(inArray(schema.posts.status, ['scheduled', 'publishing']))
+    .where(inArray(schema.posts.status, ['scheduled', 'publishing', 'published']))
     .all()
-    .filter((p) => p.scheduledAt && cleDeSurface({ platform: p.platform as 'linkedin' | 'instagram', channel: p.channel, liAccountKey: p.liAccountKey }) === cle)
-    .map((p) => new Date(p.scheduledAt!).getTime());
+    .filter((p) => (p.status === 'published' ? p.publishedAt : p.scheduledAt) && cleDeSurface({ platform: p.platform as 'linkedin' | 'instagram', channel: p.channel, liAccountKey: p.liAccountKey }) === cle)
+    .map((p) => new Date((p.status === 'published' ? p.publishedAt : p.scheduledAt)!).getTime());
 }

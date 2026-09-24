@@ -9,11 +9,14 @@
  * moment d'approuver ou de programmer (un défaut bloquant est refusé), et au
  * réalignement des anciens posts (ce qui est corrigeable est corrigé).
  */
+import { and, eq, ne } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getBrand, getDmTriggers } from '../db/settingsRepo.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
+import { voisinTropProche } from '../scheduler/cadence.js';
 import { captionPorteLeMotCle } from './generate.js';
+import { porteLeSite } from './marque.js';
 import { HASHTAGS_MAX } from '@odile/shared';
 
 type Post = typeof schema.posts.$inferSelect;
@@ -40,7 +43,9 @@ export interface Probleme {
     | 'motcle-manquant'
     | 'format-plateforme'
     | 'lien-mal-etiquete'
-    | 'marque-absente';
+    | 'marque-absente'
+    | 'doublon-surface'
+    | 'trop-rapproche';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
@@ -79,6 +84,28 @@ const RENVOI_LINKEDIN = /lien (dans|en) (la )?description|sur linkedin|sous ce p
 /** Les dernières lignes d'une légende : là où vit l'appel à l'action. */
 function blocFinal(caption: string): string {
   return caption.trim().split('\n').slice(-4).join('\n');
+}
+
+/**
+ * Un autre exemplaire de la même diffusion, sur le même profil LinkedIn — déjà paru,
+ * ou programmé avant celui-ci. C'est toujours le second qui est arrêté, jamais les deux.
+ */
+function jumeauSurLeMemeProfil(post: Post, cle: string): Post | null {
+  if (!post.broadcastGroup) return null;
+  const freres = db
+    .select()
+    .from(schema.posts)
+    .where(and(eq(schema.posts.broadcastGroup, post.broadcastGroup), ne(schema.posts.id, post.id), eq(schema.posts.platform, 'linkedin')))
+    .all();
+  return (
+    freres.find((f) => {
+      if (f.channel !== post.channel) return false;
+      if ((f.liAccountKey ?? compteDuPost(f)?.key) !== cle) return false;
+      if (f.status === 'published' || f.status === 'publishing') return true;
+      // Deux exemplaires en attente : le plus ancien garde sa place.
+      return ['scheduled', 'approved', 'awaiting_approval', 'draft', 'reviewing'].includes(f.status) && f.id < post.id;
+    }) ?? null
+  );
 }
 
 export function verifierPost(post: Post): Probleme[] {
@@ -121,6 +148,25 @@ export function verifierPost(post: Post): Probleme[] {
       if (!post.liAccountKey) {
         problemes.push({ code: 'compte-non-attribue', niveau: 'attention', corrigeable: true, message: `Aucun compte choisi : le post partirait sur ${compte.name}.` });
       }
+      const voisin = post.status === 'scheduled' ? voisinTropProche(post) : null;
+      if (voisin) {
+        const h = Math.round(Math.abs(new Date(voisin.quand).getTime() - new Date(post.scheduledAt!).getTime()) / 3600000);
+        problemes.push({
+          code: 'trop-rapproche',
+          niveau: 'attention',
+          corrigeable: false,
+          message: `${h < 1 ? 'Moins d’une heure' : `${h} h`} d’écart avec le post n° ${voisin.id} sur le même profil : le second coupe la portée du premier. Visez au moins 20 h (un post par jour et par profil au maximum).`,
+        });
+      }
+      const jumeau = jumeauSurLeMemeProfil(post, compte.key);
+      if (jumeau) {
+        problemes.push({
+          code: 'doublon-surface',
+          niveau: 'bloquant',
+          corrigeable: false,
+          message: `Le même sujet ${jumeau.status === 'published' ? 'est déjà paru' : 'part déjà'} sur le profil de ${compte.name} (post n° ${jumeau.id}) : deux fois sur le même fil, LinkedIn le traite comme un doublon et coupe la portée des deux. Retire l’un des deux, ou attribue-le à un autre compte.`,
+        });
+      }
     }
     const lienDansLeTexte = caption.includes(`${config.PUBLIC_URL.replace(/\/+$/, '')}/r/`) || /\/r\/[a-z2-9]{6,}/i.test(caption);
     if (post.linkId && diagnostic && !lienDansLeTexte) {
@@ -159,6 +205,13 @@ export function verifierPost(post: Post): Probleme[] {
   if (post.platform === 'instagram') {
     if (ADRESSE.test(caption) || ADRESSE.test(post.cta ?? '')) {
       problemes.push({ code: 'url-instagram', niveau: 'bloquant', corrigeable: true, message: 'Une adresse figure dans la légende : sur Instagram elle n’est pas cliquable, et la ressource part en message privé.' });
+    } else if (porteLeSite(caption) || porteLeSite(post.cta ?? '')) {
+      // Choix de la marque : la légende Instagram ne cite pas le site, même en clair.
+      problemes.push({ code: 'url-instagram', niveau: 'attention', corrigeable: false, reecriture: true, message: 'Le site est cité dans la légende : sur Instagram, la légende ne porte aucun lien vers le site. « Réaligner » le retire.' });
+    }
+    const marqueIg = getBrand().name.trim();
+    if (marqueIg && !new RegExp(marqueIg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s*'), 'i').test(caption)) {
+      problemes.push({ code: 'marque-absente', niveau: 'attention', corrigeable: false, reecriture: true, message: `« ${marqueIg} » n’est pas nommée dans la légende : le lecteur voit le contenu, pas qui le signe.` });
     }
     if (RENVOI_LINKEDIN.test(blocFinal(caption))) {
       problemes.push({ code: 'parle-de-linkedin', niveau: 'attention', corrigeable: false, message: 'L’appel à l’action parle d’un lien en description ou de LinkedIn : sur Instagram, c’est le mot-clé qui envoie la ressource.' });

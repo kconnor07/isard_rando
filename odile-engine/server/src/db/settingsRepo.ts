@@ -18,6 +18,7 @@ import {
   blogSettingsSchema,
   videoSettingsSchema,
   llmBudgetSettingsSchema,
+  mentionsSettingsSchema,
 } from '@odile/shared';
 import { config } from '../config.js';
 import { db, schema } from './client.js';
@@ -55,6 +56,8 @@ export function setSetting(key: string, value: unknown): void {
 // ---------------------------------------------------------------------------
 
 export const getTone = () => getSetting('tone', toneSettingsSchema, { ...DEFAULTS.tone, customInstructions: '' });
+/** Répertoire des mentions vérifiées (Réglages → Mentions). */
+export const getMentions = () => getSetting('mentions', mentionsSettingsSchema, { repertoire: [] });
 export const getBrand = () =>
   getSetting('brand', brandSettingsSchema, brandSettingsSchema.parse({ ...BRAND_DEFAULTS, logoAssetId: null, avatarAssetId: null, authorLine: '' }));
 export const getCadence = () =>
