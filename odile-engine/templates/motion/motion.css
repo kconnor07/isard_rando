@@ -1,0 +1,187 @@
+/* Odile Motion — direction artistique « film de lancement » : noir profond, sol
+   quadrillé en perspective, typographie géante chromée, traînées de lumière,
+   mise au point du logo. Un seul accent : le bleu Odile.
+   Une unité (1rem) = 1 % du petit côté de l'image : les mêmes plans tiennent en
+   16:9, 1:1 et 9:16 sans retouche. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: var(--w); height: var(--h); overflow: hidden; background: #030305; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #f4f6fa;
+  -webkit-font-smoothing: antialiased;
+}
+#stage { position: relative; width: var(--w); height: var(--h); overflow: hidden; background: #030305; }
+
+/* ---- Séquence : un calque plein cadre, son propre décor ------------------- */
+.sequence { position: absolute; inset: 0; overflow: hidden; visibility: hidden; }
+.cadre {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 8rem 10rem;
+}
+.portrait .cadre { padding: 12rem 6rem; }
+.carre .cadre { padding: 8rem 7rem; }
+
+/* ---- Décors ----------------------------------------------------------------- */
+.fond { position: absolute; inset: 0; }
+.vignette { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 80% 75% at 50% 50%, rgba(0,0,0,0) 45%, rgba(0,0,0,.78) 100%); }
+
+/* Mur quadrillé plat + repères « + » */
+.mur {
+  position: absolute; inset: -20%;
+  background-image:
+    linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px);
+  background-size: 19rem 19rem;
+  background-position: center center;
+}
+.repere { position: absolute; width: 5rem; height: 5rem; margin: -2.5rem 0 0 -2.5rem; }
+.repere::before, .repere::after { content: ''; position: absolute; background: rgba(255,255,255,.55); }
+.repere::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+.repere::after { top: 50%; left: 0; right: 0; height: 1px; }
+.losange { position: absolute; width: 1.6rem; height: 1.6rem; margin: -.8rem 0 0 -.8rem; transform: rotate(45deg);
+  background: rgba(255,255,255,.28); }
+
+/* Sol quadrillé en perspective (horizon = bord haut du plan) */
+.sol-cadre { position: absolute; left: 0; right: 0; bottom: 0; top: 46%; perspective: 34rem; perspective-origin: 50% 0; overflow: hidden; }
+.sol {
+  position: absolute; left: -150%; right: -150%; top: 0; height: 520%;
+  transform-origin: 50% 0; transform: rotateX(78deg);
+  background-image:
+    linear-gradient(rgba(255,255,255,.16) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, rgba(255,255,255,.16) 1.5px, transparent 1.5px);
+  background-size: 16rem 16rem;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, #000 22%, #000 100%);
+          mask-image: linear-gradient(180deg, rgba(0,0,0,0) 0%, #000 22%, #000 100%);
+}
+.brume { position: absolute; left: 0; right: 0; top: 36%; height: 22%;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(140,190,255,.10), rgba(0,0,0,0) 70%); }
+
+/* Projecteur (lumière douce qui monte d'un coin) */
+.projecteur { position: absolute; width: 150rem; height: 150rem; margin: -75rem 0 0 -75rem; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.5) 0%, rgba(210,225,255,.2) 28%, rgba(0,0,0,0) 62%); }
+
+/* ---- Typographie chromée ------------------------------------------------------ */
+.chrome, .chrome .mot {
+  background: linear-gradient(180deg, #ffffff 0%, #f2f4f8 34%, #b4b9c3 64%, #6b707a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.glace, .glace .mot {
+  background: linear-gradient(180deg, #f2f9ff 0%, #9fd4ff 38%, #1d9bff 70%, #0a4f9e 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.geant { font-weight: 700; letter-spacing: -.055em; line-height: .92; white-space: nowrap; }
+.geant .mot { display: inline-block; padding: 0 .04em .06em; will-change: transform, filter, opacity; }
+.surtitre {
+  font-family: 'Fragment Mono', ui-monospace, monospace; font-size: 2rem; letter-spacing: .34em;
+  text-transform: uppercase; color: #9aa3b2;
+}
+.phrase { font-size: 3.4rem; font-weight: 500; letter-spacing: -.02em; color: #c9ced8; text-align: center; line-height: 1.25; }
+.phrase b { color: #fff; font-weight: 700; }
+
+/* Mots qui défilent à la même place (accroche) */
+.defile { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; }
+.defile .geant { position: absolute; }
+
+/* ---- Traînées de lumière ------------------------------------------------------ */
+.comete { position: absolute; height: .8rem; border-radius: 1rem; transform-origin: 100% 50%;
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(190,220,255,.25) 55%, rgba(255,255,255,.95) 100%);
+  filter: blur(.25rem); }
+.comete::after { content: ''; position: absolute; right: -1.4rem; top: 50%; width: 3rem; height: 3rem; margin-top: -1.5rem;
+  border-radius: 50%; background: #fff; box-shadow: 0 0 3rem 1.4rem rgba(170,215,255,.9); }
+
+/* ---- Pièce / objet posé sur le sol --------------------------------------------- */
+.objet { position: absolute; left: 50%; top: 62%; width: 30rem; height: 30rem; margin: -15rem 0 0 -15rem; }
+.piece { position: absolute; left: 0; right: 0; top: 50%; height: 13rem; margin-top: -6.5rem; }
+.piece .tranche { position: absolute; left: 0; right: 0; top: 2.6rem; bottom: -2.6rem; border-radius: 50%;
+  background: linear-gradient(90deg, #04386f 0%, #0a74d1 30%, #6cc4ff 52%, #0a74d1 72%, #03305f 100%); }
+.piece .face { position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+  background: radial-gradient(ellipse 70% 80% at 40% 30%, #dff2ff 0%, #6cc4ff 26%, #0f86e8 55%, #064c96 100%);
+  box-shadow: inset 0 -.6rem 1.6rem rgba(0,30,80,.6), inset 0 .5rem 1rem rgba(255,255,255,.5); }
+.piece .reflet { position: absolute; top: -20%; bottom: -20%; width: 22%;
+  background: linear-gradient(100deg, rgba(255,255,255,0), rgba(255,255,255,.75), rgba(255,255,255,0)); }
+.piece .lettre { position: absolute; inset: 0; display: grid; place-items: center; }
+.piece .lettre img { height: 5.6rem; opacity: .9; transform: scaleY(.46); filter: drop-shadow(0 .2rem .4rem rgba(0,40,100,.6)); }
+.ombre { position: absolute; left: 6%; right: 6%; top: 60%; height: 8rem; border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0,153,255,.55) 0%, rgba(0,153,255,0) 70%); filter: blur(1rem); }
+
+/* ---- Révélation du logo ------------------------------------------------------- */
+.revele { display: flex; align-items: center; justify-content: center; gap: 4.4rem; white-space: nowrap; }
+.portrait .revele { flex-direction: column; gap: 3rem; }
+.revele .geant { font-size: 13rem; }
+.revele img { height: 15rem; filter: drop-shadow(0 0 3.4rem rgba(170,215,255,.6)); }
+
+/* ---- Téléphone ---------------------------------------------------------------- */
+.duo { display: flex; align-items: center; justify-content: center; gap: 10rem; width: 100%; }
+.portrait .duo { flex-direction: column; gap: 5rem; }
+.carre .duo { gap: 5rem; }
+.duo .texte { display: flex; flex-direction: column; gap: 2.4rem; }
+.portrait .duo .texte { align-items: center; text-align: center; }
+.telephone { flex: none; width: 42rem; height: 84rem; border-radius: 6.4rem; padding: 1.6rem; position: relative;
+  background: linear-gradient(160deg, #3a3f48, #121418 40%, #1c1f25);
+  box-shadow: 0 5rem 12rem rgba(0,0,0,.8), 0 0 0 .3rem rgba(255,255,255,.08), inset 0 .2rem .3rem rgba(255,255,255,.2); }
+.carre .telephone { width: 36rem; height: 72rem; }
+.portrait .telephone { width: 44rem; height: 82rem; }
+.ecran { position: absolute; inset: 1.6rem; border-radius: 5rem; overflow: hidden;
+  background: linear-gradient(180deg, #0b0d12, #07080b); display: flex; flex-direction: column; padding: 7rem 3rem 3rem; gap: 2.4rem; }
+.encoche { position: absolute; left: 50%; top: 2.2rem; width: 13rem; height: 3.6rem; margin-left: -6.5rem; border-radius: 3rem; background: #000; z-index: 2; }
+.ecran h4 { font-size: 3.2rem; font-weight: 700; letter-spacing: -.02em; }
+.ecran .petit { font-size: 1.7rem; color: #8b93a3; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
+.ligne-champ { display: flex; flex-direction: column; gap: .8rem; }
+.ligne-champ .val { height: 6rem; border-radius: 1.6rem; background: #141820; border: 1px solid rgba(255,255,255,.08);
+  display: flex; align-items: center; padding: 0 2rem; font-size: 2.3rem; font-weight: 500; white-space: nowrap; overflow: hidden; }
+.ligne-champ .val .t { display: inline-block; }
+.caret { display: inline-block; width: .25rem; height: 2.8rem; background: #4db2ff; margin-left: .3rem; vertical-align: middle; }
+.envoyer { margin-top: auto; height: 7rem; border-radius: 2rem; background: #0099ff; display: grid; place-items: center;
+  font-size: 2.5rem; font-weight: 700; box-shadow: 0 1.4rem 4rem rgba(0,140,255,.45); }
+.toast { position: absolute; left: 3rem; right: 3rem; top: 7rem; border-radius: 2.4rem; padding: 2.2rem 2.4rem;
+  background: rgba(30,36,46,.92); border: 1px solid rgba(255,255,255,.12); display: flex; align-items: center; gap: 1.6rem;
+  font-size: 2.3rem; font-weight: 600; box-shadow: 0 2rem 5rem rgba(0,0,0,.6); }
+.toast .ok { width: 4.4rem; height: 4.4rem; border-radius: 50%; background: #25d18b; display: grid; place-items: center; color: #04291b; flex: none; }
+.toast .ok svg { width: 2.6rem; height: 2.6rem; }
+
+/* ---- Tuiles (offre) ------------------------------------------------------------ */
+.tuiles { display: flex; gap: 4rem; align-items: flex-end; justify-content: center; }
+.portrait .tuiles { flex-direction: column; align-items: center; gap: 3.4rem; }
+.tuile { width: 34rem; border-radius: 4rem; padding: 3.6rem 3.4rem; display: flex; flex-direction: column; gap: 2.6rem;
+  background: linear-gradient(170deg, rgba(255,255,255,.10), rgba(255,255,255,.03));
+  border: 1px solid rgba(255,255,255,.14); box-shadow: 0 3rem 8rem rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.14); }
+.carre .tuile { width: 27rem; padding: 3rem 2.6rem; }
+.portrait .tuile { width: 70rem; flex-direction: row; align-items: center; padding: 2.8rem 3.2rem; }
+.tuile .ico { width: 9rem; height: 9rem; border-radius: 2.6rem; display: grid; place-items: center; flex: none;
+  background: linear-gradient(160deg, #f5f7fb, #9aa1ad); color: #07090d; box-shadow: 0 1rem 3rem rgba(0,0,0,.5); }
+.tuile.vedette .ico { background: linear-gradient(160deg, #bfe4ff, #0099ff); color: #021a33; box-shadow: 0 1rem 4rem rgba(0,153,255,.55); }
+.tuile .ico svg { width: 4.6rem; height: 4.6rem; }
+.tuile .nom { font-size: 3.2rem; font-weight: 700; letter-spacing: -.025em; }
+.tuile .desc { font-size: 2.1rem; color: #9aa3b2; line-height: 1.3; margin-top: -1.4rem; }
+.portrait .tuile .desc { margin-top: .6rem; }
+
+/* ---- Flux ------------------------------------------------------------------------ */
+.flux { display: flex; align-items: flex-start; justify-content: center; position: relative; }
+.portrait .flux { flex-direction: column; align-items: center; }
+.noeud { width: 22rem; display: flex; flex-direction: column; align-items: center; gap: 2.2rem; position: relative; z-index: 2; }
+.carre .noeud { width: 18rem; }
+.portrait .noeud { width: auto; flex-direction: row; gap: 3rem; min-width: 56rem; }
+.noeud .rond { width: 11rem; height: 11rem; border-radius: 3.2rem; display: grid; place-items: center; flex: none;
+  background: #0d1016; border: 1px solid rgba(255,255,255,.16); color: #d9dee8; transition: none; }
+.noeud .rond svg { width: 5rem; height: 5rem; }
+.noeud .nom { font-size: 2.3rem; font-weight: 600; text-align: center; line-height: 1.2; color: #c9ced8; }
+.portrait .noeud .nom { text-align: left; font-size: 2.8rem; }
+.lien { position: relative; width: 9rem; height: .3rem; margin-top: 5.4rem; background: rgba(255,255,255,.14); }
+.carre .lien { width: 4rem; }
+.portrait .lien { width: .3rem; height: 6rem; margin: 1.6rem 0 1.6rem -45.6rem; }
+.lien .plein { position: absolute; inset: 0; background: #4db2ff; box-shadow: 0 0 1.6rem #0099ff; transform-origin: 0 50%; }
+.portrait .lien .plein { transform-origin: 50% 0; }
+
+/* ---- Carte de fin ---------------------------------------------------------------- */
+.fin { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.fin img { height: 13rem; filter: drop-shadow(0 0 3rem rgba(170,215,255,.45)); }
+.fin .phrase { margin-top: 3.6rem; }
+.bouton { margin-top: 5rem; padding: 2.6rem 5.4rem; border-radius: 99rem; position: relative;
+  background: #f4f6fa; color: #07090d; font-size: 3rem; font-weight: 700; letter-spacing: -.01em;
+  box-shadow: 0 2rem 6rem rgba(160,200,255,.25); }
+.onde { position: absolute; left: 50%; top: 50%; width: 8rem; height: 8rem; margin: -4rem 0 0 -4rem; border-radius: 50%; border: .3rem solid rgba(0,153,255,.9); }
+.curseur { position: absolute; width: 4.6rem; height: 4.6rem; left: 0; top: 0; filter: drop-shadow(0 .6rem 1.2rem rgba(0,0,0,.6)); }
+.url { margin-top: 3.6rem; font-family: 'Fragment Mono', ui-monospace, monospace; font-size: 2.4rem; letter-spacing: .14em; color: #8b93a3; }
