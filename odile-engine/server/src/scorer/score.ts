@@ -22,18 +22,25 @@ Note chaque item sur deux axes :
   AI Act, RGPD, cybersécurité) ; une aide ou un financement ouvert aux PME ; une capacité
   nouvelle qu'il peut utiliser tout de suite sans développeur, décrite par la tâche qu'elle
   règle (devis, relances, support, compta, prospection, recrutement, avis clients) ;
-  l'économie de Toulouse et de l'Occitanie.
+  l'économie de Toulouse et de l'Occitanie ; et L'ACTUALITÉ IA DONT TOUT LE MONDE PARLE EN CE
+  MOMENT — une nouveauté, une fonctionnalité ou un incident chez OpenAI/ChatGPT, Google/Gemini,
+  Anthropic/Claude, Mistral, Microsoft/Copilot ou Meta, un outil IA qui devient viral, une
+  polémique qui fait réagir — dès qu'on peut dire ce qu'elle change pour une entreprise, ses
+  salariés ou ses clients (c'est presque toujours possible : c'est l'angle du post).
   15-34 : un cas ou une donnée étrangère qui se transpose clairement à une PME française ;
   une tendance de fond expliquée par ses effets concrets sur une petite entreprise.
   0-14 : ce qui ne change rien pour lui — levée de fonds, valorisation ou chiffre d'affaires
-  d'une start-up, sortie ou classement de modèles, benchmark, recherche, outil pour
-  développeurs, dépôt de code, géopolitique ou politique américaine, gadget grand public,
-  grand groupe (banque, CAC 40, GAFAM) sans leçon transposable, et la promotion d'un éditeur
+  d'une start-up peu connue, benchmark ou classement technique, recherche, outil pour
+  développeurs, dépôt de code, géopolitique sans effet sur les entreprises, gadget grand public,
+  grand groupe (banque, CAC 40) sans leçon transposable, et la promotion d'un éditeur
   par lui-même (témoignage client publié sur le blog de l'éditeur, « les 10 meilleurs
   outils », annonce commerciale) sauf s'il contient un résultat chiffré vraiment reproductible.
-- "click" (0-50) : potentiel d'accroche — chiffre marquant, histoire d'entreprise racontable,
-  résultat surprenant, échéance qui inquiète, sujet qui fait réagir. Un contenu qui a déjà
-  beaucoup d'engagement est un bon candidat, à condition que le sujet parle à une PME française.
+- "click" (0-50) : potentiel d'accroche sur LinkedIn — 40-50 pour l'actualité IA ultra-récente
+  (moins de 24-48 h) reprise par plusieurs médias ou qui buzze sur les réseaux, un nom que tout
+  le monde connaît (ChatGPT, Gemini, Claude…), un chiffre choc, un incident ou une polémique ;
+  ensuite l'histoire d'entreprise racontable, le résultat surprenant, l'échéance qui inquiète.
+  Un contenu qui a déjà beaucoup d'engagement est un bon candidat, s'il parle à une PME française.
+  Une actualité de plus d'une semaine perd l'essentiel de son potentiel.
 Ajoute "reason" : une phrase en français qui justifie la note (elle sera montrée à l'humain qui valide).`;
 
 export interface ScoreSummary {

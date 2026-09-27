@@ -5,16 +5,22 @@ import { normalizeEngagement } from '../src/scraper/engagement.js';
 const NOW = new Date('2026-09-01T12:00:00Z');
 
 describe('freshnessFactor', () => {
-  it('vaut 1.0 pour un article de moins de 12 h', () => {
-    expect(freshnessFactor('2026-09-01T06:00:00Z', NOW)).toBe(1.0);
+  it('donne un bonus « à chaud » avant 6 h, puis 1.0 jusqu’à 12 h', () => {
+    expect(freshnessFactor('2026-09-01T08:00:00Z', NOW)).toBe(1.1);
+    expect(freshnessFactor('2026-09-01T02:00:00Z', NOW)).toBe(1.0);
   });
-  it('descend à 0.8 après 48 h', () => {
-    expect(freshnessFactor('2026-08-29T12:00:00Z', NOW)).toBe(0.8);
+  it('descend à 0.75 à 48 h et à 0.6 après quatre jours', () => {
+    expect(freshnessFactor('2026-08-30T12:00:00Z', NOW)).toBe(0.75);
+    expect(freshnessFactor('2026-08-28T12:00:00Z', NOW)).toBe(0.6);
+    expect(freshnessFactor('2026-08-20T12:00:00Z', NOW)).toBe(0.6);
   });
   it('interpole entre les deux', () => {
     const f = freshnessFactor('2026-08-31T06:00:00Z', NOW); // 30 h
-    expect(f).toBeGreaterThan(0.8);
+    expect(f).toBeGreaterThan(0.75);
     expect(f).toBeLessThan(1.0);
+    const g = freshnessFactor('2026-08-29T12:00:00Z', NOW); // 72 h
+    expect(g).toBeGreaterThan(0.6);
+    expect(g).toBeLessThan(0.75);
   });
   it('reste raisonnable sans date', () => {
     expect(freshnessFactor(null, NOW)).toBe(0.9);
@@ -33,7 +39,8 @@ describe('topicAffinityFactor', () => {
 });
 
 describe('blendScore', () => {
-  const base = { scoreLLM: 80, sourceWeight: 1, publishedAt: NOW.toISOString(), now: NOW };
+  // Publié il y a 8 h : plein tarif, ni bonus « à chaud » ni décote
+  const base = { scoreLLM: 80, sourceWeight: 1, publishedAt: '2026-09-01T04:00:00Z', now: NOW };
   it('score de base = scoreLLM frais sans bonus', () => {
     expect(blendScore(base)).toBe(80);
   });

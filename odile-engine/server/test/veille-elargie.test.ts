@@ -37,21 +37,22 @@ describe('veille GitHub', async () => {
 });
 
 describe('axes élargis de la recherche web', async () => {
-  const { axeElargiDuJour } = await import('../src/scraper/websearch.js');
+  const { axeElargiDuJour, AXES_QUOTIDIENS } = await import('../src/scraper/websearch.js');
 
-  it('un seul axe par jour, les cinq en cinq jours', () => {
-    const noms = [0, 1, 2, 3, 4, 5].map((j) => axeElargiDuJour(new Date(Date.UTC(2026, 8, 14 + j, 12))).sourceName);
-    // Cinq axes distincts, puis la rotation recommence
-    expect(new Set(noms.slice(0, 5)).size).toBe(5);
-    expect(noms[5]).toBe(noms[0]);
-    for (const attendu of [
-      'LinkedIn FR (posts qui performent)',
-      'Douleurs de dirigeants',
-      'YouTube (vidéos du moment)',
-      'Toulouse & Occitanie',
-      'Compétences & skills IA',
-    ]) {
+  it('un seul axe élargi par jour, les quatre en quatre jours', () => {
+    const noms = [0, 1, 2, 3, 4].map((j) => axeElargiDuJour(new Date(Date.UTC(2026, 8, 14 + j, 12))).sourceName);
+    // Quatre axes distincts, puis la rotation recommence
+    expect(new Set(noms.slice(0, 4)).size).toBe(4);
+    expect(noms[4]).toBe(noms[0]);
+    for (const attendu of ['Douleurs de dirigeants', 'YouTube (vidéos du moment)', 'Toulouse & Occitanie', 'Compétences & skills IA']) {
       expect(noms).toContain(attendu);
     }
+  });
+
+  it('les tendances IA et les posts LinkedIn qui performent passent chaque jour', () => {
+    const noms = AXES_QUOTIDIENS.map((a) => a.sourceName);
+    expect(noms[0]).toBe('Tendances IA (ce qui buzze)');
+    expect(noms).toContain('LinkedIn FR (posts qui performent)');
+    expect(noms).toContain('LinkedIn US (posts viraux)');
   });
 });

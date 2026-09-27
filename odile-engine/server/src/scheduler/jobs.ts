@@ -59,6 +59,27 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'sujets en échec'));
   }, { timezone: TZ });
 
+  // Tendances IA de la journée : l'actualité qui fait cliquer vieillit en quelques
+  // heures. À midi, une seconde récolte « ce qui buzze » ; à midi et le soir, la
+  // shortlist et les sujets sont refaits sur ce qui vient d'arriver.
+  cron.schedule('10 12 * * *', () => {
+    void (async () => {
+      const { runTendances } = await import('../scraper/websearch.js');
+      await runJob('websearch', runTendances);
+      await runJob('score', () => runScore());
+      await runJob('shortlist', () => buildDailyShortlist());
+      const { construireSujets } = await import('../scorer/sujets.js');
+      await runJob('sujets', () => construireSujets());
+    })().catch((err) => logger.error({ err: String(err) }, 'rafraîchissement de midi en échec'));
+  }, { timezone: TZ });
+  cron.schedule('20 18 * * *', () => {
+    void (async () => {
+      await runJob('shortlist', () => buildDailyShortlist());
+      const { construireSujets } = await import('../scorer/sujets.js');
+      await runJob('sujets', () => construireSujets());
+    })().catch((err) => logger.error({ err: String(err) }, 'rafraîchissement du soir en échec'));
+  }, { timezone: TZ });
+
   // Apprentissage hebdomadaire (clics → poids des sources + affinités de sujets)
   cron.schedule('50 7 * * 1', () => {
     void (async () => {

@@ -30,7 +30,7 @@ export function sourceReelle(newsItemId: number | null): { media: string; titre:
     ? db.select({ name: schema.newsSources.name, kind: schema.newsSources.kind }).from(schema.newsSources).where(eq(schema.newsSources.id, news.sourceId)).get()
     : null;
   const parUrl = mediaDepuisUrl(news.url);
-  const agregateur = !source || source.kind !== 'rss' || /recherche web|reddit|hacker news|linkedin|github|youtube \(vidéos|^actus ·/i.test(source.name);
+  const agregateur = !source || source.kind !== 'rss' || /recherche web|reddit|hacker news|linkedin|github|youtube \(vidéos|^actus ·|^tendances ia ·/i.test(source.name);
   // Une chaîne YouTube se cite par son nom : « Matt Wolfe (YouTube) ».
   const chaine = source?.kind === 'youtube' ? /·\s*(.+)$/.exec(source.name)?.[1]?.trim() : undefined;
   const media = chaine
@@ -96,6 +96,22 @@ const MEDIAS_CONNUS: Record<string, string> = {
     'toulouse.fr': 'Ville de Toulouse',
     'touleco.fr': 'ToulÉco',
     'objectifnews.latribune.fr': 'Objectif News',
+    'leparisien.fr': 'Le Parisien',
+    'tf1info.fr': 'TF1 Info',
+    'franceinfo.fr': 'franceinfo',
+    'ouest-france.fr': 'Ouest-France',
+    'sudouest.fr': 'Sud Ouest',
+    'midilibre.fr': 'Midi Libre',
+    '20minutes.fr': '20 Minutes',
+    'liberation.fr': 'Libération',
+    'huffingtonpost.fr': 'HuffPost',
+    'ledevoir.com': 'Le Devoir',
+    'clubic.com': 'Clubic',
+    'journaldugeek.com': 'Journal du Geek',
+    'frandroid.com': 'Frandroid',
+    'lesnumeriques.com': 'Les Numériques',
+    'presse-citron.net': 'Presse-citron',
+    'korben.info': 'Korben',
 };
 
 function hoteDe(url: string): string {

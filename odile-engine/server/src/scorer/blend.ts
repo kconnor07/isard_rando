@@ -20,13 +20,20 @@ export interface BlendInput {
   engagement?: number | null;
 }
 
+/**
+ * Fraîcheur : l'actualité IA qui fait cliquer est celle du jour. Moins de 6 h :
+ * bonus « à chaud » ; jusqu'à 12 h : plein tarif ; puis décroissance jusqu'à 0,75
+ * à 48 h et 0,6 au-delà de quatre jours.
+ */
 export function freshnessFactor(publishedAt: string | null, now: Date): number {
   if (!publishedAt) return 0.9;
   const hours = (now.getTime() - new Date(publishedAt).getTime()) / 3_600_000;
   if (Number.isNaN(hours) || hours < 0) return 0.9;
+  if (hours <= 6) return 1.1;
   if (hours <= 12) return 1.0;
-  if (hours >= 48) return 0.8;
-  return 1.0 - ((hours - 12) / 36) * 0.2;
+  if (hours <= 48) return Math.round((1.0 - ((hours - 12) / 36) * 0.25) * 1000) / 1000;
+  if (hours >= 96) return 0.6;
+  return Math.round((0.75 - ((hours - 48) / 48) * 0.15) * 1000) / 1000;
 }
 
 export function topicAffinityFactor(

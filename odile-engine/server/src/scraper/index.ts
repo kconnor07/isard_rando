@@ -4,7 +4,37 @@ import { logger } from '../lib/logger.js';
 import { canonicalizeUrl, contentHash, titleSimilarity, TITLE_SIMILARITY_THRESHOLD } from './dedupe.js';
 import { fetchHackerNews } from './hackernews.js';
 import { estRechercheActus, fetchRss, type FetchedItem } from './rss.js';
-import { seedSourcesIfEmpty } from './sources.js';
+import { estTendanceIA, seedSourcesIfEmpty } from './sources.js';
+
+/** Recherches d'actualités par passage horaire, et pause entre deux (Bing limite le rythme). */
+const RECHERCHES_PAR_PASSAGE = 4;
+const PAUSE_ENTRE_RECHERCHES_MS = Number(process.env.PAUSE_RECHERCHES_MS ?? 10_000);
+/** Une tendance IA vieillit en quelques heures ; une actu PME tient plusieurs jours. */
+const INTERVALLE_TENDANCE_H = 3;
+const INTERVALLE_ACTUS_H = 8;
+
+/**
+ * Les recherches à relancer maintenant : celles dont l'intervalle est écoulé, les
+ * plus en retard d'abord (une jamais lue passe devant tout), au plus quatre.
+ * Fonction pure, testée.
+ */
+export function recherchesDues<T extends { name: string; lastFetchedAt: string | null }>(
+  recherches: T[],
+  now: Date,
+  max = RECHERCHES_PAR_PASSAGE,
+): T[] {
+  const retard = (s: T) => {
+    if (!s.lastFetchedAt) return Number.POSITIVE_INFINITY;
+    const heures = (now.getTime() - new Date(s.lastFetchedAt).getTime()) / 3_600_000;
+    return heures - (estTendanceIA(s.name) ? INTERVALLE_TENDANCE_H : INTERVALLE_ACTUS_H);
+  };
+  return recherches
+    .map((s) => ({ s, r: retard(s) }))
+    .filter(({ r }) => r >= 0)
+    .sort((a, b) => b.r - a.r)
+    .slice(0, max)
+    .map(({ s }) => s);
+}
 
 /** Échecs consécutifs avant auto-désactivation d'une source (≈ 12 h au rythme horaire). */
 const MAX_CONSECUTIVE_ERRORS = 12;
@@ -27,15 +57,14 @@ export async function runScrape(): Promise<ScrapeSummary> {
     .where(eq(schema.newsSources.enabled, true))
     .all();
 
-  // Les recherches d'actualités (Bing) passent une par une, à tour de rôle : les
-  // interroger toutes à la fois, chaque heure, leur fait renvoyer des pages vides.
-  const recherches = sources
-    .filter((s) => s.kind === 'rss' && estRechercheActus(s.url))
-    .sort((a, b) => (a.lastFetchedAt ?? '').localeCompare(b.lastFetchedAt ?? ''));
-  const aTraiter = sources.filter((s) => !recherches.includes(s) || s === recherches[0]);
+  // Les recherches d'actualités (Bing) passent à part, peu à la fois et espacées :
+  // les interroger toutes d'un coup leur fait renvoyer des pages vides.
+  const recherches = sources.filter((s) => s.kind === 'rss' && estRechercheActus(s.url));
+  const dues = recherchesDues(recherches, new Date());
+  const aTraiter = sources.filter((s) => !recherches.includes(s));
 
   const summary: ScrapeSummary = {
-    sources: aTraiter.length,
+    sources: aTraiter.length + dues.length,
     fetched: 0,
     inserted: 0,
     duplicates: 0,
@@ -51,6 +80,10 @@ export async function runScrape(): Promise<ScrapeSummary> {
     }
   });
   await Promise.allSettled(workers);
+  for (const [i, source] of dues.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, PAUSE_ENTRE_RECHERCHES_MS));
+    await processSource(source, summary);
+  }
 
   summary.crossDuplicates = crossSourceDedupe();
   return summary;
@@ -75,7 +108,7 @@ async function processSource(
       const { fetchGithubRepos } = await import('./github.js');
       items = await fetchGithubRepos(source.url);
     } else {
-      const result = await fetchRss(source.url, source.etag, source.lastModified);
+      const result = await fetchRss(source.url, source.etag, source.lastModified, estTendanceIA(source.name) ? { ageMaxJours: 3 } : {});
       if (result.notModified) {
         db.update(schema.newsSources)
           .set({ lastFetchedAt: new Date().toISOString(), lastError: null, consecutiveErrors: 0 })

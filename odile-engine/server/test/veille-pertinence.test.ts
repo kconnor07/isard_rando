@@ -90,7 +90,7 @@ describe('recherches d’actualités et sources', async () => {
     const actus = SEED_SOURCES.filter((s) => estRechercheActus(s.url));
     expect(actus.length).toBeGreaterThanOrEqual(8);
     for (const s of actus) {
-      expect(s.name).toMatch(/^Actus · /);
+      expect(s.name).toMatch(/^(Actus|Tendances IA) · /);
       expect(s.lang).toBe('fr');
       // Bing ne renvoie rien sur une requête avec OU ou parenthèses
       expect(new URL(s.url).searchParams.get('q')).not.toMatch(/\bOR\b|[()"]/);
@@ -107,7 +107,8 @@ describe('recherches d’actualités et sources', async () => {
     db.insert(schema.newsSources).values({ name: 'The Verge', kind: 'rss', url: 'https://www.theverge.com/rss/index.xml', lang: 'en', weight: 1.0 }).run();
     seedSourcesIfEmpty();
     const lire = (name: string) => db.select().from(schema.newsSources).where(eq(schema.newsSources.name, name)).get()!;
-    expect(lire('TechCrunch AI').weight).toBe(0.8);
+    // L'actu IA reste une matière première : TechCrunch n'est ramené qu'à 1.0
+    expect(lire('TechCrunch AI').weight).toBe(1.0);
     expect(lire('Zapier Blog').weight).toBe(0.6);
     expect(lire('The Verge').enabled).toBe(false);
     expect(lire('Actus · PME & IA').enabled).toBe(true);
@@ -127,5 +128,34 @@ describe('recherches d’actualités et sources', async () => {
       .returning()
       .get();
     expect(sourceReelle(n.id)?.media).toBe('Batiactu');
+  });
+});
+
+describe('les tendances IA', async () => {
+  const { SEED_SOURCES, TENDANCES_IA, estTendanceIA } = await import('../src/scraper/sources.js');
+  const { recherchesDues } = await import('../src/scraper/index.js');
+  const { estRechercheActus } = await import('../src/scraper/rss.js');
+  const NOW = new Date('2026-09-27T12:00:00Z');
+  const ilYa = (h: number) => new Date(NOW.getTime() - h * 3_600_000).toISOString();
+
+  it('les grands noms de l’IA ont chacun leur recherche d’actualité', () => {
+    const tendances = SEED_SOURCES.filter((s) => estTendanceIA(s.name));
+    expect(tendances).toHaveLength(TENDANCES_IA.length);
+    const requetes = tendances.map((s) => new URL(s.url).searchParams.get('q'));
+    for (const q of ['ChatGPT', 'OpenAI', 'Claude Anthropic', 'Google Gemini', 'Mistral AI', 'intelligence artificielle']) expect(requetes).toContain(q);
+    for (const s of tendances) expect(estRechercheActus(s.url)).toBe(true);
+  });
+
+  it('une tendance repasse toutes les 3 h, une actu PME toutes les 8 h, jamais plus de quatre à la fois', () => {
+    const sources = [
+      { name: 'Tendances IA · ChatGPT', lastFetchedAt: ilYa(4) },
+      { name: 'Tendances IA · OpenAI', lastFetchedAt: ilYa(2) },
+      { name: 'Actus · PME & IA', lastFetchedAt: ilYa(5) },
+      { name: 'Actus · TPE & IA', lastFetchedAt: ilYa(9) },
+      { name: 'Tendances IA · Gemini', lastFetchedAt: null },
+    ];
+    expect(recherchesDues(sources, NOW).map((s) => s.name)).toEqual(['Tendances IA · Gemini', 'Tendances IA · ChatGPT', 'Actus · TPE & IA']);
+    const beaucoup = Array.from({ length: 9 }, (_, i) => ({ name: `Tendances IA · ${i}`, lastFetchedAt: null }));
+    expect(recherchesDues(beaucoup, NOW)).toHaveLength(4);
   });
 });

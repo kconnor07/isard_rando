@@ -68,8 +68,11 @@ export function grouperParSujet(items: ItemPourGroupe[]): Groupe[] {
       proche.itemIds.push(item.id);
       proche.titres.push(item.title);
       for (const t of item.topics) if (!proche.topics.includes(t)) proche.topics.push(t);
-      if (item.sourceId && !proche.sourceIds.includes(item.sourceId)) proche.sourceIds.push(item.sourceId);
-      proche.score = Math.max(proche.score, item.score) + item.score * 0.15;
+      // Le buzz : une histoire reprise par un média de plus pèse bien plus qu'un
+      // deuxième article de la même source.
+      const nouveauMedia = Boolean(item.sourceId && !proche.sourceIds.includes(item.sourceId));
+      if (item.sourceId && nouveauMedia) proche.sourceIds.push(item.sourceId);
+      proche.score = Math.max(proche.score, item.score) + item.score * (nouveauMedia ? 0.25 : 0.05);
       continue;
     }
     groupes.push({
@@ -183,7 +186,7 @@ export async function construireSujets(now = new Date()): Promise<SujetsSummary>
 
   if (groupes.length > 0) {
     const liste = groupes
-      .map((g, i) => `[groupe=${i}] (${g.itemIds.length} article${g.itemIds.length > 1 ? 's' : ''}, sujets : ${g.topics.slice(0, 6).join(', ') || 'aucun'})\n- ${g.titres.slice(0, 6).join('\n- ')}`)
+      .map((g, i) => `[groupe=${i}] (${g.itemIds.length} article${g.itemIds.length > 1 ? 's' : ''}, ${g.sourceIds.length} média${g.sourceIds.length > 1 ? 's' : ''}, sujets : ${g.topics.slice(0, 6).join(', ') || 'aucun'})\n- ${g.titres.slice(0, 6).join('\n- ')}`)
       .join('\n\n');
     try {
       const { value } = await completeJson(
@@ -192,13 +195,17 @@ export async function construireSujets(now = new Date()): Promise<SujetsSummary>
           label: 'veille:sujets',
           tier: 'fast',
           system: `Tu es le rédacteur en chef de la veille d'Odile AI, agence française d'automatisation IA pour les PME et TPE, basée à Toulouse.
-Tu ne cherches pas des actualités : tu cherches des SUJETS de publication pour un dirigeant de petite entreprise.`,
+Tu cherches des SUJETS de publication LinkedIn qui font cliquer un dirigeant de petite entreprise :
+d'abord l'actualité IA dont tout le monde parle en ce moment, racontée par ce qu'elle change pour lui ;
+ensuite les sujets de fond (cas d'entreprises, échéances, méthodes).`,
           prompt: `Voici des groupes d'articles remontés par la veille cette semaine. Pour chacun, dis s'il y a
 un vrai sujet de post pour une PME française, et lequel.
 
 Pour chaque groupe :
-- "label" : le sujet en une phrase, du point de vue du dirigeant, pas du point de vue de la technologie
-  (« Les relances de factures qui partent toutes seules » plutôt que « OpenAI lance un agent »).
+- "label" : le sujet en une phrase, du point de vue du dirigeant. Pour une actualité chaude, nomme-la
+  et dis ce qu'elle change (« ChatGPT affiche de la pub : ce que vos équipes y écrivent devient une cible »),
+  pour un sujet de fond, parle du bénéfice (« Les relances de factures qui partent toutes seules »).
+  Un groupe repris par plusieurs médias dans les 48 dernières heures est une TENDANCE : c'est la priorité.
 - "reason" : pourquoi ce sujet maintenant, en une ou deux phrases, avec le chiffre marquant s'il y en a un.
 - "angles" : deux ou trois façons différentes de le traiter, chacune avec un "titre" court (le type d'angle)
   et un "angle" (ce que le post raconterait concrètement). Varie : le cas d'entreprise chiffré, la méthode

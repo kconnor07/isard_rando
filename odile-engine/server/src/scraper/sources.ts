@@ -32,6 +32,27 @@ const RECHERCHES_ACTUS: [string, string, number][] = [
 ];
 
 /**
+ * L'actualité IA du moment, celle dont tout le monde parle (et qui fait cliquer) :
+ * les grands acteurs et les usages qui font les gros titres. Ces recherches ne
+ * gardent que les articles de moins de trois jours et repassent toutes les 3 h.
+ */
+export const TENDANCES_IA: [string, string, number][] = [
+  ['Tendances IA · à la une', 'intelligence artificielle', 1.3],
+  ['Tendances IA · ChatGPT', 'ChatGPT', 1.3],
+  ['Tendances IA · OpenAI', 'OpenAI', 1.3],
+  ['Tendances IA · Claude', 'Claude Anthropic', 1.2],
+  ['Tendances IA · Gemini', 'Google Gemini', 1.2],
+  ['Tendances IA · Mistral', 'Mistral AI', 1.2],
+  ['Tendances IA · Copilot', 'Copilot Microsoft', 1.1],
+  ['Tendances IA · agents', 'agents IA', 1.3],
+];
+
+/** Une source « tendance » : rafraîchie plus souvent, et seulement sur l'ultra-récent. */
+export function estTendanceIA(nom: string): boolean {
+  return /^Tendances IA · /.test(nom);
+}
+
+/**
  * Sources de veille par défaut. Elles vivent en base (news_sources) :
  * on peut en ajouter/désactiver depuis le dashboard sans toucher au code.
  */
@@ -83,6 +104,7 @@ export const SEED_SOURCES: SeedSource[] = [
   // Veille v4 — le terrain des PME françaises, par mots-clés, dans toute la presse.
   // Chaque requête a été vérifiée : elle ramène des articles de la semaine.
   ...RECHERCHES_ACTUS.map(([name, requete, weight]) => ({ name, kind: 'rss' as const, url: rechercheActus(requete), lang: 'fr' as const, weight })),
+  ...TENDANCES_IA.map(([name, requete, weight]) => ({ name, kind: 'rss' as const, url: rechercheActus(requete), lang: 'fr' as const, weight })),
 ];
 
 /**
@@ -116,11 +138,10 @@ export const REEQUILIBRAGE_V4: { name: string; weight?: number; enabled?: false 
   { name: 'The Verge', enabled: false },
   { name: 'Product Hunt', enabled: false },
   { name: 'MIT Tech Review AI', enabled: false },
-  { name: 'YouTube · AI Explained', enabled: false },
   { name: 'YouTube · Micode', enabled: false },
-  { name: 'TechCrunch AI', weight: 0.8 },
-  { name: 'OpenAI Blog', weight: 0.8 },
-  { name: 'Google AI Blog', weight: 0.8 },
+  // Les annonces des grands acteurs de l'IA restent : c'est l'actualité qui fait cliquer.
+  { name: 'TechCrunch AI', weight: 1.0 },
+  { name: 'Google AI Blog', weight: 0.9 },
   { name: 'Hacker News (IA)', weight: 0.7 },
   { name: 'Zapier Blog', weight: 1.0 },
   { name: 'n8n Blog', weight: 1.0 },

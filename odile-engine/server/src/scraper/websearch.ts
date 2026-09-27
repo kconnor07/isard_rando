@@ -42,6 +42,29 @@ Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} a
 factuelles écrites par toi (avec les chiffres clés), "why" = pourquoi ça fera un bon post PME France.`,
 };
 
+const TENDANCES_HARVEST: HarvestSpec = {
+  sourceName: 'Tendances IA (ce qui buzze)',
+  weight: 1.4,
+  lang: 'fr',
+  prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE,
+qui publie sur LinkedIn. Objectif : des posts qui font BEAUCOUP cliquer, sur l'actualité IA la
+plus chaude du moment.
+
+Cherche sur le web les sujets IA qui font le plus parler depuis 24 à 48 heures — en France
+d'abord, puis aux États-Unis : ce que reprennent le plus de médias (presse tech et généraliste),
+ce qui circule le plus sur LinkedIn et X, ce qui est en tête des recherches. Typiquement : une
+nouveauté ou une fonctionnalité de ChatGPT, Gemini, Claude, Mistral, Copilot ou Meta AI ; un outil
+IA qui devient viral ; un incident, une polémique ou une décision (réglementation, procès, prix)
+qui fait réagir ; un chiffre choc sur l'IA au travail.
+Pour chacun, trouve l'article de référence (le plus complet, de préférence en français).
+Ignore : levées de fonds de start-ups peu connues, benchmarks techniques, recherche académique.
+
+Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 4 à 6 items —
+"title" en français (le fait, avec le nom de l'acteur), "url" = l'article de référence précis,
+"summary" = les faits, les dates et les chiffres en 2-3 phrases écrites par toi, "why" = pourquoi
+ça buzze (combien de médias, quelle réaction) ET ce que ça change pour une entreprise ou ses salariés.`,
+};
+
 const LINKEDIN_HARVEST: HarvestSpec = {
   sourceName: 'LinkedIn US (posts viraux)',
   weight: 1.3,
@@ -50,8 +73,9 @@ const LINKEDIN_HARVEST: HarvestSpec = {
 Objectif : RECYCLER des posts LinkedIn anglophones qui ont déjà prouvé leur performance,
 en les réécrivant plus tard en français (angle et structure repris, contenu 100 % original).
 
-Cherche sur le web des posts LinkedIn EN ANGLAIS des 7 derniers jours à TRÈS FORT engagement
-(milliers de réactions, centaines de commentaires ou largement repris ailleurs) sur : l'IA
+Cherche sur le web des posts LinkedIn EN ANGLAIS des 7 derniers jours (les 48 dernières heures
+d'abord) à TRÈS FORT engagement (milliers de réactions, centaines de commentaires ou largement
+repris ailleurs) sur : l'actualité IA du moment et ce qu'elle change pour le travail, l'IA
 appliquée au business, l'automatisation pour les petites entreprises, des résultats chiffrés
 obtenus avec l'IA, des méthodes/process concrets. Les grands créateurs du sujet (par exemple
 Allie K. Miller, Zain Kahn, Ruben Hassid, Greg Isenberg…) sont de bons points de départ,
@@ -71,10 +95,11 @@ const LINKEDIN_FR_HARVEST: HarvestSpec = {
   prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
 LinkedIn n'offre aucune API de lecture des posts : c'est toi qui cherches sur le web.
 
-Cherche des posts LinkedIn EN FRANÇAIS des 7 derniers jours à fort engagement (centaines de
-réactions ou plus, nombreux commentaires, repris ailleurs) sur : l'IA et l'automatisation dans
-les PME/TPE françaises, des dirigeants qui racontent ce qu'ils ont mis en place et ce que ça a
-donné, des méthodes concrètes, des chiffres. Les créateurs francophones du sujet sont de bons
+Cherche des posts LinkedIn EN FRANÇAIS des 7 derniers jours (les 48 dernières heures d'abord) à
+fort engagement (centaines de réactions ou plus, nombreux commentaires, repris ailleurs) sur :
+l'actualité IA du moment vue par des créateurs et dirigeants français, l'IA et l'automatisation
+dans les PME/TPE, des dirigeants qui racontent ce qu'ils ont mis en place et ce que ça a donné,
+des méthodes concrètes, des chiffres. Les créateurs francophones du sujet sont de bons
 points de départ, mais tout post qui performe compte — et les auteurs ou entreprises de
 notoriété sont à nommer précisément (on pourra les identifier dans nos posts).
 
@@ -168,19 +193,22 @@ Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} a
 };
 
 /**
- * Les axes élargis tournent : un seul par jour (LinkedIn FR, puis YouTube, puis
- * compétences), pour couvrir les trois en trois jours sans tripler la dépense —
+ * Les axes élargis tournent : un seul par jour (douleurs, YouTube, Toulouse,
+ * compétences), pour les couvrir tous sans multiplier la dépense —
  * chaque récolte est un appel avec recherches web. Chacun est désactivable depuis
  * le dashboard (sa source « websearch » porte le réglage).
  */
 export function axeElargiDuJour(now = new Date()): HarvestSpec {
-  const axes = [LINKEDIN_FR_HARVEST, DOULEURS_HARVEST, YOUTUBE_HARVEST, LOCAL_HARVEST, SKILLS_HARVEST];
+  const axes = AXES_ELARGIS;
   const jour = Math.floor(now.getTime() / 86400000);
   return axes[jour % axes.length]!;
 }
 
-/** Tous les axes, pour les tests et pour une récolte manuelle depuis le dashboard. */
-export const AXES_ELARGIS: HarvestSpec[] = [LINKEDIN_FR_HARVEST, DOULEURS_HARVEST, YOUTUBE_HARVEST, LOCAL_HARVEST, SKILLS_HARVEST];
+/** Les axes en rotation, pour les tests et pour une récolte manuelle depuis le dashboard. */
+export const AXES_ELARGIS: HarvestSpec[] = [DOULEURS_HARVEST, YOUTUBE_HARVEST, LOCAL_HARVEST, SKILLS_HARVEST];
+
+/** Ce qui passe chaque jour : les tendances IA, puis les posts LinkedIn qui performent (FR et US). */
+export const AXES_QUOTIDIENS: HarvestSpec[] = [TENDANCES_HARVEST, GENERAL_HARVEST, LINKEDIN_FR_HARVEST, LINKEDIN_HARVEST];
 
 const resultSchema = z.object({
   items: z
@@ -291,10 +319,10 @@ async function harvest(client: Anthropic, spec: HarvestSpec): Promise<WebsearchS
 
 /**
  * Collecte quotidienne par recherche web (Claude + outil serveur web_search),
- * en trois passes : veille générale (cas d'entreprises, social US, études),
- * posts LinkedIn anglophones performants à recycler, puis l'axe élargi du jour
- * (LinkedIn FR, douleurs de dirigeants, YouTube, ancrage toulousain ou compétences,
- * à tour de rôle sur cinq jours). Les items stockent
+ * en cinq passes : les tendances IA qui buzzent, la veille générale (cas
+ * d'entreprises, études), les posts LinkedIn qui performent en français puis en
+ * anglais, et l'axe élargi du jour (douleurs de dirigeants, YouTube, ancrage
+ * toulousain ou compétences, à tour de rôle sur quatre jours). Les items stockent
  * titre + URL + un résumé original écrit par le modèle, puis suivent le circuit
  * normal (scoring → shortlist → réécriture).
  */
@@ -304,10 +332,20 @@ export async function runWebsearch(): Promise<WebsearchSummary> {
 
   const client = new Anthropic({ apiKey: config.ANTHROPIC_API_KEY });
   const total: WebsearchSummary = { found: 0, inserted: 0 };
-  for (const spec of [GENERAL_HARVEST, LINKEDIN_HARVEST, axeElargiDuJour()]) {
+  for (const spec of [...AXES_QUOTIDIENS, axeElargiDuJour()]) {
     const result = await harvest(client, spec);
     total.found += result.found;
     total.inserted += result.inserted;
   }
   return total;
+}
+
+/**
+ * Seconde récolte des tendances IA, en milieu de journée : l'actualité qui fait
+ * cliquer se joue en quelques heures, celle du matin est déjà ancienne le soir.
+ */
+export async function runTendances(): Promise<WebsearchSummary> {
+  if (config.LLM_MODE === 'mock') return { skipped: 'mode mock', found: 0, inserted: 0 };
+  if (!config.ANTHROPIC_API_KEY) return { skipped: 'ANTHROPIC_API_KEY absente', found: 0, inserted: 0 };
+  return harvest(new Anthropic({ apiKey: config.ANTHROPIC_API_KEY }), TENDANCES_HARVEST);
 }

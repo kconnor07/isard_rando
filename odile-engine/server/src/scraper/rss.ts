@@ -35,6 +35,7 @@ export async function fetchRss(
   url: string,
   etag: string | null,
   lastModified: string | null,
+  options: { ageMaxJours?: number } = {},
 ): Promise<RssFetchResult> {
   const headers: Record<string, string> = {
     'user-agent': 'OdileEngine/1.0 (+https://odileai.com)',
@@ -57,13 +58,16 @@ export async function fetchRss(
     return { notModified: true, etag, lastModified, items: [] };
   }
   const feed = await parser.parseString(xml);
-  const ageMax = (recherche ? AGE_MAX_RECHERCHE_JOURS : AGE_MAX_JOURS) * 86400_000;
+  const ageMax = (options.ageMaxJours ?? (recherche ? AGE_MAX_RECHERCHE_JOURS : AGE_MAX_JOURS)) * 86400_000;
 
   const items: FetchedItem[] = [];
   for (const item of feed.items ?? []) {
     const link = lienReel(item.link?.trim() ?? '');
     const title = item.title?.trim();
     if (!link || !title) continue;
+    // MSN republie les articles des autres : la source citée serait fausse, et
+    // l'original est presque toujours dans la même recherche.
+    if (recherche && /(^|\.)msn\.com$/i.test(hoteDe(link))) continue;
     const date = item.isoDate ?? (item.pubDate ? new Date(item.pubDate).toISOString() : null);
     // Une recherche d'actualités remonte aussi des articles d'il y a deux ans.
     if (date && Date.now() - new Date(date).getTime() > ageMax) continue;
@@ -116,6 +120,14 @@ export function lienReel(link: string): string {
     /* lien relatif ou illisible : on le garde tel quel */
   }
   return link;
+}
+
+function hoteDe(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
 }
 
 function stripHtml(s: string): string {
