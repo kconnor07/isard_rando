@@ -1,3 +1,4 @@
+import { eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
 
 export interface SeedSource {
@@ -6,7 +7,29 @@ export interface SeedSource {
   url: string;
   lang: 'fr' | 'en';
   weight: number;
+  enabled?: boolean;
 }
+
+/**
+ * Recherche d'actualités par mots-clés (Bing Actualités, en français) : tous les
+ * médias français à la fois — presse régionale, Les Echos, JDN, Batiactu, Bpifrance…
+ * Une requête simple par source (Bing n'accepte pas les « OU » dans son flux RSS).
+ */
+export function rechercheActus(requete: string): string {
+  return `https://www.bing.com/news/search?${new URLSearchParams({ q: requete, format: 'rss', setlang: 'fr', cc: 'FR', mkt: 'fr-FR' })}`;
+}
+
+const RECHERCHES_ACTUS: [string, string, number][] = [
+  ['Actus · PME & IA', 'PME intelligence artificielle', 1.3],
+  ['Actus · TPE & IA', 'TPE intelligence artificielle', 1.3],
+  ['Actus · artisans & IA', 'artisans intelligence artificielle', 1.2],
+  ['Actus · commerçants & IA', 'commerçants IA', 1.2],
+  ['Actus · automatisation en PME', 'PME automatisation', 1.3],
+  ['Actus · IA et gain de temps', 'IA gain de temps entreprise', 1.2],
+  ['Actus · facturation électronique', 'facturation électronique PME', 1.3],
+  ['Actus · AI Act & PME', 'AI Act PME', 1.2],
+  ['Actus · Toulouse & IA', 'Toulouse intelligence artificielle', 1.4],
+];
 
 /**
  * Sources de veille par défaut. Elles vivent en base (news_sources) :
@@ -15,13 +38,13 @@ export interface SeedSource {
 export const SEED_SOURCES: SeedSource[] = [
   { name: 'TechCrunch AI', kind: 'rss', url: 'https://techcrunch.com/category/artificial-intelligence/feed/', lang: 'en', weight: 1.2 },
   { name: 'VentureBeat AI', kind: 'rss', url: 'https://venturebeat.com/category/ai/feed/', lang: 'en', weight: 1.1 },
-  { name: 'The Verge', kind: 'rss', url: 'https://www.theverge.com/rss/index.xml', lang: 'en', weight: 1.0 },
+  { name: 'The Verge', kind: 'rss', url: 'https://www.theverge.com/rss/index.xml', lang: 'en', weight: 1.0, enabled: false },
   { name: "Ben's Bites", kind: 'rss', url: 'https://www.bensbites.com/feed', lang: 'en', weight: 1.3 },
   { name: 'The Rundown AI', kind: 'rss', url: 'https://www.therundown.ai/feed', lang: 'en', weight: 1.2 },
   { name: 'OpenAI Blog', kind: 'rss', url: 'https://openai.com/news/rss.xml', lang: 'en', weight: 1.1 },
   { name: 'Google AI Blog', kind: 'rss', url: 'https://blog.google/technology/ai/rss/', lang: 'en', weight: 1.0 },
-  { name: 'MIT Tech Review AI', kind: 'rss', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', lang: 'en', weight: 1.0 },
-  { name: 'Product Hunt', kind: 'rss', url: 'https://www.producthunt.com/feed', lang: 'en', weight: 0.9 },
+  { name: 'MIT Tech Review AI', kind: 'rss', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', lang: 'en', weight: 1.0, enabled: false },
+  { name: 'Product Hunt', kind: 'rss', url: 'https://www.producthunt.com/feed', lang: 'en', weight: 0.9, enabled: false },
   // Côté client, pas côté technologie : ce que vivent les dirigeants de TPE/PME
   // françaises. C'est là que se trouvent les douleurs qu'Odile sait automatiser.
   { name: 'Dynamique Entrepreneuriale', kind: 'rss', url: 'https://www.dynamique-mag.com/feed', lang: 'fr', weight: 1.2 },
@@ -57,6 +80,9 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'GitHub · automatisation & workflows', kind: 'github', url: 'topic:automation topic:ai created:>{90d} stars:>100', lang: 'en', weight: 1.1 },
   { name: 'GitHub · compétences & MCP (skills)', kind: 'github', url: 'topic:mcp created:>{60d} stars:>100', lang: 'en', weight: 1.0 },
   { name: 'GitHub · skills d’agents', kind: 'github', url: 'skills agent in:name,description,topics created:>{60d} stars:>60', lang: 'en', weight: 0.9 },
+  // Veille v4 — le terrain des PME françaises, par mots-clés, dans toute la presse.
+  // Chaque requête a été vérifiée : elle ramène des articles de la semaine.
+  ...RECHERCHES_ACTUS.map(([name, requete, weight]) => ({ name, kind: 'rss' as const, url: rechercheActus(requete), lang: 'fr' as const, weight })),
 ];
 
 /**
@@ -68,11 +94,55 @@ export function seedSourcesIfEmpty(): number {
   const existing = new Set(
     db.select({ name: schema.newsSources.name }).from(schema.newsSources).all().map((s) => s.name),
   );
+  // Une base qui reçoit les recherches d'actualités pour la première fois reçoit
+  // aussi le rééquilibrage qui va avec (une seule fois : ensuite, le dashboard décide).
+  const premiereFoisActus = existing.size > 0 && !RECHERCHES_ACTUS.some(([name]) => existing.has(name));
   let added = 0;
   for (const s of SEED_SOURCES) {
     if (existing.has(s.name)) continue;
     db.insert(schema.newsSources).values(s).run();
     added++;
   }
+  if (premiereFoisActus) reequilibrerSources();
   return added;
+}
+
+/**
+ * Veille v4 : les sources qui remontaient surtout de la tech générale, des levées de
+ * fonds ou la promotion des éditeurs passent au second plan. Les poids ne font que
+ * baisser (jamais au-dessus de ce que l'apprentissage a déjà décidé).
+ */
+export const REEQUILIBRAGE_V4: { name: string; weight?: number; enabled?: false }[] = [
+  { name: 'The Verge', enabled: false },
+  { name: 'Product Hunt', enabled: false },
+  { name: 'MIT Tech Review AI', enabled: false },
+  { name: 'YouTube · AI Explained', enabled: false },
+  { name: 'YouTube · Micode', enabled: false },
+  { name: 'TechCrunch AI', weight: 0.8 },
+  { name: 'OpenAI Blog', weight: 0.8 },
+  { name: 'Google AI Blog', weight: 0.8 },
+  { name: 'Hacker News (IA)', weight: 0.7 },
+  { name: 'Zapier Blog', weight: 1.0 },
+  { name: 'n8n Blog', weight: 1.0 },
+  { name: 'GitHub · agents IA', weight: 0.8 },
+  { name: 'GitHub · automatisation & workflows', weight: 0.8 },
+  { name: 'GitHub · compétences & MCP (skills)', weight: 0.8 },
+  { name: 'GitHub · skills d’agents', weight: 0.7 },
+];
+
+export function reequilibrerSources(): number {
+  let n = 0;
+  for (const r of REEQUILIBRAGE_V4) {
+    const src = db.select().from(schema.newsSources).where(eq(schema.newsSources.name, r.name)).get();
+    if (!src) continue;
+    db.update(schema.newsSources)
+      .set({
+        ...(r.enabled === false ? { enabled: false } : {}),
+        ...(r.weight !== undefined ? { weight: Math.min(src.weight, r.weight) } : {}),
+      })
+      .where(eq(schema.newsSources.id, src.id))
+      .run();
+    n++;
+  }
+  return n;
 }

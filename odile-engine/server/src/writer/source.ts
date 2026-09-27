@@ -30,7 +30,7 @@ export function sourceReelle(newsItemId: number | null): { media: string; titre:
     ? db.select({ name: schema.newsSources.name, kind: schema.newsSources.kind }).from(schema.newsSources).where(eq(schema.newsSources.id, news.sourceId)).get()
     : null;
   const parUrl = mediaDepuisUrl(news.url);
-  const agregateur = !source || source.kind !== 'rss' || /recherche web|reddit|hacker news|linkedin|github|youtube \(vidéos/i.test(source.name);
+  const agregateur = !source || source.kind !== 'rss' || /recherche web|reddit|hacker news|linkedin|github|youtube \(vidéos|^actus ·/i.test(source.name);
   // Une chaîne YouTube se cite par son nom : « Matt Wolfe (YouTube) ».
   const chaine = source?.kind === 'youtube' ? /·\s*(.+)$/.exec(source.name)?.[1]?.trim() : undefined;
   const media = chaine
@@ -66,6 +66,36 @@ const MEDIAS_CONNUS: Record<string, string> = {
     'github.com': 'GitHub',
     'news.ycombinator.com': 'Hacker News',
     'reddit.com': 'Reddit',
+    // Presse française que ramènent les recherches d'actualités
+    'latribune.fr': 'La Tribune',
+    'lopinion.fr': 'L’Opinion',
+    'lemonde.fr': 'Le Monde',
+    'lefigaro.fr': 'Le Figaro',
+    'bfmtv.com': 'BFM',
+    'ladepeche.fr': 'La Dépêche',
+    'actu.fr': 'Actu.fr',
+    'francebleu.fr': 'ici',
+    'ici.fr': 'ici',
+    'batiactu.com': 'Batiactu',
+    'lemondeinformatique.fr': 'Le Monde Informatique',
+    'journaldesentreprises.com': 'Le Journal des Entreprises',
+    'lejournaldesentreprises.com': 'Le Journal des Entreprises',
+    'bpifrance.fr': 'Bpifrance',
+    'bigmedia.bpifrance.fr': 'Bpifrance Big Média',
+    'francenum.gouv.fr': 'France Num',
+    'economie.gouv.fr': 'Ministère de l’Économie',
+    'travail-emploi.gouv.fr': 'Ministère du Travail',
+    'entreprendre.service-public.fr': 'Service-Public Entreprendre',
+    'cpme.fr': 'CPME',
+    'medef.com': 'Medef',
+    'cci.fr': 'CCI France',
+    'daf-mag.fr': 'DAF Magazine',
+    'decideurs-magazine.com': 'Décideurs Magazine',
+    'challenges.fr': 'Challenges',
+    'capital.fr': 'Capital',
+    'toulouse.fr': 'Ville de Toulouse',
+    'touleco.fr': 'ToulÉco',
+    'objectifnews.latribune.fr': 'Objectif News',
 };
 
 function hoteDe(url: string): string {

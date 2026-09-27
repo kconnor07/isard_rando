@@ -204,7 +204,9 @@ Pour chaque groupe :
   et un "angle" (ce que le post raconterait concrètement). Varie : le cas d'entreprise chiffré, la méthode
   pas à pas, l'erreur à éviter, le calcul du temps gagné, la prise de position.
 - "garder" : false si le groupe n'intéresse pas un dirigeant de PME (actu corporate, levée de fonds,
-  recherche, politique, annonce produit sans usage concret), true sinon.
+  recherche, politique, annonce produit sans usage concret, promotion d'un éditeur par lui-même,
+  grand groupe sans leçon transposable, chiffre étranger sans lien avec la France), ou s'il redit
+  un sujet déjà publié ; true sinon. Sois exigeant : mieux vaut trois bons sujets que huit moyens.
 
 SUJETS DÉJÀ PUBLIÉS ces deux derniers mois, à ne pas reproposer :
 ${deja.slice(0, 40).map((t) => `- ${t}`).join('\n') || '- (aucun)'}
@@ -268,13 +270,43 @@ interface SujetAEnregistrer {
   kind: 'actu' | 'douleur' | 'local' | 'saison';
 }
 
+/**
+ * Deux sujets bâtis sur les mêmes articles racontent la même chose, quel que soit
+ * le titre que le modèle leur a donné d'une construction à l'autre (« Seules 5 %
+ * des PME… », « Pourquoi 95 % des PME… »). Un sujet d'un seul article est le jumeau
+ * de tout sujet qui contient cet article ; au-delà, il faut partager la moitié.
+ */
+export function memesArticles(a: number[], b: number[]): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  const sa = new Set(a);
+  const communs = b.filter((id) => sa.has(id)).length;
+  return communs > 0 && communs >= Math.ceil(Math.min(sa.size, new Set(b).size) / 2);
+}
+
+function idsDe(itemIds: string): number[] {
+  try {
+    return JSON.parse(itemIds) as number[];
+  } catch {
+    return [];
+  }
+}
+
 /** Crée le sujet, ou met à jour celui qui dit déjà la même chose. Renvoie vrai si c'est un nouveau. */
 export function enregistrerSujet(sujet: SujetAEnregistrer): boolean {
   const now = new Date().toISOString();
-  const existants = db.select().from(schema.newsSubjects).where(ne(schema.newsSubjects.status, 'ecarte')).all();
-  // Exigeant : deux sujets proches mais distincts (« les devis » et « les relances »)
-  // doivent rester deux sujets. Seul un quasi-doublon fusionne.
-  const jumeau = existants.find((e) => titleSimilarity(e.label, sujet.label) >= 0.6 || partageLesMotsForts(e.label, sujet.label));
+  const tous = db.select().from(schema.newsSubjects).all();
+  // Des articles déjà écartés par le fondateur ne reviennent pas sous un autre titre.
+  if (tous.some((e) => e.status === 'ecarte' && memesArticles(idsDe(e.itemIds), sujet.itemIds))) return false;
+  const existants = tous.filter((e) => e.status !== 'ecarte');
+  // Exigeant sur les titres : deux sujets proches mais distincts (« les devis » et
+  // « les relances ») doivent rester deux sujets. Seul un quasi-doublon fusionne —
+  // ou un sujet construit sur les mêmes articles, qui en est un par définition.
+  const jumeau = existants.find(
+    (e) =>
+      memesArticles(idsDe(e.itemIds), sujet.itemIds) ||
+      titleSimilarity(e.label, sujet.label) >= 0.6 ||
+      partageLesMotsForts(e.label, sujet.label),
+  );
   if (jumeau) {
     // Déjà utilisé : on ne le ressuscite pas, on ne le remonte pas dans la liste.
     if (jumeau.status === 'utilise') return false;
@@ -309,17 +341,65 @@ export function enregistrerSujet(sujet: SujetAEnregistrer): boolean {
   return true;
 }
 
-/** Les sujets à proposer, le meilleur d'abord, avec leurs articles. */
+/**
+ * Garde, dans l'ordre, les sujets qui apportent quelque chose de neuf : un sujet
+ * dont tous les articles sont déjà derrière un sujet mieux classé, ou dont le titre
+ * redit celui d'un sujet déjà gardé, n'est pas reproposé. Fonction pure, testée.
+ */
+export function sujetsDistincts<T extends { label: string; itemIds: number[] }>(sujets: T[], limit: number): T[] {
+  const gardes: T[] = [];
+  const vus = new Set<number>();
+  for (const s of sujets) {
+    if (gardes.length >= limit) break;
+    const dejaCouvert = s.itemIds.length > 0 && s.itemIds.every((id) => vus.has(id));
+    const memeTitre = gardes.some((g) => titleSimilarity(g.label, s.label) >= 0.5 || partageLesMotsForts(g.label, s.label));
+    if (dejaCouvert || memeTitre) continue;
+    gardes.push(s);
+    for (const id of s.itemIds) vus.add(id);
+  }
+  return gardes;
+}
+
+/**
+ * Change le statut d'un sujet et de ses jumeaux (mêmes articles) : un sujet écrit
+ * ou écarté ne doit pas revenir le lendemain sous un autre titre.
+ */
+export function marquerSujet(id: number, status: 'utilise' | 'ecarte', postId: number | null = null): number {
+  const cible = db.select().from(schema.newsSubjects).where(eq(schema.newsSubjects.id, id)).get();
+  if (!cible) return 0;
+  const now = new Date().toISOString();
+  db.update(schema.newsSubjects)
+    .set({ status, ...(status === 'utilise' ? { postId } : {}), updatedAt: now })
+    .where(eq(schema.newsSubjects.id, id))
+    .run();
+  const ids = idsDe(cible.itemIds);
+  if (ids.length === 0) return 1;
+  const jumeaux = db
+    .select({ id: schema.newsSubjects.id, itemIds: schema.newsSubjects.itemIds })
+    .from(schema.newsSubjects)
+    .where(and(eq(schema.newsSubjects.status, 'nouveau'), ne(schema.newsSubjects.id, id)))
+    .all()
+    .filter((s) => memesArticles(ids, idsDe(s.itemIds)))
+    .map((s) => s.id);
+  if (jumeaux.length > 0) {
+    db.update(schema.newsSubjects).set({ status, updatedAt: now }).where(inArray(schema.newsSubjects.id, jumeaux)).run();
+  }
+  return 1 + jumeaux.length;
+}
+
+/** Les sujets à proposer, le meilleur d'abord, avec leurs articles — un seul sujet par article. */
 export function sujetsDuMoment(limit = 12) {
-  const sujets = db
+  const candidats = db
     .select()
     .from(schema.newsSubjects)
     .where(eq(schema.newsSubjects.status, 'nouveau'))
     .orderBy(desc(schema.newsSubjects.score))
-    .limit(limit)
-    .all();
+    .limit(limit * 5)
+    .all()
+    .map((s) => ({ ...s, itemIds: idsDe(s.itemIds) }));
+  const sujets = sujetsDistincts(candidats, limit);
   return sujets.map((s) => {
-    const ids = JSON.parse(s.itemIds) as number[];
+    const ids = s.itemIds;
     const items = ids.length
       ? db
           .select({ id: schema.newsItems.id, title: schema.newsItems.title, url: schema.newsItems.url, sourceId: schema.newsItems.sourceId })

@@ -9,7 +9,7 @@ import { runScrape } from '../../scraper/index.js';
 import { runScore } from '../../scorer/score.js';
 import { buildDailyShortlist } from '../../scorer/shortlist.js';
 import { runDraftPipeline } from '../../scheduler/pipeline.js';
-import { construireSujets, itemPrincipal, sujetsDuMoment } from '../../scorer/sujets.js';
+import { construireSujets, itemPrincipal, marquerSujet, sujetsDuMoment } from '../../scorer/sujets.js';
 
 export function registerNewsRoutes(app: FastifyInstance): void {
   app.get<{ Querystring: { status?: string; limit?: string } }>('/api/news', async (request) => {
@@ -112,10 +112,7 @@ export function registerNewsRoutes(app: FastifyInstance): void {
           sujet: { label: sujet.label, reason: sujet.reason, ...(angle ? { angle } : {}) },
           contexteItemIds: itemIds,
         });
-        db.update(schema.newsSubjects)
-          .set({ status: 'utilise', postId: res.postId ?? null, updatedAt: new Date().toISOString() })
-          .where(eq(schema.newsSubjects.id, id))
-          .run();
+        marquerSujet(id, 'utilise', res.postId ?? null);
         return res;
       })
         .catch((err) => logger.error({ err: String(err), sujet: id }, 'pipeline depuis un sujet en échec'))
@@ -129,11 +126,9 @@ export function registerNewsRoutes(app: FastifyInstance): void {
   app.get('/api/news/sujets/en-cours', async () => Array.from(sujetEnCours, ([id, v]) => ({ id, startedAt: v.startedAt })));
 
   app.post<{ Params: { id: string } }>('/api/news/sujets/:id/ecarter', async (request) => {
-    db.update(schema.newsSubjects)
-      .set({ status: 'ecarte', updatedAt: new Date().toISOString() })
-      .where(eq(schema.newsSubjects.id, Number(request.params.id)))
-      .run();
-    return { ok: true };
+    // Les jumeaux (mêmes articles, autre titre) partent avec lui.
+    const ecartes = marquerSujet(Number(request.params.id), 'ecarte');
+    return { ok: true, ecartes };
   });
 
   app.post<{ Params: { id: string } }>('/api/news/:id/discard', async (request) => {

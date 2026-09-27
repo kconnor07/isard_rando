@@ -3,7 +3,7 @@ import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import { canonicalizeUrl, contentHash, titleSimilarity, TITLE_SIMILARITY_THRESHOLD } from './dedupe.js';
 import { fetchHackerNews } from './hackernews.js';
-import { fetchRss, type FetchedItem } from './rss.js';
+import { estRechercheActus, fetchRss, type FetchedItem } from './rss.js';
 import { seedSourcesIfEmpty } from './sources.js';
 
 /** Échecs consécutifs avant auto-désactivation d'une source (≈ 12 h au rythme horaire). */
@@ -27,8 +27,15 @@ export async function runScrape(): Promise<ScrapeSummary> {
     .where(eq(schema.newsSources.enabled, true))
     .all();
 
+  // Les recherches d'actualités (Bing) passent une par une, à tour de rôle : les
+  // interroger toutes à la fois, chaque heure, leur fait renvoyer des pages vides.
+  const recherches = sources
+    .filter((s) => s.kind === 'rss' && estRechercheActus(s.url))
+    .sort((a, b) => (a.lastFetchedAt ?? '').localeCompare(b.lastFetchedAt ?? ''));
+  const aTraiter = sources.filter((s) => !recherches.includes(s) || s === recherches[0]);
+
   const summary: ScrapeSummary = {
-    sources: sources.length,
+    sources: aTraiter.length,
     fetched: 0,
     inserted: 0,
     duplicates: 0,
@@ -37,7 +44,7 @@ export async function runScrape(): Promise<ScrapeSummary> {
   };
 
   // Traitement parallèle (pool de concurrence limitée)
-  const queue = [...sources];
+  const queue = [...aTraiter];
   const workers = Array.from({ length: Math.min(SCRAPE_CONCURRENCY, queue.length) }, async () => {
     for (let source = queue.shift(); source; source = queue.shift()) {
       await processSource(source, summary);

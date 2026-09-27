@@ -50,13 +50,23 @@ export async function fetchRss(
   }
   if (!res.ok) throw new Error(`HTTP ${res.status} sur ${url}`);
   const xml = await res.text();
+  const recherche = estRechercheActus(url);
+  // Bing répond parfois par une page vide au lieu du flux quand on l'interroge trop
+  // souvent : ce n'est pas une panne de la source, juste « rien cette fois-ci ».
+  if (recherche && !/<rss|<feed/i.test(xml.slice(0, 2000))) {
+    return { notModified: true, etag, lastModified, items: [] };
+  }
   const feed = await parser.parseString(xml);
+  const ageMax = (recherche ? AGE_MAX_RECHERCHE_JOURS : AGE_MAX_JOURS) * 86400_000;
 
   const items: FetchedItem[] = [];
   for (const item of feed.items ?? []) {
-    const link = item.link?.trim();
+    const link = lienReel(item.link?.trim() ?? '');
     const title = item.title?.trim();
     if (!link || !title) continue;
+    const date = item.isoDate ?? (item.pubDate ? new Date(item.pubDate).toISOString() : null);
+    // Une recherche d'actualités remonte aussi des articles d'il y a deux ans.
+    if (date && Date.now() - new Date(date).getTime() > ageMax) continue;
     const media = (item as unknown as Record<string, unknown>).mediaContent as
       | { $?: { url?: string } }
       | undefined;
@@ -70,7 +80,7 @@ export async function fetchRss(
         stripHtml(item.contentSnippet ?? item.summary ?? group?.['media:description']?.[0] ?? '').slice(0, 800) ||
         null,
       imageUrl: item.enclosure?.url ?? media?.$?.url ?? group?.['media:thumbnail']?.[0]?.$?.url ?? null,
-      publishedAt: item.isoDate ?? (item.pubDate ? new Date(item.pubDate).toISOString() : null),
+      publishedAt: date,
     });
   }
   return {
@@ -79,6 +89,33 @@ export async function fetchRss(
     lastModified: res.headers.get('last-modified'),
     items,
   };
+}
+
+/** Au-delà, un article n'est plus de l'actualité pour la veille. */
+const AGE_MAX_JOURS = 45;
+const AGE_MAX_RECHERCHE_JOURS = 10;
+
+/** Flux d'une recherche d'actualités par mots-clés (Bing Actualités). */
+export function estRechercheActus(url: string): boolean {
+  return /^https?:\/\/(www\.)?bing\.com\/news\/search/i.test(url);
+}
+
+/**
+ * L'adresse de l'article lui-même : Bing Actualités fait passer chaque lien par un
+ * compteur de clics (apiclick.aspx?…&url=<article>). Sans ce décodage, on lirait la
+ * page de Bing au lieu de l'article, et la source citée serait « bing.com ».
+ */
+export function lienReel(link: string): string {
+  try {
+    const u = new URL(link);
+    if (/(^|\.)bing\.com$/i.test(u.hostname)) {
+      const cible = u.searchParams.get('url');
+      if (cible && /^https?:\/\//i.test(cible)) return cible;
+    }
+  } catch {
+    /* lien relatif ou illisible : on le garde tel quel */
+  }
+  return link;
 }
 
 function stripHtml(s: string): string {

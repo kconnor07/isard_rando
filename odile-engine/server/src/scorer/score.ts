@@ -9,17 +9,31 @@ Odile VEND l'implémentation de solutions IA : ses posts ne présentent jamais u
 qu'actu produit » — ils racontent des bénéfices, des capacités et des résultats d'entreprises.
 Tu évalues des contenus (articles, vidéos, posts sociaux) pour décider lesquels méritent un post.`;
 
-const RUBRIC = `Note chaque item sur deux axes :
-- "relevance" (0-50) : matière pour un post « bénéfices/résultats » destiné à un dirigeant de
-  PME/TPE française. Score HAUT : cas d'entreprise avec résultats mesurés (temps gagné, CA,
-  taux de conversion, coûts), données réelles/études d'adoption chiffrées, capacité IA nouvelle
-  expliquée par ce qu'elle permet (devis, relances, support, compta, prospection, marketing),
-  ce que des entreprises comparables mettent déjà en place. Score BAS : annonce produit sans
-  application concrète, levée de fonds, recherche fondamentale, géopolitique, actu corporate.
+const RUBRIC = `Le lecteur : le dirigeant d'une PME ou TPE française (5 à 50 salariés, artisan, commerçant,
+cabinet, PME industrielle ou de services), sans équipe technique, qui se demande ce que l'IA
+et l'automatisation peuvent faire pour SON entreprise, lundi matin, avec SON budget.
+
+Note chaque item sur deux axes :
+- "relevance" (0-50) : matière pour un post utile à ce dirigeant.
+  35-50 : ce qu'il peut reproduire ou doit savoir — une PME ou TPE (française ou européenne de
+  préférence) qui a automatisé une tâche avec un résultat mesuré (temps gagné, CA, coûts,
+  délais) ; une étude chiffrée sur les PME françaises (Bpifrance, France Num, INSEE, CPME,
+  CCI, baromètres) ; une obligation ou une échéance qui le concerne (facturation électronique,
+  AI Act, RGPD, cybersécurité) ; une aide ou un financement ouvert aux PME ; une capacité
+  nouvelle qu'il peut utiliser tout de suite sans développeur, décrite par la tâche qu'elle
+  règle (devis, relances, support, compta, prospection, recrutement, avis clients) ;
+  l'économie de Toulouse et de l'Occitanie.
+  15-34 : un cas ou une donnée étrangère qui se transpose clairement à une PME française ;
+  une tendance de fond expliquée par ses effets concrets sur une petite entreprise.
+  0-14 : ce qui ne change rien pour lui — levée de fonds, valorisation ou chiffre d'affaires
+  d'une start-up, sortie ou classement de modèles, benchmark, recherche, outil pour
+  développeurs, dépôt de code, géopolitique ou politique américaine, gadget grand public,
+  grand groupe (banque, CAC 40, GAFAM) sans leçon transposable, et la promotion d'un éditeur
+  par lui-même (témoignage client publié sur le blog de l'éditeur, « les 10 meilleurs
+  outils », annonce commerciale) sauf s'il contient un résultat chiffré vraiment reproductible.
 - "click" (0-50) : potentiel d'accroche — chiffre marquant, histoire d'entreprise racontable,
-  résultat surprenant, sujet qui fait réagir, démonstration visuelle possible.
-  Un contenu US qui a déjà beaucoup d'engagement (points, partages, vues) est un excellent
-  candidat : la preuve sociale est faite, il ne reste qu'à l'adapter au public français.
+  résultat surprenant, échéance qui inquiète, sujet qui fait réagir. Un contenu qui a déjà
+  beaucoup d'engagement est un bon candidat, à condition que le sujet parle à une PME française.
 Ajoute "reason" : une phrase en français qui justifie la note (elle sera montrée à l'humain qui valide).`;
 
 export interface ScoreSummary {

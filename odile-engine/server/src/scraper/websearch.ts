@@ -22,17 +22,20 @@ const GENERAL_HARVEST: HarvestSpec = {
   lang: 'fr',
   prompt: `Nous alimentons la veille d'Odile AI, agence française d'automatisation IA pour PME/TPE.
 Odile ne fait pas de posts « actu outil » : elle raconte des bénéfices, des capacités et des
-résultats d'entreprises. Cherche sur le web (dernières 24-48 h) sur TROIS axes :
-1. CAS D'ENTREPRISES : des entreprises (PME de préférence, US ou FR) qui ont mis en place de
-   l'IA/automatisation avec des RÉSULTATS MESURÉS (temps gagné, CA, conversion, coûts) —
-   études de cas, retours d'expérience, interviews.
+résultats d'entreprises. Son lecteur : le dirigeant d'une PME ou TPE française sans équipe
+technique. Cherche sur le web (dernières 24-48 h) sur TROIS axes, en commençant par la presse
+française (Les Echos, JDN, presse régionale, Bpifrance, France Num, CCI) :
+1. CAS D'ENTREPRISES : des PME ou TPE (françaises ou européennes d'abord, américaines si le cas
+   est exemplaire) qui ont mis en place de l'IA/automatisation avec des RÉSULTATS MESURÉS
+   (temps gagné, CA, conversion, coûts) — retours d'expérience, interviews, reportages.
+   PAS les témoignages clients publiés par un éditeur sur son propre blog.
 2. CONTENU SOCIAL US QUI PERFORME : threads X/Twitter ou vidéos qui buzzent en ce moment sur
    l'IA appliquée au business — la preuve sociale est faite, on l'adaptera au public français.
    Donne l'URL du contenu original.
 3. DONNÉES ET ÉTUDES : statistiques récentes d'adoption de l'IA par les PME, benchmarks,
    rapports chiffrés exploitables dans un post.
-Ignore : annonces produit sans application concrète, levées de fonds, recherche fondamentale,
-géopolitique.
+Ignore : annonces produit sans application concrète, levées de fonds, valorisations, sorties de
+modèles, recherche fondamentale, géopolitique, grands groupes sans leçon transposable à une PME.
 
 Renvoie UNIQUEMENT un objet JSON : {"items":[{"title","url","summary","why"}]} avec 3 à 6 items —
 "title" en français, "url" = la source précise (pas une home page), "summary" = 2 phrases
