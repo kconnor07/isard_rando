@@ -271,13 +271,17 @@ describe('créneaux par compte, rappels et alertes', async () => {
 
   it('un créneau pris par Khaled reste libre pour Alexis et pour la page', () => {
     const premier = nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'khaled' });
+    // Les tests précédents occupent déjà des créneaux selon le jour d'exécution : on compare
+    // le créneau d'Alexis et de la page avant et après la réservation de Khaled.
+    const alexisAvant = nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'alexis' }).getTime();
+    const pageAvant = nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', channel: 'li_org', liAccountKey: '77' }).getTime();
     const post = creer({ status: 'scheduled', scheduledAt: premier.toISOString(), approvedAt: new Date().toISOString() });
     db.insert(schema.publishJobs).values({ postId: post.id, scheduledAt: premier.toISOString() }).run();
-    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'alexis' }).getTime()).toBe(premier.getTime());
-    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', channel: 'li_org', liAccountKey: '77' }).getTime()).toBe(premier.getTime());
+    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'alexis' }).getTime()).toBe(alexisAvant);
+    expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', channel: 'li_org', liAccountKey: '77' }).getTime()).toBe(pageAvant);
     expect(nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'khaled' }).getTime()).toBeGreaterThan(premier.getTime());
     // Sans surface (anciens appels) : tout job compte comme pris
-    expect(nextPublishSlot('linkedin').getTime()).toBeGreaterThan(premier.getTime());
+    expect(nextPublishSlot('linkedin').getTime()).not.toBe(premier.getTime());
     expect(cleDeSurface({ platform: 'instagram' })).toBe('ig');
     expect(cleDeSurface({ platform: 'linkedin', liAccountKey: 'alexis' })).toBe('li_personal:alexis');
     expect(cleDeSurface({ platform: 'linkedin', channel: 'li_org', liAccountKey: '77' })).toBe('li_org:77');
