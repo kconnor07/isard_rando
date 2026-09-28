@@ -31,7 +31,8 @@ export function recherchesDues<T extends { name: string; lastFetchedAt: string |
   return recherches
     .map((s) => ({ s, r: retard(s) }))
     .filter(({ r }) => r >= 0)
-    .sort((a, b) => b.r - a.r)
+    // À retard égal (au premier passage : jamais lues), les tendances passent d'abord.
+    .sort((a, b) => (b.r === a.r ? Number(estTendanceIA(b.s.name)) - Number(estTendanceIA(a.s.name)) : b.r - a.r))
     .slice(0, max)
     .map(({ s }) => s);
 }

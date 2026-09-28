@@ -17,9 +17,15 @@ const TZ = 'Europe/Paris';
 /** Enregistre tous les crons du moteur (idempotent au démarrage du process). */
 export function registerJobs(): void {
   // Collecte de la veille : toutes les heures. Elle ne coûte rien (lecture de flux
-  // RSS), et garder le fil frais permet de noter des articles encore chauds.
+  // RSS), et garder le fil frais permet de noter des articles encore chauds. Juste
+  // après, une notation légère des 20 articles les plus récents (un appel de modèle
+  // rapide quand il y en a) : une tendance IA tombée à 13 h est notée à 13 h 15, pas à 18 h.
   cron.schedule('15 * * * *', () => {
-    void runJob('scrape', runScrape);
+    void (async () => {
+      const scrape = await runJob('scrape', runScrape);
+      const nouveaux = (scrape.result as { inserted?: number } | undefined)?.inserted ?? 0;
+      if (nouveaux > 0) await runJob('score', () => runScore(20));
+    })().catch((err) => logger.error({ err: String(err) }, 'collecte horaire en échec'));
   }, { timezone: TZ });
 
   /**

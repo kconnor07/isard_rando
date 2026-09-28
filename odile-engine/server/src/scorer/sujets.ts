@@ -214,6 +214,8 @@ Pour chaque groupe :
   recherche, politique, annonce produit sans usage concret, promotion d'un éditeur par lui-même,
   grand groupe sans leçon transposable, chiffre étranger sans lien avec la France), ou s'il redit
   un sujet déjà publié ; true sinon. Sois exigeant : mieux vaut trois bons sujets que huit moyens.
+  Si deux groupes parlent du même thème (deux statistiques d'adoption de l'IA par les PME, deux
+  histoires d'appels clients…), ne garde que le meilleur : le lecteur verrait deux fois la même chose.
 
 SUJETS DÉJÀ PUBLIÉS ces deux derniers mois, à ne pas reproposer :
 ${deja.slice(0, 40).map((t) => `- ${t}`).join('\n') || '- (aucun)'}
@@ -323,7 +325,8 @@ export function enregistrerSujet(sujet: SujetAEnregistrer): boolean {
       .set({
         itemIds: JSON.stringify(fusion),
         sourcesCount: Math.max(jumeau.sourcesCount, sujet.sourcesCount),
-        score: Math.max(jumeau.score, sujet.score),
+        // Le score suit l'actualité : un sujet qui retombe doit pouvoir descendre.
+        score: sujet.score,
         reason: sujet.reason || jumeau.reason,
         updatedAt: now,
       })
@@ -353,14 +356,17 @@ export function enregistrerSujet(sujet: SujetAEnregistrer): boolean {
  * dont tous les articles sont déjà derrière un sujet mieux classé, ou dont le titre
  * redit celui d'un sujet déjà gardé, n'est pas reproposé. Fonction pure, testée.
  */
-export function sujetsDistincts<T extends { label: string; itemIds: number[] }>(sujets: T[], limit: number): T[] {
+export function sujetsDistincts<T extends { label: string; itemIds: number[]; topics?: string[] }>(sujets: T[], limit: number): T[] {
   const gardes: T[] = [];
   const vus = new Set<number>();
   for (const s of sujets) {
     if (gardes.length >= limit) break;
     const dejaCouvert = s.itemIds.length > 0 && s.itemIds.every((id) => vus.has(id));
     const memeTitre = gardes.some((g) => titleSimilarity(g.label, s.label) >= 0.5 || partageLesMotsForts(g.label, s.label));
-    if (dejaCouvert || memeTitre) continue;
+    // Même thème, autres articles (deux statistiques d'adoption, deux histoires d'appels
+    // téléphoniques) : pour le lecteur, c'est la même chose deux fois.
+    const memeTheme = (s.topics?.length ?? 0) >= 2 && gardes.some((g) => (g.topics?.length ?? 0) >= 2 && jaccard(g.topics!, s.topics!) >= 0.5);
+    if (dejaCouvert || memeTitre || memeTheme) continue;
     gardes.push(s);
     for (const id of s.itemIds) vus.add(id);
   }
@@ -394,16 +400,77 @@ export function marquerSujet(id: number, status: 'utilise' | 'ecarte', postId: n
   return 1 + jumeaux.length;
 }
 
-/** Les sujets à proposer, le meilleur d'abord, avec leurs articles — un seul sujet par article. */
-export function sujetsDuMoment(limit = 12) {
+function idsTopics(topics: string | null): string[] {
+  try {
+    return (JSON.parse(topics ?? '[]') as string[]).map((t) => t.toLowerCase());
+  } catch {
+    return [];
+  }
+}
+
+/** Les thèmes des articles qui ont servi aux posts des dix derniers jours. */
+export function themesPublies(now = new Date()): Set<string> {
+  const depuis = new Date(now.getTime() - 10 * 86400000).toISOString();
+  const ids = db
+    .select({ id: schema.posts.newsItemId })
+    .from(schema.posts)
+    .where(gt(schema.posts.createdAt, depuis))
+    .all()
+    .map((p) => p.id)
+    .filter((id): id is number => id != null);
+  if (ids.length === 0) return new Set();
+  const themes = new Set<string>();
+  for (const it of db.select({ topics: schema.newsItems.topics }).from(schema.newsItems).where(inArray(schema.newsItems.id, [...new Set(ids)])).all()) {
+    for (const t of idsTopics(it.topics)) themes.add(t);
+  }
+  return themes;
+}
+
+/** Au-delà, un sujet d'actualité dont aucun article n'est plus récent n'est plus proposé. */
+export const SUJET_EXPIRE_JOURS = 7;
+
+/**
+ * Fraîcheur d'un sujet d'après son article le plus récent : plein tarif le premier
+ * jour, puis 12 % de moins par jour, 0 au-delà de sept jours. Fonction pure, testée.
+ */
+export function fraicheurSujet(dernierArticle: string | null, now: Date): number {
+  if (!dernierArticle) return 0.9;
+  const jours = (now.getTime() - new Date(dernierArticle).getTime()) / 86400000;
+  if (Number.isNaN(jours) || jours <= 1) return 1;
+  if (jours > SUJET_EXPIRE_JOURS) return 0;
+  return Math.round((1 - (jours - 1) * 0.12) * 1000) / 1000;
+}
+
+/** Les sujets à proposer, le plus fort et le plus frais d'abord, avec leurs articles — un seul sujet par article. */
+export function sujetsDuMoment(limit = 12, now = new Date()) {
+  const recents = themesPublies(now);
   const candidats = db
     .select()
     .from(schema.newsSubjects)
     .where(eq(schema.newsSubjects.status, 'nouveau'))
-    .orderBy(desc(schema.newsSubjects.score))
-    .limit(limit * 5)
     .all()
-    .map((s) => ({ ...s, itemIds: idsDe(s.itemIds) }));
+    .map((s) => {
+      const itemIds = idsDe(s.itemIds);
+      const dates = itemIds.length
+        ? db
+            .select({ publishedAt: schema.newsItems.publishedAt, fetchedAt: schema.newsItems.fetchedAt })
+            .from(schema.newsItems)
+            .where(inArray(schema.newsItems.id, itemIds))
+            .all()
+            .map((d) => d.publishedAt ?? d.fetchedAt)
+            .filter((d): d is string => Boolean(d))
+            .sort()
+        : [];
+      // Un sujet de saison n'a pas d'article : il vit au rythme du calendrier.
+      const fraicheur = s.kind === 'saison' ? 1 : fraicheurSujet(dates.at(-1) ?? null, now);
+      const topics = idsTopics(s.topics);
+      // Un thème déjà publié ces derniers jours passe au second plan (pas interdit :
+      // une vraie nouveauté sur le même thème peut encore passer devant).
+      const redite = recents.size > 0 && topics.length >= 2 && topics.filter((t) => recents.has(t)).length / topics.length >= 0.6;
+      return { ...s, itemIds, topics, rang: s.score * fraicheur * (redite ? 0.6 : 1), fraicheur };
+    })
+    .filter((s) => s.fraicheur > 0)
+    .sort((a, b) => b.rang - a.rang);
   const sujets = sujetsDistincts(candidats, limit);
   return sujets.map((s) => {
     const ids = s.itemIds;
@@ -419,9 +486,9 @@ export function sujetsDuMoment(limit = 12) {
       label: s.label,
       reason: s.reason,
       angles: JSON.parse(s.angles) as AngleSujet[],
-      topics: JSON.parse(s.topics) as string[],
+      topics: s.topics,
       kind: s.kind,
-      score: s.score,
+      score: Math.round(s.rang * 10) / 10,
       sourcesCount: s.sourcesCount,
       createdAt: s.createdAt,
       items,

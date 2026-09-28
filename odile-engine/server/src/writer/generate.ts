@@ -85,9 +85,10 @@ Tu appliques le framework AIDA :
 - Intérêt : la slide 2 promet un bénéfice concret si on continue de swiper.
 - Désir : les slides suivantes prouvent (cas réel, étapes, résultats chiffrés).
 - Action : la dernière slide porte UN seul appel à l'action.
-Patterns de hooks qui performent : chiffre + promesse (« Vos devis en 90 secondes »),
-tension (« vos concurrents l'utilisent déjà »), perte évitée (« 4 h perdues par semaine »),
-récit (« Cette PME de 12 personnes a économisé 30 000 € »), curiosité spécifique.
+Patterns de hooks qui performent : chiffre + promesse (« Devis envoyés en 90 secondes »),
+tension (« Vos concurrents l'utilisent déjà »), perte évitée (« 4 h perdues par semaine »),
+récit (« Cette PME de 12 personnes a économisé 30 000 € »), actualité chaude (« ChatGPT affiche
+désormais de la pub »), curiosité spécifique. Ne commence pas toutes tes accroches pareil.
 Jamais de titre générique (« l'IA révolutionne… »).
 Une idée par slide. Titres courts. Le lecteur est un dirigeant de PME/TPE pressé.`;
 
@@ -108,6 +109,54 @@ function recentArchetypes(): string[] {
     .all()
     .map((r) => r.archetype!)
     .filter(Boolean);
+}
+
+/**
+ * Les accroches des derniers posts (une par post d'origine : les copies d'une
+ * diffusion reprennent celle du parent). Le rédacteur les voit pour ne pas les
+ * refaire — c'est la première chose qu'un abonné remarque.
+ */
+export function accrochesRecentes(limite = 12): string[] {
+  const vues = new Set<string>();
+  const liste: string[] = [];
+  for (const r of db.select({ hook: schema.posts.hook }).from(schema.posts).orderBy(desc(schema.posts.id)).limit(limite * 5).all()) {
+    const h = r.hook?.trim();
+    if (!h || vues.has(h.toLowerCase())) continue;
+    vues.add(h.toLowerCase());
+    liste.push(h);
+    if (liste.length >= limite) break;
+  }
+  return liste;
+}
+
+/**
+ * Les mots d'ouverture trop utilisés parmi les accroches récentes (« Vos », « Votre »…) :
+ * au moins deux fois dans les huit dernières. Fonction pure, testée.
+ */
+export function ouverturesUsees(accroches: string[]): string[] {
+  const compte = new Map<string, number>();
+  for (const a of accroches.slice(0, 8)) {
+    const premier = a.trim().split(/\s+/)[0]?.replace(/[«»"'’.,:;!?]/g, '');
+    if (!premier) continue;
+    const cle = /^\d/.test(premier) ? 'un chiffre' : premier.toLowerCase();
+    compte.set(cle, (compte.get(cle) ?? 0) + 1);
+  }
+  return [...compte].filter(([, n]) => n >= 2).map(([mot]) => mot);
+}
+
+function consigneVarieteAccroches(): string {
+  const recentes = accrochesRecentes();
+  if (recentes.length === 0) return '';
+  const usees = ouverturesUsees(recentes);
+  return `VARIÉTÉ DES ACCROCHES — voici les accroches des derniers posts, déjà vues par nos abonnés :
+${recentes.map((h) => `- ${h}`).join('\n')}
+Ton accroche ne doit ressembler à aucune : ni le même sujet, ni la même structure, ni le même rythme.${
+    usees.length
+      ? `\nOuvertures déjà trop utilisées, INTERDITES en premier mot : ${usees.map((m) => `« ${m} »`).join(', ')}.`
+      : ''
+  }
+Alterne les formes : un fait daté (« Mardi, OpenAI a… »), une question qui dérange, une citation,
+un contre-pied, un personnage (« Cette boulangère de Muret… »), un avant/après, un chiffre choc.`;
 }
 
 const BANNED_CLICHES = [
@@ -468,6 +517,8 @@ TON DE LA MARQUE :
 ${toneToPrompt(tone)}
 
 ${buildArchetypeSpec(isCarousel || isDocument, imagesAllowed)}
+
+${consigneVarieteAccroches()}
 
 FORMAT DEMANDÉ : ${slideSpec}
 

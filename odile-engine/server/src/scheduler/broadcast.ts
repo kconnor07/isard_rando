@@ -111,10 +111,14 @@ export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>)
  * pour que le modèle corrige lui-même (boucle de completeJson) au lieu qu'une copie
  * parte avec un mot-clé qu'elle ne demande pas ou une promesse impossible.
  */
-function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | null) {
+function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | null, avecCouverture = false) {
   // Instagram coupe à 2 200 caractères, hashtags compris : on garde de la marge.
   const max = vers === 'instagram' ? 2000 : 2900;
-  return z.object({ caption: z.string().min(1).max(max), cta: z.string().max(280) }).superRefine((v, ctx) => {
+  return z.object({
+    caption: z.string().min(1).max(max),
+    cta: z.string().max(280),
+    couverture: avecCouverture ? z.string().min(8).max(80) : z.string().max(80).optional(),
+  }).superRefine((v, ctx) => {
     if (motcle && !captionPorteLeMotCle(v.caption, motcle)) {
       ctx.addIssue({ code: 'custom', path: ['caption'], message: `la légende doit contenir « Commente ${motcle} » (ce mot exactement)` });
     }
@@ -192,7 +196,7 @@ export async function adapterLegende(
   vers: 'linkedin' | 'instagram',
   compte?: CompteLinkedIn | null,
   motcleCible?: string | null,
-): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string }> {
+): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string; couverture?: string }> {
   const dm = getDmTriggers();
   const brand = getBrand();
   const source = sourceReelle(post.newsItemId ?? null);
@@ -243,7 +247,10 @@ formulations. Quelqu'un qui verrait les deux posts ne doit pas lire un copier-co
 Nomme ${brand.name} une fois, naturellement, dans la dernière ligne. ${ligneSource}
 ${ligneNoms}
 ${consigneCta}
-${compte ? consigneVoix(compte) : ''}`
+${compte ? consigneVoix(compte) : ''}
+Donne aussi "couverture" : le titre de la slide de couverture pour ce compte, 10 mots maximum, qui dit
+la même chose que « ${post.hook} » avec une autre ouverture et d'autres mots — les mêmes personnes
+verront les deux posts : deux couvertures identiques, c'est une répétition qu'elles remarquent.`
       : vers === 'linkedin'
         ? `Réécris ce texte de post Instagram pour LinkedIn — pas une traduction : une autre entrée en matière,
 un autre angle, d'autres formulations. 500 à 1 000 caractères, jamais plus de 1 200 ;
@@ -268,9 +275,11 @@ ${consigneCta}`;
         }\n"""\n\nCTA D'ORIGINE : ${post.cta}`,
         maxTokens: 2500,
       },
-      legendeAdapteeSchema(vers, motcleVoulu),
+      legendeAdapteeSchema(vers, motcleVoulu, de === vers && vers === 'linkedin'),
     );
-    return pose({ ...value, caption: corrigerLigneSource(value.caption, source?.media ?? null) }, motcleVoulu);
+    const adapte = pose({ ...value, caption: corrigerLigneSource(value.caption, source?.media ?? null) }, motcleVoulu);
+    const couverture = value.couverture?.trim();
+    return couverture && couverture.toLowerCase() !== post.hook.trim().toLowerCase() ? { ...adapte, couverture } : adapte;
   } catch (err) {
     const cause = String(err).slice(0, 200);
     logger.warn({ err: cause }, 'adaptation de légende impossible — texte d’origine conservé');
@@ -321,7 +330,7 @@ export function separerBlocFinal(caption: string): { corps: string; blocFinal: s
 export async function reecrireLeBlocFinal(
   post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook' | 'commentTriggerKeyword'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle'>>,
   motcleCible: string | null,
-): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string }> {
+): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string; couverture?: string }> {
   const dm = getDmTriggers();
   const { corps, blocFinal } = separerBlocFinal(post.caption);
   const motcle = motcleCible ?? post.commentTriggerKeyword;
@@ -420,7 +429,7 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
   // Une adaptation par surface : changer de plateforme demande une traduction,
   // changer de compte demande une autre voix. Deux surfaces identiques la partagent.
   const cleSurface = (s: SurfaceDiffusion) => `${s.platform}|${s.liAccountKey ?? ''}`;
-  const textes = new Map<string, { caption: string; cta: string; motcle: string | null; echec?: string }>();
+  const textes = new Map<string, { caption: string; cta: string; motcle: string | null; echec?: string; couverture?: string }>();
   for (const surface of aFaire) {
     if (textes.has(cleSurface(surface))) continue;
     const compte =
@@ -511,10 +520,60 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
         })
         .run();
     }
+    if (texte.couverture) await nouvelleCouverture(copie.id, texte.couverture);
     crees.push(copie.id);
   }
   logger.info({ parentId, groupe, copies: crees.length, surfaces: aFaire.map((s) => s.label) }, 'post diffusé sur tous les comptes');
   return crees;
+}
+
+/**
+ * Le mot mis en accent sur la nouvelle couverture : l'ancien s'il y figure encore,
+ * sinon le mot qui porte un chiffre, sinon le plus long. Fonction pure, testée.
+ */
+export function motEnAccent(titre: string, ancien?: string): string | undefined {
+  const mots = titre.split(/\s+/).map((m) => m.replace(/^[«"'(]+|[»"'),.;:!?]+$/g, '')).filter(Boolean);
+  if (ancien && mots.some((m) => m.toLowerCase() === ancien.toLowerCase())) return ancien;
+  const chiffre = mots.find((m) => /\d/.test(m));
+  if (chiffre) return chiffre;
+  const long = [...mots].sort((a, b) => b.length - a.length)[0];
+  return long && long.length >= 4 ? long : undefined;
+}
+
+/**
+ * Donne à une copie LinkedIn sa propre couverture : nouveau titre sur la slide 1,
+ * rendue à nouveau. Si le rendu échoue, la copie garde la couverture d'origine
+ * (texte et image restent cohérents).
+ */
+async function nouvelleCouverture(postId: number, titre: string): Promise<boolean> {
+  const slide = db
+    .select()
+    .from(schema.slides)
+    .where(and(eq(schema.slides.postId, postId), eq(schema.slides.idx, 0)))
+    .get();
+  const post = db.select({ hook: schema.posts.hook }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  if (!slide || !post) return false;
+  let contenu: Record<string, unknown>;
+  try {
+    contenu = JSON.parse(slide.content) as Record<string, unknown>;
+  } catch {
+    return false;
+  }
+  const accent = motEnAccent(titre, typeof contenu.accentWord === 'string' ? contenu.accentWord : undefined);
+  const nouveau = { ...contenu, title: titre, ...(accent ? { accentWord: accent } : {}) };
+  if (!accent) delete (nouveau as Record<string, unknown>).accentWord;
+  db.update(schema.slides).set({ content: JSON.stringify(nouveau) }).where(eq(schema.slides.id, slide.id)).run();
+  db.update(schema.posts).set({ hook: titre }).where(eq(schema.posts.id, postId)).run();
+  try {
+    const { renderPost } = await import('../render/renderer.js');
+    await renderPost(postId, { onlyIdx: 0 });
+    return true;
+  } catch (err) {
+    logger.warn({ postId, err: String(err).slice(0, 200) }, 'couverture propre au compte impossible — couverture d’origine gardée');
+    db.update(schema.slides).set({ content: slide.content, renderAssetId: slide.renderAssetId }).where(eq(schema.slides.id, slide.id)).run();
+    db.update(schema.posts).set({ hook: post.hook }).where(eq(schema.posts.id, postId)).run();
+    return false;
+  }
 }
 
 /** Les autres posts d'un groupe de diffusion. */

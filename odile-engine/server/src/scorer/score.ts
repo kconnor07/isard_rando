@@ -1,8 +1,45 @@
-import { eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import { z } from 'zod';
 import { newsScoreBatchSchema } from '@odile/shared';
 import { db, schema } from '../db/client.js';
+import { getSettingRaw, setSetting } from '../db/settingsRepo.js';
 import { completeJson } from '../llm/router.js';
+
+/**
+ * Version de la grille de notation. Quand la grille change, les articles de la
+ * semaine sont renotés avec la nouvelle, et les sujets qui en découlaient sont
+ * refaits : sinon les notes de l'ancienne grille restent en tête pendant des jours.
+ */
+export const VERSION_GRILLE = 5;
+const CLE_VERSION_GRILLE = 'veille_grille_version';
+
+/**
+ * Remet en file les articles des 7 derniers jours si la grille a changé depuis leur
+ * notation, et supprime les sujets d'actualité encore proposés (ils seront refaits
+ * à partir des nouvelles notes). Les articles et sujets déjà utilisés ne bougent pas.
+ * Renvoie le nombre d'articles remis en file.
+ */
+export function reprendreSiGrilleChangee(now = new Date()): number {
+  if (getSettingRaw(CLE_VERSION_GRILLE) === VERSION_GRILLE) return 0;
+  const depuis = new Date(now.getTime() - 7 * 86400000).toISOString();
+  const aRenoter = db
+    .select({ id: schema.newsItems.id })
+    .from(schema.newsItems)
+    .where(and(inArray(schema.newsItems.status, ['scored', 'shortlisted']), gt(schema.newsItems.fetchedAt, depuis)))
+    .all()
+    .map((r) => r.id);
+  for (let i = 0; i < aRenoter.length; i += 400) {
+    db.update(schema.newsItems)
+      .set({ status: 'new', scoreFinal: null, shortlistRank: null, shortlistDate: null })
+      .where(inArray(schema.newsItems.id, aRenoter.slice(i, i + 400)))
+      .run();
+  }
+  db.delete(schema.newsSubjects)
+    .where(and(eq(schema.newsSubjects.status, 'nouveau'), eq(schema.newsSubjects.kind, 'actu')))
+    .run();
+  setSetting(CLE_VERSION_GRILLE, VERSION_GRILLE);
+  return aRenoter.length;
+}
 
 const SYSTEM = `Tu es l'analyste veille d'Odile AI, agence française d'automatisation IA pour les PME et TPE.
 Odile VEND l'implémentation de solutions IA : ses posts ne présentent jamais un outil « en tant
@@ -119,13 +156,19 @@ apprendre quels sujets performent auprès de notre audience.\n\nArticles :\n\n${
   return rescored;
 }
 
-/** Note les items encore non scorés, par lots de 10. */
+/**
+ * Note les items encore non scorés, par lots de 10 — les plus récents d'abord :
+ * l'actualité du jour ne doit jamais attendre derrière le stock de la veille.
+ */
 export async function runScore(limit = 60): Promise<ScoreSummary> {
+  const renotes = reprendreSiGrilleChangee();
   const items = db
     .select()
     .from(schema.newsItems)
     .where(eq(schema.newsItems.status, 'new'))
-    .limit(limit)
+    .orderBy(desc(schema.newsItems.fetchedAt), desc(schema.newsItems.id))
+    // Une grille qui change remet la semaine en file : on la renote d'un coup.
+    .limit(renotes > 0 ? Math.max(limit, 250) : limit)
     .all();
 
   let scored = 0;
