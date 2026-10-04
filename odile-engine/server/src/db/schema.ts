@@ -116,10 +116,9 @@ export const posts = sqliteTable(
      */
     broadcastGroup: text('broadcast_group'),
     /**
-     * Amplification : le commentaire d'amorce du compte auteur (source + rappel du
-     * mot-clé), puis les commentaires des autres comptes de l'équipe sous le post.
-     * `amplifiedBy` liste en JSON les clés déjà passées (« source » pour l'amorce) —
-     * un compte ne commente jamais deux fois le même post.
+     * Ce qui a déjà été fait après la publication : `amplifiedBy` liste en JSON les
+     * gestes passés (« rappel-lien » : l'email qui rappelle le lien à poster soi-même).
+     * Les anciennes clés d'amplification (« source », comptes) restent lisibles.
      */
     amplifiedAt: text('amplified_at'),
     amplifiedBy: text('amplified_by'),
@@ -137,6 +136,7 @@ export const posts = sqliteTable(
         'published',
         'rejected',
         'failed',
+        'to_publish',
       ],
     })
       .notNull()
@@ -403,7 +403,7 @@ export const oauthTokens = sqliteTable(
 export const emailLog = sqliteTable('email_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   kind: text('kind', {
-    enum: ['approval', 'reminder', 'li_comment_digest', 'li_rappel', 'connexion_refusee', 'analytics', 'error', 'token_expiry', 'test'],
+    enum: ['approval', 'reminder', 'li_comment_digest', 'li_rappel', 'a_publier', 'rappel_lien', 'connexion_refusee', 'analytics', 'error', 'token_expiry', 'test'],
   }).notNull(),
   postId: integer('post_id'),
   to: text('to').notNull(),

@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { config } from '../config.js';
+import { getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { fetchJson, fetchWithRetry, HttpError } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
 import { compteDuPost, jetonDuCompte, mentionsConnues } from './linkedinAccounts.js';
@@ -44,7 +45,11 @@ function escapeLittle(text: string): string {
  * qu'un post personnel identifie la page entreprise, ou un collègue dont le profil
  * est connecté au moteur.
  */
-export function commentary(caption: string, mentions: MentionLinkedIn[] = []): string {
+/**
+ * `max` : au plus tant d'identifications, dans l'ordre de la liste (au-delà de cinq,
+ * LinkedIn y voit du spam ; la stratégie 2026 en vise trois).
+ */
+export function commentary(caption: string, mentions: MentionLinkedIn[] = [], max = Number.POSITIVE_INFINITY): string {
   const texte = caption.slice(0, 2990);
   const utiles = mentions.filter((m) => m.nom.trim().length >= 2 && m.urn.startsWith('urn:li:'));
   if (utiles.length === 0) return escapeLittle(texte);
@@ -80,6 +85,7 @@ export function commentary(caption: string, mentions: MentionLinkedIn[] = []): s
       }
     }
   }
+  plages.splice(Math.max(0, max));
   if (plages.length === 0) return escapeLittle(texte);
   plages.sort((a, b) => a.debut - b.debut);
 
@@ -272,7 +278,7 @@ export class LinkedInPublisher implements Publisher {
     const mentions = (await mentionsDuPost(input.post, stored.accessToken, input.caption)).filter((m) => m.urn !== owner);
     const body: Record<string, unknown> = {
       author: owner,
-      commentary: commentary(input.caption, mentions),
+      commentary: commentary(input.caption, mentions, getStrategieLinkedIn().mentionsMax),
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
       lifecycleState: 'PUBLISHED',

@@ -70,7 +70,7 @@ export default function Layout() {
   const { data: summary } = useQuery({
     queryKey: ['summary'],
     queryFn: () =>
-      api.get<{ awaitingApproval: number; pendingComments: number }>('/api/dashboard/summary'),
+      api.get<{ awaitingApproval: number; aPublier?: number; pendingComments: number }>('/api/dashboard/summary'),
     refetchInterval: 30_000,
   });
 
@@ -98,7 +98,7 @@ export default function Layout() {
                   <Icon size={16} strokeWidth={2} />
                   <span className="flex-1">{label}</span>
                   {to === '/approvals' && (
-                    <CountBadge value={summary?.awaitingApproval ?? 0} tone="solid" />
+                    <CountBadge value={(summary?.awaitingApproval ?? 0) + (summary?.aPublier ?? 0)} tone="solid" />
                   )}
                   {to === '/comments' && (
                     <CountBadge value={summary?.pendingComments ?? 0} tone="outline" />
@@ -169,7 +169,7 @@ export default function Layout() {
                 }
               >
                 {label}
-                {to === '/approvals' && <CountBadge value={summary?.awaitingApproval ?? 0} tone="solid" />}
+                {to === '/approvals' && <CountBadge value={(summary?.awaitingApproval ?? 0) + (summary?.aPublier ?? 0)} tone="solid" />}
                 {to === '/comments' && <CountBadge value={summary?.pendingComments ?? 0} tone="outline" />}
               </NavLink>
             ))}

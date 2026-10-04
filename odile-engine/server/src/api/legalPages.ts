@@ -8,7 +8,7 @@
  * scheduler/jobs.ts). Toute évolution du traitement doit être répercutée ici.
  */
 import { config } from '../config.js';
-import { getBrand } from '../db/settingsRepo.js';
+import { getBrand, getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { escapeHtml } from './pages.js';
 
 const SHELL = (title: string, body: string) => `<!doctype html>
@@ -34,7 +34,7 @@ function contactEmail(): string {
   return config.CONTACT_EMAIL;
 }
 
-const MAJ = '13 septembre 2026';
+const MAJ = '5 octobre 2026';
 
 export function privacyPage(): string {
   const marque = escapeHtml(getBrand().name || 'Odile AI');
@@ -48,6 +48,11 @@ export function privacyPage(): string {
 <p>Odile Engine est l'outil interne avec lequel ${marque} prépare et publie ses propres
 publications sur LinkedIn et Instagram. Il n'est ouvert à aucun autre utilisateur :
 seule l'équipe de ${marque} y accède, derrière un mot de passe.</p>
+<p>${
+      getStrategieLinkedIn().profilsPubliesParLoutil
+        ? `Sur LinkedIn, l'outil publie, après relecture humaine, sur la Page de ${marque} et sur les profils des membres de l'équipe qui l'ont connecté.`
+        : `Sur LinkedIn, l'outil publie, après relecture humaine, sur la seule Page de ${marque}. Les posts des profils personnels sont préparés par l'outil, puis publiés par leurs titulaires eux-mêmes.`
+    } Il ne commente, ne réagit et ne répond jamais automatiquement sur LinkedIn.</p>
 
 <h2>1. Données traitées</h2>
 <ul>
@@ -73,7 +78,7 @@ seule l'équipe de ${marque} y accède, derrière un mot de passe.</p>
 
 <h2>2. Pourquoi ces données</h2>
 <p>Publier les contenus de ${marque} sur ses propres comptes, mesurer leur portée, et répondre
-automatiquement aux personnes qui demandent une ressource en commentaire. Base légale :
+en message privé aux personnes qui demandent une ressource en commentaire sur Instagram. Base légale :
 l'intérêt légitime de ${marque} à communiquer sur ses réseaux, et pour la réponse privée, la
 demande explicite de la personne qui a commenté avec le mot-clé.</p>
 

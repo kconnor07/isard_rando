@@ -11,6 +11,7 @@ import { sendMail } from '../mailer/smtp.js';
 import { facebookMirrorDryPayload, legendePourFacebook, mirrorToFacebookPage } from './facebook.js';
 import { instagramDryPayload, InstagramPublisher } from './instagram.js';
 import { linkedInDryPayload, LinkedInPublisher } from './linkedin.js';
+import { publieParLaPersonne, remettreAPublier } from './aPublier.js';
 import { buildCaption, collectPublishImages, collectPublishVideo, DryRunPublisher, type Publisher } from './types.js';
 
 /**
@@ -82,6 +83,8 @@ export interface PublishWorkerSummary {
   failed: number;
   /** posts non conformes remis à valider au lieu de partir */
   refuses: number;
+  /** posts de profil remis à la personne, qui publie elle-même */
+  aPublier: number;
 }
 
 /** Traite les publications dont l'échéance est passée (état pending). */
@@ -94,7 +97,7 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
     .limit(5)
     .all();
 
-  const summary: PublishWorkerSummary = { processed: 0, published: 0, failed: 0, refuses: 0 };
+  const summary: PublishWorkerSummary = { processed: 0, published: 0, failed: 0, refuses: 0, aPublier: 0 };
   for (const job of due) {
     summary.processed++;
     // Verrouillage optimiste : ne prendre le job que s'il est toujours pending
@@ -138,6 +141,13 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
         html: `<p>Le post prévu n’est pas parti : il ne tiendrait pas ses promesses en l’état.</p><p>${refus.replace(/</g, '&lt;')}</p><p>Il est revenu dans « À valider » : clique « Réaligner » ou corrige-le, puis valide-le à nouveau.</p>`,
         text: `Le post prévu n’est pas parti : ${refus} Il est revenu dans « À valider ».`,
       });
+      continue;
+    }
+
+    // Profil personnel : le post arrive à la personne, prêt à coller — elle publie elle-même.
+    if (publieParLaPersonne(post)) {
+      await remettreAPublier(post, job.id);
+      summary.aPublier++;
       continue;
     }
 

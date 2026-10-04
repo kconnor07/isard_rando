@@ -26,6 +26,12 @@ export default function Approvals() {
     queryFn: () => api.get<PostSummaryDto[]>('/api/posts?status=draft,reviewing,awaiting_approval'),
     refetchInterval: 15_000,
   });
+  // Profils personnels : prêts, à publier soi-même (stratégie LinkedIn 2026).
+  const { data: aPublier } = useQuery({
+    queryKey: ['posts', 'to_publish'],
+    queryFn: () => api.get<PostSummaryDto[]>('/api/posts?status=to_publish'),
+    refetchInterval: 30_000,
+  });
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['posts'] });
     void qc.invalidateQueries({ queryKey: ['summary'] });
@@ -154,6 +160,22 @@ export default function Approvals() {
           ) : undefined
         }
       />
+      {aPublier && aPublier.length > 0 && (
+        <div className="card mb-5 border-accent/50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted">À publier vous-même · {aPublier.length}</div>
+          <p className="mt-1 text-xs text-muted">Posts de profil arrivés à leur heure : ouvrez-les, copiez le texte dans LinkedIn, publiez, puis « Marquer publié ».</p>
+          <ul className="mt-3 flex flex-col gap-2">
+            {aPublier.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted">{p.surface ?? CHANNEL_LABELS[p.channel] ?? p.channel}</span>
+                <span className="min-w-0 flex-1 truncate">{p.hook || `Post #${p.id}`}</span>
+                {p.scheduledAt && <span className="text-xs text-muted">prévu {fmtDate(p.scheduledAt)}</span>}
+                <Link to={`/posts/${p.id}`} className="btn-primary !py-1 text-xs">Publier</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {enErreur && <EtatErreur error={erreur} onRetry={() => void recharger()} quoi="La file de validation" />}
       {posts && posts.length === 0 && (
         <Empty action={<Link to="/news" className="btn-primary">Choisir un sujet</Link>}>

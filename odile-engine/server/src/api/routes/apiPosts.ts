@@ -207,7 +207,17 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const clicks = post.linkId
       ? db.select({ id: schema.clicks.id }).from(schema.clicks).where(eq(schema.clicks.linkId, post.linkId)).all().length
       : 0;
-    return { ...postSummary(post), slides, reviews, clicks, visualOverrides: parseVisualOverrides(post.visualOverrides) };
+    const { publieParLaPersonne } = await import('../../publishers/aPublier.js');
+    return {
+      ...postSummary(post),
+      slides,
+      reviews,
+      clicks,
+      visualOverrides: parseVisualOverrides(post.visualOverrides),
+      // Profil personnel en mode brouillon : le texte exact à coller dans LinkedIn.
+      publieParLaPersonne: publieParLaPersonne(post),
+      texteAPublier: post.platform === 'linkedin' ? buildCaption(post) : null,
+    };
   });
 
   /** Ce que recevra la personne : lien et cible, ressource, réponses, DM, amorce, légende Facebook, identifications — avant validation. */
@@ -589,6 +599,26 @@ export function registerPostRoutes(app: FastifyInstance): void {
     return outcome;
   });
 
+  /**
+   * Profil personnel : la personne a publié le post elle-même. Il compte comme
+   * publié (calendrier, statistiques, rappel du lien une heure plus tard).
+   */
+  app.post<{ Params: { id: string }; Body: { url?: string | null } }>('/api/posts/:id/mark-published', async (request, reply) => {
+    const id = Number(request.params.id);
+    const post = db.select().from(schema.posts).where(eq(schema.posts.id, id)).get();
+    if (!post) return reply.status(404).send({ error: 'Post introuvable' });
+    if (!['to_publish', 'approved', 'scheduled', 'failed', 'awaiting_approval'].includes(post.status)) {
+      return reply.status(409).send({ error: post.status === 'published' ? 'Ce post est déjà publié' : 'Validez ce post avant de le marquer publié' });
+    }
+    const brut = typeof request.body?.url === 'string' ? request.body.url.trim() : '';
+    if (brut && !/^https:\/\/([a-z0-9-]+\.)*linkedin\.com\//i.test(brut)) {
+      return reply.status(400).send({ error: 'Collez l’adresse du post LinkedIn (https://www.linkedin.com/…), ou laissez vide' });
+    }
+    const { marquerPublie } = await import('../../publishers/aPublier.js');
+    const relu = marquerPublie(id, brut || null);
+    return { ok: true, status: relu?.status ?? 'published' };
+  });
+
   app.post<{ Params: { id: string } }>('/api/posts/:id/reject', async (request, reply) => {
     const parsed = rejectSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
@@ -623,7 +653,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
       .from(schema.posts)
       .where(
         and(
-          inArray(schema.posts.status, ['scheduled', 'publishing', 'published']),
+          inArray(schema.posts.status, ['scheduled', 'publishing', 'published', 'to_publish']),
           gte(schema.posts.scheduledAt, new Date(from.getTime() - 30 * 60000).toISOString()),
           lte(schema.posts.scheduledAt, new Date(to.getTime() + 30 * 60000).toISOString()),
         ),
@@ -696,7 +726,7 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const rows = db
       .select()
       .from(schema.posts)
-      .where(and(inArray(schema.posts.status, ['scheduled', 'publishing', 'published']), gte(quand, from), lte(quand, to)))
+      .where(and(inArray(schema.posts.status, ['scheduled', 'publishing', 'published', 'to_publish']), gte(quand, from), lte(quand, to)))
       .orderBy(quand)
       .all();
     return rows.map(postSummary);

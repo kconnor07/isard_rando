@@ -22,7 +22,7 @@ describe('approbation par email (le chemin des boutons de l’email)', async () 
   const creer = (values: Partial<typeof schema.posts.$inferInsert> = {}) =>
     db
       .insert(schema.posts)
-      .values({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', theme: 'odile-nuit', status: 'awaiting_approval', hook: 'Accroche', caption: 'Odile AI vous fait gagner du temps.\n\nCommente CAS si vous voulez un diagnostic.', cta: 'Commente CAS', hashtags: '[]', commentTriggerKeyword: 'CAS', ...values })
+      .values({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', theme: 'odile-nuit', status: 'awaiting_approval', hook: 'Accroche', caption: 'Odile AI vous fait gagner du temps.\n\nEt chez vous, combien d’heures par semaine ?', cta: '', hashtags: '[]', commentTriggerKeyword: null, ...values })
       .returning()
       .get();
   const jeton = (postId: number, act: 'approve' | 'reject') => {

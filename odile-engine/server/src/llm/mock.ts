@@ -68,13 +68,6 @@ function buildMockText(req: LlmRequest): string {
       return JSON.stringify({ scores: ids.map(score) });
     }
     case 'writing': {
-      // Amplification : le commentaire qu'un collègue poste sous le post.
-      if (/Tu écris un commentaire LinkedIn/.test(req.prompt)) {
-        return JSON.stringify({
-          texte:
-            'Mock : ce que je vois chez nos clients, c’est exactement ça — le blocage n’est jamais l’outil, c’est le temps de le brancher sur l’existant.',
-        });
-      }
       // Guide livré en message privé : le mock en produit un complet, pour que la
       // chaîne « promesse → PDF » se vérifie sans appeler un modèle.
       if (/Tu rédiges un guide PDF/.test(req.prompt)) {
@@ -163,6 +156,8 @@ function buildMockText(req: LlmRequest): string {
             : null,
         });
       }
+      // LinkedIn, stratégie 2026 : sans « Commente X », sans lien, au vouvoiement.
+      if (/STRATÉGIE LINKEDIN 2026/.test(req.prompt)) return JSON.stringify(MOCK_POST_LINKEDIN_2026);
       return JSON.stringify(MOCK_GENERATED_POST);
     }
     case 'review': {
@@ -263,4 +258,19 @@ const MOCK_GENERATED_POST = {
   commentTrigger: { enabled: true, keyword: 'OUTIL' },
   videoScript:
     "Vos devis partent en trois jours ? Vos concurrents répondent en trois minutes. Mock : une PME de douze personnes a branché son formulaire sur un assistant qui rédige le devis et l'envoie pour relecture. Résultat, vingt-sept pour cent de devis signés en plus, sans embaucher. Commente OUTIL et je t'envoie la méthode complète.",
+};
+
+/** Le même post, écrit selon la stratégie LinkedIn 2026 : question finale, aucun appât, aucun lien. */
+const MOCK_POST_LINKEDIN_2026 = {
+  ...MOCK_GENERATED_POST,
+  caption:
+    "Quatre heures par semaine. C'est ce que vos devis vous coûtent, sans que personne ne les compte.\n\nUne nouvelle génération d'outils rédige un devis complet en 90 secondes, à partir de la demande du client.\n\nChez les PME que nous accompagnons, le changement se voit vite :\n→ une réponse le jour même, au lieu de trois jours plus tard ;\n→ moins d'erreurs de calcul ;\n→ plus de devis signés, parce que vous répondez avant les autres.\n\nLe plus long n'est pas l'outil. C'est de décider qui relit le devis avant qu'il parte.\n\nEt chez vous, combien de temps s'écoule entre la demande et l'envoi du devis ?\n\nSource : Les Echos",
+  hashtags: ['#AutomatisationPME', '#Devis'],
+  cta: "Et chez vous, combien de temps entre la demande et l'envoi du devis ?",
+  commentTrigger: { enabled: false, keyword: '' },
+  slides: MOCK_GENERATED_POST.slides.map((slide) =>
+    slide.kind === 'cta' ? { ...slide, title: 'Et chez vous ?', ctaLabel: 'À garder sous la main' } : slide,
+  ),
+  videoScript:
+    "Vos devis partent en trois jours ? Vos concurrents répondent en trois minutes. Mock : une PME de douze personnes a branché son formulaire sur un assistant qui rédige le devis. Et chez vous, combien de temps entre la demande et l'envoi ?",
 };

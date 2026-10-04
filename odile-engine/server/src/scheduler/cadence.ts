@@ -38,7 +38,7 @@ export function shouldDraftToday(now = new Date()): { due: boolean; reason: stri
   const lastActive = db
     .select()
     .from(schema.posts)
-    .where(inArray(schema.posts.status, ['approved', 'scheduled', 'publishing', 'published']))
+    .where(inArray(schema.posts.status, ['approved', 'scheduled', 'publishing', 'published', 'to_publish']))
     .orderBy(desc(schema.posts.createdAt))
     .limit(1)
     .get();
@@ -128,7 +128,7 @@ export function voisinTropProche(post: {
   const voisins = db
     .select({ id: schema.posts.id, platform: schema.posts.platform, channel: schema.posts.channel, liAccountKey: schema.posts.liAccountKey, scheduledAt: schema.posts.scheduledAt, publishedAt: schema.posts.publishedAt })
     .from(schema.posts)
-    .where(inArray(schema.posts.status, ['scheduled', 'publishing', 'published']))
+    .where(inArray(schema.posts.status, ['scheduled', 'publishing', 'published', 'to_publish']))
     .all();
   for (const v of voisins) {
     if (v.id === post.id) continue;
@@ -155,7 +155,7 @@ function creneauxPrisPar(surface: SurfaceDeCreneau): number[] {
   return db
     .select({ platform: schema.posts.platform, channel: schema.posts.channel, liAccountKey: schema.posts.liAccountKey, scheduledAt: schema.posts.scheduledAt, publishedAt: schema.posts.publishedAt, status: schema.posts.status })
     .from(schema.posts)
-    .where(inArray(schema.posts.status, ['scheduled', 'publishing', 'published']))
+    .where(inArray(schema.posts.status, ['scheduled', 'publishing', 'published', 'to_publish']))
     .all()
     .filter((p) => (p.status === 'published' ? p.publishedAt : p.scheduledAt) && cleDeSurface({ platform: p.platform as 'linkedin' | 'instagram', channel: p.channel, liAccountKey: p.liAccountKey }) === cle)
     .map((p) => new Date((p.status === 'published' ? p.publishedAt : p.scheduledAt)!).getTime());

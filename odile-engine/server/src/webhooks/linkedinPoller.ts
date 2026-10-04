@@ -5,17 +5,17 @@
  * LinkedIn n'ouvre sa messagerie à aucune application — pas de message privé
  * possible, ni pour nous ni pour personne (l'API « Messages » est réservée à une
  * poignée de partenaires historiques et interdit de toute façon l'envoi automatisé).
- * Le lien de la ressource promise part donc là où l'API le permet : SOUS le
- * commentaire, en réponse à la personne, au nom du compte qui a publié. Et pour
- * qui veut ajouter la touche personnelle, un message privé prêt à coller est
- * proposé par email.
+ * Depuis 2026, LinkedIn déclasse et sanctionne les commentaires automatisés : le
+ * moteur ne poste donc plus rien seul. Il lit les commentaires, prépare une réponse
+ * pour chaque demande, et la range dans « À traiter » et dans l'email du relevé.
+ * Une personne la relit et la poste — en un clic depuis le tableau de bord, ou à
+ * la main sous le commentaire.
  *
  * Pas de webhook côté LinkedIn : on relit les commentaires des posts récents à
  * intervalle régulier (voir jobs.ts).
  */
 import { and, eq, gte } from 'drizzle-orm';
 import { MOTS_TROP_COURANTS } from '@odile/shared';
-import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getApprovalEmail, getDmTriggers } from '../db/settingsRepo.js';
 import { fetchJson } from '../lib/http.js';
@@ -26,7 +26,6 @@ import { API, linkedInHeaders } from '../publishers/linkedin.js';
 import { compteDuPost, droitCommentaire, jetonDuCompte, noterLecture, toutesLesSurfaces, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
 import {
   buildReply,
-  choisirVariante,
   interetProbable,
   lienRdv,
   linkForPost,
@@ -47,8 +46,6 @@ interface LiComment {
   parentComment?: string;
 }
 
-/** LinkedIn limite la création de commentaires par minute : on reste bien en deçà. */
-const REPONSES_MAX_PAR_PASSAGE = 20;
 
 /**
  * Réponse à poster sous un commentaire.
@@ -108,33 +105,6 @@ export async function repondreSousCommentaireLinkedIn(args: {
         object: args.postUrn,
         message: { text: args.texte },
         parentComment: args.commentUrn,
-      }),
-    },
-  );
-  return res.commentUrn ?? res.id ?? null;
-}
-
-/**
- * Commentaire de PREMIER NIVEAU sous un post — pas une réponse dans un fil.
- *
- * Même route que la réponse, sans `parentComment` : c'est ce seul champ qui fait la
- * différence chez LinkedIn. Sert à l'amplification (voir publishers/amplify.ts).
- */
-export async function commenterPostLinkedIn(args: {
-  compte: CompteLinkedIn;
-  token: string;
-  postUrn: string;
-  texte: string;
-}): Promise<string | null> {
-  const res = await fetchJson<{ commentUrn?: string; id?: string }>(
-    `${API}/rest/socialActions/${encodeURIComponent(args.postUrn)}/comments`,
-    {
-      method: 'POST',
-      headers: linkedInHeaders(args.token),
-      body: JSON.stringify({
-        actor: args.compte.actor,
-        object: args.postUrn,
-        message: { text: args.texte },
       }),
     },
   );
@@ -227,7 +197,6 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
   if (surfaces.length === 0) return resume;
   const settings = getDmTriggers();
   const nosActeurs = new Set(surfaces.map((s) => s.actor));
-  const aRepondre: { commentId: number; compte: CompteLinkedIn; token: string; postUrn: string; commentUrn: string; contexte: ContexteReponse; caption: string | null }[] = [];
   const pourEmail: { compte: string; auteur: string; texte: string; dm: string; postUrl: string | null }[] = [];
 
   for (const post of postsRecents()) {
@@ -311,65 +280,13 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
       resume.newComments++;
       if (!matched || !dm) continue;
       resume.matched++;
-      aRepondre.push({
-        caption: post.caption,
-        commentId: inserted[0]!.id,
-        compte,
-        token: token.accessToken,
-        postUrn: post.externalPostId!,
-        commentUrn: String(externalId),
-        contexte,
-      });
       pourEmail.push({ compte: compte.name, auteur: nom || element.actor || 'inconnu', texte: text, dm, postUrl: post.externalUrl });
     }
   }
 
-  // Réponse sous chaque commentaire, au nom du compte qui a publié.
-  for (const item of aRepondre.slice(0, REPONSES_MAX_PAR_PASSAGE)) {
-    if (!settings.publicReply) break;
-    // Ce que la réponse publique propose : la ressource (elle porte le lien) ou le
-    // diagnostic (le lien est déjà dans le post — elle propose le rendez-vous).
-    // Post d'avant la stratégie, sans lien dans sa description : la réponse porte le lien.
-    const lienDansLePost = typeof item.caption !== 'string' || item.caption.includes('/r/');
-    const variantes = settings.linkedinOffer === 'diagnostic' && lienDansLePost ? settings.diagnosticReplyVariants : settings.linkedinReplyVariants;
-    const modele = choisirVariante(variantes, item.commentId);
-    if (!modele) {
-      // Aucune formulation réglée : on le dit (l'aperçu l'annonce déjà) et on passe
-      // au commentaire suivant au lieu d'arrêter toute la tournée.
-      logger.warn({ commentId: item.commentId }, 'aucune formulation de réponse LinkedIn réglée : rien n’est posté');
-      continue;
-    }
-    const texte = composerReponseLinkedIn(modele, item.contexte);
-    const droit = droitCommentaire(item.compte);
-    if (config.PUBLISH_MODE === 'dry') {
-      db.update(schema.comments).set({ publicReplyStatus: 'sent', publicReplyError: null }).where(eq(schema.comments.id, item.commentId)).run();
-      logger.info({ commentId: item.commentId, compte: item.compte.name, texte }, 'réponse LinkedIn simulée (mode dry)');
-      resume.replied++;
-      continue;
-    }
-    if (!droit.peutRepondre) {
-      db.update(schema.comments)
-        .set({ publicReplyStatus: 'failed', publicReplyError: `droit ${droit.manque} absent sur ${item.compte.name} — reconnecte ce compte` })
-        .where(eq(schema.comments.id, item.commentId))
-        .run();
-      resume.failed++;
-      continue;
-    }
-    try {
-      await repondreSousCommentaireLinkedIn({ compte: item.compte, token: item.token, postUrn: item.postUrn, commentUrn: item.commentUrn, texte });
-      db.update(schema.comments).set({ publicReplyStatus: 'sent', publicReplyError: null }).where(eq(schema.comments.id, item.commentId)).run();
-      logger.info({ commentId: item.commentId, compte: item.compte.name }, 'réponse postée sous le commentaire LinkedIn');
-      resume.replied++;
-    } catch (err) {
-      const detail = err instanceof Error ? err.message : String(err);
-      db.update(schema.comments)
-        .set({ publicReplyStatus: 'failed', publicReplyError: detail.slice(0, 500) })
-        .where(eq(schema.comments.id, item.commentId))
-        .run();
-      logger.error({ commentId: item.commentId, compte: item.compte.name, err: detail }, 'échec de la réponse LinkedIn');
-      resume.failed++;
-    }
-  }
+  // Aucune réponse ne part seule : les commentaires automatisés sont déclassés et
+  // sanctionnés par LinkedIn depuis 2026. La réponse est préparée, elle attend dans
+  // « À traiter » et dans l'email ci-dessous ; une personne la relit et la poste.
 
   if (pourEmail.length > 0) {
     const rows = pourEmail
@@ -385,15 +302,11 @@ export async function pollLinkedInComments(): Promise<LinkedInPollSummary> {
     await sendMail({
       kind: 'li_comment_digest',
       to: getApprovalEmail().to,
-      subject: `[Odile] 💬 ${pourEmail.length} commentaire(s) LinkedIn — réponse postée, DM à coller si tu veux`,
-      html: `<p>${
-        settings.linkedinOffer === 'diagnostic'
-          ? 'Une réponse est partie sous chaque commentaire : le lien est déjà dans le post, elle propose donc le rendez-vous. Ces gens se sont signalés — un message privé personnel vaut le détour :'
-          : "Le lien est parti en réponse sous chaque commentaire (LinkedIn n'ouvre pas sa messagerie aux applications). Pour ajouter la touche personnelle, voici un message privé prêt à coller :"
-      }</p>
+      subject: `[Odile] 💬 ${pourEmail.length} commentaire(s) LinkedIn — réponse prête à poster`,
+      html: `<p>Ces personnes ont réagi à un post. Une réponse est prête pour chacune : relisez-la, ajoutez une question qui relance le fil, et postez-la vous-même sous le commentaire, dans l'heure si possible.</p>
 <table style="border-collapse:collapse;width:100%">${rows}</table>
-<p style="color:#889">Copie le message, ouvre le profil de la personne, colle en message privé. 30 secondes par lead.</p>`,
-      text: pourEmail.map((m) => `[${m.compte}] ${m.auteur} : ${m.texte}\n→ DM : ${m.dm}\n`).join('\n'),
+<p style="color:#889">Le moteur ne poste plus rien à votre place : une réponse humaine, rapide, pèse bien plus qu’un automatisme.</p>`,
+      text: pourEmail.map((m) => `[${m.compte}] ${m.auteur} : ${m.texte}\n→ Réponse : ${m.dm}\n`).join('\n'),
     });
   }
 

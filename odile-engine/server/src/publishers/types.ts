@@ -3,7 +3,7 @@ import path from 'node:path';
 import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { avecSite, bornerHashtags } from '../writer/marque.js';
+import { avecSite, bornerHashtags, reseauDuCanal } from '../writer/marque.js';
 
 export interface PublishInput {
   post: typeof schema.posts.$inferSelect;
@@ -74,15 +74,14 @@ export function collectPublishVideo(post: typeof schema.posts.$inferSelect): Pub
   };
 }
 
-/** Caption finale : texte + hashtags. */
 /**
- * Le texte qui part vraiment : la légende, l'adresse du site (LinkedIn, Facebook)
- * et les hashtags, celui de la marque en tête. Posés ici une dernière fois, ils
- * valent aussi pour un post programmé avant que la règle existe.
+ * Le texte qui part vraiment : la légende, l'adresse du site (Page LinkedIn,
+ * Facebook — jamais un profil personnel) et les hashtags. Posés ici une dernière
+ * fois, ils valent aussi pour un post programmé avant que la règle existe.
  */
 export function buildCaption(post: typeof schema.posts.$inferSelect, reseau?: 'facebook'): string {
   const platform = post.platform === 'instagram' ? 'instagram' : 'linkedin';
-  const corps = avecSite(post.caption, reseau ?? platform);
+  const corps = avecSite(post.caption, reseau ?? reseauDuCanal(post.channel));
   // Un hashtag déjà écrit dans la légende n'est pas répété en pied de post.
   const bas = corps.toLowerCase();
   const hashtags = bornerHashtags(JSON.parse(post.hashtags) as string[], platform)

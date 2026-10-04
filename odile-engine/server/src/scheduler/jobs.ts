@@ -145,15 +145,16 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'publish-due en échec'));
   }, { timezone: TZ });
 
-  // Amplification : commentaire d'amorce de l'auteur, puis commentaires des collègues sous le post
+  // Rappel du lien : une heure après la publication, l'email qui donne le lien à poster soi-même.
+  // Le moteur ne commente plus rien sous les posts (commentaires automatisés déclassés en 2026).
   cron.schedule('*/10 * * * *', () => {
     void (async () => {
-      const { amplifierPostsPublies } = await import('../publishers/amplify.js');
-      await runJob('amplify', () => amplifierPostsPublies());
-    })().catch((err) => logger.error({ err: String(err) }, 'amplify en échec'));
+      const { rappelerLesLiens } = await import('../publishers/rappelLien.js');
+      await runJob('rappel-lien', () => rappelerLesLiens());
+    })().catch((err) => logger.error({ err: String(err) }, 'rappel-lien en échec'));
   }, { timezone: TZ });
 
-  // LinkedIn : lecture des commentaires de chaque profil et de la page, réponse sous le commentaire (pas d'API DM, pas de webhook)
+  // LinkedIn : lecture des commentaires de chaque profil et de la page ; une réponse est préparée, un humain la poste
   cron.schedule('*/30 * * * *', () => {
     void (async () => {
       const { pollLinkedInComments } = await import('../webhooks/linkedinPoller.js');

@@ -120,9 +120,9 @@ async function main() {
       const tous = process.argv.includes('--tous');
       return runJob('blog-covers', () => refaireLesCouvertures({ itemsHorsMoteur: tous }));
     }
-    case 'amplify': {
-      const { amplifierPostsPublies } = await import('./publishers/amplify.js');
-      return runJob('amplify', () => amplifierPostsPublies());
+    case 'rappel-lien': {
+      const { rappelerLesLiens } = await import('./publishers/rappelLien.js');
+      return runJob('rappel-lien', () => rappelerLesLiens());
     }
     case 'generate-image': {
       const { generateHeroImage, generateImagesForPost } = await import('./imagegen/index.js');
@@ -184,7 +184,7 @@ async function main() {
       return { ok: true };
     }
     default:
-      console.log(`Commandes : scrape | score | shortlist | sujets | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | amplify | blog-covers [--tous] | seed | fixture [--title ..] [--url ..]`);
+      console.log(`Commandes : scrape | score | shortlist | sujets | enrich --news <id> | websearch | learn | draft [--news <id>] | render --post <id> | gallery | generate-image --post <id> [--slide <i>] | review --post <id> | send-approval --post <id> | pipeline [--news <id>] | publish-due | metrics [--post <id>] [--force] | refresh-tokens | check-connections | poll-li-comments | rappel-lien | blog-covers [--tous] | seed | fixture [--title ..] [--url ..]`);
       return { ok: false };
   }
 }

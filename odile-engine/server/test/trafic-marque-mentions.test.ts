@@ -53,9 +53,12 @@ describe('trafic vers le site : marque, site, mentions, doublons, espacement', a
     expect(avecSite('Texte.', 'linkedin', { ...marque, siteDansLesPosts: false })).toBe('Texte.');
   });
 
-  it('à la publication : #OdileAI en tête partout, le site sur LinkedIn et sur le miroir Facebook, pas sur Instagram', () => {
-    const li = creer({ caption: 'Un post LinkedIn.', hashtags: JSON.stringify(['#PME', '#AgentsIA', '#IA']) });
-    expect(buildCaption(li)).toBe('Un post LinkedIn.\n\nOdile AI : https://odileai.com\n\n#OdileAI #PME #AgentsIA');
+  it('à la publication : le site sur la Page et le miroir Facebook, jamais sur un profil ; #OdileAI sur Instagram seulement', () => {
+    // Profil personnel (stratégie LinkedIn 2026) : ni adresse ni hashtag de marque.
+    const li = creer({ caption: 'Un post LinkedIn.', hashtags: JSON.stringify(['#PME', '#AgentsIA', '#IA', '#OdileAI']) });
+    expect(buildCaption(li)).toBe('Un post LinkedIn.\n\n#PME #AgentsIA #IA');
+    const page = creer({ channel: 'li_org', liAccountKey: null, caption: 'Un post de la Page.', hashtags: JSON.stringify(['#PME']) });
+    expect(buildCaption(page)).toBe('Un post de la Page.\n\nOdile AI : https://odileai.com\n\n#PME');
     const ig = creer({ platform: 'instagram', channel: 'ig', liAccountKey: null, format: 'carousel', caption: 'Un post Instagram. Odile AI.', hashtags: JSON.stringify(['#PME']) });
     expect(buildCaption(ig)).toBe('Un post Instagram. Odile AI.\n\n#OdileAI #PME');
     expect(buildCaption(ig, 'facebook')).toContain('Odile AI : https://odileai.com');

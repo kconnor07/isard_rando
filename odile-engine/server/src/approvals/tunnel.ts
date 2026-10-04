@@ -3,7 +3,7 @@
  *
  * Tout ce que le tunnel dira ou donnera après la publication (le lien du post et sa
  * cible, la ressource, la réponse sous le commentaire, le message privé Instagram
- * en deux temps, la réponse publique, le commentaire d'amorce, la légende Facebook,
+ * en deux temps, la réponse publique, le lien à poster soi-même, la légende Facebook,
  * les noms qui seront identifiés) est composé ici à partir des mêmes fonctions que
  * l'exécution. Le fondateur le lit dans « À valider », l'éditeur, le calendrier et
  * l'email ; il valide en connaissance de cause, pas sur une promesse.
@@ -11,8 +11,8 @@
 import { and, eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getAmplification, getCadence, getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
-import { texteAmorce } from '../publishers/amplify.js';
+import { getCadence, getDmTriggers, getFbMirror } from '../db/settingsRepo.js';
+import { texteDuLien } from '../publishers/rappelLien.js';
 import { legendePourFacebook } from '../publishers/facebook.js';
 import { commentary } from '../publishers/linkedin.js';
 import { compteDuPost, droitCommentaire, mentionsConnues } from '../publishers/linkedinAccounts.js';
@@ -36,7 +36,8 @@ export interface ApercuTunnel {
   lienDansLePost: boolean;
   ressource: { kind: string; titre: string | null; url: string | null; erreur: string | null; viaLien: boolean; libelle: string };
   document: { pages: number; url: string } | null;
-  amorce: string | null;
+  /** le lien à poster soi-même en réponse à un commentaire, après la première heure */
+  lienEnReponse: string | null;
   reponseLinkedIn: string | null;
   /** nombre de formulations parmi lesquelles la réponse est tirée à chaque commentaire (1 = toujours celle-ci) */
   reponseVariantes: number;
@@ -101,12 +102,12 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
     if (pages.length > 0 && pages.every((p) => p.renderAssetId)) document = { pages: pages.length, url: `/api/posts/${post.id}/document.pdf` };
   }
 
-  let amorce: string | null = null;
+  let lienEnReponse: string | null = null;
   let reponseLinkedIn: string | null = null;
   let reponseVariantes = 1;
   let reponseManuelle = false;
   if (platform === 'linkedin') {
-    if (getAmplification().enabled && getAmplification().firstComment) amorce = texteAmorce(post);
+    lienEnReponse = texteDuLien(post);
     if (motcle) {
       const lienDansLePost = post.caption.includes('/r/');
       const variantes = dm.linkedinOffer === 'diagnostic' && lienDansLePost ? dm.diagnosticReplyVariants : dm.linkedinReplyVariants;
@@ -166,7 +167,7 @@ export function apercuTunnel(postId: number): ApercuTunnel | null {
       libelle: nommerRessource(post),
     },
     document,
-    amorce,
+    lienEnReponse,
     reponseLinkedIn,
     reponseVariantes,
     reponseManuelle,

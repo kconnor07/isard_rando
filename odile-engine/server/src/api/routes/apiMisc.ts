@@ -88,6 +88,7 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       awaitingApproval: sujetsEnAttente().sujets,
       scheduled: count(['scheduled', 'publishing']),
       published: count(['published']),
+      aPublier: count(['to_publish']),
       clicks7d,
       reach7d,
       engagement7d,

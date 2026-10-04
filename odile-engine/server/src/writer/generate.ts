@@ -18,6 +18,7 @@ import {
   getDefaultTheme,
   getDmTriggers,
   getImageGen,
+  getStrategieLinkedIn,
   getTone,
   getVideo,
 } from '../db/settingsRepo.js';
@@ -28,7 +29,8 @@ import { ICON_IDS } from '../render/icons.js';
 import { nextShortlistedItem } from '../scorer/shortlist.js';
 import { createLink } from '../shortener/index.js';
 import { toneToPrompt } from './tone.js';
-import { adresseDuSite, avecSite, bornerHashtags, hashtagDeMarque, porteLeSite } from './marque.js';
+import { adresseDuSite, avecSite, bornerHashtags, hashtagDeMarque, lienPermis, porteLeSite, reseauDuCanal } from './marque.js';
+import { ACCROCHE_MAX, accroche, porteUnAppat, tutoie } from './reglesLinkedIn.js';
 import { mentionnerSurInstagram, type MentionDeclaree } from './mentions.js';
 import { corrigerLigneSource, sourceReelle } from './source.js';
 
@@ -198,7 +200,19 @@ export function captionPorteLeMotCle(caption: string, motcle: string): boolean {
   return texte.includes('COMMENTE') && new RegExp(`(^|\\W)${norme(motcle)}(\\W|$)`).test(texte);
 }
 
-export function writerResponseSchema(imagesAllowed: number) {
+/** Ce que le texte d'un post LinkedIn doit respecter, selon la stratégie réglée. */
+export interface ReglesDuTexte {
+  /** pas de « Commente MOT » (appât déclassé par LinkedIn) */
+  appatInterdit?: boolean;
+  /** aucune adresse dans le texte (profil personnel) */
+  lienInterdit?: boolean;
+  /** vouvoiement imposé : aucun « tu » */
+  vouvoiement?: boolean;
+  /** la première ligne tient en ACCROCHE_MAX caractères (une marge est tolérée) */
+  accrocheCourte?: boolean;
+}
+
+export function writerResponseSchema(imagesAllowed: number, regles: ReglesDuTexte = {}) {
   // L'archétype est vérifié dans le superRefine (et non par un enum) pour que ses
   // erreurs et celle de l'idée d'image remontent ensemble au modèle, en une passe.
   const base = generatedPostSchema.extend({
@@ -215,7 +229,35 @@ export function writerResponseSchema(imagesAllowed: number) {
     // Le mot-clé est le seul déclencheur de tout le tunnel : s'il ne figure pas
     // dans la caption publiée, les gens ne savent pas quoi commenter, et un
     // commentaire au hasard ne déclenche rien. On ne laisse pas passer.
-    if (post.commentTrigger?.enabled) {
+    if (regles.appatInterdit && (porteUnAppat(post.caption) || porteUnAppat(post.cta))) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['caption'],
+        message: 'aucun « Commente MOT » ni « commentez OUI » : LinkedIn déclasse cet appât depuis mars 2026. Termine par une vraie question ouverte sur le cas du lecteur.',
+      });
+    }
+    if (regles.lienInterdit && /https?:\/\/|www\.|\{\{link\}\}/i.test(`${post.caption}\n${post.cta}`)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['caption'],
+        message: 'aucun lien, aucune adresse, aucun {{link}} : sur un profil personnel, un lien dans le texte coûte un quart de la portée',
+      });
+    }
+    if (regles.vouvoiement && tutoie(post.caption)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['caption'],
+        message: 'vouvoiement du début à la fin : aucun « tu », « toi », « tes », « t’ » — on ne mélange jamais tu et vous',
+      });
+    }
+    if (regles.accrocheCourte && accroche(post.caption).length > ACCROCHE_MAX + 40) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['caption'],
+        message: `la première ligne (avant le premier saut de ligne) fait ${accroche(post.caption).length} caractères : elle doit tenir en ${ACCROCHE_MAX}, c'est tout ce qu'on voit avant « …voir plus »`,
+      });
+    }
+    if (post.commentTrigger?.enabled && !regles.appatInterdit) {
       const motcle = post.commentTrigger.keyword ?? '';
       if (!/^[A-Za-zÀ-ÿ]{3,14}$/.test(motcle)) {
         ctx.addIssue({
@@ -353,6 +395,12 @@ export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   // Sur LinkedIn, le lien de la description donne déjà la ressource. Le mot-clé ne
   // peut donc pas promettre la même chose : il ouvre le diagnostic, un cran plus haut.
   const diagnostic = dm.linkedinOffer === 'diagnostic';
+  // Stratégie LinkedIn 2026 : sans mot-clé à commenter (appât déclassé), sans lien
+  // dans le texte d'un profil (−17 à −27 % de portée). La Page garde son lien.
+  const strategie = getStrategieLinkedIn();
+  const reseau = reseauDuCanal(channel);
+  const linkedin2026 = platform === 'linkedin' && !strategie.motcleSurLinkedIn;
+  const lienDansLeTexte = platform === 'linkedin' && lienPermis(reseau);
   const motsLinkedIn = (diagnostic ? dm.diagnosticKeywords : dm.keywords).join(', ');
   const promesseDiagnostic = dm.diagnosticPromise.trim() || 'un regard sur votre organisation';
 
@@ -368,7 +416,25 @@ CE QUE LA PERSONNE RECEVRA EN PRIVÉ, et que tu dois déclarer dans "resource" :
   adresse officielle dans resource.toolUrl (celle du site de l'outil, pas celle de l'article) ;
 — "article" sinon : elle recevra ${promesseDuLien}.
 La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autre chose.`
-      : `CTA LinkedIn : DEUX CHEMINS, et ils ne donnent surtout PAS la même chose.
+      : linkedin2026
+        ? `FIN DU POST LinkedIn (stratégie 2026) : AUCUN appel à commenter un mot-clé — « Commente CAS »,
+« commentez OUI » sont de l'appât à engagement, déclassé par LinkedIn depuis mars 2026. Aucune
+injonction non plus (« dites-le en commentaire », « likez si », « partagez »).
+Le post se termine par UNE VRAIE QUESTION, ouverte, sur le cas du lecteur : celle à laquelle un dirigeant
+répond par une phrase sur sa propre entreprise (« Et chez vous, quelle tâche prend encore une heure par jour ? »).
+Pour une méthode ou une liste, tu peux à la place inviter à l'enregistrer (« À garder pour votre prochaine réunion d'équipe. »).
+${
+  lienDansLeTexte
+    ? `LE LIEN : une ligne « <ce que c'est, en trois mots> : {{link}} » juste avant la question (écris le marqueur tel quel, jamais une URL).`
+    : `AUCUN lien, aucune adresse, aucun « lien en commentaire » : sur un profil, un lien coûte un quart de la portée.
+Le post tient debout sans lien ; ceux qui veulent aller plus loin le demanderont en commentaire.`
+}
+Renseigne commentTrigger {"enabled": false}.
+LA RESSOURCE, à déclarer dans "resource" — elle est donnée ${lienDansLeTexte ? 'par le lien' : 'en réponse à ceux qui la demandent'}, jamais promise en échange d'un commentaire :
+— "guide" si le sujet mérite un document à part (méthode, pas-à-pas, modèle) : son titre exact dans resource.title ;
+— "outil" si le post parle d'un outil précis : son adresse officielle dans resource.toolUrl ;
+— "article" sinon : ${promesseDuLien}.`
+        : `CTA LinkedIn : DEUX CHEMINS, et ils ne donnent surtout PAS la même chose.
 1. LE LIEN, dans la description : il DONNE la ressource, tout de suite, sans rien demander.
    Écris le marqueur {{link}} et rien d'autre, jamais une URL inventée : le moteur le
    remplacera par une adresse courte traçable.
@@ -397,8 +463,68 @@ La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autr
   // Ce qui fait performer un post LinkedIn : court, sourcé, les acteurs nommés.
   // Le vrai média (le site de l'article), pas le nom du flux qui l'a trouvé.
   const media = sourceReelle(news.id)?.media ?? '';
+  const voixDuTerrain = compte && compte.subject !== 'li_org' ? compte.name : `l'équipe de ${brand.name}`;
   const strategieLinkedIn =
-    platform === 'linkedin'
+    linkedin2026
+      ? `
+STRATÉGIE LINKEDIN 2026 (le texte du post, « caption ») — tirée de l'audit du compte et des données 2026 :
+- L'ACCROCHE est la première ligne, seule avant le premier saut de ligne : ${ACCROCHE_MAX} caractères au plus,
+  c'est tout ce qu'on voit sur mobile avant « …voir plus ». Elle nomme un problème vécu par un dirigeant de PME,
+  affirme quelque chose de contre-intuitif, ou ouvre sur une expérience personnelle. Une accroche sur ce qui
+  coûte ou ce qui rate bat une accroche enthousiaste.
+- LONGUEUR : 800 à 1 200 caractères, en phrases courtes, une idée par ligne, lignes aérées.
+  Lisible par un lycéen : aucun jargon, aucun sigle non expliqué, aucun anglicisme.
+- STRUCTURE : l'accroche ; la promesse (le bénéfice en une phrase) ; une phrase de crédibilité (pourquoi
+  cette voix sait de quoi elle parle) ; le message en phrases courtes ; une conclusion explicite ; la question finale.
+- UNE PREUVE PROPRE À L'AUTEUR quand c'est possible : ce que ${voixDuTerrain} constate chez les PME accompagnées.
+  N'invente JAMAIS un client, un nom, un chiffre ou une anecdote : sans fait réel, dis ce que tu observes
+  en général, sans chiffre.
+- REGISTRE : ${
+          strategie.registre === 'vous'
+            ? 'VOUVOIEMENT du début à la fin. Jamais « tu », « toi », « tes », « t’ ».'
+            : 'TUTOIEMENT du début à la fin, jamais « vous » pour s’adresser au lecteur.'
+        } On ne mélange jamais les deux.
+- PAS DE SURVENTE : ni « 100 % automatisé », ni « remplace un salarié », ni promesse invérifiable
+  (« +300 % », « 10x ») — elles heurtent la crainte du lecteur et ruinent la crédibilité.
+- SOURCER, toujours : nomme en clair d'où vient l'information — le NOM EXACT du média${media ? ` (ici « ${media} »)` : ''},
+  et l'auteur ou l'auteure si l'article le donne. Une ligne « Source : … » en fin de post.
+  JAMAIS « une étude », « des chercheurs », « un labo américain » : un post sourcé est crédible, un post vague ne l'est pas.
+  Déclare ce média dans "mentions" avec source: true (et son vanityName LinkedIn s'il a une page).
+- IDENTIFIER : ${strategie.mentionsMax} mentions au plus, chacune intégrée dans une phrase, jamais une liste de tags :
+  le média source et, quand l'actualité s'y prête, l'entreprise ou la personne au cœur de l'info. Déclare-les dans
+  "mentions" (nom exact ; entreprise : vanityName LinkedIn = la fin de l'URL de sa page, ex. « openai » ;
+  instagram = son compte officiel sans @, seulement si tu en es sûr). Une identification décorative est pénalisée.
+- ${brand.name} : au plus une fois, naturellement (« chez ${brand.name} », « à l'agence »), et seulement si le post
+  parle de ce que fait l'agence. Quand le post propose quelque chose, c'est toujours la même offre, mot pour mot :
+  « ${strategie.offre} ». Un post qui n'est pas une offre ne vend rien.
+- ${
+          lienDansLeTexte
+            ? `N'écris PAS l'adresse du site : le moteur termine lui-même le post par « ${brand.name} : ${adresseDuSite(brand.siteUrl)} ».`
+            : 'AUCUNE adresse, aucun lien, aucun nom de domaine dans le texte : le post tient debout seul.'
+        }
+- hashtags : ${
+          strategie.hashtagsMax === 0
+            ? 'aucun (renvoie "hashtags": []).'
+            : `0 à ${strategie.hashtagsMax}, précis, chaque mot en majuscule (#AutomatisationPME), jamais ${hashtagDeMarque(brand)} (il n'a aucun abonné) : ils servent à la recherche, pas à la portée. ${VOCABULAIRE_HASHTAGS}`
+        }
+
+CE QUE L'ALGORITHME LINKEDIN RÉCOMPENSE EN 2026 (écris pour ça) :
+- le TEMPS DE LECTURE : des détails concrets, un chiffre sourcé, une mini-histoire — pas de généralités ;
+- les COMMENTAIRES LONGS : la question finale appelle une phrase sur le cas du lecteur, pas un mot ;
+- les ENREGISTREMENTS : une méthode, des étapes, une liste qu'on a envie de garder ;
+- la COHÉRENCE : toujours les trois mêmes sujets (automatisation IA des PME, agents IA au quotidien,
+  gains concrets en temps et en ventes) — c'est ce qui construit l'autorité ;
+- un texte HUMAIN : un avis de praticien, des phrases qu'un dirigeant dirait. Bannis « révolutionner »,
+  « dans un monde où », « game changer », « à l'ère de ».
+CE QUI EST DÉCLASSÉ : l'appât à commentaire (« Commente X »), le lien externe dans un post de profil,
+le même texte publié par deux comptes, le contenu générique « écrit par une IA ».
+ORDRE DE FIN DE POST, sans rien d'autre entre les lignes :
+  1. la conclusion ;
+${lienDansLeTexte ? `  2. la ressource et son lien, sur une ligne : « <ce que c'est, en trois mots> : {{link}} » ;
+` : ''}  ${lienDansLeTexte ? '3' : '2'}. la question finale, seule sur sa ligne ;
+  ${lienDansLeTexte ? '4' : '3'}. une ligne vide, puis « Source : média, auteur ».
+  (Le moteur ajoute ensuite ${lienDansLeTexte ? 'l’adresse du site et ' : ''}les hashtags : ne les écris pas dans le texte.)`
+      : platform === 'linkedin'
       ? `
 STRATÉGIE LINKEDIN (le texte du post, « caption ») :
 - COURT : entre 500 et 1 000 caractères, jamais plus de 1 200. Une idée par ligne, lignes
@@ -456,7 +582,7 @@ SCRIPT DE LA VIDÉO (champ "videoScript") — c'est le cœur de ce post :
 - La PREMIÈRE PHRASE tient en 2 secondes et arrête le scroll : un chiffre, une tension, une question directe.
   Pas de « bonjour », pas de « aujourd'hui je vais vous parler de ».
 - Ensuite : le problème vécu par le dirigeant, ce qui change concrètement, un exemple ou un ordre de grandeur.
-- Termine par le même appel à l'action que la légende (« Commente [MOT-CLÉ] »), dit à l'oral.
+- Termine par ${linkedin2026 ? "la même question que la légende, dite à l'oral" : "le même appel à l'action que la légende (« Commente [MOT-CLÉ] »), dit à l'oral"}.
 - Phrases courtes, une idée par phrase, vocabulaire parlé. AUCUN émoji, AUCUN hashtag, AUCUNE URL, aucun sigle
   imprononçable : tout est lu à voix haute tel quel.
 - Ponctue pour la respiration : un point là où l'avatar doit marquer une pause.`
@@ -532,7 +658,9 @@ CONTRAINTES :
 - hashtags : ${
     platform === 'instagram'
       ? `4, sans doublon avec le texte (le moteur place ${hashtagDeMarque(brand)} en tête : Instagram n'en accepte que 5) — des hashtags de niche (10 000 à 500 000 publications), jamais des géants génériques. ${VOCABULAIRE_HASHTAGS}`
-      : `2 (le moteur place ${hashtagDeMarque(brand)} en tête : 3 au total), sans doublon avec le texte.`
+      : linkedin2026
+        ? `0 à ${strategie.hashtagsMax}, précis, en CamelCase, sans doublon avec le texte — jamais ${hashtagDeMarque(brand)}.`
+        : `2 (le moteur place ${hashtagDeMarque(brand)} en tête : 3 au total), sans doublon avec le texte.`
   }${
     platform === 'instagram'
       ? `
@@ -553,11 +681,16 @@ CONTRAINTES :
 
   const { value: generated } = await completeJson<GeneratedPost>(
     { task: 'writing', label: 'post:redaction', tier: 'best', system: WRITER_SYSTEM, prompt, maxTokens: 16000 },
-    writerResponseSchema(imagesAllowed),
+    writerResponseSchema(
+      imagesAllowed,
+      linkedin2026
+        ? { appatInterdit: true, lienInterdit: !lienDansLeTexte, vouvoiement: strategie.registre === 'vous', accrocheCourte: true }
+        : {},
+    ),
     { attempts: 3 },
   );
 
-  const brouillon = persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte });
+  const brouillon = persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte, motcleAutorise: !linkedin2026 });
   await finaliserLeTexte(brouillon.postId, platform, news.id, generated.mentions ?? []);
   return brouillon;
 }
@@ -662,10 +795,12 @@ export function avecLien(texte: string, url: string, opts: OptionsDuLien = {}): 
  * sur Instagram aucun lien n'est affiché, tout part en message privé.
  */
 export function relierLeLien(
-  post: { platform: string; linkId: number | null; commentTriggerKeyword: string | null },
+  post: { platform: string; channel: string; linkId: number | null; commentTriggerKeyword: string | null },
   texte: string,
 ): string {
   if (post.platform !== 'linkedin' || !post.linkId) return texte;
+  // Profil personnel en stratégie 2026 : aucun lien dans le texte, même après une réécriture.
+  if (!lienPermis(reseauDuCanal(post.channel))) return sansLien(texte);
   const lien = db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get();
   if (!lien) return texte;
   return avecLien(texte, `${config.PUBLIC_URL}/r/${lien.code}`, optionsDuLien(post.commentTriggerKeyword));
@@ -699,8 +834,11 @@ function persistDraft(args: {
   cibleDuLien: string;
   /** compte qui publie — choisi AVANT la rédaction, puisque le texte porte sa voix */
   compte: CompteLinkedIn | null;
+  /** un mot à commenter a-t-il sa place ? (non sur LinkedIn en stratégie 2026) */
+  motcleAutorise: boolean;
 }): DraftResult {
-  const { news, channel, platform, format, theme, tone, generated, cibleDuLien, compte } = args;
+  const { news, channel, platform, format, theme, tone, generated, cibleDuLien, compte, motcleAutorise } = args;
+  const motcle = motcleAutorise && generated.commentTrigger?.enabled ? generated.commentTrigger.keyword.toUpperCase() : null;
 
   const archetype = ARCHETYPES.some((a) => a.id === generated.archetype)
     ? generated.archetype!
@@ -720,9 +858,7 @@ function persistDraft(args: {
       caption: generated.caption,
       cta: generated.cta,
       hashtags: JSON.stringify(bornerHashtags(generated.hashtags, platform)),
-      commentTriggerKeyword: generated.commentTrigger?.enabled
-        ? generated.commentTrigger.keyword.toUpperCase()
-        : null,
+      commentTriggerKeyword: motcle,
       // Ce que le post promet : le pipeline le fabriquera (guide) ou le pointera (outil).
       resourceKind: generated.resource?.kind ?? 'article',
       resourceTitle: generated.resource?.title ?? null,
@@ -745,13 +881,16 @@ function persistDraft(args: {
   // Le lien court traçable est posé dans le texte des deux plateformes. Sur LinkedIn
   // il accompagne le mot-clé au lieu de le remplacer : commenter nourrit le post,
   // le lien sert ceux qui veulent aller droit au but.
-  const motcle = generated.commentTrigger?.enabled ? generated.commentTrigger.keyword.toUpperCase() : null;
   // Sur Instagram aucune adresse : le lien part en message privé, jamais dans la
   // légende (une URL y est illisible et non cliquable, et elle trahit le tunnel).
-  // Sur LinkedIn, l'adresse du site ferme le post (réglable dans Réglages → Marque).
-  const caption =
-    platform === 'linkedin' ? avecSite(avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle)), 'linkedin') : sansLien(generated.caption);
-  const cta = platform === 'linkedin' ? generated.cta.replaceAll('{{link}}', link.shortUrl) : sansLien(generated.cta);
+  // Sur un profil LinkedIn non plus (stratégie 2026) : le lien se donne en réponse,
+  // après la première heure. Sur la Page, le lien et l'adresse du site ferment le post.
+  const reseau = reseauDuCanal(channel);
+  const lienDansLeTexte = platform === 'linkedin' && lienPermis(reseau);
+  const caption = lienDansLeTexte
+    ? avecSite(avecLien(generated.caption, link.shortUrl, optionsDuLien(motcle)), reseau)
+    : sansLien(generated.caption);
+  const cta = lienDansLeTexte ? generated.cta.replaceAll('{{link}}', link.shortUrl) : sansLien(generated.cta);
   db.update(schema.posts)
     .set({ caption, cta, linkId: link.id })
     .where(eq(schema.posts.id, post.id))

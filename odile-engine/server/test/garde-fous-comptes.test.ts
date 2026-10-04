@@ -105,7 +105,7 @@ describe('copie non adaptée, garde-fou de publication et réparations', async (
       .get();
 
   it('une adaptation ratée bloque la copie, et une réécriture la débloque', async () => {
-    const original = creer({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', broadcastGroup: 'g1', caption: 'Vous perdez du temps. Commente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS' });
+    const original = creer({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'li_doc', broadcastGroup: 'g1', caption: 'Vous perdez du temps.\n\nEt chez vous, combien d’heures par semaine ?', cta: '' });
     const copie = creer({ broadcastGroup: 'g1', commentTriggerKeyword: 'GUIDE', error: 'texte non adapté à ce compte (Réponse LLM invalide) — texte d’origine conservé, à réécrire' });
     expect(echecDAdaptation(copie.error)).toBe(true);
     const problemes = verifierPost(copie);
@@ -189,7 +189,7 @@ describe('copie non adaptée, garde-fou de publication et réparations', async (
   it('au démarrage, un post programmé garde son texte ; « Réaligner » le corrige à la demande', async () => {
     const { reparerAuDemarrage } = await import('../src/scheduler/realigner.js');
     const { createLink } = await import('../src/shortener/index.js');
-    const caption = 'Vous perdez du temps.\n\nCommente GUIDE si vous voulez un diagnostic.';
+    const caption = 'Vous perdez du temps.\n\nEt chez vous, qui relit les devis ?\n\nCommente GUIDE si vous voulez un diagnostic.';
     const post = creer({ platform: 'linkedin', channel: 'li_personal', liAccountKey: 'khaled', format: 'carousel', status: 'scheduled', scheduledAt: new Date(Date.now() + 86400_000).toISOString(), caption, cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE' });
     const lien = createLink('https://source.test/article', { postId: post.id, label: `post-${post.id}` });
     db.update(schema.posts).set({ linkId: lien.id }).where(eq(schema.posts.id, post.id)).run();
@@ -201,15 +201,20 @@ describe('copie non adaptée, garde-fou de publication et réparations', async (
     expect(apres.status).toBe('scheduled');
     // Le format, lui, suit la plateforme (pas un changement de texte)
     expect(apres.format).toBe('li_doc');
-    expect(verifierPost(apres).map((p) => p.code)).toEqual(expect.arrayContaining(['lien-absent', 'motcle-hors-liste']));
+    // Stratégie 2026 : l'appât à commentaire bloque ; plus de lien ni de mot de diagnostic exigés.
+    const codes = verifierPost(apres).map((p) => p.code);
+    expect(codes).toContain('appat-commentaire');
+    expect(codes).not.toContain('lien-absent');
     // Sur demande, tout se corrige et le post garde son créneau
     const r = await realignerPost(post.id, { modele: false });
-    expect(r.corrections.join(' | ')).toMatch(/lien de la ressource reposé/);
-    expect(r.corrections.join(' | ')).toMatch(/mot-clé GUIDE remplacé par/);
+    expect(r.corrections.join(' | ')).toMatch(/appel à commenter un mot-clé retiré/);
+    expect(r.corrections.join(' | ')).toMatch(/mot-clé GUIDE retiré/);
     const fin = db.select().from(schema.posts).where(eq(schema.posts.id, post.id)).get()!;
     expect(fin.status).toBe('scheduled');
-    expect(fin.caption).toContain(`https://odile.test/r/${lien.code}`);
-    expect(verifierPost(fin).map((p) => p.code)).not.toContain('lien-absent');
+    expect(fin.caption).toBe('Vous perdez du temps.\n\nEt chez vous, qui relit les devis ?');
+    expect(fin.commentTriggerKeyword).toBeNull();
+    expect(fin.caption).not.toContain('/r/');
+    expect(verifierPost(fin).filter((p) => p.niveau === 'bloquant')).toEqual([]);
   });
 
   it('sansLien garde l’espace française avant « ? » et « ! »', () => {

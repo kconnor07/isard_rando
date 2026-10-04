@@ -2,9 +2,10 @@
  * Un post est-il conforme à sa plateforme et à son compte ?
  *
  * Ce contrôle dit, en phrases simples, ce qui empêcherait un post de tenir ses
- * promesses : sur LinkedIn le lien de la ressource doit être dans la description et
- * rien ne part en message privé ; sur Instagram aucune adresse, le mot-clé envoie la
- * ressource en privé ; le compte qui publie doit exister et fonctionner. Il sert
+ * promesses ou de trouver ses lecteurs : sur LinkedIn (stratégie 2026), ni appât à
+ * commentaire ni lien dans le texte d'un profil, une accroche courte, un seul
+ * registre ; sur Instagram aucune adresse, le mot-clé envoie la ressource en privé ;
+ * le compte qui publie doit exister et fonctionner. Il sert
  * trois fois : à l'écran de validation (le fondateur voit avant d'approuver), au
  * moment d'approuver ou de programmer (un défaut bloquant est refusé), et au
  * réalignement des anciens posts (ce qui est corrigeable est corrigé).
@@ -12,11 +13,12 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getBrand, getDmTriggers } from '../db/settingsRepo.js';
+import { getBrand, getDmTriggers, getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { compteDuPost } from '../publishers/linkedinAccounts.js';
 import { voisinTropProche } from '../scheduler/cadence.js';
 import { captionPorteLeMotCle } from './generate.js';
-import { porteLeSite } from './marque.js';
+import { hashtagDeMarque, lienPermis, porteLeSite, reseauDuCanal } from './marque.js';
+import { ACCROCHE_MAX, accroche, contientUnLien, finitSurUneQuestion, porteUnAppat, tutoie, vouvoie } from './reglesLinkedIn.js';
 import { HASHTAGS_MAX } from '@odile/shared';
 
 type Post = typeof schema.posts.$inferSelect;
@@ -45,7 +47,12 @@ export interface Probleme {
     | 'lien-mal-etiquete'
     | 'marque-absente'
     | 'doublon-surface'
-    | 'trop-rapproche';
+    | 'trop-rapproche'
+    | 'appat-commentaire'
+    | 'lien-dans-le-corps'
+    | 'accroche-longue'
+    | 'registre'
+    | 'question-finale';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
@@ -168,36 +175,78 @@ export function verifierPost(post: Post): Probleme[] {
         });
       }
     }
+    const strategie = getStrategieLinkedIn();
+    const linkedin2026 = !strategie.motcleSurLinkedIn;
+    const lienAutorise = lienPermis(reseauDuCanal(post.channel));
     const lienDansLeTexte = caption.includes(`${config.PUBLIC_URL.replace(/\/+$/, '')}/r/`) || /\/r\/[a-z2-9]{6,}/i.test(caption);
-    if (post.linkId && diagnostic && !lienDansLeTexte) {
+    if (linkedin2026) {
+      if (porteUnAppat(caption) || porteUnAppat(post.cta ?? '')) {
+        problemes.push({
+          code: 'appat-commentaire',
+          niveau: 'bloquant',
+          corrigeable: true,
+          reecriture: true,
+          message: 'Le texte demande de commenter un mot (« Commente … ») : LinkedIn déclasse cet appât depuis mars 2026. « Réaligner » le remplace par une vraie question.',
+        });
+      }
+      if (!lienAutorise && contientUnLien(`${caption}\n${post.cta ?? ''}`)) {
+        problemes.push({
+          code: 'lien-dans-le-corps',
+          niveau: 'bloquant',
+          corrigeable: true,
+          message: 'Un lien ou une adresse figure dans le texte d’un post de profil : il coûte 17 à 27 % de portée. « Réaligner » le retire ; le lien se donnera en réponse, après la première heure.',
+        });
+      }
+      if (accroche(caption).length > ACCROCHE_MAX) {
+        problemes.push({
+          code: 'accroche-longue',
+          niveau: 'attention',
+          corrigeable: false,
+          message: `La première ligne fait ${accroche(caption).length} caractères : sur mobile, seuls les ${ACCROCHE_MAX} premiers se voient avant « …voir plus ». Coupez-la ou passez à la ligne plus tôt.`,
+        });
+      }
+      if (strategie.registre === 'vous' && tutoie(caption)) {
+        problemes.push({ code: 'registre', niveau: 'attention', corrigeable: false, reecriture: true, message: 'Le texte tutoie le lecteur : la stratégie LinkedIn est au vouvoiement, du début à la fin.' });
+      } else if (strategie.registre === 'tu' && vouvoie(caption)) {
+        problemes.push({ code: 'registre', niveau: 'attention', corrigeable: false, reecriture: true, message: 'Le texte vouvoie le lecteur : la stratégie LinkedIn est au tutoiement, du début à la fin.' });
+      }
+      if (!finitSurUneQuestion(caption)) {
+        problemes.push({ code: 'question-finale', niveau: 'attention', corrigeable: false, message: 'Le post ne finit pas sur une question : une question ouverte sur le cas du lecteur appelle des commentaires longs, ceux que LinkedIn récompense.' });
+      }
+    }
+    if (!linkedin2026 && post.linkId && diagnostic && !lienDansLeTexte) {
       problemes.push({ code: 'lien-absent', niveau: 'bloquant', corrigeable: true, message: 'Le lien de la ressource n’est pas dans la description : la personne n’a rien à ouvrir, et les réponses automatiques diraient qu’il y est.' });
     }
     // Sans mot à commenter, le post n'ouvre aucune conversation : c'est le tunnel
     // qui manque, pas une faute — « Réaligner » ajoute l'appel à commenter.
-    if (!motcle && diagnostic && dm.diagnosticKeywords.length > 0 && ['awaiting_approval', 'draft', 'reviewing', 'scheduled'].includes(post.status)) {
+    if (!linkedin2026 && !motcle && diagnostic && dm.diagnosticKeywords.length > 0 && ['awaiting_approval', 'draft', 'reviewing', 'scheduled'].includes(post.status)) {
       problemes.push({ code: 'motcle-manquant', niveau: 'attention', corrigeable: true, message: 'Aucun mot à commenter : ce post n’ouvre pas de conversation. « Réaligner » ajoute l’appel à commenter (diagnostic).' });
     }
     // La ligne du lien dit « audit » ou « diagnostic » alors que le lien mène à la ressource.
     const ligneLien = caption.split('\n').find((l) => LIGNE_DU_LIEN.test(l));
-    if (ligneLien && diagnostic && ETIQUETTE_RDV.test(ligneLien)) {
+    if (!linkedin2026 && ligneLien && diagnostic && ETIQUETTE_RDV.test(ligneLien)) {
       problemes.push({ code: 'lien-mal-etiquete', niveau: 'attention', corrigeable: true, message: `La ligne du lien parle de rendez-vous ou de diagnostic alors qu’elle mène à ${post.resourceKind === 'guide' ? 'un guide' : post.resourceKind === 'outil' ? 'un outil' : 'un article'} : c’est le mot-clé qui ouvre le diagnostic. « Réaligner » réécrit cette ligne.` });
     }
     // La page entreprise est la seule identification (@) que le moteur sait faire à
     // coup sûr : un post de profil qui ne la nomme pas n'y renvoie personne.
     const marque = getBrand().name.trim();
-    if (marque && !caption.toLowerCase().includes(marque.toLowerCase())) {
+    if (!linkedin2026 && marque && !caption.toLowerCase().includes(marque.toLowerCase())) {
       problemes.push({ code: 'marque-absente', niveau: 'attention', corrigeable: false, message: `« ${marque} » n’est pas nommée dans le texte : la page ne sera pas identifiée (@) et personne n’y est renvoyé.` });
     }
     if (PROMESSE_DM.test(blocFinal(caption)) || PROMESSE_DM.test(post.cta ?? '')) {
       problemes.push({ code: 'dm-promis', niveau: 'bloquant', corrigeable: false, reecriture: true, message: 'Le texte promet un envoi en message privé : impossible sur LinkedIn (le lien est dans le post, le mot-clé ouvre le diagnostic).' });
     }
-    if (motcle && diagnostic && !dm.diagnosticKeywords.map((k) => k.toUpperCase()).includes(motcle.toUpperCase())) {
+    if (!linkedin2026 && motcle && diagnostic && !dm.diagnosticKeywords.map((k) => k.toUpperCase()).includes(motcle.toUpperCase())) {
       problemes.push({ code: 'motcle-hors-liste', niveau: 'attention', corrigeable: true, message: `Le mot « ${motcle} » n’est pas un mot de diagnostic (${dm.diagnosticKeywords.join(', ')}) : « Réaligner » le remplace dans le texte et sur la slide.` });
     }
     if (caption.length > 3000) problemes.push({ code: 'trop-long', niveau: 'bloquant', corrigeable: false, message: `Texte de ${caption.length} caractères : LinkedIn en accepte 3 000.` });
-    else if (caption.length > 1500) problemes.push({ code: 'trop-long', niveau: 'attention', corrigeable: false, message: `Texte long (${caption.length} caractères) : sur LinkedIn, au-delà de 1 200 le post est moins lu.` });
-    if (hashtags.length > HASHTAGS_MAX.linkedin) problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtags.length} hashtags : LinkedIn n’en tient compte que de ${HASHTAGS_MAX.linkedin}.` });
-    if (diagnostic && motcle && !dm.rdvUrl.trim()) {
+    else if (caption.length > (linkedin2026 ? 1300 : 1500)) problemes.push({ code: 'trop-long', niveau: 'attention', corrigeable: false, message: `Texte long (${caption.length} caractères) : sur LinkedIn, au-delà de 1 200 le post est moins lu.` });
+    const maxHashtags = linkedin2026 ? strategie.hashtagsMax : HASHTAGS_MAX.linkedin;
+    if (hashtags.length > maxHashtags) problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtags.length} hashtags : la stratégie LinkedIn en prévoit ${maxHashtags} au plus, précis.` });
+    else if (linkedin2026 && hashtags.some((h) => h.toLowerCase() === hashtagDeMarque().toLowerCase())) {
+      problemes.push({ code: 'hashtags', niveau: 'attention', corrigeable: true, message: `${hashtagDeMarque()} n’a aucun abonné : il est retiré des posts LinkedIn.` });
+    }
+    if (!linkedin2026 && diagnostic && motcle && !dm.rdvUrl.trim()) {
       problemes.push({ code: 'rdv-manquant', niveau: 'attention', corrigeable: false, message: 'Aucun lien de rendez-vous réglé : la réponse au mot-clé renverra vers la page d’accueil du site (Réglages → Commentaire → DM).' });
     }
   }
@@ -226,7 +275,8 @@ export function verifierPost(post: Post): Probleme[] {
   if ((post.platform === 'linkedin' || post.platform === 'instagram') && formatPourPlateforme(post.format, post.platform) !== post.format) {
     problemes.push({ code: 'format-plateforme', niveau: 'attention', corrigeable: true, message: post.platform === 'linkedin' ? 'Format d’Instagram sur LinkedIn : plusieurs slides y sont un document PDF à feuilleter, une seule une image. « Réaligner » convertit le format.' : 'Format LinkedIn sur Instagram : « Réaligner » le convertit en carrousel ou image.' });
   }
-  if (motcle && !captionPorteLeMotCle(caption, motcle)) {
+  const motcleIgnore = post.platform === 'linkedin' && !getStrategieLinkedIn().motcleSurLinkedIn;
+  if (motcle && !motcleIgnore && !captionPorteLeMotCle(caption, motcle)) {
     problemes.push({ code: 'motcle-absent', niveau: 'bloquant', corrigeable: true, message: `Le texte ne demande pas « Commente ${motcle} » : personne ne saura quoi commenter.` });
   }
   if (/(?<!rendez-)\bvous\b/i.test(caption) && /\b(tu|t[’']|tes|ton|ta)\b/i.test(caption)) {
@@ -239,7 +289,7 @@ export function verifierPost(post: Post): Probleme[] {
     // place : le texte, lui, promet toujours un guide.
     problemes.push({ code: 'guide-manquant', niveau: 'bloquant', corrigeable: false, message: `Le guide promis n’a pas pu être fabriqué (${post.resourceError.slice(0, 120)}) : la personne recevrait l’article source à la place. Relance la fabrication ou change la promesse.` });
   }
-  if (post.scheduledAt && !['scheduled', 'publishing', 'published'].includes(post.status)) {
+  if (post.scheduledAt && !['scheduled', 'publishing', 'published', 'to_publish'].includes(post.status)) {
     problemes.push({ code: 'date-orpheline', niveau: 'attention', corrigeable: true, message: 'Une date de publication traîne sur un post qui n’est pas programmé.' });
   }
   return problemes;

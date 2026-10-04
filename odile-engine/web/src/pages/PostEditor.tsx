@@ -510,6 +510,7 @@ export default function PostEditor() {
           <span className="text-xs text-muted">ou corrige le texte à la main ci-dessous.</span>
         </div>
       )}
+      {post.publieParLaPersonne && <BlocAPublier post={post} />}
       {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
       {post.format === 'li_doc' && !inProgress && post.slideCount > 0 && (
@@ -845,6 +846,84 @@ function BlocVideo({ post }: { post: PostDetailDto }) {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Profil personnel (stratégie LinkedIn 2026) : le moteur prépare, la personne publie.
+ * Le texte exact à coller, les visuels à joindre, puis « Marquer publié » pour que le
+ * post compte (calendrier, statistiques, rappel du lien une heure plus tard).
+ */
+function BlocAPublier({ post }: { post: PostDetailDto }) {
+  const qc = useQueryClient();
+  const dialog = useDialog();
+  const pret = post.status === 'to_publish';
+  const avant = ['draft', 'reviewing', 'awaiting_approval', 'approved', 'scheduled'].includes(post.status);
+  const marquer = useMutation({
+    mutationFn: (url: string) => api.post(`/api/posts/${post.id}/mark-published`, { url: url || null }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      void qc.invalidateQueries({ queryKey: ['posts'] });
+      void qc.invalidateQueries({ queryKey: ['summary'] });
+      toast.success('Post marqué publié — le rappel du lien arrivera dans une heure');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  if (!pret && !avant) return null;
+  const copier = async () => {
+    try {
+      await navigator.clipboard.writeText(post.texteAPublier ?? post.caption);
+      toast.success('Texte copié — collez-le dans LinkedIn');
+    } catch {
+      toast.error('Copie impossible : sélectionnez le texte à la main');
+    }
+  };
+  const demanderUrl = async () => {
+    const url = await dialog.prompt({
+      title: 'Marquer publié',
+      message: 'Adresse du post LinkedIn (facultatif) : elle permet de l’ouvrir depuis le calendrier.',
+      placeholder: 'https://www.linkedin.com/feed/update/…',
+      confirmLabel: 'Marquer publié',
+      optional: true,
+    });
+    if (url === null) return;
+    marquer.mutate(url.trim());
+  };
+  const visuels = post.slides.filter((s) => s.renderAssetId);
+  return (
+    <div className={`card mb-4 p-4 ${pret ? 'border-accent/50' : ''}`}>
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">{pret ? 'À publier vous-même' : 'Publié par vous, pas par le moteur'}</div>
+      {!pret ? (
+        <p className="mt-1 text-sm">
+          C’est un post de profil personnel : à l’heure prévue, il vous arrive par email, prêt à coller. Vous le publiez vous-même sur LinkedIn,
+          puis vous cliquez « Marquer publié ». Une voix de dirigeant ne se délègue pas à un automate (stratégie LinkedIn 2026).
+        </p>
+      ) : (
+        <>
+          <ol className="mt-2 list-decimal space-y-0.5 pl-5 text-sm">
+            <li>Relisez le texte, ajoutez un détail vécu si vous en avez un.</li>
+            <li>Copiez-le dans LinkedIn avec {post.format === 'li_doc' ? 'le document PDF' : 'le visuel'}, puis publiez.</li>
+            <li>Cliquez « Marquer publié », et répondez aux commentaires pendant la première heure.</li>
+          </ol>
+          <textarea className="input mt-3 min-h-[10rem] font-mono text-xs" readOnly value={post.texteAPublier ?? post.caption} />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button className="btn-primary !py-1.5 text-xs" onClick={() => void copier()}>Copier le texte</button>
+            {post.format === 'li_doc' ? (
+              <a href={`/api/posts/${post.id}/document.pdf`} target="_blank" rel="noreferrer" className="btn-ghost !py-1.5 text-xs">Télécharger le PDF</a>
+            ) : (
+              visuels.map((s) => (
+                <a key={s.id} href={`/public-assets/${s.renderAssetId}.jpg`} download={`visuel-${post.id}-${s.idx + 1}.jpg`} className="btn-ghost !py-1.5 text-xs">
+                  Visuel {s.idx + 1}
+                </a>
+              ))
+            )}
+            <button className="btn-ghost !py-1.5 text-xs" disabled={marquer.isPending} onClick={() => void demanderUrl()}>
+              <Check size={13} /> {marquer.isPending ? 'Enregistrement…' : 'Marquer publié'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

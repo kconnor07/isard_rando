@@ -342,32 +342,43 @@ export const fbMirrorSettingsSchema = z.object({
 export type FbMirrorSettings = z.infer<typeof fbMirrorSettingsSchema>;
 
 /**
- * Amplification : ce qui se passe SOUS un post LinkedIn une fois publié.
+ * Stratégie LinkedIn 2026, tirée de l'audit du profil et des données publiées en 2026.
  *
- * Deux gestes, que toutes les équipes qui percent sur LinkedIn font à la main :
- * — le commentaire d'amorce, posté par le compte auteur juste après la publication.
- *   Il porte le lien de la source (interdit dans le post lui-même, où il fait chuter
- *   la portée) et rappelle le mot-clé à commenter ;
- * — les commentaires des autres comptes de l'équipe, une demi-heure plus tard. Un
- *   commentaire précoce compte bien plus qu'un like dans le classement LinkedIn, et
- *   ouvre le post aux réseaux des collègues.
+ * Ce que LinkedIn déclasse ou sanctionne en 2026, et que le moteur faisait :
+ * — l'appât à commentaire (« Commente CAS ») : rétrogradé depuis mars 2026 ;
+ * — le lien externe dans le corps d'un post de profil : −17 à −27 % de portée ;
+ * — les commentaires automatisés et les groupes qui se commentent entre eux ;
+ * — le même texte publié par deux comptes de la même équipe.
+ *
+ * Par défaut, le moteur ne publie donc plus seul sur les profils personnels : il
+ * prépare le post, la personne le relit et le publie elle-même. La Page reste
+ * publiée par l'API officielle, après validation.
  */
-export const amplificationSettingsSchema = z.object({
-  enabled: z.boolean().default(true),
-  /** commentaire d'amorce du compte auteur : source + rappel du mot-clé */
-  firstComment: z.boolean().default(true),
-  /** délai avant l'amorce, en minutes — assez court pour être le premier commentaire */
-  firstCommentDelayMinutes: z.number().int().min(1).max(120).default(4),
-  /** les autres comptes connectés commentent le post */
-  crossComment: z.boolean().default(true),
-  /** délai avant le premier commentaire d'un collègue, en minutes */
-  delayMinutes: z.number().int().min(5).max(360).default(25),
-  /** écart entre deux collègues, en minutes : ils n'arrivent pas tous à la même seconde */
-  spacingMinutes: z.number().int().min(5).max(180).default(20),
-  /** nombre maximum de comptes qui commentent un même post */
-  maxAccounts: z.number().int().min(1).max(5).default(2),
+export const strategieLinkedInSchema = z.object({
+  /** profils personnels : le moteur publie lui-même (sinon il prépare, la personne publie) */
+  profilsPubliesParLoutil: z.boolean().default(false),
+  /** « Commente MOT » en fin de post LinkedIn — déclassé en 2026 */
+  motcleSurLinkedIn: z.boolean().default(false),
+  /** lien externe dans le texte d'un post de profil — coûte 17 à 27 % de portée */
+  lienDansLeCorpsProfils: z.boolean().default(false),
+  /** lien vers le site dans le texte d'un post de la Page — la Page sert de hub de liens */
+  lienDansLeCorpsPage: z.boolean().default(true),
+  /** vouvoiement par défaut pour des dirigeants de PME ; jamais de mélange */
+  registre: z.enum(['vous', 'tu']).default('vous'),
+  /** l'unique offre d'entrée, citée telle quelle quand un post parle de l'agence */
+  offre: z.string().trim().min(5).max(80).default('un audit offert de 30 minutes'),
+  /** hashtags LinkedIn, en fin de post — 0 à 3, jamais le hashtag de la marque */
+  hashtagsMax: z.number().int().min(0).max(5).default(3),
+  /** personnes ou entreprises identifiées dans un post — au-delà de 5, signal de spam */
+  mentionsMax: z.number().int().min(0).max(5).default(3),
+  /**
+   * Le lien de la ressource, quand il n'est pas dans le post : un rappel arrive
+   * par email ce nombre de minutes après la publication, pour le poster soi-même
+   * en réponse à un commentaire. Le moteur ne commente jamais à la place de quelqu'un.
+   */
+  rappelLienApresMinutes: z.number().int().min(15).max(240).default(60),
 });
-export type AmplificationSettings = z.infer<typeof amplificationSettingsSchema>;
+export type StrategieLinkedIn = z.infer<typeof strategieLinkedInSchema>;
 
 export const approvalEmailSettingsSchema = z.object({
   to: z.string().email(),

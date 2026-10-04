@@ -17,6 +17,8 @@ export const POST_STATUSES = [
   'published',
   'rejected',
   'failed',
+  /** profil personnel : le moteur a tout préparé, la personne publie elle-même */
+  'to_publish',
 ] as const;
 export type PostStatus = (typeof POST_STATUSES)[number];
 

@@ -21,13 +21,15 @@ describe('légendes conformes à leur plateforme', async () => {
     expect(propre).toContain('fireflies.ai');
   });
 
-  it('les hashtags sont dédoublonnés, préfixés et bornés par plateforme — celui de la marque en tête', () => {
+  it('les hashtags sont dédoublonnés, préfixés et bornés par plateforme — la marque en tête sur Instagram, jamais sur LinkedIn', () => {
     const bruts = ['IA', '#PME', 'ia', '#no-code', 'automatisation', 'Toulouse', 'agence', 'x'];
-    expect(bornerHashtags(bruts, 'linkedin')).toEqual(['#OdileAI', '#IA', '#PME']);
+    // LinkedIn 2026 : trois hashtags précis au plus, et pas #OdileAI (aucun abonné).
+    expect(bornerHashtags(bruts, 'linkedin')).toEqual(['#IA', '#PME', '#nocode']);
     expect(bornerHashtags(bruts, 'instagram')).toHaveLength(5);
     expect(bornerHashtags(bruts, 'instagram')[0]).toBe('#OdileAI');
-    // Déjà proposé par le modèle, sous une autre casse : une seule fois, en tête.
-    expect(bornerHashtags(['#odileai', 'PME', '#OdileAI'], 'linkedin')).toEqual(['#OdileAI', '#PME']);
+    // Proposé par le modèle, sous une autre casse : retiré sur LinkedIn, une seule fois en tête sur Instagram.
+    expect(bornerHashtags(['#odileai', 'PME', '#OdileAI'], 'linkedin')).toEqual(['#PME']);
+    expect(bornerHashtags(['#odileai', 'PME', '#OdileAI'], 'instagram')).toEqual(['#OdileAI', '#PME']);
     // Sans accents : un même sujet ne se disperse pas entre deux orthographes.
     expect(bornerHashtags(['#Productivité', 'Productivite'], 'instagram')).toEqual(['#OdileAI', '#Productivite']);
   });
@@ -67,7 +69,6 @@ describe('légendes conformes à leur plateforme', async () => {
 
 describe('identifications LinkedIn et réponses cohérentes avec le post', async () => {
   const { commentary } = await import('../src/publishers/linkedin.js');
-  const { texteAmorce } = await import('../src/publishers/amplify.js');
   const { modeleDeReponse } = await import('../src/webhooks/commentDm.js');
   const { setSetting, getDmTriggers } = await import('../src/db/settingsRepo.js');
 
@@ -78,14 +79,11 @@ describe('identifications LinkedIn et réponses cohérentes avec le post', async
     expect(commentary('Khaledine Aboubakar', [{ nom: 'Khaled Aboubakar', urn }])).toBe('Khaledine Aboubakar');
   });
 
-  it('sans lien dans la description, l’amorce et la réponse ne prétendent pas qu’il y est', () => {
+  it('sans lien dans la description, la réponse ne prétend pas qu’il y est', () => {
     setSetting('dm_triggers', { ...getDmTriggers(), linkedinOffer: 'diagnostic' });
     const ancien = { commentTriggerKeyword: 'GUIDE', resourceKind: 'guide' as const, resourceTitle: 'Checklist', caption: 'Commente GUIDE et je t’envoie la checklist.' };
-    expect(texteAmorce(ancien)!).not.toContain('en lien dans la description');
-    expect(texteAmorce(ancien)!).toContain('commente GUIDE');
     expect(modeleDeReponse('linkedin', ancien)).toBe(getDmTriggers().replyTemplate);
     const recent = { ...ancien, caption: 'Le guide : https://o/r/abc\nCommente CAS' };
-    expect(texteAmorce(recent)!).toContain('en lien dans la description');
     expect(modeleDeReponse('linkedin', recent)).toContain('est en lien dans le post');
   });
 });

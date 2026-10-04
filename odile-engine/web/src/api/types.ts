@@ -112,6 +112,10 @@ export interface PostDetailDto extends PostSummaryDto {
   slides: SlideDto[];
   reviews: ReviewDto[];
   clicks: number;
+  /** profil personnel : le moteur prépare, la personne publie elle-même (stratégie LinkedIn 2026) */
+  publieParLaPersonne?: boolean;
+  /** le texte final, hashtags compris, tel qu'il faut le coller dans LinkedIn */
+  texteAPublier?: string | null;
   /** objets flottants choisis pour ce post */
   visualOverrides?: {
     float1?: string | null;
@@ -187,6 +191,8 @@ export interface SummaryDto {
   awaitingApproval: number;
   scheduled: number;
   published: number;
+  /** posts de profil prêts, que la personne doit publier elle-même */
+  aPublier?: number;
   clicks7d: number;
   /** personnes atteintes et interactions des posts publiés sur 7 jours (dernier relevé) */
   reach7d: number;

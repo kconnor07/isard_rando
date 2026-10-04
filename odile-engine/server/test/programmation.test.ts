@@ -74,7 +74,7 @@ describe('programmation des posts', async () => {
         status: 'awaiting_approval',
         hook: args.hook,
         caption: 'texte',
-        cta: 'Commente GUIDE',
+        cta: '',
         hashtags: '[]',
       })
       .returning()

@@ -22,9 +22,9 @@ type AllSettings = Record<string, unknown> & {
   publish_slots: { ig: { dow: number; time: string }[]; li: { dow: number; time: string }[] };
   dm_triggers: { enabled: boolean; keywords: string[]; replyTemplate: string; requireFollow?: boolean; askFollowTemplate?: string; thanksTemplate?: string; remindTemplate?: string; publicReply?: boolean; publicReplyVariants?: string[]; publicReplyFallbackVariants?: string[]; linkTarget?: 'article' | 'fixe'; fixedUrl?: string; fixedLabel?: string; rdvUrl?: string; rdvLabel?: string; qualifyTemplate?: string; linkedinOffer?: 'ressource' | 'diagnostic'; diagnosticKeywords?: string[]; diagnosticPromise?: string };
   fb_mirror: { enabled: boolean };
-  amplification: {
-    enabled: boolean; firstComment: boolean; firstCommentDelayMinutes: number; crossComment: boolean;
-    delayMinutes: number; spacingMinutes: number; maxAccounts: number;
+  linkedin_strategie: {
+    profilsPubliesParLoutil: boolean; motcleSurLinkedIn: boolean; lienDansLeCorpsProfils: boolean; lienDansLeCorpsPage: boolean;
+    registre: 'vous' | 'tu'; offre: string; hashtagsMax: number; mentionsMax: number; rappelLienApresMinutes: number;
   };
   video: {
     enabled: boolean; everyNPosts: number; avatarType: 'avatar' | 'talking_photo'; avatarId: string; avatarStyle: string;
@@ -154,7 +154,7 @@ export default function Settings() {
   }, [settings]);
 
   const SECTION_LABELS: Record<string, string> = {
-    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', amplification: 'Amplification', llm_budget: 'Budget IA',
+    tone: 'Ton', brand: 'Marque', cadence: 'Cadence', publish_slots: 'Créneaux', dm_triggers: 'Commentaire → DM', fb_mirror: 'Miroir Facebook', linkedin_strategie: 'Stratégie LinkedIn 2026', llm_budget: 'Budget IA',
     design_studio: 'Studio de design', image_gen: 'Illustrations IA', approval_email: 'Email de validation', visual_agent: 'Agent visuel',
     default_theme: 'Thème par défaut', default_format: 'Format par défaut', video: 'Vidéos avatar', mentions: 'Mentions',
   };
@@ -518,48 +518,68 @@ export default function Settings() {
         </p>
       </Section>
 
-      <Section title="Amplification" saving={savingOf('amplification')} onSave={() => save.mutate({ key: 'amplification', value: form.amplification })}>
+      <Section title="Stratégie LinkedIn 2026" saving={savingOf('linkedin_strategie')} onSave={() => save.mutate({ key: 'linkedin_strategie', value: form.linkedin_strategie })}>
         <p className="mb-3 text-xs text-muted">
-          Ce qui se passe <strong>sous</strong> un post LinkedIn une fois publié. C'est ce que font à la main les équipes qui percent : un commentaire précoce pèse
-          bien plus qu'un like dans le classement LinkedIn, et ouvre le post aux réseaux des collègues.
+          Tirée de l’audit du compte et des données publiées en 2026 : LinkedIn déclasse l’appât à commentaire (« Commente CAS »), les liens dans un post
+          de profil (−17 à −27 % de portée), les commentaires automatisés et les posts jumeaux. Le moteur ne commente plus rien à votre place.
         </p>
-        <label className="mb-3 flex items-center gap-2 text-sm">
-          <input type="checkbox" className="accent-sky-500" checked={form.amplification?.enabled ?? true}
-            onChange={(e) => set('amplification', { ...form.amplification, enabled: e.target.checked })} />
-          Activer l'amplification des posts LinkedIn
-        </label>
-        <label className="mb-1 flex items-center gap-2 text-sm">
-          <input type="checkbox" className="accent-sky-500" checked={form.amplification?.firstComment ?? true}
-            onChange={(e) => set('amplification', { ...form.amplification, firstComment: e.target.checked })} />
-          Commentaire d'amorce du compte qui publie
-        </label>
-        <p className="mb-3 text-xs text-muted">
-          Le rappel du mot-clé à commenter, et rien d'autre : <strong>aucun lien sous le post</strong>, le lien vit dans la description. Il ne donne jamais la
-          ressource promise : elle reste au bout du commentaire, sinon le tunnel n'a plus de raison d'être.
-        </p>
-        <label className="mb-1 flex items-center gap-2 text-sm">
-          <input type="checkbox" className="accent-sky-500" checked={form.amplification?.crossComment ?? true}
-            onChange={(e) => set('amplification', { ...form.amplification, crossComment: e.target.checked })} />
-          Les autres comptes connectés commentent le post
-        </label>
-        <p className="mb-3 text-xs text-muted">
-          Chaque collègue écrit son propre commentaire, à sa voix, avec un angle ou un exemple — jamais un « super post ». Un compte ne commente qu'une fois le même
-          post, et rien ne part au-delà de 48 h.
-        </p>
-        <div className="grid gap-4 sm:grid-cols-4">
-          <div><label className="label">Amorce après (min)</label>
-            <input type="number" min={1} max={120} className="input" value={form.amplification?.firstCommentDelayMinutes ?? 4}
-              onChange={(e) => set('amplification', { ...form.amplification, firstCommentDelayMinutes: Number(e.target.value) })} /></div>
-          <div><label className="label">Collègues après (min)</label>
-            <input type="number" min={5} max={360} className="input" value={form.amplification?.delayMinutes ?? 25}
-              onChange={(e) => set('amplification', { ...form.amplification, delayMinutes: Number(e.target.value) })} /></div>
-          <div><label className="label">Écart entre eux (min)</label>
-            <input type="number" min={5} max={180} className="input" value={form.amplification?.spacingMinutes ?? 20}
-              onChange={(e) => set('amplification', { ...form.amplification, spacingMinutes: Number(e.target.value) })} /></div>
-          <div><label className="label">Comptes max</label>
-            <input type="number" min={1} max={5} className="input" value={form.amplification?.maxAccounts ?? 2}
-              onChange={(e) => set('amplification', { ...form.amplification, maxAccounts: Number(e.target.value) })} /></div>
-        </div>
+        {(() => {
+          const st = form.linkedin_strategie ?? {
+            profilsPubliesParLoutil: false, motcleSurLinkedIn: false, lienDansLeCorpsProfils: false, lienDansLeCorpsPage: true,
+            registre: 'vous' as const, offre: 'un audit offert de 30 minutes', hashtagsMax: 3, mentionsMax: 3, rappelLienApresMinutes: 60,
+          };
+          const maj = (patch: Partial<typeof st>) => set('linkedin_strategie', { ...st, ...patch });
+          return (
+            <>
+              <label className="mb-1 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={!st.profilsPubliesParLoutil}
+                  onChange={(e) => maj({ profilsPubliesParLoutil: !e.target.checked })} />
+                Profils personnels : le moteur prépare, vous publiez vous-même
+              </label>
+              <p className="mb-3 text-xs text-muted">
+                À l’heure prévue, le post vous arrive par email avec son texte et ses visuels ; il apparaît dans « À valider » sous « À publier vous-même ».
+                La Page entreprise, elle, reste publiée par l’API officielle après validation.
+              </p>
+              <label className="mb-1 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={!st.motcleSurLinkedIn}
+                  onChange={(e) => maj({ motcleSurLinkedIn: !e.target.checked })} />
+                Pas de « Commente MOT » sur LinkedIn : les posts finissent sur une vraie question
+              </label>
+              <p className="mb-3 text-xs text-muted">Le mot-clé reste actif sur Instagram, où il envoie la ressource en message privé.</p>
+              <label className="mb-1 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={!st.lienDansLeCorpsProfils}
+                  onChange={(e) => maj({ lienDansLeCorpsProfils: !e.target.checked })} />
+                Aucun lien dans le texte d’un post de profil
+              </label>
+              <p className="mb-3 text-xs text-muted">Le lien de la ressource vous est rappelé par email, à poster vous-même en réponse à un commentaire.</p>
+              <label className="mb-3 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={st.lienDansLeCorpsPage}
+                  onChange={(e) => maj({ lienDansLeCorpsPage: e.target.checked })} />
+                La Page garde le lien et l’adresse du site dans ses posts (hub de liens)
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div><label className="label">Registre</label>
+                  <select className="input" value={st.registre} onChange={(e) => maj({ registre: e.target.value as 'vous' | 'tu' })}>
+                    <option value="vous">Vouvoiement (recommandé pour des dirigeants de PME)</option>
+                    <option value="tu">Tutoiement</option>
+                  </select></div>
+                <div><label className="label">L’offre d’entrée, mot pour mot</label>
+                  <input className="input" maxLength={80} value={st.offre} onChange={(e) => maj({ offre: e.target.value })} /></div>
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                <div><label className="label">Hashtags max (0 à 5)</label>
+                  <input type="number" min={0} max={5} className="input" value={st.hashtagsMax}
+                    onChange={(e) => maj({ hashtagsMax: Number(e.target.value) })} /></div>
+                <div><label className="label">Identifications max (0 à 5)</label>
+                  <input type="number" min={0} max={5} className="input" value={st.mentionsMax}
+                    onChange={(e) => maj({ mentionsMax: Number(e.target.value) })} /></div>
+                <div><label className="label">Rappel du lien après (min)</label>
+                  <input type="number" min={15} max={240} className="input" value={st.rappelLienApresMinutes}
+                    onChange={(e) => maj({ rappelLienApresMinutes: Number(e.target.value) })} /></div>
+              </div>
+            </>
+          );
+        })()}
       </Section>
 
       <Section title="Commentaire → DM" saving={savingOf('dm_triggers')} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>

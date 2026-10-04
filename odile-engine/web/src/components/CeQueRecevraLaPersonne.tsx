@@ -10,7 +10,7 @@ export interface ApercuTunnelDto {
   lienDansLePost: boolean;
   ressource: { kind: string; titre: string | null; url: string | null; erreur: string | null; viaLien: boolean; libelle: string };
   document: { pages: number; url: string } | null;
-  amorce: string | null;
+  lienEnReponse: string | null;
   reponseLinkedIn: string | null;
   reponseVariantes: number;
   reponseManuelle: boolean;
@@ -111,9 +111,10 @@ export function CeQueRecevraLaPersonne({ postId, compact = false }: { postId: nu
             ) : null}
           </Ligne>
         )}
-        {!compact && t.amorce && (
-          <Ligne label="Commentaire d’amorce">
-            <Citation texte={t.amorce} />
+        {!compact && t.lienEnReponse && (
+          <Ligne label="Lien en réponse">
+            <Citation texte={t.lienEnReponse} />
+            <span className="text-muted"> — à poster vous-même sous un commentaire, après la première heure (un rappel arrive par email)</span>
           </Ligne>
         )}
         {!compact && t.captionFacebook && (

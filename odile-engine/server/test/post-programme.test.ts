@@ -16,16 +16,16 @@ describe('un post programmé reste modifiable', async () => {
     const post = db
       .insert(schema.posts)
       .values({
+        // La Page : c'est elle que le moteur publie lui-même (un profil, la personne le publie).
         platform: 'linkedin',
-        channel: 'li_personal',
+        channel: 'li_org',
         format: 'li_image',
         theme: DEFAULTS.theme,
         status: 'scheduled',
         hook: 'Trois devis perdus par semaine',
-        caption: 'Texte du post.\n\nCommente GUIDE',
-        cta: 'Commente GUIDE',
+        caption: 'Texte du post.\n\nEt chez vous ?',
+        cta: '',
         hashtags: '["#ia"]',
-        commentTriggerKeyword: 'GUIDE',
         scheduledAt: new Date(Date.now() - 60000).toISOString(),
       })
       .returning()

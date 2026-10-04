@@ -28,7 +28,35 @@ describe('conformité et réalignement des posts', async () => {
       .returning()
       .get();
 
-  it('un ancien post LinkedIn : compte non choisi, lien absent, DM promis, trop de hashtags, date orpheline', () => {
+  it('stratégie 2026 : l’appât, le lien et le site sortent d’un post de profil, le mot-clé aussi', () => {
+    const post = creer({
+      caption: 'Tu perds du temps sur tes devis.\n\nLa checklist : https://odile.test/r/abc234\n\nCommente GUIDE, je t’envoie la suite en message privé.\n\nOdile AI : https://odileai.com',
+      cta: 'Commente GUIDE',
+      commentTriggerKeyword: 'GUIDE',
+      hashtags: JSON.stringify(['#OdileAI', '#IA', '#PME', '#Toulouse', '#devis']),
+    });
+    const avant = verifierPost(post);
+    expect(avant.map((p) => p.code)).toEqual(expect.arrayContaining(['appat-commentaire', 'lien-dans-le-corps', 'dm-promis', 'hashtags', 'registre', 'question-finale']));
+    expect(avant.find((p) => p.code === 'appat-commentaire')?.niveau).toBe('bloquant');
+    // Les règles de l'ancien tunnel ne s'appliquent plus : pas de « mot-clé absent » ni de « lien absent ».
+    expect(avant.map((p) => p.code)).not.toContain('lien-absent');
+
+    const { corrections, post: apres } = realignerSansModele(post);
+    expect(corrections.join(' | ')).toMatch(/appel à commenter un mot-clé retiré/);
+    expect(corrections.join(' | ')).toMatch(/mot-clé GUIDE retiré/);
+    expect(corrections.join(' | ')).toMatch(/lien retiré du texte/);
+    expect(apres.commentTriggerKeyword).toBeNull();
+    expect(apres.caption).not.toMatch(/https?:|odileai\.com|Commente/);
+    expect(apres.cta).toBe('');
+    expect(JSON.parse(apres.hashtags)).toEqual(['#IA', '#PME', '#Toulouse']);
+    const restants = verifierPost(apres);
+    expect(restants.filter((p) => p.niveau === 'bloquant')).toEqual([]);
+    // Le tutoiement, lui, demande une relecture : il reste signalé.
+    expect(restants.map((p) => p.code)).toContain('registre');
+  });
+
+  it('ancien tunnel (réglage) : compte non choisi, lien absent, DM promis, trop de hashtags, date orpheline', () => {
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true });
     const post = creer({
       caption: 'Vous perdez du temps sur vos devis.\n\nCommente GUIDE, je t’envoie la checklist en message privé.',
       cta: 'Commente GUIDE',
@@ -61,6 +89,7 @@ describe('conformité et réalignement des posts', async () => {
     expect(refus.ok).toBe(false);
     expect(refus.message).toMatch(/message privé/);
     expect(db.select().from(schema.posts).where(eq(schema.posts.id, post.id)).get()!.status).toBe('awaiting_approval');
+    setSetting('linkedin_strategie', {});
   });
 
   it('Instagram : une adresse dans la légende est retirée, le mot-clé absent est ajouté', () => {
@@ -76,7 +105,7 @@ describe('conformité et réalignement des posts', async () => {
 
   it('un compte au jeton expiré bloque le post, et le dit avec son nom', () => {
     storeToken({ provider: 'linkedin', subject: 'li_person', accountKey: 'alexis', externalId: 'alexis', accessToken: 't', scopes: 'w_member_social', expiresAt: '2020-01-01T00:00:00.000Z', meta: { name: 'Alexis Duquenoy' } });
-    const post = creer({ liAccountKey: 'alexis', caption: 'Texte conforme.\n\nL’analyse : https://odile.test/r/zzz999\nCommente CAS', commentTriggerKeyword: 'CAS' });
+    const post = creer({ liAccountKey: 'alexis', caption: 'Texte conforme.\n\nEt chez vous, combien de devis par semaine ?', cta: '' });
     const problemes = verifierPost(post);
     expect(problemes.find((p) => p.code === 'compte-en-panne')?.message).toMatch(/Alexis Duquenoy ne peut pas publier : jeton expiré/);
     expect(problemes.filter((p) => p.niveau === 'bloquant').map((p) => p.code)).toEqual(['compte-en-panne']);
@@ -84,6 +113,6 @@ describe('conformité et réalignement des posts', async () => {
 
   it('les hashtags déjà dans la légende ne sont pas répétés en pied de post', () => {
     const post = creer({ caption: 'Texte #IA utile.', hashtags: JSON.stringify(['#IA', '#PME']) });
-    expect(buildCaption(post)).toBe('Texte #IA utile.\n\nOdile AI : https://odileai.com\n\n#OdileAI #PME');
+    expect(buildCaption(post)).toBe('Texte #IA utile.\n\n#PME');
   });
 });

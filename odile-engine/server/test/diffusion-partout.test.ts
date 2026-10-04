@@ -14,7 +14,11 @@ describe('diffusion simultanée', async () => {
   const { createLink } = await import('../src/shortener/index.js');
   const { eq } = await import('drizzle-orm');
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    // Ces tests couvrent l'ancien tunnel LinkedIn (mot-clé + lien dans la description),
+    // toujours disponible par réglage. La stratégie 2026 a ses propres tests (strategie-linkedin-2026).
+    const { setSetting } = await import('../src/db/settingsRepo.js');
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
     deleteToken('linkedin', 'li_person');
     deleteToken('linkedin', 'li_org');
     deleteToken('meta', 'ig_user');

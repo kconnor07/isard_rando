@@ -1,14 +1,17 @@
 /**
- * La marque sur chaque post : son hashtag en tête, son site en fin de texte.
+ * La marque sur chaque post : son hashtag, son site en fin de texte.
  *
- * Deux garanties, posées à la rédaction et vérifiées une dernière fois à la
- * publication — un post programmé avant ce réglage part quand même avec :
- * - le hashtag de la marque (#OdileAI) ouvre la liste, sur tous les réseaux ;
- * - l'adresse du site termine le texte sur LinkedIn et Facebook, où elle est
- *   cliquable. Jamais sur Instagram : la légende n'y porte aucun lien.
+ * Posés à la rédaction et vérifiés une dernière fois à la publication — un post
+ * programmé avant un changement de réglage part quand même avec la bonne règle :
+ * - Instagram : le hashtag de la marque (#OdileAI) ouvre la liste ;
+ * - LinkedIn : jamais le hashtag de la marque (il n'a aucun abonné), 0 à 3
+ *   hashtags précis, pour la recherche (stratégie LinkedIn 2026) ;
+ * - l'adresse du site termine le texte sur la Page LinkedIn et sur Facebook, où
+ *   elle est cliquable. Jamais sur un profil personnel (un lien dans le corps
+ *   coûte 17 à 27 % de portée), ni sur Instagram.
  */
 import { HASHTAGS_MAX, type BrandSettings } from '@odile/shared';
-import { getBrand } from '../db/settingsRepo.js';
+import { getBrand, getStrategieLinkedIn } from '../db/settingsRepo.js';
 
 type Marque = Pick<BrandSettings, 'name' | 'siteUrl'> & Partial<Pick<BrandSettings, 'hashtagMarque' | 'siteDansLesPosts'>>;
 
@@ -47,12 +50,32 @@ export function porteLeSite(texte: string, domaine: string = domaineDuSite()): b
   return new RegExp(`(^|[^\\w.-])(?:https?:\\/\\/)?(?:www\\.)?${d}(?![\\w-])`, 'i').test(texte);
 }
 
+/** Où part le texte : la Page LinkedIn (« linkedin »), un profil personnel, Facebook, Instagram. */
+export type Reseau = 'linkedin' | 'linkedin_profil' | 'facebook' | 'instagram';
+
+/** La surface d'un post LinkedIn, d'après son canal. */
+export function reseauDuCanal(channel: string): Reseau {
+  return channel === 'ig' ? 'instagram' : channel === 'li_personal' ? 'linkedin_profil' : 'linkedin';
+}
+
 /**
- * Ajoute l'adresse du site en fin de texte, si elle n'y est pas déjà.
- * Instagram : rien — la légende n'y porte aucun lien.
+ * Un lien (le site, la ressource) a-t-il sa place dans le texte de cette surface ?
+ * Instagram jamais ; un profil seulement si la stratégie l'autorise ; la Page
+ * oui par défaut — elle sert de hub de liens.
  */
-export function avecSite(caption: string, reseau: 'linkedin' | 'facebook' | 'instagram', marque: Marque = getBrand()): string {
-  if (reseau === 'instagram' || marque.siteDansLesPosts === false) return caption;
+export function lienPermis(reseau: Reseau): boolean {
+  if (reseau === 'instagram') return false;
+  if (reseau === 'facebook') return true;
+  const strategie = getStrategieLinkedIn();
+  return reseau === 'linkedin_profil' ? strategie.lienDansLeCorpsProfils : strategie.lienDansLeCorpsPage;
+}
+
+/**
+ * Ajoute l'adresse du site en fin de texte, si elle n'y est pas déjà et si la
+ * surface accepte un lien.
+ */
+export function avecSite(caption: string, reseau: Reseau, marque: Marque = getBrand()): string {
+  if (!lienPermis(reseau) || marque.siteDansLesPosts === false) return caption;
   const domaine = domaineDuSite(marque.siteUrl);
   if (!domaine || porteLeSite(caption, domaine)) return caption;
   return `${caption.trimEnd()}\n\n${marque.name} : ${adresseDuSite(marque.siteUrl)}`;
@@ -67,20 +90,22 @@ export function hashtagPropre(brut: string): string {
 }
 
 /**
- * Les hashtags que la plateforme prend vraiment en compte : LinkedIn en ignore
- * au-delà de trois, Instagram n'en accepte plus que cinq. Le hashtag de la marque
- * ouvre toujours la liste, sur tous les réseaux ; les autres sont dédoublonnés,
- * écrits sans accents (un sujet ne se disperse pas entre deux orthographes) et
- * coupés — le modèle en propose parfois huit.
+ * Les hashtags que la plateforme prend vraiment en compte, dédoublonnés et écrits
+ * sans accents (un sujet ne se disperse pas entre deux orthographes) :
+ * - Instagram : cinq au plus, celui de la marque en tête ;
+ * - LinkedIn : 0 à 3 hashtags précis (réglage), jamais celui de la marque, qui
+ *   n'a aucun abonné — le hashtag y sert à la recherche, pas à la portée.
  */
 export function bornerHashtags(bruts: string[], platform: 'linkedin' | 'instagram', marque: string = hashtagDeMarque()): string[] {
+  const linkedin = platform === 'linkedin';
   const vus = new Set<string>([marque.toLowerCase()]);
-  const propres: string[] = [marque];
+  const propres: string[] = linkedin ? [] : [marque];
   for (const h of bruts) {
     const tag = hashtagPropre(h);
     if (tag.length < 3 || vus.has(tag.toLowerCase())) continue;
     vus.add(tag.toLowerCase());
     propres.push(tag);
   }
-  return propres.slice(0, HASHTAGS_MAX[platform]);
+  const max = linkedin ? getStrategieLinkedIn().hashtagsMax : HASHTAGS_MAX.instagram;
+  return propres.slice(0, max);
 }

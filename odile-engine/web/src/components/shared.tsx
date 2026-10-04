@@ -12,6 +12,7 @@ export const STATUS_LABELS: Record<string, { label: string; dot: string; text: s
   published: { label: 'Publié', dot: 'bg-transparent ring-1 ring-white/70', text: 'text-muted' },
   rejected: { label: 'Rejeté', dot: 'bg-transparent ring-1 ring-white/25', text: 'text-muted' },
   failed: { label: 'Échec', dot: 'bg-white ring-2 ring-white/25', text: 'text-txt' },
+  to_publish: { label: 'À publier vous-même', dot: 'bg-accent', text: 'text-ice' },
 };
 
 export const CHANNEL_LABELS: Record<string, string> = {

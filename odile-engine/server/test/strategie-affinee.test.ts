@@ -32,6 +32,16 @@ describe('règles de conformité affinées', async () => {
       .returning()
       .get();
 
+  // L'ancien tunnel LinkedIn (mot-clé + lien dans la description) reste disponible par réglage.
+  const enAncienTunnel = (fn: () => void) => {
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    try {
+      fn();
+    } finally {
+      setSetting('linkedin_strategie', {});
+    }
+  };
+
   it('« messagerie » et « rendez-vous » ne sont pas des promesses ni des vouvoiements', () => {
     expect(PROMESSE_DM.test('Tu perds 2 h par jour dans ta messagerie.')).toBe(false);
     expect(PROMESSE_DM.test('Je te l’envoie en messagerie privée.')).toBe(true);
@@ -42,7 +52,8 @@ describe('règles de conformité affinées', async () => {
     expect(codes).not.toContain('tu-vous');
   });
 
-  it('un mot-clé hors liste est remplacé sans réécriture, et la slide CTA sera refaite', () => {
+  it('un mot-clé hors liste est remplacé sans réécriture, et la slide CTA sera refaite', () =>
+    enAncienTunnel(() => {
     const post = creer({ id: 30, caption: 'Vous perdez du temps.\n\nCommente OUTIL si vous voulez un diagnostic.', cta: 'Commente OUTIL 👇', commentTriggerKeyword: 'OUTIL' });
     db.insert(schema.slides).values({ postId: post.id, idx: 1, kind: 'cta', content: '{}', renderAssetId: 'rendu-cta' }).run();
     expect(verifierPost(post).find((p) => p.code === 'motcle-hors-liste')?.corrigeable).toBe(true);
@@ -53,10 +64,10 @@ describe('règles de conformité affinées', async () => {
     expect(r.post.cta).toBe('Commente CAS 👇');
     expect(db.select().from(schema.slides).where(and(eq(schema.slides.postId, post.id), eq(schema.slides.kind, 'cta'))).get()!.renderAssetId).toBeNull();
     expect(verifierPost(r.post).map((p) => p.code)).not.toContain('motcle-hors-liste');
-  });
+    }));
 
   it('la validation dit quelle copie reste à valider, et pourquoi', () => {
-    const original = creer({ broadcastGroup: 'g2', caption: 'Vous perdez du temps.\n\nCommente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS' });
+    const original = creer({ broadcastGroup: 'g2', caption: 'Vous perdez du temps.\n\nEt chez vous, combien d’heures par semaine ?', cta: '' });
     creer({ broadcastGroup: 'g2', platform: 'instagram', channel: 'ig', liAccountKey: null, format: 'carousel', caption: 'Commente GUIDE, je t’envoie le guide en message privé.', commentTriggerKeyword: 'GUIDE', error: 'texte non adapté à ce compte (x) — texte d’origine conservé, à réécrire' });
     const outcome = schedulePost(original.id, new Date(Date.now() + 3 * 3600_000).toISOString());
     expect(outcome.ok).toBe(true);
@@ -131,7 +142,18 @@ describe('mot-clé manquant, format natif, ligne du lien, guides et articles en 
       .returning()
       .get();
 
-  it('un post LinkedIn sans mot-clé reçoit le mot de diagnostic — sauf au démarrage s’il est programmé', () => {
+  // L'ancien tunnel LinkedIn (mot-clé + lien dans la description) reste disponible par réglage.
+  const enAncienTunnel = (fn: () => void) => {
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    try {
+      fn();
+    } finally {
+      setSetting('linkedin_strategie', {});
+    }
+  };
+
+  it('un post LinkedIn sans mot-clé reçoit le mot de diagnostic — sauf au démarrage s’il est programmé', () =>
+    enAncienTunnel(() => {
     const post = creer({ id: 60, caption: 'Vous perdez du temps sur vos devis.\n\nVoilà ce que je ferais.', cta: '', commentTriggerKeyword: null });
     expect(verifierPost(post).find((p) => p.code === 'motcle-manquant')?.corrigeable).toBe(true);
     const r = realignerSansModele(post);
@@ -146,7 +168,7 @@ describe('mot-clé manquant, format natif, ligne du lien, guides et articles en 
     const apres = db.select().from(schema.posts).where(eq(schema.posts.id, programme.id)).get()!;
     expect(apres.commentTriggerKeyword).toBeNull();
     expect(apres.caption).toBe('Texte validé, sans appel.');
-  });
+    }));
 
   it('le format suit la plateforme', () => {
     expect(formatPourPlateforme('carousel', 'linkedin')).toBe('li_doc');
@@ -159,7 +181,8 @@ describe('mot-clé manquant, format natif, ligne du lien, guides et articles en 
     expect(r.post.format).toBe('li_doc');
   });
 
-  it('une ligne de lien qui parle d’audit redevient une invitation à ouvrir', () => {
+  it('une ligne de lien qui parle d’audit redevient une invitation à ouvrir', () =>
+    enAncienTunnel(() => {
     const post = creer({ caption: 'Vous perdez du temps.\n\nCommente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS', resourceKind: 'article' });
     const lien = createLink('https://source.test/article', { postId: post.id, label: `post-${post.id}` });
     const url = `https://odile.test/r/${lien.code}`;
@@ -171,7 +194,7 @@ describe('mot-clé manquant, format natif, ligne du lien, guides et articles en 
     expect(r.post.caption).toContain(`C’est ici : ${url}`);
     expect(r.post.caption).not.toContain('audit gratuit');
     expect(verifierPost(r.post).map((p) => p.code)).not.toContain('lien-mal-etiquete');
-  });
+    }));
 
   it('renseigner le lien de rendez-vous recible les boutons des guides déjà fabriqués', () => {
     const post = creer({ caption: 'Commente CAS si vous voulez un diagnostic.', commentTriggerKeyword: 'CAS' });
@@ -269,6 +292,16 @@ describe('créneaux par compte, rappels et alertes', async () => {
       .returning()
       .get();
 
+  // L'ancien tunnel LinkedIn (mot-clé + lien dans la description) reste disponible par réglage.
+  const enAncienTunnel = (fn: () => void) => {
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    try {
+      fn();
+    } finally {
+      setSetting('linkedin_strategie', {});
+    }
+  };
+
   it('un créneau pris par Khaled reste libre pour Alexis et pour la page', () => {
     const premier = nextPublishSlot('linkedin', new Date(), { platform: 'linkedin', liAccountKey: 'khaled' });
     // Les tests précédents occupent déjà des créneaux selon le jour d'exécution : on compare
@@ -289,9 +322,11 @@ describe('créneaux par compte, rappels et alertes', async () => {
 
   it('une diffusion s’enchaîne compte par compte, juste après l’original, sans attendre deux semaines', () => {
     const quand = nextPublishSlot('linkedin', new Date(Date.now() + 14 * 86400_000), { platform: 'linkedin', liAccountKey: 'khaled' });
-    const original = creer({ broadcastGroup: 'g3' });
-    const alexis = creer({ broadcastGroup: 'g3', liAccountKey: 'alexis' });
-    const page = creer({ broadcastGroup: 'g3', channel: 'li_org', liAccountKey: '77' });
+    // Des textes conformes à la stratégie LinkedIn 2026 : une question, aucun « Commente MOT ».
+    const conforme = { caption: 'Odile AI vous aide.\n\nEt chez vous, combien de devis par semaine ?', cta: '', commentTriggerKeyword: null };
+    const original = creer({ broadcastGroup: 'g3', ...conforme });
+    const alexis = creer({ broadcastGroup: 'g3', liAccountKey: 'alexis', ...conforme });
+    const page = creer({ broadcastGroup: 'g3', channel: 'li_org', liAccountKey: '77', ...conforme });
     const insta = creer({ broadcastGroup: 'g3', platform: 'instagram', channel: 'ig', liAccountKey: null, format: 'carousel', caption: 'Commente GUIDE et je t’envoie le guide en message privé.', cta: 'Commente GUIDE', commentTriggerKeyword: 'GUIDE' });
     const outcome = schedulePost(original.id, quand.toISOString());
     expect(outcome.ok).toBe(true);
@@ -311,12 +346,13 @@ describe('créneaux par compte, rappels et alertes', async () => {
     expect(tInsta - quand.getTime()).toBeLessThanOrEqual(7 * 86400_000);
   });
 
-  it('un post LinkedIn qui ne nomme pas la marque est signalé', () => {
+  it('un post LinkedIn qui ne nomme pas la marque est signalé', () =>
+    enAncienTunnel(() => {
     const sans = creer({ caption: 'Vous perdez du temps.\n\nCommente CAS si vous voulez un diagnostic.' });
     expect(verifierPost(sans).find((p) => p.code === 'marque-absente')?.niveau).toBe('attention');
     const avec = creer({});
     expect(verifierPost(avec).map((p) => p.code)).not.toContain('marque-absente');
-  });
+    }));
 
   it('le lendemain d’un post dont les commentaires sont illisibles, un rappel part — une fois', async () => {
     const hier = new Date(Date.now() - 20 * 3600_000).toISOString();

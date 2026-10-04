@@ -11,7 +11,7 @@ function libelleDuLien(t: Pick<ApercuTunnel, 'platform' | 'lienDansLePost'>): st
   return t.lienDansLePost ? 'Lien dans le post' : t.platform === 'instagram' ? 'Lien (en privé seulement)' : 'Lien (absent du texte)';
 }
 import { db, schema } from '../db/client.js';
-import { getApprovalEmail, getBrand, getDmTriggers } from '../db/settingsRepo.js';
+import { getApprovalEmail, getBrand, getDmTriggers, getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { createToken } from '../lib/signedToken.js';
 import { TEMPLATES_DIR } from '../render/themes.js';
 import { freresDuGroupe, surfaceDuPost } from '../scheduler/broadcast.js';
@@ -126,7 +126,7 @@ export async function sendApprovalEmail(
   const dm = getDmTriggers();
   const viaLien = post.platform === 'linkedin' && dm.linkedinOffer === 'diagnostic';
   // Ce que recevra la personne, tel que le moteur le composera : lien et cible, réponse,
-  // message privé, amorce — pour valider en connaissance de cause, depuis l'email aussi.
+  // message privé, lien à poster — pour valider en connaissance de cause, depuis l'email aussi.
   const tunnel = apercuTunnel(post.id);
   const ligne = (label: string, texte: string | null | undefined) =>
     texte ? `<p style="margin:4px 0;color:#556;font-size:13px"><b>${label}</b> ${escapeHtml(texte)}</p>` : '';
@@ -138,7 +138,7 @@ export async function sendApprovalEmail(
       ${ligne('Réponse sous le commentaire :', tunnel.reponseLinkedIn)}
       ${tunnel.dmInstagram ? ligne('Message privé (1) :', tunnel.dmInstagram.etape1) + ligne('Message privé (2, après réponse) :', tunnel.dmInstagram.etape2) : ''}
       ${ligne('Réponse publique :', tunnel.reponsePublique)}
-      ${ligne('Commentaire d’amorce :', tunnel.amorce)}
+      ${ligne(`Lien à poster vous-même en réponse, après ${getStrategieLinkedIn().rappelLienApresMinutes} min :`, tunnel.lienEnReponse)}
       ${tunnel.mentions.length ? ligne('Identifiés :', tunnel.mentions.map((m) => `${m.nom} (${m.statut === 'identifiee' ? '@' : m.statut === 'en-clair' ? 'en clair' : 'absent'})`).join(', ')) : ''}
       ${tunnel.avertissements.map((a) => `<p style="margin:4px 0;color:#b45309;font-size:12px">⚠ ${escapeHtml(a)}</p>`).join('')}
     </div>`

@@ -13,7 +13,7 @@ import { customAlphabet } from 'nanoid';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getBrand, getCadence, getDmTriggers } from '../db/settingsRepo.js';
+import { getBrand, getCadence, getDmTriggers, getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { verifierBudget } from '../lib/llmBudget.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
@@ -24,7 +24,8 @@ import { PROMESSE_DM } from '../writer/conformite.js';
 import { avecLien, bornerHashtags, captionPorteLeMotCle, finaliserLeTexte, optionsDuLien, sansLien } from '../writer/generate.js';
 import type { MentionDeclaree } from '../writer/mentions.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
-import { avecSite, porteLeSite } from '../writer/marque.js';
+import { avecSite, lienPermis, porteLeSite, reseauDuCanal, type Reseau } from '../writer/marque.js';
+import { ACCROCHE_MAX, porteUnAppat, tutoie } from '../writer/reglesLinkedIn.js';
 import { corrigerLigneSource, mediaDepuisUrl, sourceReelle } from '../writer/source.js';
 
 export { corrigerLigneSource, mediaDepuisUrl, sourceReelle };
@@ -111,7 +112,12 @@ export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>)
  * pour que le modèle corrige lui-même (boucle de completeJson) au lieu qu'une copie
  * parte avec un mot-clé qu'elle ne demande pas ou une promesse impossible.
  */
-function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | null, avecCouverture = false) {
+function legendeAdapteeSchema(
+  vers: 'linkedin' | 'instagram',
+  motcle: string | null,
+  avecCouverture = false,
+  regles: { linkedin2026?: boolean; lienAutorise?: boolean; vouvoiement?: boolean } = {},
+) {
   // Instagram coupe à 2 200 caractères, hashtags compris : on garde de la marge.
   const max = vers === 'instagram' ? 2000 : 2900;
   return z.object({
@@ -126,6 +132,15 @@ function legendeAdapteeSchema(vers: 'linkedin' | 'instagram', motcle: string | n
     // validation refuse ensuite, et chaque « Réaligner » recommence sans converger.
     if (vers === 'linkedin' && (PROMESSE_DM.test(v.caption) || PROMESSE_DM.test(v.cta))) {
       ctx.addIssue({ code: 'custom', path: ['caption'], message: 'sur LinkedIn rien ne part en message privé : le lien est dans le post, le mot-clé ouvre le diagnostic' });
+    }
+    if (vers === 'linkedin' && regles.linkedin2026 && (porteUnAppat(v.caption) || porteUnAppat(v.cta))) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'aucun « Commente MOT » : LinkedIn déclasse cet appât depuis 2026 — termine par une vraie question ouverte' });
+    }
+    if (vers === 'linkedin' && regles.linkedin2026 && !regles.lienAutorise && (/https?:\/\/|\{\{link\}\}|www\./i.test(`${v.caption}\n${v.cta}`) || porteLeSite(v.caption))) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'aucun lien ni adresse dans un post de profil : il se donne en réponse, après la première heure' });
+    }
+    if (vers === 'linkedin' && regles.vouvoiement && tutoie(v.caption)) {
+      ctx.addIssue({ code: 'custom', path: ['caption'], message: 'vouvoiement du début à la fin : aucun « tu », « toi », « tes », « t’ »' });
     }
     if (vers === 'instagram' && (/https?:\/\/|\{\{link\}\}|www\./i.test(v.caption) || porteLeSite(v.caption))) {
       ctx.addIssue({ code: 'custom', path: ['caption'], message: 'aucune adresse sur Instagram, pas même celle du site : la ressource part en message privé' });
@@ -199,13 +214,20 @@ export async function adapterLegende(
 ): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string; couverture?: string }> {
   const dm = getDmTriggers();
   const brand = getBrand();
+  const strategie = getStrategieLinkedIn();
+  const linkedin2026 = vers === 'linkedin' && !strategie.motcleSurLinkedIn;
+  // La surface d'arrivée : un profil (sans lien, stratégie 2026) ou la Page.
+  const reseau: Reseau = vers === 'instagram' ? 'instagram' : compte?.subject === 'li_org' ? 'linkedin' : 'linkedin_profil';
+  const lienAutorise = vers === 'linkedin' && lienPermis(reseau);
   const source = sourceReelle(post.newsItemId ?? null);
   // Les noms que la réécriture doit garder tels quels : ce sont eux que le publisher
   // transforme en identifications ; reformulés, ils disparaîtraient en silence.
   const nomsAGarder = [brand.name, ...nomsDeclares(post.mentions ?? null)];
   // LinkedIn garde le lien (sous forme d'emplacement) ; Instagram n'en montre aucun.
   const pose = (t: { caption: string; cta: string }, motcle: string | null) =>
-    vers === 'linkedin'
+    linkedin2026 && !lienAutorise
+      ? { caption: sansLien(t.caption), cta: sansLien(t.cta), motcle: null }
+      : vers === 'linkedin'
       ? {
           caption: avecLien(enEmplacement(t.caption), '{{link}}', optionsDuLien(motcle)),
           cta: enEmplacement(t.cta),
@@ -215,12 +237,12 @@ export async function adapterLegende(
   // Sans réécriture, le mot du parent reste : changer le mot dans la base sans le
   // changer dans le texte ferait un post qui demande un mot et un moteur qui en
   // attend un autre.
-  const brut = pose({ caption: post.caption, cta: post.cta }, post.commentTriggerKeyword);
+  const brut = pose({ caption: post.caption, cta: post.cta }, linkedin2026 ? null : post.commentTriggerKeyword);
   // Même plateforme et même voix : il n'y a rien à réécrire.
   if ((de === vers && !compte) || config.LLM_MODE === 'mock') return brut;
   const verdict = verifierBudget('writing');
   if (!verdict.autorise) return { ...brut, echec: 'plafond IA du jour atteint — texte d’origine conservé' };
-  const motcleVoulu = motcleCible ?? post.commentTriggerKeyword;
+  const motcleVoulu = linkedin2026 ? null : (motcleCible ?? post.commentTriggerKeyword);
   const motcle = motcleVoulu ?? 'le mot-clé';
   // Ce que l'appel à l'action promet dépend de la plateforme : sur LinkedIn le lien
   // donne déjà la ressource, le mot-clé ouvre donc le diagnostic ; sur Instagram il
@@ -229,6 +251,13 @@ export async function adapterLegende(
     vers !== 'linkedin'
       ? `APPEL À L'ACTION : « Commente ${motcle} » (ce mot exactement) pour recevoir la ressource en
 message privé. AUCUN lien, AUCUNE URL.`
+      : linkedin2026
+        ? `FIN DU POST : aucun « Commente MOT » (appât déclassé par LinkedIn depuis 2026), aucune injonction.
+Termine par UNE vraie question ouverte sur le cas du lecteur. ${
+            lienAutorise
+              ? `Juste avant la question, une ligne « ${libelleRessource(post)} : {{link}} » (écris {{link}} tel quel, c'est un emplacement).`
+              : 'AUCUN lien, aucune adresse, aucun « lien en commentaire » : sur un profil, le lien se donne en réponse.'
+          } ${strategie.registre === 'vous' ? 'Vouvoiement du début à la fin.' : 'Tutoiement du début à la fin.'}`
       : dm.linkedinOffer === 'diagnostic'
         ? `APPEL À L'ACTION, dans cet ordre et sur deux lignes : d'abord la ressource et son adresse,
 en la nommant pour ce qu'elle est — « ${libelleRessource(post)} : {{link}} » (écris {{link}} tel quel,
@@ -244,7 +273,7 @@ AUCUNE autre URL, aucune promesse de message privé (impossible sur LinkedIn).`
       ? `Ce texte part aussi sur d'autres comptes de la même équipe. Réécris-le ENTIÈREMENT pour celui-ci :
 même information, même source, même longueur — mais une autre entrée en matière, un autre angle, d'autres
 formulations. Quelqu'un qui verrait les deux posts ne doit pas lire un copier-coller.
-Nomme ${brand.name} une fois, naturellement, dans la dernière ligne. ${ligneSource}
+${linkedin2026 ? `Nomme ${brand.name} au plus une fois, naturellement. La première ligne tient en ${ACCROCHE_MAX} caractères.` : `Nomme ${brand.name} une fois, naturellement, dans la dernière ligne.`} ${ligneSource}
 ${ligneNoms}
 ${consigneCta}
 ${compte ? consigneVoix(compte) : ''}
@@ -253,9 +282,14 @@ la même chose que « ${post.hook} » avec une autre ouverture et d'autres mots 
 verront les deux posts : deux couvertures identiques, c'est une répétition qu'elles remarquent.`
       : vers === 'linkedin'
         ? `Réécris ce texte de post Instagram pour LinkedIn — pas une traduction : une autre entrée en matière,
-un autre angle, d'autres formulations. 500 à 1 000 caractères, jamais plus de 1 200 ;
+un autre angle, d'autres formulations. ${
+            linkedin2026
+              ? `800 à 1 200 caractères ; la première ligne tient en ${ACCROCHE_MAX} caractères ; une idée par ligne ;
+nomme la source en clair (« Source : … ») ; nomme ${brand.name} au plus une fois.`
+              : `500 à 1 000 caractères, jamais plus de 1 200 ;
 l'accroche tient dans les 200 premiers caractères ; une idée par ligne ; nomme la source en clair
-(« Source : … ») ; nomme ${brand.name} une fois dans la dernière ligne. ${ligneSource}
+(« Source : … ») ; nomme ${brand.name} une fois dans la dernière ligne.`
+          } ${ligneSource}
 ${ligneNoms}
 ${consigneCta}
 ${compte ? consigneVoix(compte) : ''}`
@@ -275,7 +309,11 @@ ${consigneCta}`;
         }\n"""\n\nCTA D'ORIGINE : ${post.cta}`,
         maxTokens: 2500,
       },
-      legendeAdapteeSchema(vers, motcleVoulu, de === vers && vers === 'linkedin'),
+      legendeAdapteeSchema(vers, motcleVoulu, de === vers && vers === 'linkedin', {
+        linkedin2026,
+        lienAutorise,
+        vouvoiement: linkedin2026 && strategie.registre === 'vous',
+      }),
     );
     const adapte = pose({ ...value, caption: corrigerLigneSource(value.caption, source?.media ?? null) }, motcleVoulu);
     const couverture = value.couverture?.trim();
@@ -296,8 +334,16 @@ ${consigneCta}`;
  * change donc de mot ; une copie qui reste sur la même garde celui du parent.
  */
 export function motcleDeSurface(parent: Pick<Post, 'id' | 'platform' | 'commentTriggerKeyword'>, vers: 'linkedin' | 'instagram'): string | null {
-  if (!parent.commentTriggerKeyword || vers === parent.platform) return parent.commentTriggerKeyword;
+  // LinkedIn, stratégie 2026 : plus de mot à commenter.
+  if (vers === 'linkedin' && !getStrategieLinkedIn().motcleSurLinkedIn) return null;
   const dm = getDmTriggers();
+  // Un post LinkedIn sans mot-clé qui part sur Instagram en reçoit un : là-bas, c'est
+  // lui qui envoie la ressource en message privé.
+  if (!parent.commentTriggerKeyword && vers === 'instagram' && parent.platform !== 'instagram' && dm.enabled) {
+    const mot = dm.keywords.length ? dm.keywords[parent.id % dm.keywords.length] : null;
+    return mot ? mot.toUpperCase() : null;
+  }
+  if (!parent.commentTriggerKeyword || vers === parent.platform) return parent.commentTriggerKeyword;
   const liste = vers === 'linkedin' && dm.linkedinOffer === 'diagnostic' ? dm.diagnosticKeywords : dm.keywords;
   const mot = liste.length ? liste[parent.id % liste.length] : null;
   return (mot ?? parent.commentTriggerKeyword).toUpperCase();
@@ -328,11 +374,13 @@ export function separerBlocFinal(caption: string): { corps: string; blocFinal: s
  * réécrivant en entier ; ici il ne corrige que ce qui cloche.
  */
 export async function reecrireLeBlocFinal(
-  post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook' | 'commentTriggerKeyword'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle'>>,
+  post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook' | 'commentTriggerKeyword'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle' | 'channel'>>,
   motcleCible: string | null,
 ): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string; couverture?: string }> {
   const dm = getDmTriggers();
+  const strategie = getStrategieLinkedIn();
   const { corps, blocFinal } = separerBlocFinal(post.caption);
+  if (!strategie.motcleSurLinkedIn) return reecrireLaQuestionFinale(post, corps, blocFinal, strategie.registre);
   const motcle = motcleCible ?? post.commentTriggerKeyword;
   const brut = { caption: post.caption, cta: post.cta, motcle };
   if (config.LLM_MODE === 'mock') return brut;
@@ -379,6 +427,72 @@ ${blocFinal}
     );
     const caption = corps ? `${corps}\n\n${value.blocFinal.trim()}` : value.blocFinal.trim();
     return { caption: avecLien(caption, '{{link}}', optionsDuLien(motcle)), cta: value.cta.trim() || value.blocFinal.trim(), motcle };
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    return { ...brut, echec: `fin de post non réécrite (${cause.slice(0, 120)}) — texte d’origine conservé, à corriger à la main` };
+  }
+}
+
+/**
+ * Stratégie LinkedIn 2026 : la fin du post redevient une vraie question ouverte —
+ * sans « Commente MOT », sans promesse de message privé, sans lien sur un profil.
+ * Le corps validé reste mot pour mot.
+ */
+async function reecrireLaQuestionFinale(
+  post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle' | 'channel'>>,
+  corps: string,
+  blocFinal: string,
+  registre: 'vous' | 'tu',
+): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string }> {
+  const lienAutorise = lienPermis(reseauDuCanal(post.channel ?? 'li_personal'));
+  const brut = { caption: lienAutorise ? post.caption : sansLien(post.caption), cta: lienAutorise ? post.cta : sansLien(post.cta), motcle: null };
+  if (config.LLM_MODE === 'mock') return brut;
+  const verdict = verifierBudget('writing');
+  if (!verdict.autorise) return { ...brut, echec: 'plafond IA du jour atteint — texte d’origine conservé' };
+  try {
+    const { value } = await completeJson(
+      {
+        task: 'writing',
+        label: 'post:fin-de-post',
+        tier: 'best',
+        prompt: `Voici un post LinkedIn validé. Son texte ne doit PAS changer : réécris UNIQUEMENT sa fin.
+
+La fin devient UNE vraie question ouverte, sur le cas du lecteur — celle à laquelle un dirigeant de PME répond
+par une phrase sur sa propre entreprise. Aucun « Commente MOT », aucune injonction (« dites-le en commentaire »),
+aucune promesse de message privé. ${
+          lienAutorise
+            ? `Avant la question, une ligne « ${libelleRessource(post)} : {{link}} » (écris {{link}} tel quel, c'est un emplacement).`
+            : 'Aucun lien, aucune adresse.'
+        }
+${registre === 'vous' ? 'Vouvoiement.' : 'Tutoiement.'} Même voix que le texte. 240 caractères au plus.
+
+TEXTE DU POST (à ne pas réécrire) :
+"""
+${corps || post.hook}
+"""
+
+FIN ACTUELLE (à remplacer) :
+"""
+${blocFinal}
+"""`,
+        maxTokens: 500,
+      },
+      z
+        .object({ blocFinal: z.string().min(1).max(400), cta: z.string().max(280) })
+        .superRefine((v, ctx) => {
+          if (porteUnAppat(v.blocFinal) || porteUnAppat(v.cta)) ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: 'aucun « Commente MOT » : une vraie question ouverte' });
+          if (PROMESSE_DM.test(v.blocFinal)) ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: 'aucune promesse de message privé' });
+          if (!lienAutorise && /https?:\/\/|www\.|\{\{link\}\}/i.test(v.blocFinal)) ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: 'aucun lien sur un profil' });
+          if (registre === 'vous' && tutoie(v.blocFinal)) ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: 'vouvoiement : aucun « tu », « toi », « tes », « t’ »' });
+          if (!/\?/.test(v.blocFinal)) ctx.addIssue({ code: 'custom', path: ['blocFinal'], message: 'la fin doit être une question' });
+        }),
+    );
+    const caption = corps ? `${corps}\n\n${value.blocFinal.trim()}` : value.blocFinal.trim();
+    return {
+      caption: lienAutorise ? avecLien(caption, '{{link}}', optionsDuLien(null)) : sansLien(caption),
+      cta: value.cta.trim() || value.blocFinal.trim(),
+      motcle: null,
+    };
   } catch (err) {
     const cause = err instanceof Error ? err.message : String(err);
     return { ...brut, echec: `fin de post non réécrite (${cause.slice(0, 120)}) — texte d’origine conservé, à corriger à la main` };
@@ -500,7 +614,9 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
       .set({
         linkId: link.id,
         caption:
-          surface.platform === 'linkedin' ? avecSite(texte.caption.replaceAll('{{link}}', link.shortUrl), 'linkedin') : texte.caption.replaceAll('{{link}}', link.shortUrl),
+          surface.platform === 'linkedin'
+            ? avecSite(texte.caption.replaceAll('{{link}}', link.shortUrl), reseauDuCanal(surface.channel))
+            : texte.caption.replaceAll('{{link}}', link.shortUrl),
         cta: texte.cta.replaceAll('{{link}}', link.shortUrl),
       })
       .where(eq(schema.posts.id, copie.id))

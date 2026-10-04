@@ -12,13 +12,15 @@
 import { and, asc, eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
-import { getDmTriggers } from '../db/settingsRepo.js';
+import { getDmTriggers, getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { compteDuPost, compteLeMoinsCharge } from '../publishers/linkedinAccounts.js';
 import { renderPost } from '../render/renderer.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 import { bloquants, echecDAdaptation, formatPourPlateforme, LIGNE_DU_LIEN, postsAVerifier, verifierPost, type Probleme } from '../writer/conformite.js';
 import { bornerHashtags, relierLeLien, sansLien } from '../writer/generate.js';
+import { lienPermis, reseauDuCanal } from '../writer/marque.js';
+import { contientUnLien, porteUnAppat, sansAppat } from '../writer/reglesLinkedIn.js';
 import { adapterLegende, motcleDeSurface, reecrireLeBlocFinal } from './broadcast.js';
 
 type Post = typeof schema.posts.$inferSelect;
@@ -74,7 +76,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
       corrections.push(`compte attribué : ${compte.name}`);
     }
   }
-  if (post.scheduledAt && !['scheduled', 'publishing', 'published'].includes(post.status)) {
+  if (post.scheduledAt && !['scheduled', 'publishing', 'published', 'to_publish'].includes(post.status)) {
     update.scheduledAt = null;
     corrections.push('date orpheline effacée');
   }
@@ -101,7 +103,44 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
       corrections.push('adresse retirée de la légende Instagram');
     }
   }
-  if (toucherAuTexte && post.platform === 'linkedin' && post.linkId) {
+  // Stratégie LinkedIn 2026 : ni « Commente MOT », ni lien dans le texte d'un profil.
+  // Ce qui se retire sans réécrire est retiré ; la question finale, elle, se demande
+  // au modèle (« Réaligner ») ou à la personne qui relit.
+  const linkedin2026 = post.platform === 'linkedin' && !getStrategieLinkedIn().motcleSurLinkedIn;
+  const lienAutorise = post.platform !== 'linkedin' || lienPermis(reseauDuCanal(post.channel));
+  if (toucherAuTexte && linkedin2026) {
+    if (porteUnAppat(caption) || porteUnAppat(cta)) {
+      caption = sansAppat(caption);
+      cta = porteUnAppat(cta) ? '' : cta;
+      corrections.push('appel à commenter un mot-clé retiré (déclassé par LinkedIn)');
+    }
+    if (post.commentTriggerKeyword) {
+      update.commentTriggerKeyword = null;
+      // La slide finale imprimait le mot : elle est refaite, sans lui.
+      const finales = db.select().from(schema.slides).where(and(eq(schema.slides.postId, post.id), eq(schema.slides.kind, 'cta'))).all();
+      for (const slide of finales) {
+        let contenu: Record<string, unknown> = {};
+        try {
+          contenu = JSON.parse(slide.content) as Record<string, unknown>;
+        } catch {
+          contenu = {};
+        }
+        if (typeof contenu.ctaLabel === 'string' && porteUnAppat(contenu.ctaLabel)) delete contenu.ctaLabel;
+        db.update(schema.slides).set({ content: JSON.stringify(contenu), renderAssetId: null }).where(eq(schema.slides.id, slide.id)).run();
+      }
+      corrections.push(`mot-clé ${post.commentTriggerKeyword} retiré`);
+    }
+    if (!lienAutorise && contientUnLien(`${caption}\n${cta}`)) {
+      const propre = sansLien(caption);
+      const ctaPropre = sansLien(cta);
+      if (propre !== caption || ctaPropre !== cta) {
+        caption = propre;
+        cta = ctaPropre;
+        corrections.push('lien retiré du texte (profil personnel : il se donne en réponse, après la première heure)');
+      }
+    }
+  }
+  if (toucherAuTexte && post.platform === 'linkedin' && post.linkId && !linkedin2026) {
     const lien = db.select().from(schema.links).where(eq(schema.links.id, post.linkId)).get();
     if (lien) {
       const url = `${config.PUBLIC_URL.replace(/\/+$/, '')}/r/${lien.code}`;
@@ -129,7 +168,7 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
   }
   // Un post LinkedIn sans mot à commenter n'ouvre aucune conversation : on lui donne
   // le mot de diagnostic et l'appel qui va avec, quand on a le droit de l'allonger.
-  if (toucherAuTexte && post.platform === 'linkedin' && !post.commentTriggerKeyword && ajouterMotcle) {
+  if (toucherAuTexte && post.platform === 'linkedin' && !linkedin2026 && !post.commentTriggerKeyword && ajouterMotcle) {
     const dm = getDmTriggers();
     const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
     if (dm.linkedinOffer === 'diagnostic' && liste.length > 0) {
@@ -141,8 +180,8 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
   // Sur LinkedIn, le mot commenté ouvre le diagnostic : un mot hors liste (GUIDE,
   // OUTIL…) est remplacé tel quel dans le texte, sans réécriture — et la slide qui
   // l'imprime sera refaite avant de partir.
-  let motcle = update.commentTriggerKeyword ?? post.commentTriggerKeyword;
-  if (toucherAuTexte && post.platform === 'linkedin' && motcle) {
+  let motcle = update.commentTriggerKeyword !== undefined ? update.commentTriggerKeyword : post.commentTriggerKeyword;
+  if (toucherAuTexte && post.platform === 'linkedin' && !linkedin2026 && motcle) {
     const dm = getDmTriggers();
     const liste = dm.diagnosticKeywords.map((k) => k.toUpperCase());
     if (dm.linkedinOffer === 'diagnostic' && liste.length > 0 && !liste.includes(motcle.toUpperCase())) {

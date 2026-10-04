@@ -94,7 +94,7 @@ la base locale — souvent vide — et ne touche ni le site ni les réseaux.
 Commandes disponibles :
 `scrape` · `score` · `shortlist` · `draft` · `render --post N` · `review --post N` ·
 `pipeline` · `publish-due` · `gallery` (planche de contrôle des thèmes fournis) ·
-`visuals --post N [--more]` · `fixture` · `seed` · `poll-li-comments` · `amplify` ·
+`visuals --post N [--more]` · `fixture` · `seed` · `poll-li-comments` · `rappel-lien` ·
 `blog-covers [--tous]` (refait les couvertures et remplace celles des articles en ligne)
 
 ## Déploiement production
