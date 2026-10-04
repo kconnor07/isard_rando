@@ -116,6 +116,15 @@ export interface PostDetailDto extends PostSummaryDto {
   publieParLaPersonne?: boolean;
   /** le texte final, hashtags compris, tel qu'il faut le coller dans LinkedIn */
   texteAPublier?: string | null;
+  /** le fait vécu raconté (banque de faits), et si le post attend encore le sien */
+  faitId?: number | null;
+  faitACompleter?: boolean;
+  /** le post promotionnel du cycle : le seul qui nomme la marque et l'offre */
+  promo?: boolean;
+  /** part du texte réécrite par une personne (0 à 1), null si inconnue */
+  reecriture?: number | null;
+  /** les reposts commentés préparés pour les autres profils */
+  reposts?: { compte: string; nom: string; texte: string }[];
   /** objets flottants choisis pour ce post */
   visualOverrides?: {
     float1?: string | null;
@@ -193,6 +202,8 @@ export interface SummaryDto {
   published: number;
   /** posts de profil prêts, que la personne doit publier elle-même */
   aPublier?: number;
+  /** part moyenne du texte réécrite par une personne, posts LinkedIn des 30 derniers jours */
+  reecriture30j?: number | null;
   clicks7d: number;
   /** personnes atteintes et interactions des posts publiés sur 7 jours (dernier relevé) */
   reach7d: number;

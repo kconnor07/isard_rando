@@ -34,7 +34,7 @@ describe('règles de conformité affinées', async () => {
 
   // L'ancien tunnel LinkedIn (mot-clé + lien dans la description) reste disponible par réglage.
   const enAncienTunnel = (fn: () => void) => {
-    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true, copiesEntreProfils: true });
     try {
       fn();
     } finally {
@@ -144,7 +144,7 @@ describe('mot-clé manquant, format natif, ligne du lien, guides et articles en 
 
   // L'ancien tunnel LinkedIn (mot-clé + lien dans la description) reste disponible par réglage.
   const enAncienTunnel = (fn: () => void) => {
-    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true, copiesEntreProfils: true });
     try {
       fn();
     } finally {
@@ -294,7 +294,7 @@ describe('créneaux par compte, rappels et alertes', async () => {
 
   // L'ancien tunnel LinkedIn (mot-clé + lien dans la description) reste disponible par réglage.
   const enAncienTunnel = (fn: () => void) => {
-    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true, copiesEntreProfils: true });
     try {
       fn();
     } finally {
@@ -320,7 +320,8 @@ describe('créneaux par compte, rappels et alertes', async () => {
     expect(cleDeSurface({ platform: 'linkedin', channel: 'li_org', liAccountKey: '77' })).toBe('li_org:77');
   });
 
-  it('une diffusion s’enchaîne compte par compte, juste après l’original, sans attendre deux semaines', () => {
+  it('une diffusion s’enchaîne compte par compte, juste après l’original, sans attendre deux semaines', () =>
+    enAncienTunnel(() => {
     const quand = nextPublishSlot('linkedin', new Date(Date.now() + 14 * 86400_000), { platform: 'linkedin', liAccountKey: 'khaled' });
     // Des textes conformes à la stratégie LinkedIn 2026 : une question, aucun « Commente MOT ».
     const conforme = { caption: 'Odile AI vous aide.\n\nEt chez vous, combien de devis par semaine ?', cta: '', commentTriggerKeyword: null };
@@ -344,7 +345,7 @@ describe('créneaux par compte, rappels et alertes', async () => {
     expect(tPage - tAlexis).toBe(45 * 60_000);
     expect(tInsta).toBeGreaterThan(quand.getTime());
     expect(tInsta - quand.getTime()).toBeLessThanOrEqual(7 * 86400_000);
-  });
+    }));
 
   it('un post LinkedIn qui ne nomme pas la marque est signalé', () =>
     enAncienTunnel(() => {

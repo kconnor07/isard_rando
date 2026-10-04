@@ -30,7 +30,8 @@ import { nextShortlistedItem } from '../scorer/shortlist.js';
 import { createLink } from '../shortener/index.js';
 import { toneToPrompt } from './tone.js';
 import { adresseDuSite, avecSite, bornerHashtags, hashtagDeMarque, lienPermis, porteLeSite, reseauDuCanal } from './marque.js';
-import { ACCROCHE_MAX, accroche, porteUnAppat, tutoie } from './reglesLinkedIn.js';
+import { ACCROCHE_MAX, accroche, faitACompleter, porteUnAppat, tutoie } from './reglesLinkedIn.js';
+import { faitPourLePrompt, faitsPourLeCompte, noterUsage, registreDuCompte } from './faits.js';
 import { mentionnerSurInstagram, type MentionDeclaree } from './mentions.js';
 import { corrigerLigneSource, sourceReelle } from './source.js';
 
@@ -210,6 +211,9 @@ export interface ReglesDuTexte {
   vouvoiement?: boolean;
   /** la première ligne tient en ACCROCHE_MAX caractères (une marge est tolérée) */
   accrocheCourte?: boolean;
+  /** un fait de la banque (faitId parmi faitsPermis) ou l'emplacement « [FAIT VÉCU : …] » */
+  faitObligatoire?: boolean;
+  faitsPermis?: number[];
 }
 
 export function writerResponseSchema(imagesAllowed: number, regles: ReglesDuTexte = {}) {
@@ -256,6 +260,19 @@ export function writerResponseSchema(imagesAllowed: number, regles: ReglesDuText
         path: ['caption'],
         message: `la première ligne (avant le premier saut de ligne) fait ${accroche(post.caption).length} caractères : elle doit tenir en ${ACCROCHE_MAX}, c'est tout ce qu'on voit avant « …voir plus »`,
       });
+    }
+    if (regles.faitObligatoire) {
+      const permis = regles.faitsPermis ?? [];
+      const emplacement = faitACompleter(post.caption);
+      if (post.faitId && !permis.includes(post.faitId)) {
+        ctx.addIssue({ code: 'custom', path: ['faitId'], message: `faitId doit être l'un de ${permis.join(', ') || '(aucun : la banque est vide)'}, ou null` });
+      } else if (!post.faitId && !emplacement) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['caption'],
+          message: 'le post doit raconter un fait de la banque (déclare son numéro dans faitId) ou porter, seule sur sa ligne, l’emplacement « [FAIT VÉCU : …] »',
+        });
+      }
     }
     if (post.commentTrigger?.enabled && !regles.appatInterdit) {
       const motcle = post.commentTrigger.keyword ?? '';
@@ -329,6 +346,24 @@ export function documentDue(nbPostsExistants: number): boolean {
 }
 
 /** Génère un brouillon de post (copy + slides) depuis une actu shortlistée. */
+/**
+ * Le post promotionnel revient tous les N posts d'un même profil : on compte ceux
+ * écrits depuis le dernier post promotionnel (les rejetés ne comptent pas).
+ */
+export function estLeTourDeLaPromo(compteKey: string | null, n: number): boolean {
+  if (n <= 1) return true;
+  const posts = db
+    .select({ id: schema.posts.id, promo: schema.posts.promo, status: schema.posts.status, liAccountKey: schema.posts.liAccountKey })
+    .from(schema.posts)
+    .where(eq(schema.posts.channel, 'li_personal'))
+    .orderBy(desc(schema.posts.id))
+    .all()
+    .filter((p) => p.status !== 'rejected' && (compteKey === null || p.liAccountKey === compteKey));
+  const depuis = posts.findIndex((p) => p.promo);
+  const sansPromo = depuis === -1 ? posts.length : depuis;
+  return sansPromo >= n - 1;
+}
+
 export async function draftPost(opts: DraftOptions = {}): Promise<DraftResult> {
   const news = opts.newsItemId
     ? db.select().from(schema.newsItems).where(eq(schema.newsItems.id, opts.newsItemId)).get()
@@ -463,7 +498,37 @@ La promesse du CTA doit désigner EXACTEMENT ce que tu déclares — jamais autr
   // Ce qui fait performer un post LinkedIn : court, sourcé, les acteurs nommés.
   // Le vrai média (le site de l'article), pas le nom du flux qui l'a trouvé.
   const media = sourceReelle(news.id)?.media ?? '';
-  const voixDuTerrain = compte && compte.subject !== 'li_org' ? compte.name : `l'équipe de ${brand.name}`;
+  const profil = channel === 'li_personal';
+  const voixDuTerrain = compte && compte.subject !== 'li_org' ? compte.name : `l'équipe de ${strategie.nomCourant}`;
+  const registre = registreDuCompte(compte?.key);
+  // Un post de profil sur N est le post promotionnel : le seul qui nomme la marque et l'offre.
+  const promo = linkedin2026 && profil && estLeTourDeLaPromo(compte?.key ?? null, strategie.promoUnPostSur);
+  // Le fait vécu : choisi dans la banque, jamais inventé ; à défaut, un emplacement à compléter.
+  const faitObligatoire = linkedin2026 && profil && strategie.faitVecuObligatoire;
+  const faitsCandidats = faitObligatoire ? faitsPourLeCompte(compte?.key ?? null) : [];
+  const consigneMarque = !linkedin2026
+    ? ''
+    : profil
+      ? promo
+        ? `- C'EST LE POST PROMOTIONNEL DU CYCLE (un sur ${strategie.promoUnPostSur}) : dis simplement ce que fait ${strategie.nomCourant} sur ce sujet,
+  et propose, juste avant la question, l'offre mot pour mot : « ${strategie.offre} ». Une seule fois, sans superlatif.`
+        : `- CE POST NE VEND RIEN : ni le nom ${strategie.nomCourant}, ni l'offre, ni « contactez-nous », ni « chez nous on fait ça ».
+  Il apporte de la valeur, point : c'est ce qui rend le post promotionnel crédible quand il vient.`
+      : `- ${strategie.nomCourant} : au plus une fois, naturellement. L'offre, seulement si le sujet s'y prête, mot pour mot :
+  « ${strategie.offre} ».`;
+  const consigneFait = !faitObligatoire
+    ? `- AUCUN CAS CLIENT INVENTÉ : pas de « chez nos clients », pas d'anecdote, pas de chiffre qui ne vient pas de la source.`
+    : `- UN FAIT VÉCU, OBLIGATOIRE : le post raconte UN fait réel, vécu par ${voixDuTerrain} ou observé à Toulouse. Tu n'en inventes JAMAIS.
+${
+        faitsCandidats.length
+          ? `  Faits disponibles (prends-en UN SEUL qui sert vraiment le sujet, raconte-le sans rien ajouter, et déclare son numéro dans "faitId") :
+${faitsCandidats.map((f) => `  ${faitPourLePrompt(f)}`).join('\n')}
+  Un client « anonyme » ne se nomme pas : « un cabinet comptable », « une boutique toulousaine ».
+  Si AUCUN ne sert le sujet, fais comme si la banque était vide (ci-dessous).`
+          : '  La banque de faits est vide.'
+      }
+  Sans fait qui serve le sujet : écris, seule sur sa ligne, l'emplacement « [FAIT VÉCU : <ce qu'il faudrait raconter ici, en une phrase>] »
+  et renvoie "faitId": null. La personne le complétera avant publication. Jamais « chez nos clients » ni un cas imaginaire.`;
   const strategieLinkedIn =
     linkedin2026
       ? `
@@ -476,16 +541,18 @@ STRATÉGIE LINKEDIN 2026 (le texte du post, « caption ») — tirée de l'audit
   Lisible par un lycéen : aucun jargon, aucun sigle non expliqué, aucun anglicisme.
 - STRUCTURE : l'accroche ; la promesse (le bénéfice en une phrase) ; une phrase de crédibilité (pourquoi
   cette voix sait de quoi elle parle) ; le message en phrases courtes ; une conclusion explicite ; la question finale.
-- UNE PREUVE PROPRE À L'AUTEUR quand c'est possible : ce que ${voixDuTerrain} constate chez les PME accompagnées.
-  N'invente JAMAIS un client, un nom, un chiffre ou une anecdote : sans fait réel, dis ce que tu observes
-  en général, sans chiffre.
+${consigneFait}
 - REGISTRE : ${
-          strategie.registre === 'vous'
+          registre === 'vous'
             ? 'VOUVOIEMENT du début à la fin. Jamais « tu », « toi », « tes », « t’ ».'
             : 'TUTOIEMENT du début à la fin, jamais « vous » pour s’adresser au lecteur.'
         } On ne mélange jamais les deux.
 - PAS DE SURVENTE : ni « 100 % automatisé », ni « remplace un salarié », ni promesse invérifiable
-  (« +300 % », « 10x ») — elles heurtent la crainte du lecteur et ruinent la crédibilité.
+  (« +300 % », « 10x », « 50 PME nous font confiance ») — elles heurtent la crainte du lecteur et ruinent la crédibilité.
+- PAS DE JARGON : ni « workflow », « agent », « RAG », « LLM », « prompt », « no-code », « SaaS ». Parle d'heures par
+  semaine, d'euros par an, de mois avant que ça rapporte.
+- PAS DE SIGNES D'IA : aucune flèche (→), pas de tiret long (—), pas d'énumérations par trois à répétition, pas de
+  liste à puces en émojis, pas de « révolutionner », « booster », « incontournable », « crucial ».
 - SOURCER, toujours : nomme en clair d'où vient l'information — le NOM EXACT du média${media ? ` (ici « ${media} »)` : ''},
   et l'auteur ou l'auteure si l'article le donne. Une ligne « Source : … » en fin de post.
   JAMAIS « une étude », « des chercheurs », « un labo américain » : un post sourcé est crédible, un post vague ne l'est pas.
@@ -494,9 +561,7 @@ STRATÉGIE LINKEDIN 2026 (le texte du post, « caption ») — tirée de l'audit
   le média source et, quand l'actualité s'y prête, l'entreprise ou la personne au cœur de l'info. Déclare-les dans
   "mentions" (nom exact ; entreprise : vanityName LinkedIn = la fin de l'URL de sa page, ex. « openai » ;
   instagram = son compte officiel sans @, seulement si tu en es sûr). Une identification décorative est pénalisée.
-- ${brand.name} : au plus une fois, naturellement (« chez ${brand.name} », « à l'agence »), et seulement si le post
-  parle de ce que fait l'agence. Quand le post propose quelque chose, c'est toujours la même offre, mot pour mot :
-  « ${strategie.offre} ». Un post qui n'est pas une offre ne vend rien.
+${consigneMarque}
 - ${
           lienDansLeTexte
             ? `N'écris PAS l'adresse du site : le moteur termine lui-même le post par « ${brand.name} : ${adresseDuSite(brand.siteUrl)} ».`
@@ -604,7 +669,11 @@ QUI PARLE : ${compte.name}${compte.role ? `, ${compte.role}` : ''}, depuis son p
 - Écris à la PREMIÈRE PERSONNE DU SINGULIER : « je », « ce que j'en retiens », « ce que je vois chez nos clients ».
 - Un point de vue assumé de praticien : ce que cette actualité change concrètement pour les dirigeants
   que cette personne accompagne. Une opinion, pas un résumé neutre.
-- ${brand.name} se dit « chez nous », « l'agence » — jamais comme une entreprise tierce dont on parlerait.
+${
+          linkedin2026 && !promo
+            ? '- Ce post ne parle pas de l’agence : un point de vue de praticien, sans « chez nous » ni « l’agence ».'
+            : `- ${linkedin2026 ? strategie.nomCourant : brand.name} se dit « chez nous », « l'agence » — jamais comme une entreprise tierce dont on parlerait.`
+        }
 - Bannis le ton communiqué : « nous sommes ravis de », « notre équipe a le plaisir de », « c'est avec fierté que ».`
       : '';
 
@@ -684,7 +753,13 @@ CONTRAINTES :
     writerResponseSchema(
       imagesAllowed,
       linkedin2026
-        ? { appatInterdit: true, lienInterdit: !lienDansLeTexte, vouvoiement: strategie.registre === 'vous', accrocheCourte: true }
+        ? {
+            appatInterdit: true,
+            lienInterdit: !lienDansLeTexte,
+            vouvoiement: registre === 'vous',
+            accrocheCourte: true,
+            ...(faitObligatoire ? { faitObligatoire: true, faitsPermis: faitsCandidats.map((f) => f.id) } : {}),
+          }
         : {},
     ),
     { attempts: 3 },
@@ -692,6 +767,12 @@ CONTRAINTES :
 
   const brouillon = persistDraft({ news, channel, platform, format, theme, tone, generated, cibleDuLien, compte, motcleAutorise: !linkedin2026 });
   await finaliserLeTexte(brouillon.postId, platform, news.id, generated.mentions ?? []);
+  // Le fait raconté, le post promotionnel, et le texte de l'IA tel quel : comparé au texte
+  // publié, il dira quelle part la personne a réécrite.
+  const faitId = faitObligatoire && generated.faitId && faitsCandidats.some((f) => f.id === generated.faitId) && !faitACompleter(generated.caption) ? generated.faitId : null;
+  if (faitId) noterUsage(faitId);
+  const ecrit = db.select({ caption: schema.posts.caption }).from(schema.posts).where(eq(schema.posts.id, brouillon.postId)).get();
+  db.update(schema.posts).set({ faitId, promo, texteGenere: ecrit?.caption ?? null }).where(eq(schema.posts.id, brouillon.postId)).run();
   return brouillon;
 }
 

@@ -25,6 +25,8 @@ type AllSettings = Record<string, unknown> & {
   linkedin_strategie: {
     profilsPubliesParLoutil: boolean; motcleSurLinkedIn: boolean; lienDansLeCorpsProfils: boolean; lienDansLeCorpsPage: boolean;
     registre: 'vous' | 'tu'; offre: string; hashtagsMax: number; mentionsMax: number; rappelLienApresMinutes: number;
+    registres: Record<string, 'vous' | 'tu'>; nomCourant: string; faitVecuObligatoire: boolean; promoUnPostSur: number;
+    copiesEntreProfils: boolean; repostsCommentes: boolean;
   };
   video: {
     enabled: boolean; everyNPosts: number; avatarType: 'avatar' | 'talking_photo'; avatarId: string; avatarStyle: string;
@@ -120,6 +122,10 @@ export default function Settings() {
   const { data: settings, isError: enErreur, error: erreur, refetch: recharger } = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.get<AllSettings>('/api/settings'),
+  });
+  const { data: surfaces } = useQuery({
+    queryKey: ['surfaces'],
+    queryFn: () => api.get<{ key: string; channel: string; label: string; actif: boolean }[]>('/api/surfaces'),
   });
   const { data: sources } = useQuery({
     queryKey: ['sources'],
@@ -527,7 +533,10 @@ export default function Settings() {
           const st = form.linkedin_strategie ?? {
             profilsPubliesParLoutil: false, motcleSurLinkedIn: false, lienDansLeCorpsProfils: false, lienDansLeCorpsPage: true,
             registre: 'vous' as const, offre: 'un audit offert de 30 minutes', hashtagsMax: 3, mentionsMax: 3, rappelLienApresMinutes: 60,
+            registres: {} as Record<string, 'vous' | 'tu'>, nomCourant: 'Odile', faitVecuObligatoire: true, promoUnPostSur: 10,
+            copiesEntreProfils: false, repostsCommentes: true,
           };
+          const profils = (surfaces ?? []).filter((c) => c.channel === 'li_personal');
           const maj = (patch: Partial<typeof st>) => set('linkedin_strategie', { ...st, ...patch });
           return (
             <>
@@ -577,10 +586,67 @@ export default function Settings() {
                   <input type="number" min={15} max={240} className="input" value={st.rappelLienApresMinutes}
                     onChange={(e) => maj({ rappelLienApresMinutes: Number(e.target.value) })} /></div>
               </div>
+
+              <h3 className="mb-2 mt-6 text-sm font-semibold">Le texte des posts</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div><label className="label">Le nom de la marque dans le texte</label>
+                  <input className="input" maxLength={40} value={st.nomCourant ?? 'Odile'} onChange={(e) => maj({ nomCourant: e.target.value })} />
+                  <p className="mt-1 text-xs text-muted">Un seul nom partout (« Odile »), même si la Page s’appelle autrement.</p></div>
+                <div><label className="label">Un post promotionnel tous les… (posts de profil)</label>
+                  <input type="number" min={1} max={20} className="input" value={st.promoUnPostSur ?? 10}
+                    onChange={(e) => maj({ promoUnPostSur: Number(e.target.value) })} />
+                  <p className="mt-1 text-xs text-muted">Seul ce post nomme la marque et l’offre ; les autres ne vendent rien.</p></div>
+              </div>
+              <label className="mb-1 mt-4 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={st.faitVecuObligatoire ?? true}
+                  onChange={(e) => maj({ faitVecuObligatoire: e.target.checked })} />
+                Un fait vécu obligatoire dans chaque post de profil
+              </label>
+              <p className="mb-3 text-xs text-muted">
+                Le rédacteur prend un fait dans la banque ci-dessous ; sinon le post sort avec un emplacement « [FAIT VÉCU] » et reste bloqué tant que vous ne l’avez pas complété. L’IA n’invente jamais un fait.
+              </p>
+              {profils.length > 0 && (
+                <div className="mb-3 grid gap-4 sm:grid-cols-2">
+                  {profils.map((c) => (
+                    <div key={c.key}><label className="label">Registre de {c.label}</label>
+                      <select className="input" value={st.registres?.[c.key] ?? ''}
+                        onChange={(e) => {
+                          const registres = { ...(st.registres ?? {}) };
+                          if (e.target.value) registres[c.key] = e.target.value as 'vous' | 'tu';
+                          else delete registres[c.key];
+                          maj({ registres });
+                        }}>
+                        <option value="">Comme le réglage général</option>
+                        <option value="vous">Vouvoiement</option>
+                        <option value="tu">Tutoiement</option>
+                      </select></div>
+                  ))}
+                </div>
+              )}
+
+              <h3 className="mb-2 mt-6 text-sm font-semibold">Entre les comptes</h3>
+              <label className="mb-1 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={!(st.copiesEntreProfils ?? false)}
+                  onChange={(e) => maj({ copiesEntreProfils: !e.target.checked })} />
+                Pas de posts jumeaux : un sujet ne part qu’une fois sur LinkedIn
+              </label>
+              <p className="mb-3 text-xs text-muted">
+                Un post LinkedIn n’est plus recopié sur les autres comptes LinkedIn ; un post Instagram l’est sur la Page seulement. Un même article ne peut pas partir sur deux profils la même semaine.
+              </p>
+              <label className="mb-1 flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-sky-500" checked={st.repostsCommentes ?? true}
+                  onChange={(e) => maj({ repostsCommentes: e.target.checked })} />
+                Préparer un repost commenté pour les autres profils quand un post paraît
+              </label>
+              <p className="text-xs text-muted">
+                3 à 5 lignes à la voix de chacun, envoyées par email : « Republier avec vos idées », collez, publiez. Un repost nu ne compte pas, un repost commenté si. Le titre de chaque profil se règle dans Connexions.
+              </p>
             </>
           );
         })()}
       </Section>
+
+      <SectionFaits profils={(surfaces ?? []).filter((c) => c.channel === 'li_personal')} />
 
       <Section title="Commentaire → DM" saving={savingOf('dm_triggers')} onSave={() => save.mutate({ key: 'dm_triggers', value: form.dm_triggers })}>
         <label className="mb-3 flex items-center gap-2 text-sm">
@@ -657,7 +723,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <label className="label">Ce que le diagnostic offre (annoncé dans le post, repris dans les réponses)</label>
-                  <input className="input" placeholder="un regard sur votre organisation et ce qui peut y être automatisé, en 20 minutes"
+                  <input className="input" placeholder="un audit offert de 30 minutes sur ce qui peut être automatisé chez vous"
                     value={form.dm_triggers.diagnosticPromise ?? ''}
                     onChange={(e) => set('dm_triggers', { ...form.dm_triggers, diagnosticPromise: e.target.value })} />
                 </div>
@@ -684,7 +750,7 @@ export default function Settings() {
               </div>
               <div>
                 <label className="label">Libellé du bouton</label>
-                <input className="input" placeholder="Prendre 20 minutes"
+                <input className="input" placeholder="Réserver l’audit offert de 30 minutes"
                   value={form.dm_triggers.rdvLabel ?? ''}
                   onChange={(e) => set('dm_triggers', { ...form.dm_triggers, rdvLabel: e.target.value })} />
               </div>
@@ -1251,5 +1317,107 @@ function SectionMentions({ repertoire, onChange }: { repertoire: MentionEntree[]
         </button>
       </div>
     </div>
+  );
+}
+
+interface FaitDto {
+  id: number;
+  texte: string;
+  dateFait: string | null;
+  source: 'audit' | 'appel' | 'boutique' | 'evenement' | 'client' | 'autre';
+  compte: string | null;
+  accordClient: boolean;
+  actif: boolean;
+  utilisations: number;
+}
+
+const SOURCES_FAIT: Record<FaitDto['source'], string> = {
+  audit: 'Un audit',
+  appel: 'Un appel',
+  boutique: 'Une boutique',
+  evenement: 'Un événement',
+  client: 'Un client',
+  autre: 'Autre',
+};
+
+/**
+ * La banque de faits vécus : ce qu'Odile a réellement fait ou observé. Le rédacteur
+ * n'en invente jamais ; il raconte ceux-ci, les moins racontés d'abord.
+ */
+function SectionFaits({ profils }: { profils: { key: string; label: string }[] }) {
+  const qc = useQueryClient();
+  const { data: faits } = useQuery({ queryKey: ['faits'], queryFn: () => api.get<FaitDto[]>('/api/faits') });
+  const vide = { texte: '', dateFait: '', source: 'appel' as FaitDto['source'], compte: '', accordClient: false };
+  const [brouillon, setBrouillon] = useState(vide);
+  const recharger = () => void qc.invalidateQueries({ queryKey: ['faits'] });
+  const ajouter = useMutation({
+    mutationFn: () =>
+      api.post('/api/faits', {
+        texte: brouillon.texte.trim(),
+        dateFait: brouillon.dateFait || null,
+        source: brouillon.source,
+        compte: brouillon.compte || null,
+        accordClient: brouillon.accordClient,
+      }),
+    onSuccess: () => {
+      setBrouillon(vide);
+      recharger();
+      toast.success('Fait ajouté à la banque');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const basculer = useMutation({
+    mutationFn: (f: FaitDto) => api.patch(`/api/faits/${f.id}`, { actif: !f.actif }),
+    onSuccess: recharger,
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const supprimer = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/faits/${id}`),
+    onSuccess: recharger,
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const nomDuCompte = (cle: string | null) => (cle ? (profils.find((p) => p.key === cle)?.label ?? cle) : 'Toute l’équipe');
+  return (
+    <Section title="Banque de faits vécus">
+      <p className="mb-3 text-xs text-muted">
+        Ce que vous avez réellement fait ou vu : un audit, un appel, une boutique, un événement à Toulouse. Chaque post de profil en raconte un,
+        sans rien y ajouter. Un client qui n’a pas donné son accord reste anonyme dans le texte.
+      </p>
+      <div className="mb-4 flex flex-col gap-2">
+        {(faits ?? []).length === 0 && <p className="text-sm text-muted">La banque est vide : les posts de profil sortiront avec un emplacement à compléter.</p>}
+        {(faits ?? []).map((f) => (
+          <div key={f.id} className={`flex flex-wrap items-start gap-2 rounded-lg border border-white/10 p-3 text-sm ${f.actif ? '' : 'opacity-50'}`}>
+            <div className="min-w-0 flex-1">
+              <p className="whitespace-pre-wrap">{f.texte}</p>
+              <p className="mt-1 text-xs text-muted">
+                {SOURCES_FAIT[f.source]}{f.dateFait ? ` · ${f.dateFait}` : ''} · {nomDuCompte(f.compte)} · {f.accordClient ? 'client nommable' : 'anonyme'} · raconté {f.utilisations} fois
+              </p>
+            </div>
+            <button className="btn-ghost !py-1 text-xs" disabled={basculer.isPending} onClick={() => basculer.mutate(f)}>{f.actif ? 'Mettre de côté' : 'Réactiver'}</button>
+            <button className="btn-ghost !py-1 text-xs" disabled={supprimer.isPending} onClick={() => supprimer.mutate(f.id)}>Supprimer</button>
+          </div>
+        ))}
+      </div>
+      <label className="label">Nouveau fait</label>
+      <textarea className="input min-h-[4.5rem]" maxLength={600} placeholder="ex. Mardi, un menuisier de Muret m’a montré ses devis : ils partaient cinq jours après la visite."
+        value={brouillon.texte} onChange={(e) => setBrouillon({ ...brouillon, texte: e.target.value })} />
+      <div className="mt-2 grid gap-3 sm:grid-cols-4">
+        <select className="input" value={brouillon.source} onChange={(e) => setBrouillon({ ...brouillon, source: e.target.value as FaitDto['source'] })}>
+          {Object.entries(SOURCES_FAIT).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <input type="date" className="input" value={brouillon.dateFait} onChange={(e) => setBrouillon({ ...brouillon, dateFait: e.target.value })} />
+        <select className="input" value={brouillon.compte} onChange={(e) => setBrouillon({ ...brouillon, compte: e.target.value })}>
+          <option value="">Toute l’équipe</option>
+          {profils.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="accent-sky-500" checked={brouillon.accordClient} onChange={(e) => setBrouillon({ ...brouillon, accordClient: e.target.checked })} />
+          Le client accepte d’être nommé
+        </label>
+      </div>
+      <button className="btn-primary mt-3 !py-1.5 text-xs" disabled={ajouter.isPending || brouillon.texte.trim().length < 15} onClick={() => ajouter.mutate()}>
+        {ajouter.isPending ? 'Ajout…' : 'Ajouter à la banque'}
+      </button>
+    </Section>
   );
 }

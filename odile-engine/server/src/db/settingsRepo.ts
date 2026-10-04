@@ -92,7 +92,7 @@ export const getDmTriggers = () =>
     fixedUrl: '',
     fixedLabel: '',
     rdvUrl: '',
-    rdvLabel: 'Prendre 20 minutes',
+    rdvLabel: dmTriggerSettingsSchema.shape.rdvLabel.parse(undefined),
     // Sur LinkedIn, le lien de la description donne déjà la ressource : le mot-clé
     // ouvre autre chose, sinon les deux chemins font doublon.
     linkedinOffer: 'diagnostic',
@@ -168,3 +168,42 @@ export const getDefaultFormat = (): string => {
   const raw = getSettingRaw('default_format');
   return typeof raw === 'string' && raw ? raw : DEFAULTS.format;
 };
+
+/**
+ * Une seule offre d'entrée partout (stratégie LinkedIn 2026) : les textes qui disaient
+ * encore « 20 minutes » par défaut prennent celle de la stratégie. Seuls les textes
+ * restés tels qu'à l'origine changent ; ce que le fondateur a écrit lui-même reste.
+ * Une seule fois.
+ */
+export const ANCIENNE_OFFRE = {
+  rdvLabel: 'Prendre 20 minutes',
+  diagnosticPromise: 'un regard sur votre organisation et ce qui peut y être automatisé, en 20 minutes',
+  variante: 'Avec plaisir {{prenom}}. Le lien est dans la description. Pour un regard sur votre organisation, 20 minutes ici : {{rdv}}',
+};
+export function unifierLOffre(): boolean {
+  if (getSettingRaw('offre_unifiee') === 1) return false;
+  setSetting('offre_unifiee', 1);
+  const brut = getSettingRaw('dm_triggers') as Record<string, unknown> | undefined;
+  if (!brut || typeof brut !== 'object') return false;
+  const forme = dmTriggerSettingsSchema.shape;
+  const neuf = {
+    rdvLabel: forme.rdvLabel.parse(undefined),
+    diagnosticPromise: forme.diagnosticPromise.parse(undefined),
+    diagnosticReplyVariants: forme.diagnosticReplyVariants.parse(undefined),
+  };
+  let change = false;
+  if (brut.rdvLabel === ANCIENNE_OFFRE.rdvLabel) {
+    brut.rdvLabel = neuf.rdvLabel;
+    change = true;
+  }
+  if (brut.diagnosticPromise === ANCIENNE_OFFRE.diagnosticPromise) {
+    brut.diagnosticPromise = neuf.diagnosticPromise;
+    change = true;
+  }
+  if (Array.isArray(brut.diagnosticReplyVariants) && brut.diagnosticReplyVariants.includes(ANCIENNE_OFFRE.variante)) {
+    brut.diagnosticReplyVariants = brut.diagnosticReplyVariants.map((v) => (v === ANCIENNE_OFFRE.variante ? neuf.diagnosticReplyVariants[1] : v));
+    change = true;
+  }
+  if (change) setSetting('dm_triggers', brut);
+  return change;
+}

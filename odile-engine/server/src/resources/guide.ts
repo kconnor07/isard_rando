@@ -33,7 +33,7 @@ export interface RessourceLivree {
 
 /** Adresse publique d'un guide livré (le lien part en message privé). */
 /**
- * Le bouton « Prendre 20 minutes » d'un guide PDF passe par un lien court `guide-N`
+ * Le bouton de rendez-vous (« Réserver l’audit offert de 30 minutes ») d'un guide PDF passe par un lien court `guide-N`
  * dont la cible est figée à la fabrication. Renseigner le lien de rendez-vous après
  * coup doit atteindre les guides déjà envoyés : on change la cible, pas le PDF.
  */
@@ -87,7 +87,7 @@ Règles :
 export interface PorteDeSortie {
   /** adresse cliquable (lien court tracké) */
   url: string;
-  /** libellé du bouton : « Prendre 20 minutes » */
+  /** libellé du bouton : « Réserver l’audit offert de 30 minutes » */
   libelle: string;
 }
 
@@ -266,7 +266,7 @@ export async function livrerRessource(postId: number): Promise<RessourceLivree> 
       label: `guide-${postId}`,
       utm: { utm_source: 'guide', utm_medium: 'pdf', utm_campaign: `post-${postId}` },
     });
-    const sortie: PorteDeSortie = { url: lien.shortUrl, libelle: dm.rdvLabel.trim() || 'Prendre 20 minutes' };
+    const sortie: PorteDeSortie = { url: lien.shortUrl, libelle: dm.rdvLabel.trim() || 'Réserver l’audit offert de 30 minutes' };
     const assetId = await imprimerPdf(guideHtml(guide, infos, logo, sortie), postId);
     logger.info({ postId, assetId, titre: guide.title }, 'guide livré');
     return { kind: 'guide', url: urlDuGuide(assetId), title: guide.title, assetId };

@@ -166,7 +166,7 @@ export const dmTriggerSettingsSchema = z.object({
    */
   rdvUrl: z.string().max(400).default(''),
   /** libellé du bouton de rendez-vous, dans le guide et les messages */
-  rdvLabel: z.string().max(80).default('Prendre 20 minutes'),
+  rdvLabel: z.string().max(80).default('Réserver l’audit offert de 30 minutes'),
   /**
    * Exiger l'abonnement avant d'envoyer le lien. Meta ne prévient pas d'un nouvel
    * abonné et n'expose pas la liste des abonnés : l'état d'abonnement n'est lisible
@@ -267,7 +267,7 @@ export const dmTriggerSettingsSchema = z.object({
   diagnosticPromise: z
     .string()
     .max(160)
-    .default('un regard sur votre organisation et ce qui peut y être automatisé, en 20 minutes'),
+    .default('un audit offert de 30 minutes sur ce qui peut être automatisé chez vous'),
   /**
    * Réponses postées sous le commentaire quand le mot-clé ouvre le diagnostic.
    * Elles ne redonnent JAMAIS le lien de la ressource (il est dans le post) : elles
@@ -279,7 +279,7 @@ export const dmTriggerSettingsSchema = z.object({
     .max(30)
     .default([
       'Merci {{prenom}} 🙂 {{ressource}} est en lien dans le post. Et si vous voulez qu’on regarde votre cas : {{rdv}}',
-      'Avec plaisir {{prenom}}. Le lien est dans la description. Pour un regard sur votre organisation, 20 minutes ici : {{rdv}}',
+      'Avec plaisir {{prenom}}. Le lien est dans la description. Pour un audit offert de 30 minutes, c’est ici : {{rdv}}',
       'Bonne lecture {{prenom}} — le lien est juste au-dessus. Si vous voulez qu’on cherche ensemble ce qui peut être automatisé chez vous : {{rdv}}',
       'Merci pour votre commentaire {{prenom}}. {{ressource}} vous attend en description ; pour votre cas précis, c’est ici : {{rdv}}',
       'C’est noté {{prenom}} 🙂 Le lien est dans le post, et votre cas mérite mieux qu’un lien : {{rdv}}',
@@ -377,6 +377,21 @@ export const strategieLinkedInSchema = z.object({
    * en réponse à un commentaire. Le moteur ne commente jamais à la place de quelqu'un.
    */
   rappelLienApresMinutes: z.number().int().min(15).max(240).default(60),
+  /** registre propre à un compte (clé du compte LinkedIn), quand il diffère du registre général */
+  registres: z.record(z.string(), z.enum(['vous', 'tu'])).default({}),
+  /** le nom de la marque dans le texte courant (« Odile »), un seul nom partout */
+  nomCourant: z.string().trim().min(2).max(40).default('Odile'),
+  /**
+   * Chaque post de profil raconte un fait réel (banque de faits) ; sinon il sort avec
+   * un emplacement « [FAIT VÉCU] » et reste bloqué tant qu'il n'est pas complété.
+   */
+  faitVecuObligatoire: z.boolean().default(true),
+  /** un post de profil sur N nomme la marque et l'offre ; les autres ne vendent rien */
+  promoUnPostSur: z.number().int().min(1).max(20).default(10),
+  /** recopier un même post sur plusieurs comptes LinkedIn (posts jumeaux, déclassés en 2026) */
+  copiesEntreProfils: z.boolean().default(false),
+  /** préparer, quand un post paraît, un repost commenté pour les autres profils */
+  repostsCommentes: z.boolean().default(true),
 });
 export type StrategieLinkedIn = z.infer<typeof strategieLinkedInSchema>;
 
@@ -576,6 +591,11 @@ export const generatedPostSchema = z.object({
     )
     .max(5)
     .optional(),
+  /**
+   * Le fait vécu de la banque que raconte le post (son numéro), ou null quand le post
+   * porte l'emplacement « [FAIT VÉCU : …] » à compléter par la personne.
+   */
+  faitId: z.number().int().nullable().optional(),
 });
 export type GeneratedPost = z.infer<typeof generatedPostSchema>;
 

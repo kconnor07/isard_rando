@@ -157,7 +157,22 @@ function buildMockText(req: LlmRequest): string {
         });
       }
       // LinkedIn, stratégie 2026 : sans « Commente X », sans lien, au vouvoiement.
-      if (/STRATÉGIE LINKEDIN 2026/.test(req.prompt)) return JSON.stringify(MOCK_POST_LINKEDIN_2026);
+      if (/STRATÉGIE LINKEDIN 2026/.test(req.prompt)) {
+        // Fait vécu obligatoire : le premier fait proposé, sinon l'emplacement à compléter.
+        if (/UN FAIT VÉCU, OBLIGATOIRE/.test(req.prompt)) {
+          const fait = /^\s+\[(\d+)\]/m.exec(req.prompt.split('Faits disponibles')[1] ?? '');
+          if (fait) return JSON.stringify({ ...MOCK_POST_LINKEDIN_2026, faitId: Number(fait[1]) });
+          return JSON.stringify({
+            ...MOCK_POST_LINKEDIN_2026,
+            caption: MOCK_POST_LINKEDIN_2026.caption.replace(
+              "Le plus long n'est pas l'outil.",
+              "[FAIT VÉCU : un devis que vous avez vu partir trop tard chez une entreprise que vous accompagnez]\n\nLe plus long n'est pas l'outil.",
+            ),
+            faitId: null,
+          });
+        }
+        return JSON.stringify(MOCK_POST_LINKEDIN_2026);
+      }
       return JSON.stringify(MOCK_GENERATED_POST);
     }
     case 'review': {
@@ -264,7 +279,7 @@ const MOCK_GENERATED_POST = {
 const MOCK_POST_LINKEDIN_2026 = {
   ...MOCK_GENERATED_POST,
   caption:
-    "Quatre heures par semaine. C'est ce que vos devis vous coûtent, sans que personne ne les compte.\n\nUne nouvelle génération d'outils rédige un devis complet en 90 secondes, à partir de la demande du client.\n\nChez les PME que nous accompagnons, le changement se voit vite :\n→ une réponse le jour même, au lieu de trois jours plus tard ;\n→ moins d'erreurs de calcul ;\n→ plus de devis signés, parce que vous répondez avant les autres.\n\nLe plus long n'est pas l'outil. C'est de décider qui relit le devis avant qu'il parte.\n\nEt chez vous, combien de temps s'écoule entre la demande et l'envoi du devis ?\n\nSource : Les Echos",
+    "Quatre heures par semaine. C'est ce que vos devis vous coûtent, sans que personne ne les compte.\n\nUne nouvelle génération d'outils rédige un devis complet en 90 secondes, à partir de la demande du client.\n\nLe changement se voit vite. Une réponse le jour même, au lieu de trois jours plus tard. Moins d'erreurs de calcul.\n\nEt plus de devis signés, parce que vous répondez avant les autres.\n\nLe plus long n'est pas l'outil. C'est de décider qui relit le devis avant qu'il parte.\n\nEt chez vous, combien de temps s'écoule entre la demande et l'envoi du devis ?\n\nSource : Les Echos",
   hashtags: ['#AutomatisationPME', '#Devis'],
   cta: "Et chez vous, combien de temps entre la demande et l'envoi du devis ?",
   commentTrigger: { enabled: false, keyword: '' },

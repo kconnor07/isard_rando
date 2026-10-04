@@ -16,6 +16,25 @@ import { loginLimiter } from '../rateLimit.js';
 import { dailyIpHash } from '../../lib/crypto.js';
 import { logger } from '../../lib/logger.js';
 import { repondreSousCommentaire } from '../../webhooks/reponsePublique.js';
+import { tauxDeReecriture } from '../../writer/reglesLinkedIn.js';
+
+/**
+ * Part moyenne du texte réécrite par une personne, sur les posts LinkedIn parus ces
+ * trente derniers jours (null s'il n'y en a aucun). Un texte 100 % IA fait 2,8 fois
+ * moins de portée : l'indicateur dit si l'équipe met vraiment la main au texte.
+ */
+export function reecritureMoyenne(now = new Date()): number | null {
+  const depuis = new Date(now.getTime() - 30 * 86400_000).toISOString();
+  const taux = db
+    .select({ genere: schema.posts.texteGenere, caption: schema.posts.caption })
+    .from(schema.posts)
+    .where(and(eq(schema.posts.platform, 'linkedin'), eq(schema.posts.status, 'published'), gte(schema.posts.publishedAt, depuis)))
+    .all()
+    .filter((p) => p.genere)
+    .map((p) => tauxDeReecriture(p.genere!, p.caption));
+  if (taux.length === 0) return null;
+  return Math.round((taux.reduce((a, b) => a + b, 0) / taux.length) * 100) / 100;
+}
 
 export function registerMiscRoutes(app: FastifyInstance): void {
   // ----- Auth ---------------------------------------------------------------
@@ -89,6 +108,7 @@ export function registerMiscRoutes(app: FastifyInstance): void {
       scheduled: count(['scheduled', 'publishing']),
       published: count(['published']),
       aPublier: count(['to_publish']),
+      reecriture30j: reecritureMoyenne(),
       clicks7d,
       reach7d,
       engagement7d,

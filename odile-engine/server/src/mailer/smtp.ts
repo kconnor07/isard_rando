@@ -25,7 +25,7 @@ export function getTransporter(): Transporter {
 }
 
 export interface OutgoingMail {
-  kind: 'approval' | 'reminder' | 'li_comment_digest' | 'li_rappel' | 'a_publier' | 'rappel_lien' | 'connexion_refusee' | 'analytics' | 'error' | 'token_expiry' | 'test';
+  kind: 'approval' | 'reminder' | 'li_comment_digest' | 'li_rappel' | 'a_publier' | 'rappel_lien' | 'repost' | 'connexion_refusee' | 'analytics' | 'error' | 'token_expiry' | 'test';
   to: string;
   subject: string;
   html: string;

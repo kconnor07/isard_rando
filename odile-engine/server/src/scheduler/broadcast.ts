@@ -26,6 +26,7 @@ import type { MentionDeclaree } from '../writer/mentions.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 import { avecSite, lienPermis, porteLeSite, reseauDuCanal, type Reseau } from '../writer/marque.js';
 import { ACCROCHE_MAX, porteUnAppat, tutoie } from '../writer/reglesLinkedIn.js';
+import { registreDuCompte } from '../writer/faits.js';
 import { corrigerLigneSource, mediaDepuisUrl, sourceReelle } from '../writer/source.js';
 
 export { corrigerLigneSource, mediaDepuisUrl, sourceReelle };
@@ -100,11 +101,22 @@ export function cleEffective(post: Pick<Post, 'channel' | 'liAccountKey'>): stri
   return post.liAccountKey ?? compteDuPost(post)?.key ?? null;
 }
 
-/** Les surfaces qui manquent encore à un post pour couvrir tous les comptes. */
+/**
+ * Les surfaces qui manquent encore à un post pour couvrir tous les comptes.
+ *
+ * Stratégie LinkedIn 2026 : un même sujet ne part qu'une fois sur LinkedIn (les posts
+ * jumeaux entre fondateurs sont déclassés). Un post LinkedIn ne reçoit donc plus de
+ * copie LinkedIn ; un post Instagram en reçoit une seule, sur la Page. Les autres
+ * profils reçoivent à la place un repost commenté, préparé quand le post paraît.
+ */
 export function surfacesManquantes(post: Pick<Post, 'channel' | 'liAccountKey'>): SurfaceDiffusion[] {
   const cle = cleEffective(post);
   const memeSurface = (s: SurfaceDiffusion) => s.channel === post.channel && (s.channel === 'ig' || s.liAccountKey === cle);
-  return surfacesConnectees().filter((s) => !memeSurface(s));
+  const manquantes = surfacesConnectees().filter((s) => !memeSurface(s));
+  if (getStrategieLinkedIn().copiesEntreProfils) return manquantes;
+  if (post.channel !== 'ig') return manquantes.filter((s) => s.platform !== 'linkedin');
+  const page = manquantes.find((s) => s.channel === 'li_org');
+  return manquantes.filter((s) => s.platform !== 'linkedin' || s === page);
 }
 
 /**
@@ -257,7 +269,7 @@ Termine par UNE vraie question ouverte sur le cas du lecteur. ${
             lienAutorise
               ? `Juste avant la question, une ligne « ${libelleRessource(post)} : {{link}} » (écris {{link}} tel quel, c'est un emplacement).`
               : 'AUCUN lien, aucune adresse, aucun « lien en commentaire » : sur un profil, le lien se donne en réponse.'
-          } ${strategie.registre === 'vous' ? 'Vouvoiement du début à la fin.' : 'Tutoiement du début à la fin.'}`
+          } ${registreDuCompte(compte?.key) === 'vous' ? 'Vouvoiement du début à la fin.' : 'Tutoiement du début à la fin.'}`
       : dm.linkedinOffer === 'diagnostic'
         ? `APPEL À L'ACTION, dans cet ordre et sur deux lignes : d'abord la ressource et son adresse,
 en la nommant pour ce qu'elle est — « ${libelleRessource(post)} : {{link}} » (écris {{link}} tel quel,
@@ -312,7 +324,7 @@ ${consigneCta}`;
       legendeAdapteeSchema(vers, motcleVoulu, de === vers && vers === 'linkedin', {
         linkedin2026,
         lienAutorise,
-        vouvoiement: linkedin2026 && strategie.registre === 'vous',
+        vouvoiement: linkedin2026 && registreDuCompte(compte?.key) === 'vous',
       }),
     );
     const adapte = pose({ ...value, caption: corrigerLigneSource(value.caption, source?.media ?? null) }, motcleVoulu);
@@ -374,13 +386,13 @@ export function separerBlocFinal(caption: string): { corps: string; blocFinal: s
  * réécrivant en entier ; ici il ne corrige que ce qui cloche.
  */
 export async function reecrireLeBlocFinal(
-  post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook' | 'commentTriggerKeyword'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle' | 'channel'>>,
+  post: Pick<Post, 'id' | 'caption' | 'cta' | 'hook' | 'commentTriggerKeyword'> & Partial<Pick<Post, 'resourceKind' | 'resourceTitle' | 'channel' | 'liAccountKey'>>,
   motcleCible: string | null,
 ): Promise<{ caption: string; cta: string; motcle: string | null; echec?: string; couverture?: string }> {
   const dm = getDmTriggers();
   const strategie = getStrategieLinkedIn();
   const { corps, blocFinal } = separerBlocFinal(post.caption);
-  if (!strategie.motcleSurLinkedIn) return reecrireLaQuestionFinale(post, corps, blocFinal, strategie.registre);
+  if (!strategie.motcleSurLinkedIn) return reecrireLaQuestionFinale(post, corps, blocFinal, registreDuCompte(post.liAccountKey));
   const motcle = motcleCible ?? post.commentTriggerKeyword;
   const brut = { caption: post.caption, cta: post.cta, motcle };
   if (config.LLM_MODE === 'mock') return brut;
@@ -623,6 +635,9 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
       .run();
     // Même source nommée, mêmes @ vérifiés que l'original.
     await finaliserLeTexte(copie.id, surface.platform, parent.newsItemId, mentionsDeclarees(parent.mentions));
+    // Le texte de l'IA tel quel : la base du taux de réécriture humaine.
+    const ecrit = db.select({ caption: schema.posts.caption }).from(schema.posts).where(eq(schema.posts.id, copie.id)).get();
+    db.update(schema.posts).set({ texteGenere: ecrit?.caption ?? null }).where(eq(schema.posts.id, copie.id)).run();
     for (const slide of slides) {
       db.insert(schema.slides)
         .values({

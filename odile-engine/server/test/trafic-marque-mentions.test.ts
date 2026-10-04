@@ -111,9 +111,14 @@ describe('trafic vers le site : marque, site, mentions, doublons, espacement', a
   it('diffusion : un post sans compte occupe déjà celui qui le publiera — pas de copie pour ce même profil', () => {
     const post = creer({ liAccountKey: null });
     expect(cleEffective(post)).toBe('khaled');
+    // Copies entre profils (désactivées par défaut en 2026) : jamais sur le profil qui publie déjà.
+    setSetting('linkedin_strategie', { copiesEntreProfils: true });
     const manquantes = surfacesManquantes(post).map((s) => `${s.channel}:${s.liAccountKey ?? ''}`);
     expect(manquantes).toContain('li_personal:alexis');
     expect(manquantes).not.toContain('li_personal:khaled');
+    // Stratégie 2026 : un post LinkedIn ne reçoit plus aucune copie LinkedIn.
+    setSetting('linkedin_strategie', {});
+    expect(surfacesManquantes(post).some((s) => s.platform === 'linkedin')).toBe(false);
   });
 
   it('diffusion : un second exemplaire sur le même profil est bloqué, jamais le premier', () => {

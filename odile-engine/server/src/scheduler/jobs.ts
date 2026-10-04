@@ -145,12 +145,15 @@ export function registerJobs(): void {
     })().catch((err) => logger.error({ err: String(err) }, 'publish-due en échec'));
   }, { timezone: TZ });
 
-  // Rappel du lien : une heure après la publication, l'email qui donne le lien à poster soi-même.
+  // Après la publication : le rappel du lien (au bout d'une heure) et les reposts commentés des autres profils.
   // Le moteur ne commente plus rien sous les posts (commentaires automatisés déclassés en 2026).
   cron.schedule('*/10 * * * *', () => {
     void (async () => {
       const { rappelerLesLiens } = await import('../publishers/rappelLien.js');
       await runJob('rappel-lien', () => rappelerLesLiens());
+      // Et pour les autres profils, le repost commenté du post qui vient de paraître.
+      const { preparerLesReposts } = await import('../publishers/repost.js');
+      await runJob('reposts', () => preparerLesReposts());
     })().catch((err) => logger.error({ err: String(err) }, 'rappel-lien en échec'));
   }, { timezone: TZ });
 

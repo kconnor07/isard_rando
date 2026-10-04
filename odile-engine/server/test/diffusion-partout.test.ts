@@ -18,7 +18,7 @@ describe('diffusion simultanée', async () => {
     // Ces tests couvrent l'ancien tunnel LinkedIn (mot-clé + lien dans la description),
     // toujours disponible par réglage. La stratégie 2026 a ses propres tests (strategie-linkedin-2026).
     const { setSetting } = await import('../src/db/settingsRepo.js');
-    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true });
+    setSetting('linkedin_strategie', { motcleSurLinkedIn: true, lienDansLeCorpsProfils: true, profilsPubliesParLoutil: true, copiesEntreProfils: true });
     deleteToken('linkedin', 'li_person');
     deleteToken('linkedin', 'li_org');
     deleteToken('meta', 'ig_user');

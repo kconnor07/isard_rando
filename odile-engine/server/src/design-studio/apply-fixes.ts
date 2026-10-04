@@ -81,7 +81,7 @@ Renvoie l'intégralité corrigée (slides + caption + cta).`,
     });
   }
   db.update(schema.posts)
-    .set({ caption: relierLeLien(post, value.caption), cta: value.cta, updatedAt: new Date().toISOString() })
+    .set({ caption: relierLeLien(post, value.caption), texteGenere: relierLeLien(post, value.caption), cta: value.cta, updatedAt: new Date().toISOString() })
     .where(eq(schema.posts.id, postId))
     .run();
   return { applied: issues.length };

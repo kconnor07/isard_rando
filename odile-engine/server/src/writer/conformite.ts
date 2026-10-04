@@ -10,7 +10,7 @@
  * moment d'approuver ou de programmer (un défaut bloquant est refusé), et au
  * réalignement des anciens posts (ce qui est corrigeable est corrigé).
  */
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, ne, or } from 'drizzle-orm';
 import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getBrand, getDmTriggers, getStrategieLinkedIn } from '../db/settingsRepo.js';
@@ -18,7 +18,8 @@ import { compteDuPost } from '../publishers/linkedinAccounts.js';
 import { voisinTropProche } from '../scheduler/cadence.js';
 import { captionPorteLeMotCle } from './generate.js';
 import { hashtagDeMarque, lienPermis, porteLeSite, reseauDuCanal } from './marque.js';
-import { ACCROCHE_MAX, accroche, contientUnLien, finitSurUneQuestion, porteUnAppat, tutoie, vouvoie } from './reglesLinkedIn.js';
+import { ACCROCHE_MAX, accroche, contientUnLien, faitACompleter, finitSurUneQuestion, porteUnAppat, porteUnPitch, signauxIA, tutoie, vouvoie } from './reglesLinkedIn.js';
+import { registreDuCompte } from './faits.js';
 import { HASHTAGS_MAX } from '@odile/shared';
 
 type Post = typeof schema.posts.$inferSelect;
@@ -52,7 +53,11 @@ export interface Probleme {
     | 'lien-dans-le-corps'
     | 'accroche-longue'
     | 'registre'
-    | 'question-finale';
+    | 'question-finale'
+    | 'fait-a-completer'
+    | 'signaux-ia'
+    | 'promo-hors-quota'
+    | 'sujet-deja-pris';
   niveau: 'bloquant' | 'attention';
   message: string;
   /** le réalignement sait le corriger seul (sans réécriture par le modèle) */
@@ -113,6 +118,37 @@ function jumeauSurLeMemeProfil(post: Post, cle: string): Post | null {
       return ['scheduled', 'approved', 'awaiting_approval', 'draft', 'reviewing'].includes(f.status) && f.id < post.id;
     }) ?? null
   );
+}
+
+/**
+ * Le même sujet sur le profil d'un autre fondateur, dans les sept derniers jours :
+ * même article, ou même diffusion. Renvoie le post concurrent, le plus ancien.
+ */
+export function sujetPrisParUnAutreProfil(post: Post): { id: number; nom: string } | null {
+  if (post.channel !== 'li_personal' || (!post.newsItemId && !post.broadcastGroup)) return null;
+  const depuis = new Date(Date.now() - 7 * 86400_000).toISOString();
+  const moi = post.liAccountKey ?? compteDuPost(post)?.key ?? '';
+  const memeSujet = [
+    ...(post.newsItemId !== null ? [eq(schema.posts.newsItemId, post.newsItemId)] : []),
+    ...(post.broadcastGroup !== null ? [eq(schema.posts.broadcastGroup, post.broadcastGroup)] : []),
+  ];
+  const autres = db
+    .select()
+    .from(schema.posts)
+    .where(and(eq(schema.posts.channel, 'li_personal'), ne(schema.posts.id, post.id), or(...memeSujet)))
+    .all()
+    .filter(
+      (p) =>
+        p.status !== 'rejected' &&
+        (p.publishedAt ?? p.createdAt) >= depuis &&
+        (p.liAccountKey ?? compteDuPost(p)?.key ?? '') !== moi &&
+        ((post.newsItemId !== null && p.newsItemId === post.newsItemId) || (post.broadcastGroup !== null && p.broadcastGroup === post.broadcastGroup)) &&
+        // Le premier arrivé garde le sujet : seul le second est arrêté.
+        (p.status === 'published' || p.status === 'to_publish' || p.id < post.id),
+    );
+  const premier = autres.sort((a, b) => a.id - b.id)[0];
+  if (!premier) return null;
+  return { id: premier.id, nom: compteDuPost(premier)?.name ?? premier.liAccountKey ?? 'un autre compte' };
 }
 
 export function verifierPost(post: Post): Probleme[] {
@@ -205,14 +241,34 @@ export function verifierPost(post: Post): Probleme[] {
           message: `La première ligne fait ${accroche(caption).length} caractères : sur mobile, seuls les ${ACCROCHE_MAX} premiers se voient avant « …voir plus ». Coupez-la ou passez à la ligne plus tôt.`,
         });
       }
-      if (strategie.registre === 'vous' && tutoie(caption)) {
+      const registre = registreDuCompte(post.liAccountKey);
+      if (registre === 'vous' && tutoie(caption)) {
         problemes.push({ code: 'registre', niveau: 'attention', corrigeable: false, reecriture: true, message: 'Le texte tutoie le lecteur : la stratégie LinkedIn est au vouvoiement, du début à la fin.' });
-      } else if (strategie.registre === 'tu' && vouvoie(caption)) {
+      } else if (registre === 'tu' && vouvoie(caption)) {
         problemes.push({ code: 'registre', niveau: 'attention', corrigeable: false, reecriture: true, message: 'Le texte vouvoie le lecteur : la stratégie LinkedIn est au tutoiement, du début à la fin.' });
       }
       if (!finitSurUneQuestion(caption)) {
         problemes.push({ code: 'question-finale', niveau: 'attention', corrigeable: false, message: 'Le post ne finit pas sur une question : une question ouverte sur le cas du lecteur appelle des commentaires longs, ceux que LinkedIn récompense.' });
       }
+      const signaux = signauxIA(caption);
+      if (signaux.length > 0) {
+        problemes.push({ code: 'signaux-ia', niveau: 'attention', corrigeable: false, reecriture: true, message: `Le texte porte des signes d’un texte écrit par une IA : ${signaux.join(', ')}. Un texte 100 % IA fait 2,8 fois moins de portée : réécrivez ces passages.` });
+      }
+      if (post.channel === 'li_personal' && !post.promo && porteUnPitch(caption, [strategie.nomCourant, getBrand().name], strategie.offre)) {
+        problemes.push({ code: 'promo-hors-quota', niveau: 'attention', corrigeable: false, reecriture: true, message: `Ce post nomme ${strategie.nomCourant} ou son offre, alors que ce n’est pas le post promotionnel (un sur ${strategie.promoUnPostSur}) : les autres ne vendent rien.` });
+      }
+      const autre = post.channel === 'li_personal' && !strategie.copiesEntreProfils ? sujetPrisParUnAutreProfil(post) : null;
+      if (autre) {
+        problemes.push({
+          code: 'sujet-deja-pris',
+          niveau: 'bloquant',
+          corrigeable: false,
+          message: `Le même sujet part déjà sur le profil de ${autre.nom} cette semaine (post n° ${autre.id}) : deux fondateurs qui publient le même cas, LinkedIn y voit des posts jumeaux. Choisissez un autre sujet, ou préparez plutôt un repost commenté.`,
+        });
+      }
+    }
+    if (faitACompleter(caption)) {
+      problemes.push({ code: 'fait-a-completer', niveau: 'bloquant', corrigeable: false, message: 'Le post attend son fait vécu : remplacez l’emplacement « [FAIT VÉCU : …] » par ce que vous avez réellement vu ou fait (ou choisissez un fait dans la banque).' });
     }
     if (!linkedin2026 && post.linkId && diagnostic && !lienDansLeTexte) {
       problemes.push({ code: 'lien-absent', niveau: 'bloquant', corrigeable: true, message: 'Le lien de la ressource n’est pas dans la description : la personne n’a rien à ouvrir, et les réponses automatiques diraient qu’il y est.' });

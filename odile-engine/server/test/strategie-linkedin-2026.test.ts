@@ -111,8 +111,12 @@ describe('rédaction et diffusion selon la stratégie 2026', async () => {
     expect(post.caption.trim().endsWith('Source : Les Echos')).toBe(true);
     expect(JSON.parse(post.hashtags)).not.toContain('#OdileAI');
     expect(post.linkId).toBeTruthy();
+    // La banque de faits est vide : le post attend son fait vécu, et c'est le seul blocage.
+    expect(post.caption).toMatch(/\[FAIT VÉCU : /);
+    expect(post.faitId).toBeNull();
+    expect(post.texteGenere).toBe(post.caption);
     const bloquants = verifierPost(post).filter((p) => p.niveau === 'bloquant').map((p) => p.code);
-    expect(bloquants).toEqual([]);
+    expect(bloquants).toEqual(['fait-a-completer']);
   });
 
   it('un post de la Page garde son lien et l’adresse du site', async () => {
@@ -138,21 +142,29 @@ describe('rédaction et diffusion selon la stratégie 2026', async () => {
     expect(page.caption).toContain('{{link}}');
   });
 
-  it('diffuser un post de profil : la Page reçoit son lien, Instagram aucune adresse', async () => {
+  it('diffuser un post de profil : aucune copie LinkedIn (posts jumeaux), Instagram seulement', async () => {
     const { postId } = await draftPost({ newsItemId: actu().id, channel: 'li_personal', format: 'li_image' });
     db.update(schema.slides).set({ renderAssetId: 'a1' }).where(eq(schema.slides.postId, postId)).run();
     const crees = await diffuserPartout(postId);
-    expect(crees.length).toBeGreaterThanOrEqual(2);
+    expect(crees).toHaveLength(1);
     const parent = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get()!;
     const freres = freresDuGroupe(parent);
-    const page = freres.find((f) => f.channel === 'li_org')!;
-    const insta = freres.find((f) => f.channel === 'ig')!;
-    expect(page.caption).toMatch(/\/r\/[a-z2-9]+/);
-    expect(page.commentTriggerKeyword).toBeNull();
-    expect(JSON.parse(page.hashtags)).not.toContain('#OdileAI');
+    expect(freres.map((f) => f.channel)).toEqual(['ig']);
     // En simulation le texte n'est pas réécrit : le mot-clé Instagram (voir motcleDeSurface)
     // n'est posé que par une vraie réécriture. Aucune adresse, en tout cas.
-    expect(insta.caption).not.toMatch(/https?:/);
+    expect(freres[0]!.caption).not.toMatch(/https?:/);
+  });
+
+  it('diffuser un post Instagram : une seule copie LinkedIn, sur la Page, avec son lien', async () => {
+    const { postId } = await draftPost({ newsItemId: actu().id, channel: 'ig', format: 'static' });
+    db.update(schema.slides).set({ renderAssetId: 'a2' }).where(eq(schema.slides.postId, postId)).run();
+    await diffuserPartout(postId);
+    const parent = db.select().from(schema.posts).where(eq(schema.posts.id, postId)).get()!;
+    const linkedin = freresDuGroupe(parent).filter((f) => f.platform === 'linkedin');
+    expect(linkedin.map((f) => f.channel)).toEqual(['li_org']);
+    expect(linkedin[0]!.caption).toMatch(/\/r\/[a-z2-9]+/);
+    expect(JSON.parse(linkedin[0]!.hashtags)).not.toContain('#OdileAI');
+    expect(linkedin[0]!.texteGenere).toBeTruthy();
   });
 });
 

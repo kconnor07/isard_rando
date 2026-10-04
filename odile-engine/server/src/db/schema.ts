@@ -63,6 +63,27 @@ export const newsItems = sqliteTable(
 );
 
 /**
+ * Banque de faits vécus : ce qu'Odile a réellement fait ou observé (un audit, un appel,
+ * une boutique, un événement). Le rédacteur n'invente jamais un fait : il les prend ici,
+ * ou laisse un emplacement « [FAIT VÉCU] » que la personne complète.
+ */
+export const faits = sqliteTable('faits', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  texte: text('texte').notNull(),
+  /** quand c'est arrivé (AAAA-MM-JJ), pour ne pas raconter un fait périmé comme récent */
+  dateFait: text('date_fait'),
+  source: text('source', { enum: ['audit', 'appel', 'boutique', 'evenement', 'client', 'autre'] }).notNull().default('autre'),
+  /** le compte qui peut le raconter (clé du compte LinkedIn) — vide : tous */
+  compte: text('compte'),
+  /** le client a accepté d'être nommé ; sinon le texte reste anonyme */
+  accordClient: integer('accord_client', { mode: 'boolean' }).notNull().default(false),
+  actif: integer('actif', { mode: 'boolean' }).notNull().default(true),
+  utilisations: integer('utilisations').notNull().default(0),
+  dernierUsage: text('dernier_usage'),
+  createdAt: text('created_at').notNull().$defaultFn(now),
+});
+
+/**
  * Un SUJET de veille : plusieurs articles qui parlent de la même chose, ou une
  * douleur de dirigeant, ou un rendez-vous du calendrier des PME. C'est ce que le
  * fondateur choisit — un article isolé ne dit pas s'il y a matière à un post.
@@ -122,6 +143,14 @@ export const posts = sqliteTable(
      */
     amplifiedAt: text('amplified_at'),
     amplifiedBy: text('amplified_by'),
+    /** Le fait vécu de la banque que ce post raconte (stratégie LinkedIn 2026). */
+    faitId: integer('fait_id'),
+    /** Le texte tel que l'IA l'a rendu : comparé au texte publié, il donne le taux de réécriture humaine. */
+    texteGenere: text('texte_genere'),
+    /** Le post promotionnel du cycle (un sur dix) : le seul qui nomme la marque et l'offre. */
+    promo: integer('promo', { mode: 'boolean' }).notNull().default(false),
+    /** JSON [{compte, nom, texte}] : les reposts commentés préparés pour les autres profils. */
+    reposts: text('reposts'),
     format: text('format', { enum: ['carousel', 'static', 'li_image', 'li_doc', 'reel'] }).notNull(),
     theme: text('theme').notNull(),
     language: text('language').notNull().default('fr'),
@@ -403,7 +432,7 @@ export const oauthTokens = sqliteTable(
 export const emailLog = sqliteTable('email_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   kind: text('kind', {
-    enum: ['approval', 'reminder', 'li_comment_digest', 'li_rappel', 'a_publier', 'rappel_lien', 'connexion_refusee', 'analytics', 'error', 'token_expiry', 'test'],
+    enum: ['approval', 'reminder', 'li_comment_digest', 'li_rappel', 'a_publier', 'rappel_lien', 'repost', 'connexion_refusee', 'analytics', 'error', 'token_expiry', 'test'],
   }).notNull(),
   postId: integer('post_id'),
   to: text('to').notNull(),

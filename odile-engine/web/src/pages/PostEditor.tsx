@@ -510,7 +510,17 @@ export default function PostEditor() {
           <span className="text-xs text-muted">ou corrige le texte à la main ci-dessous.</span>
         </div>
       )}
+      {post.faitACompleter && <BlocFaitVecu post={post} />}
       {post.publieParLaPersonne && <BlocAPublier post={post} />}
+      {(post.reposts?.length ?? 0) > 0 && <BlocReposts post={post} />}
+      {post.platform === 'linkedin' && (post.promo || post.reecriture !== null && post.reecriture !== undefined) && (
+        <p className="mb-4 text-xs text-muted">
+          {post.promo ? '📣 Post promotionnel du cycle : le seul qui nomme la marque et l’offre. ' : ''}
+          {post.reecriture !== null && post.reecriture !== undefined
+            ? `Texte réécrit à ${Math.round(post.reecriture * 100)} % par vous${post.reecriture < 0.15 ? ' — un texte presque 100 % IA fait nettement moins de portée : ajoutez votre façon de dire.' : '.'}`
+            : ''}
+        </p>
+      )}
       {post.commentTriggerKeyword !== null && <BlocMotCle post={post} />}
       {post.format === 'reel' && <BlocVideo post={post} />}
       {post.format === 'li_doc' && !inProgress && post.slideCount > 0 && (
@@ -846,6 +856,93 @@ function BlocVideo({ post }: { post: PostDetailDto }) {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Le post attend son fait vécu : l'IA n'en invente jamais. On l'écrit ici (il rejoint
+ * la banque) ou on le choisit dans la banque ; le texte l'intègre à la place de
+ * l'emplacement « [FAIT VÉCU : …] ».
+ */
+function BlocFaitVecu({ post }: { post: PostDetailDto }) {
+  const qc = useQueryClient();
+  const { data: faits } = useQuery({
+    queryKey: ['faits'],
+    queryFn: () => api.get<{ id: number; texte: string; actif: boolean; compte: string | null }[]>('/api/faits'),
+  });
+  const [texte, setTexte] = useState('');
+  const [accord, setAccord] = useState(false);
+  const [enregistrer, setEnregistrer] = useState(true);
+  const consigne = /\[\s*FAIT V[ÉE]CU\s*:?\s*([^\]]*)\]/i.exec(post.caption)?.[1]?.trim();
+  const integrer = useMutation({
+    mutationFn: (corps: { faitId: number } | { texte: string; accordClient: boolean; enregistrer: boolean; source: 'autre' }) =>
+      api.post(`/api/posts/${post.id}/fait`, corps),
+    onSuccess: () => {
+      setTexte('');
+      void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      void qc.invalidateQueries({ queryKey: ['faits'] });
+      toast.success('Fait vécu intégré au texte');
+    },
+    onError: (err) => toast.error(humanizeError(err)),
+  });
+  const disponibles = (faits ?? []).filter((f) => f.actif && (!f.compte || f.compte === post.liAccountKey));
+  return (
+    <div className="card mb-4 border-accent/50 p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">Fait vécu à compléter</div>
+      <p className="mt-1 text-sm">
+        Ce post raconte un fait réel, et l’IA n’en invente jamais.{consigne ? <> Ce qu’il faudrait ici : <i>{consigne}</i>.</> : ''} Écrivez ce que vous avez vu ou fait, en une ou deux phrases.
+      </p>
+      <textarea className="input mt-3 min-h-[4.5rem]" maxLength={600} value={texte} onChange={(e) => setTexte(e.target.value)}
+        placeholder="ex. Mardi, un menuisier de Muret m’a montré ses devis : ils partaient cinq jours après la visite." />
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" className="accent-sky-500" checked={accord} onChange={(e) => setAccord(e.target.checked)} /> Le client accepte d’être nommé</label>
+        <label className="flex items-center gap-2"><input type="checkbox" className="accent-sky-500" checked={enregistrer} onChange={(e) => setEnregistrer(e.target.checked)} /> L’ajouter à la banque de faits</label>
+        <button className="btn-primary !py-1.5 text-xs" disabled={integrer.isPending || texte.trim().length < 15}
+          onClick={() => integrer.mutate({ texte: texte.trim(), accordClient: accord, enregistrer, source: 'autre' })}>
+          {integrer.isPending ? 'Intégration…' : 'Intégrer au texte'}
+        </button>
+      </div>
+      {disponibles.length > 0 && (
+        <div className="mt-3">
+          <label className="label">Ou un fait de la banque</label>
+          <div className="flex flex-col gap-1">
+            {disponibles.slice(0, 6).map((f) => (
+              <button key={f.id} className="btn-ghost justify-start !py-1 text-left text-xs" disabled={integrer.isPending} onClick={() => integrer.mutate({ faitId: f.id })}>
+                {f.texte.length > 140 ? `${f.texte.slice(0, 140)}…` : f.texte}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Les reposts commentés préparés pour les autres profils, quand ce post a paru. */
+function BlocReposts({ post }: { post: PostDetailDto }) {
+  const copier = async (texte: string) => {
+    try {
+      await navigator.clipboard.writeText(texte);
+      toast.success('Texte copié — sur LinkedIn : Republier, puis « Republier avec vos idées »');
+    } catch {
+      toast.error('Copie impossible : sélectionnez le texte à la main');
+    }
+  };
+  return (
+    <div className="card mb-4 p-4">
+      <div className="text-xs font-semibold uppercase tracking-wider text-muted">Reposts commentés à faire</div>
+      <p className="mt-1 text-xs text-muted">
+        Plutôt qu’un second post sur le même sujet : chaque profil repartage celui-ci avec son avis.
+        {post.externalUrl?.startsWith('http') ? <> <a className="underline" href={post.externalUrl} target="_blank" rel="noreferrer">Ouvrir le post</a>.</> : ''}
+      </p>
+      {(post.reposts ?? []).map((r) => (
+        <div key={r.compte} className="mt-3">
+          <div className="text-sm font-semibold">{r.nom}</div>
+          <p className="mt-1 whitespace-pre-wrap rounded-lg bg-white/[0.04] p-3 text-sm">{r.texte}</p>
+          <button className="btn-ghost mt-2 !py-1 text-xs" onClick={() => void copier(r.texte)}>Copier</button>
+        </div>
+      ))}
     </div>
   );
 }

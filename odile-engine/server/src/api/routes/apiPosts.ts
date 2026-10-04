@@ -30,6 +30,8 @@ export { formatPourPlateforme };
 import { runJob } from '../../lib/jobRunner.js';
 import { mirrorToFacebookPage, legendePourFacebook } from '../../publishers/facebook.js';
 import { buildCaption, collectPublishImages } from '../../publishers/types.js';
+import { repostsDuPost } from '../../publishers/repost.js';
+import { faitACompleter, tauxDeReecriture } from '../../writer/reglesLinkedIn.js';
 import { runDesignReview } from '../../design-studio/index.js';
 import { sendApprovalEmail } from '../../mailer/approvalEmail.js';
 import { themeExists } from '../../render/custom-theme.js';
@@ -217,6 +219,12 @@ export function registerPostRoutes(app: FastifyInstance): void {
       // Profil personnel en mode brouillon : le texte exact à coller dans LinkedIn.
       publieParLaPersonne: publieParLaPersonne(post),
       texteAPublier: post.platform === 'linkedin' ? buildCaption(post) : null,
+      // Stratégie 2026 : le fait raconté, le post promotionnel, la part réécrite par la personne.
+      faitId: post.faitId,
+      faitACompleter: faitACompleter(post.caption),
+      promo: post.promo,
+      reecriture: post.texteGenere ? tauxDeReecriture(post.texteGenere, post.caption) : null,
+      reposts: repostsDuPost(post),
     };
   });
 

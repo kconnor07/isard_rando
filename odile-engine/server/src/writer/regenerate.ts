@@ -37,7 +37,7 @@ export async function regeneratePart(opts: RegenerateOptions): Promise<{ ok: tru
       captionSchema,
     );
     db.update(schema.posts)
-      .set({ caption: relierLeLien(post, value.caption), cta: value.cta, updatedAt: new Date().toISOString() })
+      .set({ caption: relierLeLien(post, value.caption), texteGenere: relierLeLien(post, value.caption), cta: value.cta, updatedAt: new Date().toISOString() })
       .where(eq(schema.posts.id, opts.postId))
       .run();
     return { ok: true };

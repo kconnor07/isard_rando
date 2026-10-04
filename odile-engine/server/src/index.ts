@@ -6,9 +6,12 @@ import { startServer } from './api/server.js';
 import { registerJobs } from './scheduler/jobs.js';
 import { seedSourcesIfEmpty } from './scraper/sources.js';
 import { reparerAuDemarrage } from './scheduler/realigner.js';
+import { unifierLOffre } from './db/settingsRepo.js';
 
 async function main(): Promise<void> {
   seedSourcesIfEmpty();
+  // Une seule offre d'entrée : les anciens textes par défaut « 20 minutes » prennent la nouvelle.
+  unifierLOffre();
   // Les posts en attente disent vrai dès le démarrage : compte attribué, lien reposé,
   // adresses retirées d'Instagram, hashtags bornés, dates orphelines effacées.
   try {

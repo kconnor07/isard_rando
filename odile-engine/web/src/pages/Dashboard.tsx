@@ -58,16 +58,20 @@ function Thread({ summary }: { summary?: SummaryDto }) {
     {
       key: 'validation',
       label: 'Validation',
-      value: summary?.awaitingApproval ?? null,
-      hint: 'posts qui attendent votre œil',
+      value: summary ? summary.awaitingApproval + (summary.aPublier ?? 0) : null,
+      hint: summary?.aPublier ? `à valider · ${summary.aPublier} à publier vous-même` : 'posts qui attendent votre œil',
       to: '/approvals',
-      live: (summary?.awaitingApproval ?? 0) > 0,
+      live: (summary?.awaitingApproval ?? 0) + (summary?.aPublier ?? 0) > 0,
     },
     {
       key: 'publication',
       label: 'Publication',
       value: summary ? summary.scheduled + summary.published : null,
-      hint: summary ? `${summary.scheduled} programmés · ${summary.published} publiés` : '',
+      hint: summary
+        ? `${summary.scheduled} programmés · ${summary.published} publiés${
+            summary.reecriture30j !== null && summary.reecriture30j !== undefined ? ` · texte réécrit à ${Math.round(summary.reecriture30j * 100)} % (30 j)` : ''
+          }`
+        : '',
       to: '/calendar',
     },
     {
