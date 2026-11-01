@@ -17,7 +17,7 @@ interface AlgoliaHit {
  * nouveau Qwen » sont des actualités IA sans que le titre le dise.
  */
 export const AI_PATTERN =
-  /\b(ai|a\.i\.|ia|llms?|gpt\S*|chatgpt|claude\w*|gemini\w*|openai|anthropic|mistral\w*|copilot|agents?|agentic|automation|automatisation|machine[ -]learning|deep[ -]learning|chatbots?|neural|models?|transformers?|diffusion|deepseek\w*|qwen\w*|llama\w*|gemma\w*|grok\w*|xai|nvidia|cursor|codex|sora\w*|veo\w*|midjourney|whisper|rag|mcp|prompts?|prompting|hallucinat\w*|inference|fine-?tun\w*|benchmark\w*|robots?|humanoid|perplexity|hugging ?face|n8n|zapier|langchain|vibe coding|autonomous|speech|voice|text-to-\w+|ocr|embedding\w*|gpus?|tpus?|datacenters?|data centers?)\b/i;
+  /\b(ai|a\.i\.|ia|intelligence artificielle|artificial intelligence|g[ée]n[ée]rativ\w*|llms?|gpt\S*|chatgpt|claude\w*|gemini\w*|openai|anthropic|mistral\w*|copilot|agents?|agentic|automation|automatisation|machine[ -]learning|deep[ -]learning|chatbots?|neural|models?|transformers?|diffusion|deepseek\w*|qwen\w*|llama\w*|gemma\w*|grok\w*|xai|nvidia|cursor|codex|sora\w*|veo\w*|midjourney|whisper|rag|mcp|prompts?|prompting|hallucinat\w*|inference|fine-?tun\w*|benchmark\w*|robots?|humanoid|perplexity|hugging ?face|n8n|zapier|langchain|vibe coding|autonomous|speech|voice|text-to-\w+|ocr|embedding\w*|gpus?|tpus?|datacenters?|data centers?)\b/i;
 
 /** Les repères temporels de l'URL (« {24h} », « {7d} ») deviennent un horodatage Unix. */
 export function resolveHnQuery(url: string, now = new Date()): string {

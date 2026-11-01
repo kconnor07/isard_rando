@@ -111,8 +111,21 @@ async function processSource(
     } else if (source.kind === 'hf') {
       const { fetchHuggingFace } = await import('./huggingface.js');
       items = await fetchHuggingFace(source.url);
+    } else if (source.kind === 'openrouter') {
+      const { fetchOpenRouter } = await import('./openrouter.js');
+      items = await fetchOpenRouter(source.url);
+    } else if (source.kind === 'bluesky') {
+      const { fetchBluesky } = await import('./bluesky.js');
+      items = await fetchBluesky(source.url);
+    } else if (source.kind === 'mastodon') {
+      const { fetchMastodonTrends } = await import('./mastodon.js');
+      items = await fetchMastodonTrends(source.url);
     } else {
-      const result = await fetchRss(source.url, source.etag, source.lastModified, estTendanceIA(source.name) ? { ageMaxJours: 3 } : {});
+      // Flux RSS/Atom ; les chaînes YouTube passent par l'API Data quand une clé est là.
+      const result =
+        source.kind === 'youtube'
+          ? await (await import('./youtube.js')).fetchYoutube(source.url, source.etag, source.lastModified)
+          : await fetchRss(source.url, source.etag, source.lastModified, estTendanceIA(source.name) ? { ageMaxJours: 3 } : {});
       if (result.notModified) {
         db.update(schema.newsSources)
           .set({ lastFetchedAt: new Date().toISOString(), lastError: null, consecutiveErrors: 0 })
@@ -147,8 +160,28 @@ async function processSource(
         .onConflictDoNothing({ target: schema.newsItems.contentHash })
         .returning({ id: schema.newsItems.id })
         .all();
-      if (inserted.length > 0) summary.inserted++;
-      else summary.duplicates++;
+      if (inserted.length > 0) {
+        summary.inserted++;
+        continue;
+      }
+      summary.duplicates++;
+      // Le même lien, remonté par une autre source : une reprise de plus, pas un rebut.
+      const existant = db
+        .select({
+          id: schema.newsItems.id,
+          sourceId: schema.newsItems.sourceId,
+          echoes: schema.newsItems.echoes,
+          echoSources: schema.newsItems.echoSources,
+          engagement: schema.newsItems.engagement,
+          engagementRaw: schema.newsItems.engagementRaw,
+        })
+        .from(schema.newsItems)
+        .where(eq(schema.newsItems.contentHash, contentHash(canonical)))
+        .get();
+      if (existant) {
+        const maj = echoDuMemeLien(existant, source.id, item);
+        if (maj) db.update(schema.newsItems).set(maj).where(eq(schema.newsItems.id, existant.id)).run();
+      }
     }
 
     db.update(schema.newsSources)
@@ -189,6 +222,42 @@ Réactive-la depuis le dashboard → Réglages → Sources (après avoir corrig�
       }
     }
   }
+}
+
+/**
+ * Le même lien remonté par une autre source (un article de presse partagé sur Bluesky
+ * ou Mastodon, par exemple) n'est pas un doublon à jeter : c'est une reprise de plus,
+ * comptée comme un écho, et l'item garde le meilleur signal social des deux.
+ */
+export function echoDuMemeLien(
+  existant: {
+    sourceId: number | null;
+    echoes: number;
+    echoSources: string | null;
+    engagement: number | null;
+    engagementRaw: string | null;
+  },
+  sourceId: number,
+  item: Pick<FetchedItem, 'engagement' | 'engagementRaw'>,
+): { echoes: number; echoSources: string; engagement?: number; engagementRaw?: string | null } | null {
+  if (existant.sourceId === sourceId) return null;
+  let sources: number[] = [];
+  try {
+    const lu = existant.echoSources ? (JSON.parse(existant.echoSources) as unknown) : [];
+    sources = Array.isArray(lu) ? lu.filter((x): x is number => typeof x === 'number') : [];
+  } catch {
+    sources = [];
+  }
+  if (sources.includes(sourceId)) return null;
+  const maj: { echoes: number; echoSources: string; engagement?: number; engagementRaw?: string | null } = {
+    echoes: existant.echoes + 1,
+    echoSources: JSON.stringify([...sources, sourceId]),
+  };
+  if (item.engagement != null && item.engagement > (existant.engagement ?? -1)) {
+    maj.engagement = item.engagement;
+    maj.engagementRaw = item.engagementRaw ?? null;
+  }
+  return maj;
 }
 
 /**

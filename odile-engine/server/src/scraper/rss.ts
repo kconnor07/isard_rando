@@ -68,7 +68,7 @@ export async function fetchRss(
     // MSN republie les articles des autres : la source citée serait fausse, et
     // l'original est presque toujours dans la même recherche.
     if (recherche && /(^|\.)msn\.com$/i.test(hoteDe(link))) continue;
-    const date = item.isoDate ?? (item.pubDate ? new Date(item.pubDate).toISOString() : null);
+    const date = dateSure(item.isoDate, item.pubDate);
     // Une recherche d'actualités remonte aussi des articles d'il y a deux ans.
     if (date && Date.now() - new Date(date).getTime() > ageMax) continue;
     const media = (item as unknown as Record<string, unknown>).mediaContent as
@@ -120,6 +120,28 @@ export function lienReel(link: string): string {
     /* lien relatif ou illisible : on le garde tel quel */
   }
   return link;
+}
+
+/**
+ * Date ISO fiable, ou null. Certains flux datent autrement : France Num écrit
+ * « 29/10/2026 - 08:19 », la CNIL un millésime à deux chiffres ; une date illisible
+ * ne doit jamais faire échouer tout le flux.
+ */
+export function dateSure(iso: string | undefined, brut: string | undefined): string | null {
+  if (iso) {
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  if (!brut) return null;
+  const d = new Date(brut);
+  if (!Number.isNaN(d.getTime())) return d.toISOString();
+  const fr = brut.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s*-\s*(\d{2}):(\d{2}))?/);
+  if (fr) {
+    const [, jj, mm, aaaa, hh = '00', mn = '00'] = fr;
+    const d2 = new Date(`${aaaa}-${mm}-${jj}T${hh}:${mn}:00+01:00`);
+    if (!Number.isNaN(d2.getTime())) return d2.toISOString();
+  }
+  return null;
 }
 
 function hoteDe(url: string): string {

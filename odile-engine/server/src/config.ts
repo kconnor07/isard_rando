@@ -22,6 +22,8 @@ const envSchema = z.object({
   REDDIT_CLIENT_SECRET: z.string().optional(),
   /** facultatif : relève le plafond de la recherche GitHub (10 req/min sans clé suffisent à la veille) */
   GITHUB_TOKEN: z.string().optional(),
+  /** facultatif : lit les chaînes YouTube par l'API Data (le flux Atom est refusé aux serveurs) */
+  YOUTUBE_API_KEY: z.string().optional(),
   /** facultatif : la clé HeyGen se saisit normalement dans Connexions & santé */
   HEYGEN_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL_WRITER: z.string().default('claude-sonnet-5'),

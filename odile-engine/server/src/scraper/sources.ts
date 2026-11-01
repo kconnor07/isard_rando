@@ -1,9 +1,10 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
+import { rechercheBluesky } from './bluesky.js';
 
 export interface SeedSource {
   name: string;
-  kind: 'rss' | 'hn' | 'youtube' | 'reddit' | 'github' | 'hf';
+  kind: 'rss' | 'hn' | 'youtube' | 'reddit' | 'github' | 'hf' | 'openrouter' | 'bluesky' | 'mastodon';
   url: string;
   lang: 'fr' | 'en';
   weight: number;
@@ -52,6 +53,9 @@ export function estTendanceIA(nom: string): boolean {
   return /^Tendances IA · /.test(nom);
 }
 
+/** Le flux Product Hunt filtré sur l'IA : le flux général noie les lancements IA dans tout le reste. */
+export const PRODUCT_HUNT_IA = 'https://www.producthunt.com/feed?category=artificial-intelligence';
+
 /**
  * Sources de veille par défaut. Elles vivent en base (news_sources) :
  * on peut en ajouter/désactiver depuis le dashboard sans toucher au code.
@@ -65,7 +69,7 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'OpenAI Blog', kind: 'rss', url: 'https://openai.com/news/rss.xml', lang: 'en', weight: 1.1 },
   { name: 'Google AI Blog', kind: 'rss', url: 'https://blog.google/technology/ai/rss/', lang: 'en', weight: 1.0 },
   { name: 'MIT Tech Review AI', kind: 'rss', url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed', lang: 'en', weight: 1.0, enabled: false },
-  { name: 'Product Hunt', kind: 'rss', url: 'https://www.producthunt.com/feed', lang: 'en', weight: 0.9, enabled: false },
+  { name: 'Product Hunt', kind: 'rss', url: PRODUCT_HUNT_IA, lang: 'en', weight: 0.9, enabled: false },
   // Côté client, pas côté technologie : ce que vivent les dirigeants de TPE/PME
   // françaises. C'est là que se trouvent les douleurs qu'Odile sait automatiser.
   { name: 'Dynamique Entrepreneuriale', kind: 'rss', url: 'https://www.dynamique-mag.com/feed', lang: 'fr', weight: 1.2 },
@@ -131,6 +135,61 @@ export const SEED_SOURCES: SeedSource[] = [
   // Veille v5 — Hugging Face : là où naissent les modèles dont LinkedIn parle le lendemain.
   { name: 'Hugging Face · modèles tendance', kind: 'hf', url: 'https://huggingface.co/api/models?sort=trendingScore&limit=25', lang: 'en', weight: 1.0 },
   { name: 'Hugging Face · papiers du jour', kind: 'hf', url: 'https://huggingface.co/api/daily_papers?limit=20', lang: 'en', weight: 0.8 },
+  // Veille v6 — les sources primaires : l'annonce y paraît des heures avant la presse
+  // (flux vérifiés le 1er novembre 2026 ; Mistral sert son RSS en text/plain, ça se lit quand même).
+  { name: 'Mistral AI', kind: 'rss', url: 'https://mistral.ai/news/rss', lang: 'en', weight: 1.2 },
+  { name: 'Google · Gemini', kind: 'rss', url: 'https://blog.google/products-and-platforms/products/gemini/rss/', lang: 'en', weight: 1.0 },
+  { name: 'Meta Newsroom', kind: 'rss', url: 'https://about.fb.com/news/feed/', lang: 'en', weight: 0.8 },
+  { name: 'Microsoft · Copilot', kind: 'rss', url: 'https://www.microsoft.com/en-us/copilot/blog/feed/', lang: 'en', weight: 0.9 },
+  { name: 'GitHub · Changelog', kind: 'rss', url: 'https://github.blog/changelog/feed/', lang: 'en', weight: 0.8 },
+  { name: 'GitHub · IA & ML', kind: 'rss', url: 'https://github.blog/ai-and-ml/feed/', lang: 'en', weight: 0.9 },
+  { name: 'n8n · versions', kind: 'rss', url: 'https://github.com/n8n-io/n8n/releases.atom', lang: 'en', weight: 0.8 },
+  { name: 'n8n · communauté', kind: 'rss', url: 'https://community.n8n.io/latest.rss', lang: 'en', weight: 0.6 },
+  { name: 'Make · communauté', kind: 'rss', url: 'https://community.make.com/latest.rss', lang: 'en', weight: 0.6 },
+  { name: 'Cursor · changelog', kind: 'rss', url: 'https://cursor.com/changelog/rss.xml', lang: 'en', weight: 0.8 },
+  { name: 'LangChain Blog', kind: 'rss', url: 'https://www.langchain.com/blog/rss.xml', lang: 'en', weight: 0.8 },
+  // OpenRouter liste les modèles de tous les éditeurs avec leur date d'arrivée et leur prix :
+  // le détecteur de lancement le plus simple qui existe.
+  { name: 'OpenRouter · nouveaux modèles', kind: 'openrouter', url: 'https://openrouter.ai/api/v1/models', lang: 'en', weight: 1.1 },
+  // Veille v6 — ceux qui trient l'actu IA pour les autres (agrégateur, lettres du matin) :
+  // une confirmation le lendemain, et l'angle « ce qui compte vraiment ».
+  { name: 'Techmeme', kind: 'rss', url: 'https://www.techmeme.com/feed.xml', lang: 'en', weight: 1.0 },
+  { name: 'TLDR AI', kind: 'rss', url: 'https://tldr.tech/api/rss/ai', lang: 'en', weight: 1.1 },
+  { name: 'The Neuron', kind: 'rss', url: 'https://rss.beehiiv.com/feeds/N4eCstxvgX.xml', lang: 'en', weight: 1.0 },
+  { name: 'Latent Space', kind: 'rss', url: 'https://www.latent.space/feed', lang: 'en', weight: 0.8 },
+  { name: 'Import AI', kind: 'rss', url: 'https://importai.substack.com/feed', lang: 'en', weight: 0.8 },
+  { name: 'Ars Technica · IA', kind: 'rss', url: 'https://arstechnica.com/ai/feed/', lang: 'en', weight: 1.0 },
+  { name: 'MarkTechPost', kind: 'rss', url: 'https://www.marktechpost.com/feed/', lang: 'en', weight: 0.7 },
+  // Veille v6 — la presse française spécialisée (IA, informatique d'entreprise, marketing)
+  // et les lettres d'information IA en français.
+  { name: 'Le Monde · Intelligence artificielle', kind: 'rss', url: 'https://www.lemonde.fr/intelligence-artificielle/rss_full.xml', lang: 'fr', weight: 1.2 },
+  { name: 'Le Monde Informatique · IA', kind: 'rss', url: 'https://www.lemondeinformatique.fr/flux-rss/thematique/intelligence-artificielle/rss.xml', lang: 'fr', weight: 1.1 },
+  { name: 'Developpez · IA', kind: 'rss', url: 'https://intelligence-artificielle.developpez.com/index/rss', lang: 'fr', weight: 0.8 },
+  { name: 'Solutions Numériques', kind: 'rss', url: 'https://www.solutions-numeriques.com/feed/', lang: 'fr', weight: 0.9 },
+  { name: 'LeMagIT', kind: 'rss', url: 'https://www.lemagit.fr/rss/ContentSyndication.xml', lang: 'fr', weight: 0.9 },
+  { name: 'JDN · Web & Tech', kind: 'rss', url: 'https://www.journaldunet.com/web-tech/rss/', lang: 'fr', weight: 0.9 },
+  { name: 'Codeur.com · blog', kind: 'rss', url: 'https://www.codeur.com/blog/feed/', lang: 'fr', weight: 0.8 },
+  { name: 'LEPTIDIGITAL', kind: 'rss', url: 'https://www.leptidigital.fr/feed/', lang: 'fr', weight: 0.8 },
+  { name: 'Webmarketing & co’m', kind: 'rss', url: 'https://www.webmarketing-com.com/feed', lang: 'fr', weight: 0.7 },
+  { name: 'Abondance (SEO)', kind: 'rss', url: 'https://www.abondance.com/feed', lang: 'fr', weight: 0.8 },
+  { name: 'IA-Pulse (lettre hebdo)', kind: 'rss', url: 'https://iapulse.substack.com/feed', lang: 'fr', weight: 0.9 },
+  { name: 'La Lettre de Flint', kind: 'rss', url: 'https://rss.beehiiv.com/feeds/34rMwxKHj7.xml', lang: 'fr', weight: 0.9 },
+  // Veille v6 — l'État et les régulateurs : aides, obligations, RGPD, AI Act, dits pour les TPE/PME.
+  { name: 'France Num', kind: 'rss', url: 'https://www.francenum.gouv.fr/flux-rss-principal', lang: 'fr', weight: 1.0 },
+  { name: 'DGE · entreprises.gouv.fr', kind: 'rss', url: 'https://www.entreprises.gouv.fr/rss.xml', lang: 'fr', weight: 0.8 },
+  { name: 'CNIL', kind: 'rss', url: 'https://www.cnil.fr/fr/rss.xml', lang: 'fr', weight: 1.0 },
+  { name: 'Hub France IA', kind: 'rss', url: 'https://www.hub-franceia.fr/feed/', lang: 'fr', weight: 0.7 },
+  // Veille v6 — les signaux sociaux ouverts : Bluesky (une requête par entité, les meilleurs
+  // posts des 24 dernières heures ; X ne se lit plus gratuitement) et les liens que le
+  // Fédivers partage le plus. Un lien déjà en base compte alors comme un écho de plus.
+  { name: 'Bluesky · intelligence artificielle (fr)', kind: 'bluesky', url: rechercheBluesky('intelligence artificielle', 'fr'), lang: 'fr', weight: 0.8 },
+  { name: 'Bluesky · ChatGPT (fr)', kind: 'bluesky', url: rechercheBluesky('ChatGPT', 'fr'), lang: 'fr', weight: 0.8 },
+  { name: 'Bluesky · OpenAI', kind: 'bluesky', url: rechercheBluesky('OpenAI'), lang: 'en', weight: 0.8 },
+  { name: 'Bluesky · Anthropic', kind: 'bluesky', url: rechercheBluesky('Anthropic'), lang: 'en', weight: 0.8 },
+  { name: 'Bluesky · Mistral', kind: 'bluesky', url: rechercheBluesky('Mistral AI'), lang: 'en', weight: 0.8 },
+  { name: 'Bluesky · agents IA', kind: 'bluesky', url: rechercheBluesky('AI agents'), lang: 'en', weight: 0.7 },
+  { name: 'Mastodon · liens tendance', kind: 'mastodon', url: 'https://mastodon.social/api/v1/trends/links?limit=40', lang: 'en', weight: 0.8 },
+  { name: 'Mastodon · liens tendance (sigmoid.social)', kind: 'mastodon', url: 'https://sigmoid.social/api/v1/trends/links?limit=40', lang: 'en', weight: 0.8 },
   // Veille v4 — le terrain des PME françaises, par mots-clés, dans toute la presse.
   // Chaque requête a été vérifiée : elle ramène des articles de la semaine.
   ...RECHERCHES_ACTUS.map(([name, requete, weight]) => ({ name, kind: 'rss' as const, url: rechercheActus(requete), lang: 'fr' as const, weight })),
@@ -149,6 +208,11 @@ export function seedSourcesIfEmpty(): number {
   // Une base qui reçoit les recherches d'actualités pour la première fois reçoit
   // aussi le rééquilibrage qui va avec (une seule fois : ensuite, le dashboard décide).
   const premiereFoisActus = existing.size > 0 && !RECHERCHES_ACTUS.some(([name]) => existing.has(name));
+  // Les bases d'avant la veille v6 lisaient le flux Product Hunt général : on le recentre sur l'IA.
+  db.update(schema.newsSources)
+    .set({ url: PRODUCT_HUNT_IA })
+    .where(and(eq(schema.newsSources.name, 'Product Hunt'), eq(schema.newsSources.url, 'https://www.producthunt.com/feed')))
+    .run();
   let added = 0;
   for (const s of SEED_SOURCES) {
     if (existing.has(s.name)) continue;

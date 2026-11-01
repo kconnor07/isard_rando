@@ -187,7 +187,7 @@ export function registerNewsRoutes(app: FastifyInstance): void {
   // ----- Sources de veille ---------------------------------------------------
   app.get('/api/sources', async () => db.select().from(schema.newsSources).all());
 
-  app.post<{ Body: { name: string; url: string; kind?: 'rss' | 'hn' | 'youtube' | 'github' | 'hf'; lang?: 'fr' | 'en'; weight?: number } }>(
+  app.post<{ Body: { name: string; url: string; kind?: 'rss' | 'hn' | 'youtube' | 'github' | 'hf' | 'openrouter' | 'bluesky' | 'mastodon'; lang?: 'fr' | 'en'; weight?: number } }>(
     '/api/sources',
     async (request, reply) => {
       const { name, url, kind = 'rss', lang = 'fr', weight = 1 } = request.body ?? ({} as never);
