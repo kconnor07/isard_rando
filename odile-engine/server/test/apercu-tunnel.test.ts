@@ -67,7 +67,8 @@ describe('ce que recevra la personne, vu avant validation', async () => {
     expect(t.dmInstagram?.etape2).toContain(`/r/${lien.code}`);
     expect(t.reponsePublique).toBeTruthy();
     expect(t.captionFacebook).not.toMatch(/commente OUTIL et je/i);
-    expect(t.captionFacebook).toMatch(/sur (notre )?Instagram/);
+    expect(t.captionFacebook).toMatch(/en message sur la Page/);
+    expect(t.captionFacebook).not.toMatch(/instagram\.com/);
     expect(t.avertissements.join(' ')).toMatch(/abonnement/);
   });
 });
