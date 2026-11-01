@@ -98,7 +98,8 @@ export function faitPourLePrompt(f: Fait): string {
  * budget), le fait remplace l'emplacement tel quel.
  */
 export async function integrerLeFait(caption: string, fait: { texte: string; accordClient: boolean }, registre: 'vous' | 'tu'): Promise<string> {
-  const brut = caption.replace(EMPLACEMENT_FAIT, fait.texte.trim());
+  // Fonction de remplacement : un « $ » dans le fait (« 3 000 $ ») resterait un « $ » tel quel.
+  const brut = caption.replace(EMPLACEMENT_FAIT, () => fait.texte.trim());
   if (config.LLM_MODE === 'mock' || !verifierBudget('writing').autorise) return brut;
   try {
     const { value } = await completeJson(

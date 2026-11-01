@@ -124,6 +124,9 @@ function jumeauSurLeMemeProfil(post: Post, cle: string): Post | null {
  * Le même sujet sur le profil d'un autre fondateur, dans les sept derniers jours :
  * même article, ou même diffusion. Renvoie le post concurrent, le plus ancien.
  */
+/** Les statuts d'un post qui va paraître ou a paru : validé, programmé, remis à la personne, publié. */
+const POSTS_ENGAGES = new Set(['approved', 'scheduled', 'publishing', 'to_publish', 'published']);
+
 export function sujetPrisParUnAutreProfil(post: Post): { id: number; nom: string } | null {
   if (post.channel !== 'li_personal' || (!post.newsItemId && !post.broadcastGroup)) return null;
   const depuis = new Date(Date.now() - 7 * 86400_000).toISOString();
@@ -143,8 +146,11 @@ export function sujetPrisParUnAutreProfil(post: Post): { id: number; nom: string
         (p.publishedAt ?? p.createdAt) >= depuis &&
         (p.liAccountKey ?? compteDuPost(p)?.key ?? '') !== moi &&
         ((post.newsItemId !== null && p.newsItemId === post.newsItemId) || (post.broadcastGroup !== null && p.broadcastGroup === post.broadcastGroup)) &&
-        // Le premier arrivé garde le sujet : seul le second est arrêté.
-        (p.status === 'published' || p.status === 'to_publish' || p.id < post.id),
+        // Le premier arrivé garde le sujet : seul le second est arrêté. Un post déjà
+        // validé, lui, ne s'arrête que devant un post lui-même validé ou paru : un
+        // brouillon abandonné sur l'autre profil ne bloque pas une publication prévue.
+        (POSTS_ENGAGES.has(p.status) || !POSTS_ENGAGES.has(post.status)) &&
+        (p.status === 'published' || p.status === 'to_publish' || p.status === 'publishing' || p.id < post.id),
     );
   const premier = autres.sort((a, b) => a.id - b.id)[0];
   if (!premier) return null;

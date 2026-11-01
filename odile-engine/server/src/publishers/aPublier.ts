@@ -71,15 +71,10 @@ export async function remettreAPublier(post: Post, jobId: number): Promise<void>
   } catch (err) {
     logger.warn({ postId: post.id, err: String(err).slice(0, 200) }, 'visuels non joints — à télécharger depuis le tableau de bord');
   }
-  const quand = new Date().toISOString();
-  db.update(schema.publishJobs)
-    .set({ state: 'done', finishedAt: quand, result: JSON.stringify({ aPublier: true }) })
-    .where(eq(schema.publishJobs.id, jobId))
-    .run();
-  db.update(schema.posts).set({ status: 'to_publish', error: null, updatedAt: quand }).where(eq(schema.posts.id, post.id)).run();
-
   const lienEditeur = `${config.PUBLIC_URL.replace(/\/+$/, '')}/posts/${post.id}`;
-  await sendMail({
+  // L'email d'abord : s'il ne part pas, rien n'est clos et le passage suivant réessaie.
+  // Marquer le post « à publier » sans que personne n'ait le texte, c'est le perdre.
+  const envoi = await sendMail({
     kind: 'a_publier',
     to: getApprovalEmail().to,
     postId: post.id,
@@ -96,6 +91,15 @@ export async function remettreAPublier(post: Post, jobId: number): Promise<void>
     text: `C'est l'heure prévue pour ce post. Copiez-le dans LinkedIn, publiez, puis cliquez « Marquer publié » : ${lienEditeur}\n\n${texte}`,
     attachments: pieces,
   });
+  if (!envoi.ok) {
+    throw new Error("l'email « à publier vous-même » n'est pas parti (SMTP) : nouvelle tentative dans dix minutes");
+  }
+  const quand = new Date().toISOString();
+  db.update(schema.publishJobs)
+    .set({ state: 'done', finishedAt: quand, result: JSON.stringify({ aPublier: true }) })
+    .where(eq(schema.publishJobs.id, jobId))
+    .run();
+  db.update(schema.posts).set({ status: 'to_publish', error: null, updatedAt: quand }).where(eq(schema.posts.id, post.id)).run();
   logger.info({ postId: post.id }, 'post de profil remis à la personne pour publication');
 }
 

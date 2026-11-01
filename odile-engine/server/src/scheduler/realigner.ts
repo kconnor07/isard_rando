@@ -206,7 +206,11 @@ export function realignerSansModele(post: Post, opts: OptionsDeRealignement = {}
     caption = `${caption.trim()}\n\n${post.platform === 'instagram' ? sansLien(ligne) : ligne}`;
     corrections.push(`appel à commenter « ${motcle} » ajouté`);
   }
-  if (caption !== post.caption) update.caption = caption;
+  if (caption !== post.caption) {
+    update.caption = caption;
+    // Texte encore intact depuis l'IA : la référence suit, cette retouche n'est pas humaine.
+    if (post.texteGenere === post.caption) update.texteGenere = caption;
+  }
   if (cta !== post.cta) update.cta = cta;
   if (Object.keys(update).length > 0) {
     db.update(schema.posts).set({ ...update, updatedAt: new Date().toISOString() }).where(eq(schema.posts.id, post.id)).run();
@@ -254,6 +258,8 @@ export async function reecrireAvecLeModele(post: Post): Promise<{ reecrit: boole
   db.update(schema.posts)
     .set({
       caption: texte.caption.replaceAll('{{link}}', url),
+      // Réécrit par le modèle : c'est le nouveau texte de référence de l'IA.
+      texteGenere: texte.caption.replaceAll('{{link}}', url),
       cta: texte.cta.replaceAll('{{link}}', url),
       commentTriggerKeyword: texte.motcle,
       status: etaitProgramme || post.status === 'rejected' || post.status === 'failed' ? 'awaiting_approval' : post.status,

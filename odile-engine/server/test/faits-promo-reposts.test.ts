@@ -115,10 +115,11 @@ describe('banque de faits, promotion plafonnée, sujets entre fondateurs', async
     expect((liste.json() as unknown[]).length).toBeGreaterThanOrEqual(4);
     const refus = await app.inject({ method: 'POST', url: '/api/faits', headers: { cookie }, payload: { texte: 'court' } });
     expect(refus.statusCode).toBe(400);
-    // Le détail du post dit la part réécrite par la personne
+    // Le détail du post dit la part réécrite par la personne : le fait a été posé par le
+    // moteur, pas par elle, donc rien n'est compté comme réécriture humaine.
     const detail = (await app.inject({ method: 'GET', url: `/api/posts/${postId}`, headers: { cookie } })).json() as { reecriture: number; faitACompleter: boolean };
     expect(detail.faitACompleter).toBe(false);
-    expect(detail.reecriture).toBeGreaterThan(0);
+    expect(detail.reecriture).toBe(0);
     await app.close();
   });
 

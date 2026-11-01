@@ -34,11 +34,24 @@ const FENETRE_MS = 24 * 3600 * 1000;
 
 /** Les reposts déjà préparés pour un post (JSON), ou rien. */
 export function repostsDuPost(post: Pick<Post, 'reposts'>): RepostPrepare[] {
+  return memoireDesReposts(post).prepares;
+}
+
+/** Au-delà, le modèle ne sera plus sollicité pour ce post : il n'aura pas de repost. */
+export const ESSAIS_MAX = 3;
+
+/**
+ * Ce que `posts.reposts` retient : les textes prêts (une liste), ou le nombre d'essais
+ * infructueux (« {"essais":2} ») tant qu'aucun texte n'a abouti.
+ */
+export function memoireDesReposts(post: Pick<Post, 'reposts'>): { prepares: RepostPrepare[]; essais: number } {
   try {
     const v = post.reposts ? (JSON.parse(post.reposts) as unknown) : [];
-    return Array.isArray(v) ? (v as RepostPrepare[]) : [];
+    if (Array.isArray(v)) return { prepares: v as RepostPrepare[], essais: 0 };
+    const essais = v && typeof v === 'object' && typeof (v as { essais?: unknown }).essais === 'number' ? (v as { essais: number }).essais : 0;
+    return { prepares: [], essais };
   } catch {
-    return [];
+    return { prepares: [], essais: 0 };
   }
 }
 
@@ -118,24 +131,42 @@ export async function preparerLesReposts(now = new Date()): Promise<{ posts: num
 
   for (const post of posts) {
     const profils = profilsPourLeRepost(post);
-    const prepares: RepostPrepare[] = [];
-    for (const compte of profils) {
-      const texte = await texteDeRepost(post, compte);
-      if (texte) prepares.push({ compte: compte.key, nom: compte.name, texte });
+    const memoire = memoireDesReposts(post);
+    // Des textes déjà écrits (email non parti au passage précédent) ne se réécrivent pas.
+    let prepares: RepostPrepare[] = memoire.prepares;
+    if (prepares.length === 0 && profils.length > 0) {
+      // Budget d'écriture du jour épuisé : on attend qu'il revienne, sans appeler le modèle.
+      if (config.LLM_MODE !== 'mock' && !verifierBudget('writing').autorise) continue;
+      for (const compte of profils) {
+        const texte = await texteDeRepost(post, compte);
+        if (texte) prepares.push({ compte: compte.key, nom: compte.name, texte });
+      }
+      if (prepares.length === 0) {
+        // Le modèle n'a rien produit de valable : on compte l'essai ; au troisième, on renonce
+        // plutôt que de le solliciter toutes les dix minutes pendant vingt-quatre heures.
+        const essais = memoire.essais + 1;
+        if (essais < ESSAIS_MAX) {
+          db.update(schema.posts).set({ reposts: JSON.stringify({ essais }) }).where(eq(schema.posts.id, post.id)).run();
+          continue;
+        }
+        logger.warn({ postId: post.id, essais }, 'reposts commentés abandonnés : aucun texte valable en trois essais');
+      } else {
+        db.update(schema.posts).set({ reposts: JSON.stringify(prepares) }).where(eq(schema.posts.id, post.id)).run();
+      }
     }
-    // Sans profil ou sans texte (budget du jour), on réessaiera au passage suivant —
-    // sauf s'il n'y a personne pour reposter : rien ne changera.
-    if (prepares.length === 0 && profils.length > 0) continue;
     const faits = [...new Set([...dejaPasses(post), REPOST])];
-    db.update(schema.posts)
-      .set({ reposts: JSON.stringify(prepares), amplifiedBy: JSON.stringify(faits), amplifiedAt: now.toISOString() })
-      .where(eq(schema.posts.id, post.id))
-      .run();
-    if (prepares.length === 0) continue;
+    if (prepares.length === 0) {
+      // Personne pour reposter, ou plus rien à attendre du modèle : on clôt.
+      db.update(schema.posts)
+        .set({ reposts: JSON.stringify([]), amplifiedBy: JSON.stringify(faits), amplifiedAt: now.toISOString() })
+        .where(eq(schema.posts.id, post.id))
+        .run();
+      continue;
+    }
     resume.posts++;
     resume.reposts += prepares.length;
     const ouvrir = post.externalUrl?.startsWith('http') ? `<p><a href="${post.externalUrl}">Ouvrir le post →</a></p>` : '<p>Retrouvez le post sur le profil ou la Page qui l’a publié.</p>';
-    await sendMail({
+    const envoi = await sendMail({
       kind: 'repost',
       to: getApprovalEmail().to,
       postId: post.id,
@@ -146,6 +177,15 @@ ${prepares.map((r) => `<p><b>${echapper(r.nom)}</b></p><blockquote style="backgr
 <p style="color:#889">Un repost nu ne compte pas ; un repost avec un avis compte comme un post. Adaptez le texte à votre semaine.</p>`,
       text: prepares.map((r) => `[${r.nom}]\n${r.texte}\n`).join('\n'),
     });
+    // Email non parti : les textes sont gardés, la marque attend ; le passage suivant renvoie.
+    if (!envoi.ok) {
+      logger.warn({ postId: post.id }, 'email des reposts non envoyé : nouvelle tentative au prochain passage');
+      continue;
+    }
+    db.update(schema.posts)
+      .set({ reposts: JSON.stringify(prepares), amplifiedBy: JSON.stringify(faits), amplifiedAt: now.toISOString() })
+      .where(eq(schema.posts.id, post.id))
+      .run();
     logger.info({ postId: post.id, reposts: prepares.length }, 'reposts commentés préparés');
   }
   return resume;

@@ -94,7 +94,7 @@ export async function rappelerLesLiens(now = new Date()): Promise<ResumeRappels>
       continue;
     }
     resume.candidats++;
-    await sendMail({
+    const envoi = await sendMail({
       kind: 'rappel_lien',
       to: getApprovalEmail().to,
       postId: post.id,
@@ -106,6 +106,11 @@ ${post.externalUrl?.startsWith('http') ? `<p><a href="${post.externalUrl}">Ouvri
 <p style="color:#889">Ajoutez une question ou un complément à votre réponse : un fil qui continue pousse le post.</p>`,
       text: `Votre post est en ligne depuis une heure. Lien à donner en réponse à un commentaire :\n${texte}`,
     });
+    // Pas parti (SMTP) : on ne le marque pas, le passage suivant réessaie dans la fenêtre des 48 h.
+    if (!envoi.ok) {
+      logger.warn({ postId: post.id }, 'rappel du lien non envoyé : nouvelle tentative au prochain passage');
+      continue;
+    }
     marquerPasse(post, now);
     resume.envoyes++;
     logger.info({ postId: post.id }, 'rappel du lien envoyé');

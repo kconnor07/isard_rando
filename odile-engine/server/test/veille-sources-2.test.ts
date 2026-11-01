@@ -191,6 +191,7 @@ describe('Dates de flux : une date illisible ne fait plus tomber le flux', async
     expect(dateSure('2026-10-29T12:00:07.000Z', undefined)).toBe('2026-10-29T12:00:07.000Z');
     expect(dateSure(undefined, 'Thu, 29 Oct 2026 12:00:07 GMT')).toBe('2026-10-29T12:00:07.000Z');
     expect(dateSure(undefined, '29/10/2026 - 08:19')).toBe('2026-10-29T07:19:00.000Z');
+    expect(dateSure(undefined, '29/07/2026 - 08:19')).toBe('2026-07-29T06:19:00.000Z');
     expect(dateSure(undefined, 'n’importe quoi')).toBeNull();
     expect(dateSure(undefined, undefined)).toBeNull();
     const deuxChiffres = dateSure(undefined, 'Thu, 29 Oct 26 13:00:00 +0100');

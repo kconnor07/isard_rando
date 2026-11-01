@@ -7,7 +7,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { db, schema } from '../../db/client.js';
 import { ajouterFait, faitSchema, integrerLeFait, listerFaits, modifierFait, noterUsage, registreDuCompte, supprimerFait } from '../../writer/faits.js';
-import { faitACompleter } from '../../writer/reglesLinkedIn.js';
+import { EMPLACEMENT_FAIT, faitACompleter } from '../../writer/reglesLinkedIn.js';
 
 const integrationSchema = z.union([
   z.object({ faitId: z.number().int().positive() }),
@@ -57,8 +57,12 @@ export function registerFaitRoutes(app: FastifyInstance): void {
     }
     const caption = await integrerLeFait(post.caption, fait, registreDuCompte(post.liAccountKey));
     if (faitACompleter(caption)) return reply.status(422).send({ error: 'Le fait n’a pas pu être intégré : remplacez l’emplacement à la main dans le texte' });
+    // Le fait est posé par le moteur, pas par la personne : le texte de référence de l'IA
+    // le reçoit aussi, sinon le taux de réécriture humaine compterait cette retouche.
+    const texteGenere =
+      post.texteGenere === null ? null : post.texteGenere === post.caption ? caption : post.texteGenere.replace(EMPLACEMENT_FAIT, () => fait.texte.trim());
     db.update(schema.posts)
-      .set({ caption, faitId: fait.id ?? post.faitId, updatedAt: new Date().toISOString() })
+      .set({ caption, texteGenere, faitId: fait.id ?? post.faitId, updatedAt: new Date().toISOString() })
       .where(eq(schema.posts.id, post.id))
       .run();
     if (fait.id) noterUsage(fait.id);

@@ -55,13 +55,24 @@ export function contientUnLien(texte: string, domaine?: string): boolean {
   return /https?:\/\/|www\.|\{\{link\}\}|\/r\/[a-z2-9]{6,}/i.test(texte) || porteLeSite(texte, domaine);
 }
 
-/** Le texte finit-il sur une question ? (les lignes « Source : … » et les hashtags ne comptent pas) */
+/**
+ * Le texte finit-il sur une question ? Les lignes « Source : … », les hashtags et la
+ * ligne du site (« Odile AI : https://odileai.com », posée après la question sur une
+ * Page) ne comptent pas : elles suivent la question, elles ne la remplacent pas.
+ */
 export function finitSurUneQuestion(caption: string): boolean {
   const lignes = caption
     .trim()
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l && !/^source\s*:/i.test(l) && !/^(#[\p{L}\p{N}_]+\s*)+$/u.test(l));
+    .filter(
+      (l) =>
+        l &&
+        !/^source\s*:/i.test(l) &&
+        !/^(#[\p{L}\p{N}_]+\s*)+$/u.test(l) &&
+        !/^(?:[^?]{0,80}:\s*)?(?:https?:\/\/|www\.)\S+\s*$/i.test(l) &&
+        !(porteLeSite(l) && !l.includes('?')),
+    );
   return /\?\s*[»"”)]?\s*$/.test(lignes.at(-1) ?? '');
 }
 

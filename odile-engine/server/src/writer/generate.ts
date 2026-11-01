@@ -29,7 +29,7 @@ import { ICON_IDS } from '../render/icons.js';
 import { nextShortlistedItem } from '../scorer/shortlist.js';
 import { createLink } from '../shortener/index.js';
 import { toneToPrompt } from './tone.js';
-import { adresseDuSite, avecSite, bornerHashtags, hashtagDeMarque, lienPermis, porteLeSite, reseauDuCanal } from './marque.js';
+import { adresseDuSite, avecSite, bornerHashtags, domaineDuSite, hashtagDeMarque, lienPermis, porteLeSite, reseauDuCanal } from './marque.js';
 import { ACCROCHE_MAX, accroche, faitACompleter, porteUnAppat, tutoie } from './reglesLinkedIn.js';
 import { faitPourLePrompt, faitsPourLeCompte, noterUsage, registreDuCompte } from './faits.js';
 import { mentionnerSurInstagram, type MentionDeclaree } from './mentions.js';
@@ -240,7 +240,8 @@ export function writerResponseSchema(imagesAllowed: number, regles: ReglesDuText
         message: 'aucun « Commente MOT » ni « commentez OUI » : LinkedIn déclasse cet appât depuis mars 2026. Termine par une vraie question ouverte sur le cas du lecteur.',
       });
     }
-    if (regles.lienInterdit && /https?:\/\/|www\.|\{\{link\}\}/i.test(`${post.caption}\n${post.cta}`)) {
+    // Une adresse nue (« odileai.com ») compte autant qu'un lien : le réaligneur ne saurait pas la retirer.
+    if (regles.lienInterdit && (/https?:\/\/|www\.|\{\{link\}\}/i.test(`${post.caption}\n${post.cta}`) || porteLeSite(`${post.caption}\n${post.cta}`))) {
       ctx.addIssue({
         code: 'custom',
         path: ['caption'],
@@ -783,7 +784,7 @@ CONTRAINTES :
  * Les identifications LinkedIn, elles, se posent à la publication (elles exigent l'API).
  */
 export async function finaliserLeTexte(postId: number, platform: 'linkedin' | 'instagram', newsItemId: number | null, mentions: MentionDeclaree[]): Promise<void> {
-  const post = db.select({ caption: schema.posts.caption }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  const post = db.select({ caption: schema.posts.caption, texteGenere: schema.posts.texteGenere }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (!post) return;
   let caption = corrigerLigneSource(post.caption, sourceReelle(newsItemId)?.media ?? null);
   if (platform === 'instagram') {
@@ -793,7 +794,13 @@ export async function finaliserLeTexte(postId: number, platform: 'linkedin' | 'i
       logger.warn({ postId, err: String(err).slice(0, 160) }, 'mentions Instagram non posées — noms laissés en clair');
     }
   }
-  if (caption !== post.caption) db.update(schema.posts).set({ caption }).where(eq(schema.posts.id, postId)).run();
+  // Le texte de référence de l'IA suit : cette retouche n'est pas une réécriture humaine.
+  if (caption !== post.caption) {
+    db.update(schema.posts)
+      .set({ caption, ...(post.texteGenere === post.caption ? { texteGenere: caption } : {}) })
+      .where(eq(schema.posts.id, postId))
+      .run();
+  }
 }
 
 const porteUnLien = (ligne: string) => ligne.includes('{{link}}') || /https?:\/\//i.test(ligne);
@@ -893,12 +900,19 @@ export function relierLeLien(
  * aussi : un modèle en invente parfois, et une adresse inventée est pire qu'aucune.
  */
 export function sansLien(texte: string): string {
-  return nettoyer(texte, (ligne) =>
-    ligne
+  // Le domaine de la marque écrit nu (« odileai.com », « sur odileai.com ») part aussi :
+  // c'est lui que la conformité repère, il faut donc savoir le retirer.
+  const domaine = domaineDuSite();
+  const site = domaine
+    ? new RegExp(`(?:\\b(?:sur|via|chez)\\s+)?(?:https?:\\/\\/)?(?:www\\.)?${domaine.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])\\S*`, 'gi')
+    : null;
+  return nettoyer(texte, (ligne) => {
+    const propre = ligne
       .replaceAll('{{link}}', '')
       .replace(/https?:\/\/\S+/gi, '')
-      .replace(/(?:^|\s)(?:www\.[a-z0-9.-]+\.[a-z]{2,}\S*|[a-z0-9-]+\.[a-z]{2,}\/\S+)/gi, ' '),
-  );
+      .replace(/(?:^|\s)(?:www\.[a-z0-9.-]+\.[a-z]{2,}\S*|[a-z0-9-]+\.[a-z]{2,}\/\S+)/gi, ' ');
+    return site ? propre.replace(site, '') : propre;
+  });
 }
 
 export { bornerHashtags };

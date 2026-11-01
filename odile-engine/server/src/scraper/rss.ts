@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { fetchWithRetry } from '../lib/http.js';
+import { parisLocalToUtc } from '../lib/time.js';
 
 export interface FetchedItem {
   url: string;
@@ -138,7 +139,8 @@ export function dateSure(iso: string | undefined, brut: string | undefined): str
   const fr = brut.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s*-\s*(\d{2}):(\d{2}))?/);
   if (fr) {
     const [, jj, mm, aaaa, hh = '00', mn = '00'] = fr;
-    const d2 = new Date(`${aaaa}-${mm}-${jj}T${hh}:${mn}:00+01:00`);
+    // Heure de Paris, été comme hiver : un décalage fixe se tromperait d'une heure six mois par an.
+    const d2 = parisLocalToUtc(`${aaaa}-${mm}-${jj}`, Number(hh), Number(mn));
     if (!Number.isNaN(d2.getTime())) return d2.toISOString();
   }
   return null;

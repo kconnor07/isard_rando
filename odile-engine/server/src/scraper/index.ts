@@ -178,7 +178,7 @@ async function processSource(
         .from(schema.newsItems)
         .where(eq(schema.newsItems.contentHash, contentHash(canonical)))
         .get();
-      if (existant) {
+      if (existant && compteCommeEcho(source.url, urlDeLaSource(existant.sourceId))) {
         const maj = echoDuMemeLien(existant, source.id, item);
         if (maj) db.update(schema.newsItems).set(maj).where(eq(schema.newsItems.id, existant.id)).run();
       }
@@ -222,6 +222,22 @@ Réactive-la depuis le dashboard → Réglages → Sources (après avoir corrig�
       }
     }
   }
+}
+
+/**
+ * Une recherche d'actualités (Bing) qui retrouve l'article d'un média déjà en base n'est
+ * pas une reprise : c'est le même article, trouvé deux fois. Seule une vraie autre
+ * source (un média, Bluesky, Mastodon, Hacker News…) compte comme un écho.
+ */
+export function compteCommeEcho(urlSourceNouvelle: string, urlSourceExistante: string | null): boolean {
+  if (estRechercheActus(urlSourceNouvelle)) return false;
+  if (urlSourceExistante && estRechercheActus(urlSourceExistante)) return false;
+  return true;
+}
+
+function urlDeLaSource(sourceId: number | null): string | null {
+  if (sourceId === null) return null;
+  return db.select({ url: schema.newsSources.url }).from(schema.newsSources).where(eq(schema.newsSources.id, sourceId)).get()?.url ?? null;
 }
 
 /**

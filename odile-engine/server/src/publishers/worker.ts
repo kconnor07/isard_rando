@@ -146,8 +146,13 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
 
     // Profil personnel : le post arrive à la personne, prêt à coller — elle publie elle-même.
     if (publieParLaPersonne(post)) {
-      await remettreAPublier(post, job.id);
-      summary.aPublier++;
+      try {
+        await remettreAPublier(post, job.id);
+        summary.aPublier++;
+      } catch (err) {
+        await consignerEchec(job, post, err instanceof Error ? err.message : String(err));
+        summary.failed++;
+      }
       continue;
     }
 
@@ -185,40 +190,51 @@ export async function processDuePublishJobs(): Promise<PublishWorkerSummary> {
       logger.info({ postId: post.id, publisher: publisher.name }, 'publication réussie');
       await mirrorOnFacebook(post, { post, images, caption: buildCaption(post, 'facebook'), video }, result.externalUrl ?? null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      const retryable = job.attempt + 1 < job.maxAttempts;
-      const prochainEssai = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      db.update(schema.publishJobs)
-        .set(
-          retryable
-            ? { state: 'pending', lastError: message.slice(0, 800), scheduledAt: prochainEssai }
-            : { state: 'failed', finishedAt: new Date().toISOString(), lastError: message.slice(0, 800) },
-        )
-        .where(eq(schema.publishJobs.id, job.id))
-        .run();
-      // Le post porte la même date que son job : sans cela, le calendrier continuait
-      // d'annoncer l'heure ratée et le créneau restait marqué pris au mauvais endroit.
-      db.update(schema.posts)
-        .set({
-          status: retryable ? 'scheduled' : 'failed',
-          error: message.slice(0, 800),
-          ...(retryable ? { scheduledAt: prochainEssai } : {}),
-        })
-        .where(eq(schema.posts.id, post.id))
-        .run();
+      await consignerEchec(job, post, err instanceof Error ? err.message : String(err));
       summary.failed++;
-      logger.error({ postId: post.id, err: message, retryable }, 'échec de publication');
-      if (!retryable) {
-        await sendMail({
-          kind: 'error',
-          to: getApprovalEmail().to,
-          postId: post.id,
-          subject: `[Odile] ❌ Échec de publication du post « ${post.hook.slice(0, 50)} »`,
-          html: `<p>La publication a échoué après ${job.maxAttempts} tentatives.</p><pre>${message.slice(0, 800)}</pre><p>Corrige depuis le dashboard puis relance.</p>`,
-          text: `Échec de publication après ${job.maxAttempts} tentatives : ${message.slice(0, 400)}`,
-        });
-      }
     }
   }
   return summary;
+}
+
+/**
+ * Un essai a échoué : le job repasse en attente dix minutes plus tard tant qu'il reste
+ * des tentatives, puis tombe en échec avec un email. Le post porte la même date que
+ * son job : sans cela, le calendrier continuait d'annoncer l'heure ratée et le créneau
+ * restait marqué pris au mauvais endroit.
+ */
+async function consignerEchec(
+  job: typeof schema.publishJobs.$inferSelect,
+  post: typeof schema.posts.$inferSelect,
+  message: string,
+): Promise<void> {
+  const retryable = job.attempt + 1 < job.maxAttempts;
+  const prochainEssai = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  db.update(schema.publishJobs)
+    .set(
+      retryable
+        ? { state: 'pending', lastError: message.slice(0, 800), scheduledAt: prochainEssai }
+        : { state: 'failed', finishedAt: new Date().toISOString(), lastError: message.slice(0, 800) },
+    )
+    .where(eq(schema.publishJobs.id, job.id))
+    .run();
+  db.update(schema.posts)
+    .set({
+      status: retryable ? 'scheduled' : 'failed',
+      error: message.slice(0, 800),
+      ...(retryable ? { scheduledAt: prochainEssai } : {}),
+    })
+    .where(eq(schema.posts.id, post.id))
+    .run();
+  logger.error({ postId: post.id, err: message, retryable }, 'échec de publication');
+  if (!retryable) {
+    await sendMail({
+      kind: 'error',
+      to: getApprovalEmail().to,
+      postId: post.id,
+      subject: `[Odile] ❌ Échec de publication du post « ${post.hook.slice(0, 50)} »`,
+      html: `<p>La publication a échoué après ${job.maxAttempts} tentatives.</p><pre>${message.slice(0, 800)}</pre><p>Corrige depuis le dashboard puis relance.</p>`,
+      text: `Échec de publication après ${job.maxAttempts} tentatives : ${message.slice(0, 400)}`,
+    });
+  }
 }

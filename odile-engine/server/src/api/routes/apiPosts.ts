@@ -615,7 +615,10 @@ export function registerPostRoutes(app: FastifyInstance): void {
     const id = Number(request.params.id);
     const post = db.select().from(schema.posts).where(eq(schema.posts.id, id)).get();
     if (!post) return reply.status(404).send({ error: 'Post introuvable' });
-    if (!['to_publish', 'approved', 'scheduled', 'failed', 'awaiting_approval'].includes(post.status)) {
+    if (post.channel !== 'li_personal') {
+      return reply.status(409).send({ error: 'Seul un post de profil, publié par la personne, se marque publié : les autres partent par le moteur' });
+    }
+    if (!['to_publish', 'approved', 'scheduled', 'failed'].includes(post.status)) {
       return reply.status(409).send({ error: post.status === 'published' ? 'Ce post est déjà publié' : 'Validez ce post avant de le marquer publié' });
     }
     const brut = typeof request.body?.url === 'string' ? request.body.url.trim() : '';
