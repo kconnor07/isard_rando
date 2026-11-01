@@ -223,6 +223,19 @@ export interface ActionOutcomeDto {
 }
 
 /** Créneau de publication configuré, avec le post qui l'occupe */
+/** Une histoire chaude : reprise par plusieurs médias ou très partagée ces dernières heures. */
+export interface TendanceDto {
+  itemId: number;
+  label: string;
+  url: string;
+  medias: number;
+  engagement: number;
+  chaleur: number;
+  ageHeures: number;
+  sources: string[];
+  items: { id: number; title: string; url: string; source: string }[];
+}
+
 export interface SujetDto {
   id: number;
   label: string;

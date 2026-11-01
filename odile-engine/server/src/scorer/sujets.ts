@@ -16,6 +16,16 @@ import { completeJson } from '../llm/router.js';
 import { normalizeTitle, titleSimilarity } from '../scraper/dedupe.js';
 import { marronniersDuMoment } from '../scraper/saison.js';
 
+/** Un tableau d'identifiants en JSON, ou rien. */
+function lireIds(json: string | null | undefined): number[] {
+  try {
+    const v = json ? (JSON.parse(json) as unknown) : [];
+    return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Un groupe d'items qui parlent de la même chose. */
 export interface Groupe {
   itemIds: number[];
@@ -23,6 +33,10 @@ export interface Groupe {
   topics: string[];
   sourceIds: number[];
   score: number;
+  /** médias distincts, échos du dédoublonnage compris */
+  medias: number;
+  /** une actualité chaude : fort potentiel de clic ou fort signal social, en moins de 36 h */
+  chaud: boolean;
 }
 
 export interface AngleSujet {
@@ -34,7 +48,7 @@ const JACCARD_MIN = 0.34;
 /** Deux titres qui se ressemblent beaucoup parlent du même fait, même sans sujet commun. */
 const TITRE_PROCHE = 0.5;
 const FENETRE_JOURS = 7;
-const MAX_SUJETS = 8;
+const MAX_SUJETS = 12;
 
 function jaccard(a: string[], b: string[]): number {
   if (a.length === 0 || b.length === 0) return 0;
@@ -51,6 +65,22 @@ interface ItemPourGroupe {
   topics: string[];
   sourceId: number | null;
   score: number;
+  /** les autres médias qui ont repris l'histoire (dédoublonnage) */
+  echoSources?: number[];
+  echoes?: number;
+  /** actualité chaude : clic ≥ 40 ou engagement ≥ 45, publiée il y a moins de 36 h */
+  chaud?: boolean;
+}
+
+/** Les médias d'un groupe : ses sources, plus celles des échos. */
+function compterMedias(sourceIds: number[], items: ItemPourGroupe[]): number {
+  const medias = new Set(sourceIds);
+  let sansSource = 0;
+  for (const it of items) {
+    for (const s of it.echoSources ?? []) medias.add(s);
+    sansSource += Math.max(0, (it.echoes ?? 0) - (it.echoSources ?? []).length);
+  }
+  return Math.max(1, medias.size + sansSource);
 }
 
 /**
@@ -59,7 +89,7 @@ interface ItemPourGroupe {
  * Fonction pure, testée — le reste du module dépend de la base et du modèle.
  */
 export function grouperParSujet(items: ItemPourGroupe[]): Groupe[] {
-  const groupes: Groupe[] = [];
+  const groupes: (Groupe & { items: ItemPourGroupe[] })[] = [];
   for (const item of [...items].sort((a, b) => b.score - a.score)) {
     const proche = groupes.find(
       (g) => jaccard(g.topics, item.topics) >= JACCARD_MIN || g.titres.some((t) => titleSimilarity(t, item.title) >= TITRE_PROCHE),
@@ -73,6 +103,8 @@ export function grouperParSujet(items: ItemPourGroupe[]): Groupe[] {
       const nouveauMedia = Boolean(item.sourceId && !proche.sourceIds.includes(item.sourceId));
       if (item.sourceId && nouveauMedia) proche.sourceIds.push(item.sourceId);
       proche.score = Math.max(proche.score, item.score) + item.score * (nouveauMedia ? 0.25 : 0.05);
+      proche.items.push(item);
+      proche.chaud = proche.chaud || Boolean(item.chaud);
       continue;
     }
     groupes.push({
@@ -81,9 +113,18 @@ export function grouperParSujet(items: ItemPourGroupe[]): Groupe[] {
       topics: [...item.topics],
       sourceIds: item.sourceId ? [item.sourceId] : [],
       score: item.score,
+      medias: 1,
+      chaud: Boolean(item.chaud),
+      items: [item],
     });
   }
-  return groupes.sort((a, b) => b.score - a.score);
+  // Les échos comptent comme des médias, et une histoire reprise pèse plus lourd.
+  for (const g of groupes) {
+    g.medias = compterMedias(g.sourceIds, g.items);
+    const echos = g.medias - g.sourceIds.length;
+    if (echos > 0) g.score += Math.min(0.5, 0.15 * echos) * Math.max(...g.items.map((i) => i.score));
+  }
+  return groupes.sort((a, b) => b.score - a.score).map(({ items: _items, ...g }) => g);
 }
 
 /**
@@ -174,11 +215,17 @@ export async function construireSujets(now = new Date()): Promise<SujetsSummary>
       topics: it.topics ? (JSON.parse(it.topics) as string[]) : [],
       sourceId: it.sourceId,
       score: it.scoreFinal ?? it.scoreTotal ?? 0,
+      echoes: it.echoes,
+      echoSources: lireIds(it.echoSources),
+      chaud:
+        (now.getTime() - new Date(it.publishedAt ?? it.fetchedAt).getTime()) / 3_600_000 <= 36 &&
+        ((it.scoreClick ?? 0) >= 40 || (it.engagement ?? 0) >= 45),
     })),
   )
-    // Un sujet mérite ce nom quand plusieurs sources en parlent, ou quand un seul
+    // Un sujet mérite ce nom quand plusieurs médias en parlent (échos compris), quand
+    // il est chaud (fort clic ou fort signal social, tout récent), ou quand un seul
     // item est excellent. Le reste reste dans la liste d'articles.
-    .filter((g) => g.itemIds.length >= 2 || g.score >= 75)
+    .filter((g) => g.itemIds.length >= 2 || g.medias >= 2 || g.chaud || g.score >= 75)
     .slice(0, MAX_SUJETS);
 
   const resume: SujetsSummary = { groupes: groupes.length, crees: 0, ecartesDejaTraites: 0, saison: 0 };
@@ -186,7 +233,10 @@ export async function construireSujets(now = new Date()): Promise<SujetsSummary>
 
   if (groupes.length > 0) {
     const liste = groupes
-      .map((g, i) => `[groupe=${i}] (${g.itemIds.length} article${g.itemIds.length > 1 ? 's' : ''}, ${g.sourceIds.length} média${g.sourceIds.length > 1 ? 's' : ''}, sujets : ${g.topics.slice(0, 6).join(', ') || 'aucun'})\n- ${g.titres.slice(0, 6).join('\n- ')}`)
+      .map(
+        (g, i) =>
+          `[groupe=${i}] (${g.itemIds.length} article${g.itemIds.length > 1 ? 's' : ''}, ${g.medias} média${g.medias > 1 ? 's' : ''}${g.chaud ? ', TENDANCE : repris ou très partagé ces 36 dernières heures' : ''}, sujets : ${g.topics.slice(0, 6).join(', ') || 'aucun'})\n- ${g.titres.slice(0, 6).join('\n- ')}`,
+      )
       .join('\n\n');
     try {
       const { value } = await completeJson(
@@ -240,7 +290,7 @@ ${liste}`,
           angles: s.angles,
           topics: g.topics.slice(0, 6),
           itemIds: g.itemIds,
-          sourcesCount: Math.max(1, g.sourceIds.length),
+          sourcesCount: g.medias,
           score: Math.round(g.score * 10) / 10,
           kind: 'actu',
         })) resume.crees++;

@@ -11,7 +11,7 @@ export const settings = sqliteTable('settings', {
 export const newsSources = sqliteTable('news_sources', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  kind: text('kind', { enum: ['rss', 'hn', 'websearch', 'youtube', 'reddit', 'github'] }).notNull(),
+  kind: text('kind', { enum: ['rss', 'hn', 'websearch', 'youtube', 'reddit', 'github', 'hf'] }).notNull(),
   url: text('url').notNull(),
   lang: text('lang', { enum: ['fr', 'en'] }).notNull().default('en'),
   weight: real('weight').notNull().default(1),
@@ -47,6 +47,13 @@ export const newsItems = sqliteTable(
     extractedAt: text('extracted_at'),
     engagement: integer('engagement'), // 0-100 normalisé
     engagementRaw: text('engagement_raw'), // JSON {hnPoints,hnComments,redditScore,redditComments}
+    /**
+     * Les échos : combien d'autres sources ont repris la même histoire (titres quasi
+     * identiques, dédoublonnés au scrape). Une actu reprise par cinq médias est une
+     * tendance ; sans ce compte, le dédoublonnage la faisait passer pour un article isolé.
+     */
+    echoes: integer('echoes').notNull().default(0),
+    echoSources: text('echo_sources'), // JSON number[] : les sources qui l'ont reprise
     topics: text('topics'), // JSON string[] (tags FR)
     scoreFinal: real('score_final'),
     shortlistDate: text('shortlist_date'), // YYYY-MM-DD

@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { generateFromNewsSchema } from '@odile/shared';
 import { db, schema } from '../../db/client.js';
@@ -10,6 +10,7 @@ import { runScore } from '../../scorer/score.js';
 import { buildDailyShortlist } from '../../scorer/shortlist.js';
 import { runDraftPipeline } from '../../scheduler/pipeline.js';
 import { construireSujets, itemPrincipal, marquerSujet, sujetsDuMoment } from '../../scorer/sujets.js';
+import { tendancesDuMoment } from '../../scorer/buzz.js';
 
 export function registerNewsRoutes(app: FastifyInstance): void {
   app.get<{ Querystring: { status?: string; limit?: string } }>('/api/news', async (request) => {
@@ -78,6 +79,50 @@ export function registerNewsRoutes(app: FastifyInstance): void {
   // ----- Sujets de veille ----------------------------------------------------
 
   /** Les sujets du moment : ce que le fondateur choisit, au lieu d'articles isolés. */
+  /**
+   * Ce qui chauffe : les histoires des 36 dernières heures reprises par plusieurs
+   * médias ou très partagées — avant même d'être notées. C'est la réponse à « j'ai vu
+   * cette actu partout et la veille ne me l'a pas proposée ».
+   */
+  app.get<{ Querystring: { heures?: string; limit?: string } }>('/api/news/tendances', async (request) => {
+    const heures = Math.min(96, Math.max(6, Number(request.query.heures ?? 36)));
+    const limit = Math.min(20, Math.max(1, Number(request.query.limit ?? 8)));
+    const since = new Date(Date.now() - heures * 3_600_000).toISOString();
+    const sources = new Map(db.select().from(schema.newsSources).all().map((s) => [s.id, s.name]));
+    const rows = db
+      .select()
+      .from(schema.newsItems)
+      .where(and(gt(schema.newsItems.fetchedAt, since), inArray(schema.newsItems.status, ['new', 'scored', 'shortlisted'])))
+      .all();
+    const lire = (json: string | null): number[] => {
+      try {
+        const v = json ? (JSON.parse(json) as unknown) : [];
+        return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
+      } catch {
+        return [];
+      }
+    };
+    return tendancesDuMoment(
+      rows.map((n) => ({
+        id: n.id,
+        title: n.title,
+        url: n.url,
+        lang: n.lang,
+        sourceId: n.sourceId,
+        sourceName: n.sourceId ? (sources.get(n.sourceId) ?? '') : '',
+        publishedAt: n.publishedAt,
+        fetchedAt: n.fetchedAt,
+        engagement: n.engagement,
+        echoes: n.echoes,
+        echoSources: lire(n.echoSources),
+        scoreTotal: n.scoreTotal,
+        scoreClick: n.scoreClick,
+      })),
+      new Date(),
+      limit,
+    );
+  });
+
   app.get('/api/news/sujets', async () => sujetsDuMoment());
 
   /** Reconstruit les sujets à partir des items de la semaine (sinon, cron quotidien). */
@@ -142,7 +187,7 @@ export function registerNewsRoutes(app: FastifyInstance): void {
   // ----- Sources de veille ---------------------------------------------------
   app.get('/api/sources', async () => db.select().from(schema.newsSources).all());
 
-  app.post<{ Body: { name: string; url: string; kind?: 'rss' | 'hn' | 'youtube' | 'github'; lang?: 'fr' | 'en'; weight?: number } }>(
+  app.post<{ Body: { name: string; url: string; kind?: 'rss' | 'hn' | 'youtube' | 'github' | 'hf'; lang?: 'fr' | 'en'; weight?: number } }>(
     '/api/sources',
     async (request, reply) => {
       const { name, url, kind = 'rss', lang = 'fr', weight = 1 } = request.body ?? ({} as never);

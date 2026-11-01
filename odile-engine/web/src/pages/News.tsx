@@ -3,7 +3,7 @@ import { FileText, Flame, RefreshCw, Sparkles } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import type { NewsDto, SujetDto } from '../api/types';
+import type { NewsDto, SujetDto, TendanceDto } from '../api/types';
 import { Empty, EtatErreur, PageTitle } from '../components/shared';
 import { toast } from '../components/Toaster';
 
@@ -74,6 +74,11 @@ export default function News() {
   });
 
   // ----- Sujets du moment -----------------------------------------------------
+  const { data: tendances } = useQuery({
+    queryKey: ['news', 'tendances'],
+    queryFn: () => api.get<TendanceDto[]>('/api/news/tendances'),
+    refetchInterval: 5 * 60_000,
+  });
   const { data: sujets } = useQuery({
     queryKey: ['news', 'sujets'],
     queryFn: () => api.get<SujetDto[]>('/api/news/sujets'),
@@ -127,6 +132,51 @@ export default function News() {
           <span className="text-muted">Vous serez prévenu ici ; le post arrive dans</span>
           <Link to="/approvals" className="text-accent hover:underline">À valider</Link>.
         </div>
+      )}
+      {tendances && tendances.length > 0 && (
+        <section className="mb-6">
+          <div className="mb-2">
+            <h2 className="flex items-center gap-2 text-base font-bold"><Flame size={16} /> À chaud : ce dont tout le monde parle</h2>
+            <p className="text-xs text-muted">
+              Les histoires des 36 dernières heures reprises par plusieurs médias ou très partagées, avant même d’être notées. Un post
+              publié dans les 24 heures sur l’une d’elles part avec l’attention déjà là.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {tendances.map((t) => {
+              const inProgress = generatingIds.has(t.itemId);
+              const age = t.ageHeures < 1 ? 'il y a moins d’une heure' : t.ageHeures < 24 ? `il y a ${Math.round(t.ageHeures)} h` : `il y a ${Math.round(t.ageHeures / 24)} j`;
+              return (
+                <div key={t.itemId} className="card flex flex-col gap-2 border-accent/30 p-4">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+                    <span className="mono rounded-md bg-accent/15 px-1.5 py-0.5 text-ice">chaleur {Math.round(t.chaleur)}</span>
+                    <span>{t.medias > 1 ? `${t.medias} médias en parlent` : 'une source'}</span>
+                    {t.engagement > 0 && <span>· engagement {t.engagement}</span>}
+                    <span>· {age}</span>
+                  </div>
+                  <a href={t.url} target="_blank" rel="noreferrer" className="font-bold leading-snug hover:text-ice">{t.label}</a>
+                  {t.sources.length > 0 && <p className="text-xs text-muted">{t.sources.join(' · ')}</p>}
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    <button className="btn-primary !py-1.5 text-xs" disabled={inProgress || generate.isPending} onClick={() => generate.mutate(t.itemId)}
+                      title="Rédaction, visuels, rendu, critique IA, email de validation (2 à 4 min)">
+                      <Sparkles size={13} className={inProgress ? 'animate-pulse' : ''} /> {inProgress ? 'En fabrication…' : 'Écrire dessus maintenant'}
+                    </button>
+                    {t.items.length > 1 && (
+                      <details className="text-xs text-muted">
+                        <summary className="cursor-pointer py-1.5">{t.items.length} articles</summary>
+                        <ul className="mt-1 flex flex-col gap-0.5">
+                          {t.items.map((it) => (
+                            <li key={it.id}><a href={it.url} target="_blank" rel="noreferrer" className="hover:text-ice">{it.title}</a> <span>· {it.source}</span></li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
       {sujets && sujets.length > 0 && (
         <section className="mb-6">

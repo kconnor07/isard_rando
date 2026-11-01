@@ -18,6 +18,8 @@ export interface BlendInput {
   topics?: string[];
   /** engagement social normalisé 0-100 */
   engagement?: number | null;
+  /** autres médias qui ont repris la même histoire (comptés au dédoublonnage) */
+  echoes?: number | null;
 }
 
 /**
@@ -49,12 +51,17 @@ export function topicAffinityFactor(
   return clamp(avg, 0.8, 1.3);
 }
 
+/** Une histoire reprise par d'autres médias pèse plus : +10 % par écho, jusqu'à +30 %. */
+export function echoFactor(echoes: number | null | undefined): number {
+  return 1 + Math.min(0.3, 0.1 * Math.max(0, echoes ?? 0));
+}
+
 export function blendScore(input: BlendInput): number {
   const weight = clamp(input.sourceWeight, 0.5, 2.0);
   const fresh = freshnessFactor(input.publishedAt, input.now ?? new Date());
   const affinity = topicAffinityFactor(input.topics, input.topicAffinity);
   const boost = clamp(input.engagement ?? 0, 0, 100) * 0.15;
-  return Math.round((input.scoreLLM * weight * fresh * affinity + boost) * 10) / 10;
+  return Math.round((input.scoreLLM * weight * fresh * affinity * echoFactor(input.echoes) + boost) * 10) / 10;
 }
 
 function clamp(v: number, min: number, max: number): number {

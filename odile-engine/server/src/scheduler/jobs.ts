@@ -78,6 +78,18 @@ export function registerJobs(): void {
       await runJob('sujets', () => construireSujets());
     })().catch((err) => logger.error({ err: String(err) }, 'rafraîchissement de midi en échec'));
   }, { timezone: TZ });
+  // Fin d'après-midi : troisième récolte des tendances IA — ce qui est sorti à midi aux
+  // États-Unis arrive sur LinkedIn France le lendemain matin, autant l'avoir le soir.
+  cron.schedule('40 17 * * *', () => {
+    void (async () => {
+      const { runTendances } = await import('../scraper/websearch.js');
+      await runJob('websearch', runTendances);
+      await runJob('score', () => runScore());
+      const { construireSujets } = await import('../scorer/sujets.js');
+      await runJob('sujets', () => construireSujets());
+    })().catch((err) => logger.error({ err: String(err) }, 'tendances du soir en échec'));
+  }, { timezone: TZ });
+
   cron.schedule('20 18 * * *', () => {
     void (async () => {
       await runJob('shortlist', () => buildDailyShortlist());

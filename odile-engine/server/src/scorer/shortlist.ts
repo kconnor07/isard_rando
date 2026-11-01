@@ -83,6 +83,7 @@ export async function buildDailyShortlist(now = new Date()): Promise<ShortlistSu
         topicAffinity: affinity,
         topics: item.topics ? (JSON.parse(item.topics) as string[]) : undefined,
         engagement: item.engagement,
+        echoes: item.echoes,
       }),
     }))
     .sort((a, b) => b.final - a.final);

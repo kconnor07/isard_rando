@@ -3,7 +3,7 @@ import { db, schema } from '../db/client.js';
 
 export interface SeedSource {
   name: string;
-  kind: 'rss' | 'hn' | 'youtube' | 'reddit' | 'github';
+  kind: 'rss' | 'hn' | 'youtube' | 'reddit' | 'github' | 'hf';
   url: string;
   lang: 'fr' | 'en';
   weight: number;
@@ -76,6 +76,9 @@ export const SEED_SOURCES: SeedSource[] = [
   // sans elles la source dort sans erreur).
   { name: 'Reddit — dirigeants de PME', kind: 'reddit', url: 'r/smallbusiness+Entrepreneur+freelance/top?t=day&limit=25', lang: 'en', weight: 1.2 },
   { name: 'Hacker News (IA)', kind: 'hn', url: 'https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=40', lang: 'en', weight: 1.0 },
+  // Veille v5 — ce qui monte sur Hacker News sans attendre la une : plus de 60 points
+  // en moins de 24 h, c'est l'actu IA que LinkedIn reprendra demain.
+  { name: 'Hacker News · IA qui monte (24 h)', kind: 'hn', url: 'https://hn.algolia.com/api/v1/search_by_date?tags=story&numericFilters=points>60,created_at_i>{24h}&hitsPerPage=50', lang: 'en', weight: 1.1 },
   { name: 'Maddyness', kind: 'rss', url: 'https://www.maddyness.com/feed/', lang: 'fr', weight: 1.3 },
   { name: 'Usine Digitale', kind: 'rss', url: 'https://www.usine-digitale.fr/rss', lang: 'fr', weight: 1.2 },
   { name: 'JDN Intelligence artificielle', kind: 'rss', url: 'https://www.journaldunet.com/rss/', lang: 'fr', weight: 1.0 },
@@ -92,6 +95,26 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'YouTube · AI Explained', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCNJ1Ymd5yFuUPtn21xtRbbw', lang: 'en', weight: 1.0 },
   { name: 'YouTube · Ludo IA²', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCICO611QA-KLoV6iAQvca_w', lang: 'fr', weight: 1.3 },
   { name: 'YouTube · Micode', kind: 'youtube', url: 'https://www.youtube.com/feeds/videos.xml?channel_id=UCYnvxJ-PKiGXo_tYXpWAC-w', lang: 'fr', weight: 0.9 },
+  // Veille v5 — les laboratoires et éditeurs eux-mêmes (flux vérifiés le 1er novembre 2026) :
+  // l'annonce arrive ici des heures avant la presse.
+  { name: 'Google DeepMind', kind: 'rss', url: 'https://deepmind.google/blog/rss.xml', lang: 'en', weight: 1.0 },
+  { name: 'Hugging Face Blog', kind: 'rss', url: 'https://huggingface.co/blog/feed.xml', lang: 'en', weight: 0.9 },
+  { name: 'GitHub Blog', kind: 'rss', url: 'https://github.blog/feed/', lang: 'en', weight: 0.9 },
+  { name: 'Simon Willison', kind: 'rss', url: 'https://simonwillison.net/atom/everything/', lang: 'en', weight: 1.0 },
+  { name: 'The Decoder', kind: 'rss', url: 'https://the-decoder.com/feed/', lang: 'en', weight: 1.0 },
+  // Veille v5 — la presse tech française grand public : c'est elle que lisent les dirigeants,
+  // et c'est son angle (« ce que ça change pour vous ») que nos posts reprennent.
+  { name: 'Numerama', kind: 'rss', url: 'https://www.numerama.com/feed/', lang: 'fr', weight: 1.1 },
+  { name: '01net', kind: 'rss', url: 'https://www.01net.com/feed/', lang: 'fr', weight: 1.0 },
+  { name: 'BFM Tech', kind: 'rss', url: 'https://www.bfmtv.com/rss/tech/', lang: 'fr', weight: 1.0 },
+  { name: 'Le Monde · Pixels', kind: 'rss', url: 'https://www.lemonde.fr/pixels/rss_full.xml', lang: 'fr', weight: 1.1 },
+  { name: 'Frandroid', kind: 'rss', url: 'https://www.frandroid.com/feed', lang: 'fr', weight: 0.9 },
+  { name: 'Presse-citron', kind: 'rss', url: 'https://www.presse-citron.net/feed/', lang: 'fr', weight: 0.9 },
+  { name: 'Journal du Geek', kind: 'rss', url: 'https://www.journaldugeek.com/feed/', lang: 'fr', weight: 0.9 },
+  { name: 'Les Numériques', kind: 'rss', url: 'https://www.lesnumeriques.com/rss.xml', lang: 'fr', weight: 0.8 },
+  { name: 'L’ADN', kind: 'rss', url: 'https://www.ladn.eu/feed/', lang: 'fr', weight: 1.0 },
+  { name: 'ZDNet France', kind: 'rss', url: 'https://www.zdnet.fr/feeds/rss/actualites/', lang: 'fr', weight: 1.0 },
+  { name: 'IT for Business', kind: 'rss', url: 'https://www.itforbusiness.fr/feed', lang: 'fr', weight: 1.0 },
   // Veille v3 — Reddit top quotidien (nécessite REDDIT_CLIENT_ID/SECRET, sinon ignoré)
   { name: 'Reddit · IA & automatisation', kind: 'reddit', url: 'r/artificial+OpenAI+automation+nocode/top?t=day&limit=25', lang: 'en', weight: 1.1 },
   // Veille GitHub — les dépôts qui prennent sur nos sujets. L'URL est la requête de
@@ -101,6 +124,13 @@ export const SEED_SOURCES: SeedSource[] = [
   { name: 'GitHub · automatisation & workflows', kind: 'github', url: 'topic:automation topic:ai created:>{90d} stars:>100', lang: 'en', weight: 1.1 },
   { name: 'GitHub · compétences & MCP (skills)', kind: 'github', url: 'topic:mcp created:>{60d} stars:>100', lang: 'en', weight: 1.0 },
   { name: 'GitHub · skills d’agents', kind: 'github', url: 'skills agent in:name,description,topics created:>{60d} stars:>60', lang: 'en', weight: 0.9 },
+  // Veille v5 — les dépôts tout neufs qui explosent, quel que soit leur sujet (le filtre
+  // IA fait le tri) : 300 étoiles en dix jours, c'est le dépôt dont tout le monde parle.
+  { name: 'GitHub · nouveaux dépôts qui montent', kind: 'github', url: 'created:>{10d} stars:>300', lang: 'en', weight: 1.2 },
+  { name: 'GitHub · outils n8n & Make', kind: 'github', url: 'n8n in:name,description,topics created:>{90d} stars:>40', lang: 'en', weight: 1.0 },
+  // Veille v5 — Hugging Face : là où naissent les modèles dont LinkedIn parle le lendemain.
+  { name: 'Hugging Face · modèles tendance', kind: 'hf', url: 'https://huggingface.co/api/models?sort=trendingScore&limit=25', lang: 'en', weight: 1.0 },
+  { name: 'Hugging Face · papiers du jour', kind: 'hf', url: 'https://huggingface.co/api/daily_papers?limit=20', lang: 'en', weight: 0.8 },
   // Veille v4 — le terrain des PME françaises, par mots-clés, dans toute la presse.
   // Chaque requête a été vérifiée : elle ramène des articles de la semaine.
   ...RECHERCHES_ACTUS.map(([name, requete, weight]) => ({ name, kind: 'rss' as const, url: rechercheActus(requete), lang: 'fr' as const, weight })),

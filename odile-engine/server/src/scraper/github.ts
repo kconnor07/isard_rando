@@ -29,7 +29,7 @@ interface GithubRepo {
 }
 
 const AI_PATTERN =
-  /\b(ai|llm|gpt|claude|gemini|openai|anthropic|mistral|copilot|agent|agents|agentic|mcp|automation|workflow|rag|skill|skills|chatbot|assistant|n8n|zapier|make)\b/i;
+  /\b(ai|llms?|gpt|claude|gemini|openai|anthropic|mistral|copilot|agents?|agentic|mcp|automation|workflows?|rag|skills?|chatbots?|assistants?|n8n|zapier|make|deepseek|qwen|llama|gemma|whisper|diffusion|transformers?|embedding\w*|voice|speech|tts|ocr|scrap\w*|browser[- ]use|computer[- ]use|vibe coding|coding agent|prompts?|cursor|codex|langchain|langgraph|crewai|autogen|openclaw|ollama|vllm|fine-?tun\w*|inference|models?)\b/i;
 
 /**
  * Remplace les repères d'ancienneté d'une requête (« {7d} », « {60d} ») par une

@@ -108,6 +108,9 @@ async function processSource(
     } else if (source.kind === 'github') {
       const { fetchGithubRepos } = await import('./github.js');
       items = await fetchGithubRepos(source.url);
+    } else if (source.kind === 'hf') {
+      const { fetchHuggingFace } = await import('./huggingface.js');
+      items = await fetchHuggingFace(source.url);
     } else {
       const result = await fetchRss(source.url, source.etag, source.lastModified, estTendanceIA(source.name) ? { ageMaxJours: 3 } : {});
       if (result.notModified) {
@@ -200,6 +203,10 @@ function crossSourceDedupe(): number {
       title: schema.newsItems.title,
       sourceId: schema.newsItems.sourceId,
       fetchedAt: schema.newsItems.fetchedAt,
+      engagement: schema.newsItems.engagement,
+      engagementRaw: schema.newsItems.engagementRaw,
+      echoes: schema.newsItems.echoes,
+      echoSources: schema.newsItems.echoSources,
     })
     .from(schema.newsItems)
     .where(and(gt(schema.newsItems.fetchedAt, since), ne(schema.newsItems.status, 'discarded')))
@@ -208,24 +215,80 @@ function crossSourceDedupe(): number {
   const weights = new Map<number, number>();
   for (const s of db.select().from(schema.newsSources).all()) weights.set(s.id, s.weight);
 
-  const toDiscard = new Set<number>();
+  const { survivants, ecartes } = fusionnerLesEchos(rows, (sourceId) => (sourceId ? (weights.get(sourceId) ?? 1) : 1));
+  if (ecartes.length > 0) {
+    db.update(schema.newsItems)
+      .set({ status: 'discarded', scoreReason: 'Doublon inter-sources' })
+      .where(inArray(schema.newsItems.id, ecartes))
+      .run();
+  }
+  for (const s of survivants) {
+    db.update(schema.newsItems)
+      .set({
+        echoes: s.echoes,
+        echoSources: JSON.stringify(s.echoSources),
+        ...(s.engagement != null ? { engagement: s.engagement, engagementRaw: s.engagementRaw } : {}),
+      })
+      .where(eq(schema.newsItems.id, s.id))
+      .run();
+  }
+  return ecartes.length;
+}
+
+export interface ItemAEcho {
+  id: number;
+  title: string;
+  sourceId: number | null;
+  engagement?: number | null;
+  engagementRaw?: string | null;
+  echoes: number;
+  echoSources: string | null;
+}
+
+/**
+ * Même histoire, plusieurs médias : l'item de la source la plus forte survit, les
+ * autres sont écartés — mais le survivant garde la trace de chacun (« échos »).
+ * Avant, une actualité reprise par cinq médias ressortait comme un article isolé ;
+ * c'est pourtant le signal le plus sûr qu'un sujet fait parler. Les signaux sociaux
+ * du doublon (points Hacker News…) passent aussi au survivant s'ils sont plus forts.
+ * Fonction pure, testée.
+ */
+export function fusionnerLesEchos(
+  rows: ItemAEcho[],
+  poids: (sourceId: number | null) => number,
+): { survivants: (Omit<ItemAEcho, 'echoSources'> & { echoSources: number[] })[]; ecartes: number[] } {
+  const lire = (json: string | null): number[] => {
+    try {
+      const v = json ? (JSON.parse(json) as unknown) : [];
+      return Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : [];
+    } catch {
+      return [];
+    }
+  };
+  const etat = new Map(rows.map((r) => [r.id, { ...r, echoSources: lire(r.echoSources), touche: false }]));
+  const ecartes = new Set<number>();
   for (let i = 0; i < rows.length; i++) {
     for (let j = i + 1; j < rows.length; j++) {
       const a = rows[i]!;
       const b = rows[j]!;
-      if (toDiscard.has(a.id) || toDiscard.has(b.id)) continue;
-      if (titleSimilarity(a.title, b.title) >= TITLE_SIMILARITY_THRESHOLD) {
-        const wa = a.sourceId ? (weights.get(a.sourceId) ?? 1) : 1;
-        const wb = b.sourceId ? (weights.get(b.sourceId) ?? 1) : 1;
-        toDiscard.add(wa >= wb ? b.id : a.id);
+      if (ecartes.has(a.id) || ecartes.has(b.id)) continue;
+      if (titleSimilarity(a.title, b.title) < TITLE_SIMILARITY_THRESHOLD) continue;
+      const [garde, part] = poids(a.sourceId) >= poids(b.sourceId) ? [a, b] : [b, a];
+      ecartes.add(part.id);
+      const g = etat.get(garde.id)!;
+      const p = etat.get(part.id)!;
+      g.touche = true;
+      // L'écho compte le doublon lui-même et les échos qu'il avait déjà accumulés.
+      g.echoes += 1 + p.echoes;
+      for (const sid of [part.sourceId, ...p.echoSources]) {
+        if (sid != null && sid !== garde.sourceId && !g.echoSources.includes(sid)) g.echoSources.push(sid);
+      }
+      if ((p.engagement ?? 0) > (g.engagement ?? 0)) {
+        g.engagement = p.engagement;
+        g.engagementRaw = p.engagementRaw;
       }
     }
   }
-  if (toDiscard.size > 0) {
-    db.update(schema.newsItems)
-      .set({ status: 'discarded', scoreReason: 'Doublon inter-sources' })
-      .where(inArray(schema.newsItems.id, [...toDiscard]))
-      .run();
-  }
-  return toDiscard.size;
+  const survivants = [...etat.values()].filter((s) => s.touche && !ecartes.has(s.id)).map(({ touche: _t, ...s }) => s);
+  return { survivants, ecartes: [...ecartes] };
 }

@@ -10,7 +10,7 @@ import { completeJson } from '../llm/router.js';
  * semaine sont renotés avec la nouvelle, et les sujets qui en découlaient sont
  * refaits : sinon les notes de l'ancienne grille restent en tête pendant des jours.
  */
-export const VERSION_GRILLE = 5;
+export const VERSION_GRILLE = 6;
 const CLE_VERSION_GRILLE = 'veille_grille_version';
 
 /**
@@ -66,12 +66,22 @@ Note chaque item sur deux axes :
   salariés ou ses clients (c'est presque toujours possible : c'est l'angle du post).
   15-34 : un cas ou une donnée étrangère qui se transpose clairement à une PME française ;
   une tendance de fond expliquée par ses effets concrets sur une petite entreprise.
+  Les dépôts GitHub et les modèles ouverts (Hugging Face) se notent par ce qu'ils PERMETTENT :
+  35-50 quand une entreprise sans développeur peut s'en servir ou le faire installer (un agent
+  qui répond au téléphone, un modèle de transcription ou de voix, un connecteur n8n, un outil qui
+  lit des factures ou des PDF, un assistant qu'on branche sur ses mails) ou quand il explose
+  (milliers d'étoiles en quelques jours, repris par plusieurs médias : c'est l'actu dont on parle) ;
+  15-34 quand il faut un développeur mais que l'usage métier est clair ; 0-14 pour une brique
+  technique que seuls des développeurs comprennent.
   0-14 : ce qui ne change rien pour lui — levée de fonds, valorisation ou chiffre d'affaires
-  d'une start-up peu connue, benchmark ou classement technique, recherche, outil pour
-  développeurs, dépôt de code, géopolitique sans effet sur les entreprises, gadget grand public,
-  grand groupe (banque, CAC 40) sans leçon transposable, et la promotion d'un éditeur
-  par lui-même (témoignage client publié sur le blog de l'éditeur, « les 10 meilleurs
-  outils », annonce commerciale) sauf s'il contient un résultat chiffré vraiment reproductible.
+  d'une start-up peu connue, benchmark ou classement technique sans usage, recherche fondamentale,
+  géopolitique sans effet sur les entreprises, gadget grand public, grand groupe (banque, CAC 40)
+  sans leçon transposable, et la promotion d'un éditeur par lui-même (témoignage client publié sur
+  le blog de l'éditeur, « les 10 meilleurs outils », annonce commerciale) sauf s'il contient un
+  résultat chiffré vraiment reproductible.
+  Quand un item est marqué « repris par N médias » ou porte un fort engagement, c'est une
+  tendance : l'actualité dont tout le monde parle. Note "click" en conséquence, et cherche
+  l'angle entreprise plutôt que d'écarter.
 - "click" (0-50) : potentiel d'accroche sur LinkedIn — 40-50 pour l'actualité IA ultra-récente
   (moins de 24-48 h) reprise par plusieurs médias ou qui buzze sur les réseaux, un nom que tout
   le monde connaît (ChatGPT, Gemini, Claude…), un chiffre choc, un incident ou une polémique ;
@@ -79,6 +89,14 @@ Note chaque item sur deux axes :
   Un contenu qui a déjà beaucoup d'engagement est un bon candidat, s'il parle à une PME française.
   Une actualité de plus d'une semaine perd l'essentiel de son potentiel.
 Ajoute "reason" : une phrase en français qui justifie la note (elle sera montrée à l'humain qui valide).`;
+
+/** Ce que la veille sait déjà d'un item et que le noteur doit voir : la reprise et le signal social. */
+export function signaux(it: { echoes?: number | null; engagement?: number | null }): string {
+  const parts: string[] = [];
+  if ((it.echoes ?? 0) > 0) parts.push(`repris par ${(it.echoes ?? 0) + 1} médias`);
+  if ((it.engagement ?? 0) >= 30) parts.push(`engagement ${it.engagement}/100`);
+  return parts.length ? ` [${parts.join(', ')}]` : '';
+}
 
 export interface ScoreSummary {
   scored: number;
@@ -114,7 +132,7 @@ export async function rescoreWithContent(itemIds: number[]): Promise<number> {
     const list = batch
       .map((it) => {
         const body = (it.contentText ?? it.summary ?? '').slice(0, 2500);
-        return `[id=${it.id}] (${it.lang}) ${it.title}\n${body}`;
+        return `[id=${it.id}] (${it.lang}) ${it.title}${signaux(it)}\n${body}`;
       })
       .join('\n\n---\n\n');
     try {
@@ -177,10 +195,7 @@ export async function runScore(limit = 60): Promise<ScoreSummary> {
     const batch = items.slice(i, i + 10);
     batches++;
     const list = batch
-      .map(
-        (it) =>
-          `[id=${it.id}] (${it.lang}) ${it.title}\n${(it.summary ?? '').slice(0, 300)}`,
-      )
+      .map((it) => `[id=${it.id}] (${it.lang}) ${it.title}${signaux(it)}\n${(it.summary ?? '').slice(0, 300)}`)
       .join('\n\n');
     const { value } = await completeJson(
       {
