@@ -53,7 +53,8 @@ describe('légendes conformes à leur plateforme', async () => {
     });
     expect(out).not.toMatch(/commentez/i);
     expect(out).not.toMatch(/message privé/i);
-    expect(out.indexOf('sur Instagram')).toBeLessThan(out.indexOf('#IA'));
+    expect(out).not.toContain('instagram.com');
+    expect(out.indexOf('en message sur la Page')).toBeLessThan(out.indexOf('#IA'));
     expect(out.endsWith('#IA #PME')).toBe(true);
   });
 

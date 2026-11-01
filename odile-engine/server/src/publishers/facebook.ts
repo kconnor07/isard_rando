@@ -1,6 +1,6 @@
 import { fetchJson } from '../lib/http.js';
 import { logger } from '../lib/logger.js';
-import { GRAPH } from './instagram.js';
+import { declarerLAvatar, GRAPH } from './instagram.js';
 import { getStoredToken } from './tokens.js';
 import { nommerRessource } from '../webhooks/commentDm.js';
 import { PROMESSE_DM } from '../writer/conformite.js';
@@ -20,8 +20,10 @@ export interface MirrorResult {
  * Le moteur ne lit que les commentaires Instagram : Meta n'envoie pas les
  * commentaires de Page au même webhook, et personne ne répondrait à quelqu'un qui
  * commente « GUIDE » sur Facebook. Laisser l'appel à l'action tel quel serait donc
- * une promesse que rien ne tient. On le remplace par un renvoi vers la publication
- * Instagram, là où le mot-clé fonctionne vraiment.
+ * une promesse que rien ne tient. On le remplace par une invitation à écrire en
+ * message à la Page, où un humain répond — sans lien dans le corps (Facebook limite
+ * les liens des Pages à deux posts par mois et leur donne la pire portée) et sans
+ * consigne « commente », que Facebook classe comme appât.
  */
 export function captionFacebook(args: {
   caption: string;
@@ -32,7 +34,7 @@ export function captionFacebook(args: {
   /** hashtags du post, posés APRÈS le renvoi (jamais entre le texte et lui) */
   hashtags?: string[];
 }): string {
-  const { caption, motcle, ressource, urlInstagram } = args;
+  const { caption, motcle, ressource } = args;
   const tags = (args.hashtags ?? []).join(' ');
   const avecTags = (t: string) => (tags ? `${t}\n\n${tags}` : t);
   if (!motcle) return avecTags(caption);
@@ -47,9 +49,7 @@ export function captionFacebook(args: {
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
-  const renvoi = urlInstagram
-    ? `👉 Pour recevoir ${ressource}, commente ${motcle} sous cette publication sur Instagram : ${urlInstagram}`
-    : `👉 Pour recevoir ${ressource}, commente ${motcle} sous cette publication sur notre Instagram.`;
+  const renvoi = `👉 Pour recevoir ${ressource}, écrivez-nous en message sur la Page.`;
   return avecTags(`${nettoye}\n\n${renvoi}`);
 }
 
@@ -80,7 +80,8 @@ export function legendePourFacebook(
 export async function mirrorToFacebookPage(input: PublishInput): Promise<MirrorResult> {
   // Une vidéo ne se recopie pas comme une photo : la Page a son propre point d'entrée,
   // et Facebook télécharge le MP4 depuis l'adresse que le moteur sert.
-  if (input.video) return publierVideoFacebook(input);
+  // Un Reel d'avatar le dit aussi sur Facebook : même règle d'originalité et de transparence chez Meta.
+  if (input.video) return publierVideoFacebook({ ...input, caption: declarerLAvatar(input.caption) });
   const page = getStoredToken('meta', 'fb_page');
   if (!page) throw new Error('Aucune Page Facebook connectée — connecte Instagram depuis Connexions & santé');
   if (page.scopes && !page.scopes.split(',').includes(PAGE_PUBLISH_SCOPE)) {

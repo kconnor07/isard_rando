@@ -306,7 +306,10 @@ ${ligneNoms}
 ${consigneCta}
 ${compte ? consigneVoix(compte) : ''}`
         : `Adapte ce texte de post LinkedIn pour Instagram : ton plus chaleureux et direct, tutoiement,
-1 200 à 2 000 caractères, aéré, quelques émojis sobres. ${ligneSource}
+1 200 à 2 000 caractères, aéré, quelques émojis sobres. La première phrase nomme le métier ou le
+problème avec les mots que les gens tapent dans la recherche (automatisation, devis, facturation,
+relances, agent IA, PME) et, quand le sujet s'y prête, Toulouse : la légende est lue par la recherche
+Instagram et par Google, les hashtags ne font plus la portée. ${ligneSource}
 ${ligneNoms}
 ${consigneCta}`;
   try {

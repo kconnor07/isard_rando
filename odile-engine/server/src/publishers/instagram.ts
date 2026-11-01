@@ -129,7 +129,10 @@ export class InstagramPublisher implements Publisher {
       media_type: 'REELS',
       video_url: video.publicUrl,
       share_to_feed: true,
-      caption,
+      caption: declarerLAvatar(caption),
+      // Toutes nos vidéos sont dites par un avatar : auto-déclaration prévue par l'API
+      // depuis juin 2026. Sans label, Instagram coupe les recommandations depuis le 31 août.
+      is_ai_generated: true,
       access_token: token,
     };
     if (video.coverUrl) corps.cover_url = video.coverUrl;
@@ -159,6 +162,12 @@ export class InstagramPublisher implements Publisher {
   }
 }
 
+/** La légende d'un Reel dit que le présentateur est généré par IA, si elle ne le dit pas déjà. */
+export function declarerLAvatar(caption: string): string {
+  if (/g[ée]n[ée]r[ée]e?s? par (?:une |l[’'])?(?:IA|intelligence artificielle)|avatar|pr[ée]sentateur IA/i.test(caption)) return caption;
+  return `${caption.trimEnd()}\n\n🤖 Présentateur généré par IA.`.slice(0, 2190);
+}
+
 /** Payload « à blanc » pour le mode dry-run. */
 export function instagramDryPayload(input: PublishInput): unknown {
   if (input.video) {
@@ -171,7 +180,8 @@ export function instagramDryPayload(input: PublishInput): unknown {
             video_url: input.video.publicUrl,
             cover_url: input.video.coverUrl,
             share_to_feed: true,
-            caption: input.caption.slice(0, 2190),
+            is_ai_generated: true,
+            caption: declarerLAvatar(input.caption).slice(0, 2190),
           },
         },
         { call: 'GET .../{container}?fields=status_code', until: 'FINISHED' },

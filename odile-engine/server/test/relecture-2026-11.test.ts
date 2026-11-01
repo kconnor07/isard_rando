@@ -108,3 +108,26 @@ describe('relecture : « marquer publié » ne vaut que pour un post de profil',
     expect(statuts).toEqual(['awaiting_approval', 'scheduled']);
   });
 });
+
+describe('Instagram et Facebook : l’avatar se déclare, le miroir ne renvoie plus vers Instagram', async () => {
+  const { declarerLAvatar, instagramDryPayload } = await import('../src/publishers/instagram.js');
+
+  it('la légende d’un Reel dit que le présentateur est généré par IA, une seule fois', () => {
+    expect(declarerLAvatar('Trois minutes par devis.\n\n#ia')).toBe('Trois minutes par devis.\n\n#ia\n\n🤖 Présentateur généré par IA.');
+    const deja = 'Notre avatar vous explique tout.';
+    expect(declarerLAvatar(deja)).toBe(deja);
+    expect(declarerLAvatar('Vidéo générée par IA, texte écrit par nous.')).toBe('Vidéo générée par IA, texte écrit par nous.');
+    expect(declarerLAvatar('x'.repeat(2300)).length).toBeLessThanOrEqual(2190);
+  });
+
+  it('le container REELS porte le paramètre officiel is_ai_generated', () => {
+    const payload = instagramDryPayload({
+      post: { id: 1 } as never,
+      images: [],
+      caption: 'Un Reel.',
+      video: { publicUrl: 'https://odile.test/v/1.mp4', coverUrl: 'https://odile.test/c/1.jpg', path: '/tmp/x.mp4' } as never,
+    }) as { steps: { body?: Record<string, unknown> }[] };
+    expect(payload.steps[0]!.body).toMatchObject({ media_type: 'REELS', is_ai_generated: true });
+    expect(String(payload.steps[0]!.body!.caption)).toContain('Présentateur généré par IA');
+  });
+});

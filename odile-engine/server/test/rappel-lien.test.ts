@@ -79,7 +79,9 @@ describe('le lien en réponse, posté par une personne', async () => {
       urlInstagram: 'https://instagram.com/p/xyz',
     });
     expect(texte).not.toContain('Commente GUIDE pour recevoir');
-    expect(texte).toContain('sur Instagram : https://instagram.com/p/xyz');
+    expect(texte).toContain('écrivez-nous en message sur la Page');
+    expect(texte).not.toContain('https://instagram.com/p/xyz');
+    expect(texte).not.toMatch(/commente/i);
     expect(texte).toContain('le guide « Automatiser vos devis »');
     expect(texte).toContain('Trois minutes par devis.');
     expect(captionFacebook({ caption, motcle: null, ressource: 'x', urlInstagram: null })).toBe(caption);
