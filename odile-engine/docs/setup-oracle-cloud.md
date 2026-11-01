@@ -96,3 +96,28 @@ docker compose --env-file .env -f docker/docker-compose.yml logs -f --tail 100 a
 
 La base, les visuels et la outbox vivent dans le volume Docker `odile-data`
 (persistant entre mises à jour).
+
+### Déploiement automatique (sans SSH au quotidien)
+
+Une minuterie systemd peut regarder GitHub toutes les dix minutes et déployer ce qui
+est nouveau sur la branche suivie — utile quand les commits viennent d'un assistant
+qui n'a pas la clé SSH du serveur. Installation, une seule fois, sur le serveur :
+
+```bash
+cd ~/isard_rando/odile-engine && git pull
+sudo ./docker/install-auto-deploy.sh claude/linkedin-instagram-auto-publish-v11wef
+```
+
+Chaque passage qui trouve une nouvelle version lance `deploy.sh` (mise à jour, image,
+redémarrage, vérification de la version servie) et l'écrit dans
+`~/odile-auto-deploy.log`. Pour suspendre : `sudo systemctl disable --now
+odile-auto-deploy.timer`. La règle qui va avec : on ne pousse sur la branche suivie
+qu'un code dont les tests passent.
+
+### Si le site ne répond plus
+
+La machine accepte les connexions mais aucune réponse HTTP ne revient : le conteneur
+ou Caddy est figé (disque plein, mémoire). Sans ordinateur, la console Oracle Cloud
+(navigateur du téléphone) suffit : Compute → Instances → l'instance → **Reboot**. Les
+conteneurs redémarrent seuls (`restart: unless-stopped`) avec la version déjà en place.
+Avec un ordinateur : `./docker/dc.sh ps`, `df -h`, `free -m`, puis `./docker/dc.sh restart`.
