@@ -114,6 +114,15 @@ redémarrage, vérification de la version servie) et l'écrit dans
 odile-auto-deploy.timer`. La règle qui va avec : on ne pousse sur la branche suivie
 qu'un code dont les tests passent.
 
+### Cohabiter avec un autre projet sur la même machine
+
+Quand une autre application tient déjà les ports 80 et 443 (son propre Caddy), Odile
+Engine peut tourner à côté : `touch .cohabitation` à la racine, puis `./docker/deploy.sh`
+n'allume que l'application, sous le nom de conteneur `odile-engine-app-1`, sur le réseau
+Docker partagé `odile-web` (voir `docker/cohabitation.yml`). Côté autre projet :
+`docker network create odile-web`, `docker network connect odile-web <son-caddy>`, et un
+bloc `odile-engine.duckdns.org { reverse_proxy odile-engine-app-1:3080 }` dans son Caddyfile.
+
 ### Si le site ne répond plus
 
 La machine accepte les connexions mais aucune réponse HTTP ne revient : le conteneur

@@ -1,0 +1,23 @@
+# Cohabitation : Odile Engine partage une machine avec un autre projet qui tient
+# déjà les ports 80 et 443 avec son propre Caddy. Ce fichier s'ajoute au compose
+# principal (deploy.sh le fait seul quand le fichier `.cohabitation` existe à la
+# racine) : le projet prend un nom stable, et l'application rejoint le réseau
+# Docker partagé `odile-web`, où le Caddy de l'autre projet la trouve sous le nom
+# `odile-engine-app-1`. Le Caddy d'Odile Engine, lui, ne démarre pas.
+#
+#   Côté autre projet :  docker network create odile-web
+#                        docker network connect odile-web <son-conteneur-caddy>
+#   et dans son Caddyfile :
+#     odile-engine.duckdns.org {
+#         encode gzip
+#         reverse_proxy odile-engine-app-1:3080
+#     }
+name: odile-engine
+services:
+  app:
+    networks:
+      - default
+      - odile-web
+networks:
+  odile-web:
+    external: true
