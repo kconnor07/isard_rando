@@ -394,6 +394,9 @@ export async function generateImagesForPost(postId: number): Promise<ImagesSumma
   const summary: ImagesSummary = { generated: 0, skipped: 0, failed: 0, tokens: 0 };
   const settings = getImageGen();
   if (!settings.enabled || settings.imagesPerPost === 0) return summary;
+  // Instagram ne porte pas d'illustration : rien à générer (ni à payer).
+  const cible = db.select({ platform: schema.posts.platform }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  if (cible?.platform === 'instagram') return summary;
 
   const slides = db
     .select()

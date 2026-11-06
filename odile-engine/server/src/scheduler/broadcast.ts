@@ -648,9 +648,10 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
           idx: slide.idx,
           kind: slide.kind,
           content: slide.content,
-          renderAssetId: slide.renderAssetId,
+          // Une copie Instagram est refaite sans illustration : on ne reprend ni l'image ni le rendu.
+          renderAssetId: surface.platform === 'instagram' ? null : slide.renderAssetId,
           screenshotAssetId: slide.screenshotAssetId,
-          heroAssetId: slide.heroAssetId,
+          heroAssetId: surface.platform === 'instagram' ? null : slide.heroAssetId,
         })
         .run();
     }

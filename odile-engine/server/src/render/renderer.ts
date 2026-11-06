@@ -495,7 +495,9 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
   // Objets flottants et placement propres au post (choisis dans « Visuels proposés »)
   const overrides = parseVisualOverrides(post.visualOverrides);
   const floatUris = FLOAT_KEYS.map((k) => assetDataUri(overrides[k] ?? null));
-  const postCss = floatUris.some(Boolean)
+  // Instagram : les mêmes templates que LinkedIn, sans illustration ni objet flottant.
+  const sansIllustration = post.platform === 'instagram';
+  const postCss = !sansIllustration && floatUris.some(Boolean)
     ? floatCss({
         uris: floatUris,
         size: overrides.floatSize ?? custom?.floatSize ?? 30,
@@ -513,7 +515,7 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
   const rendered = await mapLimit(slides, 3, async (slide) => {
     const content = slideContentSchema.parse(JSON.parse(slide.content));
     const screenshotDataUri = assetDataUri(slide.screenshotAssetId);
-    const hero = assetInfo(slide.heroAssetId);
+    const hero = sansIllustration ? null : assetInfo(slide.heroAssetId);
     // Objet détouré sans placement choisi pour ce post : à droite du texte sur une slide
     // de contenu (titre + puces), petit et ancré en haut sur les cartes / captures (qui ont
     // besoin de toute la largeur), au-dessus du titre ailleurs.
@@ -543,7 +545,7 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
       slideClasses: perSlide.classes,
       slideStyle: perSlide.style,
       popColor: accentFromImage && !monochromeHero && hero && !hero.cutout ? hero.popColor : null,
-      floatsOn: floatsOnSlide(content.kind, floatSlides),
+      floatsOn: !sansIllustration && floatsOnSlide(content.kind, floatSlides),
       toolUrlDisplay: content.toolUrl ? new URL(content.toolUrl).hostname.replace(/^www\./, '').slice(0, 40) : null,
       logoDataUri,
       avatarDataUri,

@@ -159,16 +159,18 @@ describe('les sujets gardent les tendances, et l’API les montre à chaud', asy
     const a = src('Numerama');
     const b = src('01net');
     const c = src('BFM Tech');
+    // L'API compte depuis l'heure réelle : les dates du test aussi.
+    const ilYaReel = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
     const inserer = (title: string, sourceId: number, extra: Partial<typeof schema.newsItems.$inferInsert> = {}) =>
       db
         .insert(schema.newsItems)
-        .values({ sourceId, url: `https://x.test/${Math.random()}`, canonicalUrl: `https://x.test/${Math.random()}`, title, contentHash: String(Math.random()), lang: 'fr', status: 'new', fetchedAt: ilYa(1), publishedAt: ilYa(2), ...extra })
+        .values({ sourceId, url: `https://x.test/${Math.random()}`, canonicalUrl: `https://x.test/${Math.random()}`, title, contentHash: String(Math.random()), lang: 'fr', status: 'new', fetchedAt: ilYaReel(1), publishedAt: ilYaReel(2), ...extra })
         .returning()
         .get();
     inserer('Mistral lance Voxtral 2, un modèle vocal ouvert', a.id, { echoes: 2, echoSources: JSON.stringify([b.id, c.id]) });
     inserer('Voxtral 2 : Mistral mise sur la voix pour les entreprises', b.id);
     inserer('Un article isolé et sans signal', c.id);
-    inserer('Une vieille histoire reprise partout', a.id, { echoes: 5, fetchedAt: ilYa(80), publishedAt: ilYa(80) });
+    inserer('Une vieille histoire reprise partout', a.id, { echoes: 5, fetchedAt: ilYaReel(80), publishedAt: ilYaReel(80) });
     const app = await buildServer();
     const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { password: 'motdepasse-test' } });
     const brut = login.headers['set-cookie'];
