@@ -6,7 +6,7 @@ import { isLightHex } from '../lib/color.js';
  * - full   : scène cinématique plein cadre, sujet en haut, bas calme pour le titre ;
  * - objets : un objet 3D isolé sur fond uni (couleur du template) → détouré ensuite ;
  * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet ;
- * - personnage : un personnage 3D de film d'animation, en couleurs, cadré en buste
+ * - personnage : un personnage 3D réaliste, en couleurs, cadré en buste
  *   → détouré, posé sur la couverture (façon miniature de Reel « podcast »).
  * Le texte vit dans la couche HTML, JAMAIS dans l'image.
  */
@@ -19,7 +19,7 @@ export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
   { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
-  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage de film d’animation en couleurs, détouré, sur une couverture façon miniature de Reel' },
+  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage 3D réaliste en couleurs, détouré, sur une couverture à fond noir' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -102,7 +102,7 @@ BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BA
 LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highlights, ${dark ? 'high contrast' : 'gentle contrast'}, faint film grain.
 ${NO_TEXT}`;
     case 'personnage':
-      return `Premium stylized 3D character render in the style of a modern animated feature film (expressive face, slightly oversized head, big eyes, detailed hair, skin pores and fabric fibres, subsurface scattering), made to be cut out.
+      return `High-end realistic 3D character render, like a digital double in a film or a AAA video-game cinematic: true human proportions, normal-sized head and eyes, lifelike skin with pores and fine lines, individual hair strands, real fabric weave, subsurface scattering — NOT a cartoon, no caricature, no exaggerated features. Made to be cut out.
 CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with at most one prop from their trade. Portrait framed from mid-chest up, like a guest filmed in a podcast studio: body facing the camera, head turned slightly towards the RIGHT of the frame, a lively readable expression (laughing, amused, sceptical, surprised — whatever fits the subject). Very large in the frame: the head fills about 40% of the image height, the shoulders span the full width and the chest runs down past the bottom edge.
 COLOUR: full natural colours — warm, lifelike skin tones, coloured hair and eyes. The character wears a plain WHITE or very light top (shirt, polo, overshirt), with at most one small accessory in ${p.accent}.
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment.

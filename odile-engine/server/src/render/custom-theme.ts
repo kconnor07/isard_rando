@@ -814,32 +814,17 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .decor-1, .decor-2, .decor-3 { display: none; }`;
 
   // --- Personnage 3D (style d'image « personnage ») ----------------------------
-  // La couverture reproduit la miniature des Reels « podcast » de la marque : rideau bleu
-  // nuit à plis verticaux, une barre néon à droite du visage, logo en haut au centre,
-  // personnage en couleurs décalé à gauche, gros titre blanc centré sur le buste, pastille en
-  // verre dessous, flou blanc vers le bas. Les autres slides gardent le template.
+  // La couverture reprend la composition des miniatures de Reels « podcast » de la marque, sur
+  // fond noir uni : logo en haut au centre, personnage en couleurs décalé à gauche, gros titre
+  // blanc centré sur le buste, pastille en verre dessous, flou blanc vers le bas. Les autres
+  // slides gardent le template.
   const P = '.slide.hero-contain.hero-place-centre';
-  const neon = mix(accent, '#4f8dff', 0.6);
   const personnage =
     theme.imageStyle === 'personnage'
       ? `
-${P} .bg { background: linear-gradient(180deg, #01020a 0%, #030922 30%, #06103a 62%, #050b26 100%); }
-${P} .bg::after, ${P} .decor-1, ${P} .decor-2, ${P} .decor-3, ${P}::before, ${P} .verified-badge { display: none; }
-/* Rideau à plis verticaux, éclairé par le néon */
-${P} .hero-glow {
-  display: block; left: 0; top: 0; width: 100%; height: 100%; transform: none; border-radius: 0; filter: none; z-index: 2;
-  background:
-    radial-gradient(ellipse 46% 44% at 78% 42%, ${rgba(neon, 0.34)} 0%, transparent 70%),
-    repeating-linear-gradient(90deg, ${rgba(neon, 0)} 0px, ${rgba(neon, 0.22)} 12px, ${rgba('#000000', 0.42)} 24px);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 70%, transparent 100%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 22%, #000 70%, transparent 100%);
-}
-/* Barre néon verticale, à droite du visage */
-${P} .hero-glow::after {
-  content: ''; position: absolute; left: 79%; top: 26%; height: 30%; width: 9px; border-radius: 9px;
-  background: ${mix(neon, '#ffffff', 0.85)};
-  box-shadow: 0 0 14px 3px ${rgba(mix(neon, '#ffffff', 0.45), 0.95)}, 0 0 60px 16px ${rgba(neon, 0.85)}, 0 0 170px 60px ${rgba(neon, 0.45)};
-}
+/* Fond noir uni (le grain du template reste), à peine éclairci derrière le personnage */
+${P} .bg { background: radial-gradient(ellipse 70% 52% at 46% 44%, #121318 0%, #060607 62%, #040405 100%); }
+${P} .bg::after, ${P} .decor-1, ${P} .decor-2, ${P} .decor-3, ${P}::before, ${P} .verified-badge, ${P} .hero-glow { display: none; }
 /* Personnage : très grand, décalé à gauche, posé sur le bord bas */
 ${P} .hero-image {
   z-index: 4; inset: calc(15% - 30% * (var(--hero-scale, 1) - 1)) 2% 0 -18%;
@@ -866,11 +851,11 @@ ${P} .brand-footer .brand-wordmark, ${P} .brand-footer .brand-id { display: none
 ${P} .safe { justify-content: flex-end; align-items: center; text-align: center; padding: 0 60px 300px; }
 ${P} .safe .title {
   font-size: 104px; font-weight: 800; line-height: 0.96; letter-spacing: -0.04em;
-  background: linear-gradient(180deg, #ffffff 55%, #dfe4ee 100%);
+  background: linear-gradient(180deg, #ffffff 65%, #eef1f6 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent;
   /* une ombre de texte se peindrait par-dessus le dégradé (texte transparent) : l'ombre passe par le filtre */
   text-shadow: none;
-  filter: drop-shadow(0 6px 26px ${rgba('#000000', 0.5)}) drop-shadow(0 1px 3px ${rgba('#000000', 0.35)});
+  filter: drop-shadow(0 6px 26px ${rgba('#000000', 0.6)}) drop-shadow(0 1px 4px ${rgba('#000000', 0.45)});
 }
 ${P} .safe .title .accent {
   font: inherit; letter-spacing: inherit; padding: 0; border-radius: 0; text-decoration: none;
