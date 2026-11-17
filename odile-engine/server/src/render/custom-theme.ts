@@ -814,70 +814,53 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .decor-1, .decor-2, .decor-3 { display: none; }`;
 
   // --- Personnage 3D (style d'image « personnage ») ----------------------------
-  // La couverture reprend la miniature des Reels de la marque : rideau bleu nuit strié et
-  // barres néon, logo en haut au centre, personnage en couleurs au centre, gros titre blanc
-  // centré, pastille en verre dessous, flou vers le bas. Les autres slides gardent le template.
-  const P = '.slide.hero-contain.hero-place-centre';
-  const neon = mix(accent, '#4f8dff', 0.55);
+  // La couverture garde le fond du template et y ajoute : un quadrillage fin, le personnage
+  // en couleurs à gauche (il sort du cadre), le titre du template (blanc → gris) dans la
+  // colonne droite, la pastille dessous, le logo en haut au centre et un flou blanc vers le
+  // bas, comme sur les miniatures de Reels. Les autres slides ne changent pas.
+  const P = '.slide.hero-contain.hero-place-gauche';
   const personnage =
     theme.imageStyle === 'personnage'
       ? `
-${P} .bg { background: linear-gradient(180deg, #01020a 0%, ${mix(theme.bg1, neon, 0.2)} 36%, ${mix(theme.bg1, neon, 0.34)} 66%, ${theme.bg1} 100%); }
-${P} .bg::after, ${P} .decor-1, ${P} .decor-2, ${P} .decor-3, ${P}::before, ${P} .verified-badge { display: none; }
-/* Rideau strié + deux barres néon */
+${P} .verified-badge { display: none; }
+/* Quadrillage fin par-dessus le fond du template */
 ${P} .hero-glow {
   display: block; left: 0; top: 0; width: 100%; height: 100%; transform: none; border-radius: 0; filter: none; z-index: 2;
-  background: repeating-linear-gradient(90deg, ${rgba(neon, 0)} 0px, ${rgba(neon, 0.2)} 13px, ${rgba('#000000', 0.34)} 26px);
-  -webkit-mask-image: radial-gradient(ellipse 96% 60% at 50% 44%, #000 25%, transparent 100%);
-  mask-image: radial-gradient(ellipse 96% 60% at 50% 44%, #000 25%, transparent 100%);
+  background:
+    repeating-linear-gradient(0deg, ${rgba(theme.textColor, 0.1)} 0 1px, transparent 1px 60px),
+    repeating-linear-gradient(90deg, ${rgba(theme.textColor, 0.1)} 0 1px, transparent 1px 60px);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 82%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 82%);
 }
-${P} .hero-glow::before, ${P} .hero-glow::after {
-  content: ''; position: absolute; top: 25%; height: 33%; width: 9px; border-radius: 9px;
-  background: ${mix(neon, '#ffffff', 0.82)};
-  box-shadow: 0 0 16px 4px ${rgba(mix(neon, '#ffffff', 0.4), 0.95)}, 0 0 70px 20px ${rgba(neon, 0.8)}, 0 0 200px 70px ${rgba(neon, 0.45)};
-}
-${P} .hero-glow::before { left: 8%; }
-${P} .hero-glow::after { right: 8%; }
-/* Personnage : grand, centré, posé sur le bord bas */
+/* Personnage : grand, à gauche, posé sur le bord bas */
 ${P} .hero-image {
-  z-index: 4; inset: calc(15% - 30% * (var(--hero-scale, 1) - 1)) -8% 0 -8%;
+  z-index: 4; inset: calc(16% - 30% * (var(--hero-scale, 1) - 1)) calc(38% - 24% * (var(--hero-scale, 1) - 1)) 0 -17%;
   background-size: contain; background-position: center bottom; background-repeat: no-repeat;
 }
-/* Flou vers le bas */
+/* Flou blanc vers le bas */
 ${P} .hero-scrim {
-  display: block; opacity: 1; inset: auto 0 0 0; height: 44%;
-  -webkit-backdrop-filter: blur(26px); backdrop-filter: blur(26px);
-  background: linear-gradient(180deg, ${rgba(theme.bg1, 0)} 0%, ${rgba(theme.bg1, 0.3)} 50%, ${rgba(theme.bg1, 0.78)} 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
+  display: block; opacity: 1; inset: auto 0 0 0; height: 36%;
+  -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px);
+  background: linear-gradient(180deg, ${rgba('#ffffff', 0)} 0%, ${rgba('#ffffff', 0.3)} 45%, ${rgba('#ffffff', 0.62)} 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 50%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 50%);
 }
 /* Logo en haut au centre (celui du pied disparaît) */
 ${P} .brand-top {
   display: inline-flex; align-items: center; justify-content: center; position: absolute; z-index: 6;
-  top: 118px; left: 50%; right: auto; transform: translateX(-50%);
+  top: 96px; left: 50%; right: auto; transform: translateX(-50%);
   min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none;
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 ${P} .brand-top .brand-wordmark { height: 64px; }
 ${P} .brand-footer .brand-wordmark, ${P} .brand-footer .brand-id { display: none; }
-/* Gros titre blanc centré, sur le buste */
-${P} .safe { justify-content: flex-end; align-items: center; text-align: center; padding: 0 72px 256px; }
-${P} .safe .title {
-  font-size: 100px; font-weight: 800; line-height: 0.98; letter-spacing: -0.035em;
-  background: none; color: #ffffff; -webkit-text-fill-color: #ffffff;
-  text-shadow: 0 6px 44px ${rgba('#000000', 0.6)}, 0 2px 8px ${rgba('#000000', 0.35)};
-}
-${P} .safe .annotation, ${P} .safe .badge { align-self: center; }
-/* Pastille en verre centrée sous le titre */
-${P} .brand-footer { justify-content: center; bottom: 150px; }
-${P} .slide-counter {
-  position: static; font-family: inherit; font-size: 30px; font-weight: 600; letter-spacing: 0; color: #ffffff;
-  padding: 16px 36px; border-radius: 999px;
-  background: ${rgba('#ffffff', 0.16)}; border: 1px solid ${rgba('#ffffff', 0.34)};
-  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
-  box-shadow: inset 0 1px 0 ${rgba('#ffffff', 0.25)}, 0 10px 40px ${rgba('#000000', 0.35)};
-}
-${P} .slide-counter .swipe { color: #ffffff; }`
+/* Titre du template dans la colonne droite, au-dessus du flou */
+${P} .safe { justify-content: flex-end; align-items: flex-start; text-align: left; padding: 0 64px 452px 548px; }
+${P} .safe .title { font-size: 80px; line-height: 1.02; }
+${P}.kind-hook .safe .title { font-size: 84px; }
+/* Pastille sous le titre */
+${P} .brand-footer { left: 548px; right: 64px; justify-content: flex-start; bottom: 352px; }
+${P} .slide-counter { position: static; }`
       : '';
 
   // --- Typographie -------------------------------------------------------

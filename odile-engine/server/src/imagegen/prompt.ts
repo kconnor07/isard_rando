@@ -7,7 +7,7 @@ import { isLightHex } from '../lib/color.js';
  * - objets : un objet 3D isolé sur fond uni (couleur du template) → détouré ensuite ;
  * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet ;
  * - personnage : un personnage 3D de film d'animation, en couleurs, cadré en buste
- *   → détouré, posé au centre de la couverture (façon miniature de Reel).
+ *   → détouré, posé à gauche du titre sur la couverture.
  * Le texte vit dans la couche HTML, JAMAIS dans l'image.
  */
 
@@ -19,7 +19,7 @@ export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
   { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
-  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage de film d’animation en couleurs, détouré, au centre de la couverture (façon miniature de Reel)' },
+  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage de film d’animation en couleurs, détouré, à gauche du titre sur la couverture' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -103,7 +103,7 @@ LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highl
 ${NO_TEXT}`;
     case 'personnage':
       return `Premium stylized 3D character render in the style of a modern animated feature film (expressive face, slightly oversized head, big eyes, detailed hair, skin pores and fabric fibres, subsurface scattering), made to be cut out.
-CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with at most one prop from their trade. Portrait framed from mid-torso up, centred in the frame, body facing the camera with the head turned slightly to one side, a clear readable expression (amused, sceptical, surprised, confident — whatever fits the subject). Large in the frame: the head sits in the upper part and fills about a third of the image height; below it the neck, the shoulders (spanning most of the width) and the chest are fully visible and run down past the bottom edge — the lower half of the image is the torso, left free for a title.
+CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with at most one prop from their trade. Bust portrait, framed from the chest up, body facing the camera with the head turned slightly towards the RIGHT of the frame, a clear readable expression (amused, sceptical, surprised, confident — whatever fits the subject). Very large in the frame: the head alone fills a little under half of the image height, the shoulders span most of the width and the chest runs down past the bottom edge.
 COLOUR: full natural colours — warm, lifelike skin tones, coloured hair and eyes. Clothing in calm tones (white, light grey, navy). One or two accessories in vivid ${p.accent}.
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment.
 LIGHTING: podcast-studio lighting — soft warm key light on the face, cool blue rim light on both edges of the silhouette, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.

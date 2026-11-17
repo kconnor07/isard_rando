@@ -1933,7 +1933,7 @@ export default function Templates() {
                 { v: 'personnage', l: 'Personnage 3D' },
               ]}
               onChange={(v) => set('imageStyle', v)}
-              hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant. « Personnage 3D » : la couverture reprend la miniature de vos Reels — personnage en couleurs au centre, logo en haut, gros titre blanc, flou vers le bas ; les autres slides ne changent pas."
+              hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant. « Personnage 3D » : sur la couverture, un personnage en couleurs à gauche du titre, un quadrillage sur le fond du template, le logo en haut et un flou blanc vers le bas ; les autres slides ne changent pas."
             />
             <Chips
               label="Traitement des images plein cadre"

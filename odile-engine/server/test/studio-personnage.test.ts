@@ -87,10 +87,10 @@ describe('template « personnage »', async () => {
   it('garde le fond du template et n’ajoute que la mise en page du personnage', () => {
     const sans = buildCustomThemeCss(theme({ imageStyle: 'objets' }));
     const avec = buildCustomThemeCss(theme({ imageStyle: 'personnage' }));
-    expect(sans).not.toContain('.slide.hero-contain.hero-place-centre .hero-image');
-    expect(avec).toContain('.slide.hero-contain.hero-place-centre .hero-image');
-    expect(avec).toContain('backdrop-filter: blur(26px)');
-    expect(avec).toContain('.slide.hero-contain.hero-place-centre .brand-top');
+    expect(sans).not.toContain('.slide.hero-contain.hero-place-gauche .hero-image');
+    expect(avec).toContain('.slide.hero-contain.hero-place-gauche .hero-image');
+    expect(avec).toContain('backdrop-filter: blur(30px)');
+    expect(avec).toContain('.slide.hero-contain.hero-place-gauche .brand-top');
     // Tout le reste (fond, décor, typographie) est identique
     expect(avec.startsWith(sans.trimEnd())).toBe(true);
   });
@@ -109,7 +109,7 @@ describe('template « personnage »', async () => {
     ];
     for (const [i, content] of slides.entries()) {
       const avecHero = i === 0;
-      const perSlide = slideStyleFor(t, avecHero ? { heroPlacement: 'centre' } : {}, content.kind);
+      const perSlide = slideStyleFor(t, avecHero ? { heroPlacement: 'gauche' } : {}, content.kind);
       const html = buildSlideHtml({
         theme: 'custom-perso', kind: content.kind, format: 'carousel', brand: getBrand(),
         slideNum: i + 1, slideTotal: 5, content, themeCssOverride: css,
