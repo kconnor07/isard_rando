@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { cutoutStats, fitCutout, removeImageBackground, selectiveColor } from '../src/imagegen/cutout.js';
+import { cutoutStats, fitCutout, removeImageBackground } from '../src/imagegen/cutout.js';
 import { buildImagePrompt, CUTOUT_STYLES, IMAGE_STYLES } from '../src/imagegen/prompt.js';
 import { buildSlideHtml, renderHtmlToPng } from '../src/render/renderer.js';
 import { getBrand } from '../src/db/settingsRepo.js';
@@ -30,14 +30,15 @@ describe('style d’image « personnage »', () => {
     expect(IMAGE_STYLES.map((s) => s.id)).toContain('personnage');
   });
 
-  it('le prompt demande un personnage noir et blanc avec la couleur d’accent, même en réglage monochrome', () => {
+  it('le prompt demande un personnage en couleurs, même en réglage monochrome', () => {
     const prompt = buildImagePrompt({
       idea: 'Un artisan débordé par ses devis',
       style: 'personnage',
       monochrome: true,
       palette: { accent: BLEU, bg1: '#040506', bg2: '#080b12', textColor: '#ffffff' },
     });
-    expect(prompt).toContain('BLACK AND WHITE');
+    expect(prompt).toContain('full natural colours');
+    expect(prompt).not.toContain('BLACK AND WHITE');
     expect(prompt).toContain(BLEU);
     expect(prompt).not.toContain('MONOCHROME');
   });
@@ -57,24 +58,6 @@ describe('style d’image « personnage »', () => {
     const alpha = (x: number, y: number) => data[(y * info.width + x) * info.channels + 3]!;
     expect(alpha(540, 1348)).toBeGreaterThan(200);
     expect(alpha(5, 5)).toBe(0);
-  });
-
-  it('couleur sélective : la peau passe en gris, le bleu reste (ramené à l’accent)', async () => {
-    const out = await selectiveColor(await fauxPersonnage(), BLEU);
-    const { data, info } = await sharp(out).raw().toBuffer({ resolveWithObject: true });
-    const px = (x: number, y: number) => {
-      const i = (y * info.width + x) * info.channels;
-      return [data[i]!, data[i + 1]!, data[i + 2]!];
-    };
-    const peau = px(400, 560);
-    expect(Math.max(...peau) - Math.min(...peau)).toBeLessThan(4);
-    const accessoire = px(230, 880);
-    expect(accessoire[2]! - accessoire[0]!).toBeGreaterThan(100);
-    // Avec une teinte, les gris tirent vers l'accent sans devenir colorés
-    const teinte = await selectiveColor(await fauxPersonnage(), BLEU, { tint: 0.3 });
-    const t = await sharp(teinte).raw().toBuffer({ resolveWithObject: true });
-    const j = (560 * t.info.width + 400) * t.info.channels;
-    expect(t.data[j + 2]!).toBeGreaterThan(t.data[j]!);
   });
 });
 
@@ -104,9 +87,10 @@ describe('template « personnage »', async () => {
   it('garde le fond du template et n’ajoute que la mise en page du personnage', () => {
     const sans = buildCustomThemeCss(theme({ imageStyle: 'objets' }));
     const avec = buildCustomThemeCss(theme({ imageStyle: 'personnage' }));
-    expect(sans).not.toContain('.slide.hero-contain.hero-place-droite .hero-image');
-    expect(avec).toContain('.slide.hero-contain.hero-place-droite .hero-image');
-    expect(avec).toContain('backdrop-filter: blur(22px)');
+    expect(sans).not.toContain('.slide.hero-contain.hero-place-centre .hero-image');
+    expect(avec).toContain('.slide.hero-contain.hero-place-centre .hero-image');
+    expect(avec).toContain('backdrop-filter: blur(26px)');
+    expect(avec).toContain('.slide.hero-contain.hero-place-centre .brand-top');
     // Tout le reste (fond, décor, typographie) est identique
     expect(avec.startsWith(sans.trimEnd())).toBe(true);
   });
@@ -116,7 +100,7 @@ describe('template « personnage »', async () => {
     const dir = process.env.PREVIEW_DIR!;
     const persoPath = process.env.PREVIEW_HERO;
     const brut = persoPath ? await removeImageBackground(fs.readFileSync(persoPath)) : await fauxPersonnage();
-    const hero = await selectiveColor(await fitCutout(brut, 1080, 1350, { bleedBottom: true }), BLEU, { tint: 0.12 });
+    const hero = await fitCutout(brut, 1080, 1350, { bleedBottom: true });
     const t = theme({ imageStyle: 'personnage' });
     const css = buildCustomThemeCss(t);
     const slides = [
@@ -125,7 +109,7 @@ describe('template « personnage »', async () => {
     ];
     for (const [i, content] of slides.entries()) {
       const avecHero = i === 0;
-      const perSlide = slideStyleFor(t, avecHero ? { heroPlacement: 'droite' } : {}, content.kind);
+      const perSlide = slideStyleFor(t, avecHero ? { heroPlacement: 'centre' } : {}, content.kind);
       const html = buildSlideHtml({
         theme: 'custom-perso', kind: content.kind, format: 'carousel', brand: getBrand(),
         slideNum: i + 1, slideTotal: 5, content, themeCssOverride: css,

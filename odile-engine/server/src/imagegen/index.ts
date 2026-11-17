@@ -11,7 +11,7 @@ import { saveAsset } from '../render/renderer.js';
 import { acceptPopColor, extractPopColor, resolvePopColor } from './color.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
-import { cutoutStats, fitCutout, removeImageBackground, selectiveColor } from './cutout.js';
+import { cutoutStats, fitCutout, removeImageBackground } from './cutout.js';
 import { buildImagePrompt, isCutoutStyle, resolvePalette, styleForArchetype, type ImageStyle, type ThemePalette } from './prompt.js';
 import { notesFor, referenceFor } from './references.js';
 import type { FreepikReference } from './providers/freepikCatalog.js';
@@ -180,9 +180,6 @@ export async function generateImageBuffer(
   throw new Error(lastError || "génération d'image impossible");
 }
 
-/** Part de couleur d'accent dans les gris du personnage : il s'accorde au fond du template. */
-export const TEINTE_PERSONNAGE = 0.12;
-
 export interface StyledImageOpts {
   style: ImageStyle;
   quality?: 'pro' | 'fast';
@@ -195,8 +192,6 @@ export interface StyledImageOpts {
   /** couleur signature demandée (repli si l'extraction n'en trouve pas) */
   requestedPop?: string | null;
   size?: { width: number; height: number };
-  /** style « personnage » : seule cette couleur reste, tout le reste passe en noir et blanc */
-  keepColor?: string | null;
 }
 
 export interface StyledImage {
@@ -267,15 +262,10 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
   }
   const chosen = best!;
   const fitted = await fitCutout(chosen.png, size.width, size.height, { bleedBottom: personnage });
-  let buffer: Buffer;
-  if (personnage) {
-    // Gris teintés + éléments à la couleur d'accent, quel que soit le réglage « monochrome »
-    buffer = await selectiveColor(fitted, opts.keepColor ?? '#2f7bff', { tint: TEINTE_PERSONNAGE });
-  } else {
-    let pipeline = sharp(fitted);
-    if (opts.monochrome) pipeline = pipeline.grayscale();
-    buffer = await pipeline.png().toBuffer();
-  }
+  let pipeline = sharp(fitted);
+  // Le personnage garde ses couleurs, quel que soit le réglage « monochrome »
+  if (opts.monochrome && !personnage) pipeline = pipeline.grayscale();
+  const buffer = await pipeline.png().toBuffer();
   return {
     buffer,
     raw: chosen.generated.buffer,
@@ -361,7 +351,6 @@ export async function generateHeroImage(
       monochrome: settings.monochrome,
       excludeHues: [palette.accent, palette.bg2],
       requestedPop: popColor,
-      keepColor: palette.accent,
     });
     const assetId = saveAsset(
       image.buffer,

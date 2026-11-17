@@ -528,9 +528,9 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
         autoPlacement = { ...overrides, heroPlacement: 'haut', heroSize: Math.min(overrides.heroSize ?? custom?.heroSize ?? 100, 70) };
       }
     }
-    // Personnage : toujours à droite du titre (il fait la mise en page de la couverture)
-    if (hero?.cutout && custom?.imageStyle === 'personnage' && !overrides.heroPlacement) {
-      autoPlacement = { ...overrides, heroPlacement: 'droite' };
+    // Personnage : toujours centré (il fait la mise en page de la couverture, façon miniature de Reel)
+    if (hero?.cutout && custom?.imageStyle === 'personnage') {
+      autoPlacement = { ...overrides, heroPlacement: 'centre' };
     }
     const perSlide = slideStyleFor(custom, autoPlacement, content.kind);
     const html = buildSlideHtml({

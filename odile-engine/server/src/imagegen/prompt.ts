@@ -6,8 +6,8 @@ import { isLightHex } from '../lib/color.js';
  * - full   : scène cinématique plein cadre, sujet en haut, bas calme pour le titre ;
  * - objets : un objet 3D isolé sur fond uni (couleur du template) → détouré ensuite ;
  * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet ;
- * - personnage : un personnage 3D de film d'animation, en noir et blanc, dont seuls
- *   quelques éléments portent la couleur d'accent → détouré, posé à droite du titre.
+ * - personnage : un personnage 3D de film d'animation, en couleurs, cadré en buste
+ *   → détouré, posé au centre de la couverture (façon miniature de Reel).
  * Le texte vit dans la couche HTML, JAMAIS dans l'image.
  */
 
@@ -19,7 +19,7 @@ export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
   { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
-  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage de film d’animation en noir et blanc, détouré, avec des éléments à la couleur d’accent' },
+  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage de film d’animation en couleurs, détouré, au centre de la couverture (façon miniature de Reel)' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -60,6 +60,9 @@ export function styleForArchetype(archetypeId?: string | null): ImageStyle {
 
 const NO_TEXT =
   'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons; any hue outside the palette (and the signature colour, if one is given). The image contains no writing of any kind.';
+/** Même interdiction du texte, sans la contrainte de palette (personnage en couleurs naturelles). */
+const NO_TEXT_COULEURS =
+  'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons. The image contains no writing of any kind.';
 
 /**
  * Fond des objets à détourer : gris neutre 50 %, sans lien avec la palette.
@@ -100,11 +103,11 @@ LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highl
 ${NO_TEXT}`;
     case 'personnage':
       return `Premium stylized 3D character render in the style of a modern animated feature film (expressive face, slightly oversized head, big eyes, detailed hair, skin pores and fabric fibres, subsurface scattering), made to be cut out.
-CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with one or two props from their trade. Bust portrait, framed from the chest up, three-quarter view, turned slightly towards the LEFT of the frame, a clear readable expression (amused, sceptical, surprised, confident — whatever fits the subject). Very large in the frame: the head alone fills about half of the image height, shoulders and chest run down past the bottom edge.
-COLOUR (strict): the character, hair, skin and clothes are fully BLACK AND WHITE — neutral greys only, like a monochrome clay or silver-gelatin render. The ONLY colour in the image is ${p.accent}: two or three small SOLID elements carry it, vivid and saturated (the props, glasses frames, a cap, a badge, floating icons or shapes around the character). Nothing else is coloured — no coloured light, glow or reflection on the skin, hair or clothes.
+CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with at most one prop from their trade. Portrait framed from mid-torso up, centred in the frame, body facing the camera with the head turned slightly to one side, a clear readable expression (amused, sceptical, surprised, confident — whatever fits the subject). Large in the frame: the head sits in the upper part and fills about a third of the image height; below it the neck, the shoulders (spanning most of the width) and the chest are fully visible and run down past the bottom edge — the lower half of the image is the torso, left free for a title.
+COLOUR: full natural colours — warm, lifelike skin tones, coloured hair and eyes. Clothing in calm tones (white, light grey, navy). One or two accessories in vivid ${p.accent}.
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment.
-LIGHTING: soft studio key light from the upper left, gentle white rim light on the right edge of the silhouette, deep but readable shadows, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.
-${NO_TEXT}`;
+LIGHTING: podcast-studio lighting — soft warm key light on the face, cool blue rim light on both edges of the silhouette, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.
+${NO_TEXT_COULEURS}`;
   }
 }
 

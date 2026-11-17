@@ -814,30 +814,70 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .decor-1, .decor-2, .decor-3 { display: none; }`;
 
   // --- Personnage 3D (style d'image « personnage ») ----------------------------
-  // Le fond, le logo, le compteur restent ceux du template : seule la slide qui porte le
-  // personnage change — il est grand, posé sur le bord bas, sort du cadre à droite ; le titre
-  // tient la colonne gauche, calé en bas ; le bas de la slide se fond dans un flou.
+  // La couverture reprend la miniature des Reels de la marque : rideau bleu nuit strié et
+  // barres néon, logo en haut au centre, personnage en couleurs au centre, gros titre blanc
+  // centré, pastille en verre dessous, flou vers le bas. Les autres slides gardent le template.
+  const P = '.slide.hero-contain.hero-place-centre';
+  const neon = mix(accent, '#4f8dff', 0.55);
   const personnage =
     theme.imageStyle === 'personnage'
       ? `
-.slide.hero-contain.hero-place-droite .hero-image {
-  /* au-dessus du décor (arcs, disques) : rien ne passe sur le visage */
-  z-index: 4;
-  inset: calc(17% - 30% * (var(--hero-scale, 1) - 1)) -21% 0 calc(47% - 26% * (var(--hero-scale, 1) - 1));
+${P} .bg { background: linear-gradient(180deg, #01020a 0%, ${mix(theme.bg1, neon, 0.2)} 36%, ${mix(theme.bg1, neon, 0.34)} 66%, ${theme.bg1} 100%); }
+${P} .bg::after, ${P} .decor-1, ${P} .decor-2, ${P} .decor-3, ${P}::before, ${P} .verified-badge { display: none; }
+/* Rideau strié + deux barres néon */
+${P} .hero-glow {
+  display: block; left: 0; top: 0; width: 100%; height: 100%; transform: none; border-radius: 0; filter: none; z-index: 2;
+  background: repeating-linear-gradient(90deg, ${rgba(neon, 0)} 0px, ${rgba(neon, 0.2)} 13px, ${rgba('#000000', 0.34)} 26px);
+  -webkit-mask-image: radial-gradient(ellipse 96% 60% at 50% 44%, #000 25%, transparent 100%);
+  mask-image: radial-gradient(ellipse 96% 60% at 50% 44%, #000 25%, transparent 100%);
+}
+${P} .hero-glow::before, ${P} .hero-glow::after {
+  content: ''; position: absolute; top: 25%; height: 33%; width: 9px; border-radius: 9px;
+  background: ${mix(neon, '#ffffff', 0.82)};
+  box-shadow: 0 0 16px 4px ${rgba(mix(neon, '#ffffff', 0.4), 0.95)}, 0 0 70px 20px ${rgba(neon, 0.8)}, 0 0 200px 70px ${rgba(neon, 0.45)};
+}
+${P} .hero-glow::before { left: 8%; }
+${P} .hero-glow::after { right: 8%; }
+/* Personnage : grand, centré, posé sur le bord bas */
+${P} .hero-image {
+  z-index: 4; inset: calc(15% - 30% * (var(--hero-scale, 1) - 1)) -8% 0 -8%;
   background-size: contain; background-position: center bottom; background-repeat: no-repeat;
 }
-.slide.hero-contain.hero-place-droite .hero-glow { display: none; }
-.slide.hero-contain.hero-place-droite .hero-scrim {
-  display: block; opacity: 1; inset: auto 0 0 0; height: 36%;
-  -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
-  background: linear-gradient(180deg, ${rgba(theme.bg1, 0)} 0%, ${rgba(theme.bg1, 0.55)} 55%, ${rgba(theme.bg1, 0.9)} 100%);
-  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
-  mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
+/* Flou vers le bas */
+${P} .hero-scrim {
+  display: block; opacity: 1; inset: auto 0 0 0; height: 44%;
+  -webkit-backdrop-filter: blur(26px); backdrop-filter: blur(26px);
+  background: linear-gradient(180deg, ${rgba(theme.bg1, 0)} 0%, ${rgba(theme.bg1, 0.3)} 50%, ${rgba(theme.bg1, 0.78)} 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 55%);
 }
-.slide.hero-contain.hero-place-droite .safe { justify-content: flex-end; padding-right: 430px; padding-bottom: 290px; }
-.slide.hero-contain.hero-place-droite .safe .title { font-size: 80px; line-height: 1.02; }
-.slide.hero-contain.hero-place-droite.kind-hook .safe .title { font-size: 86px; }
-.slide.hero-contain.hero-place-droite .safe .annotation { align-self: flex-start; }`
+/* Logo en haut au centre (celui du pied disparaît) */
+${P} .brand-top {
+  display: inline-flex; align-items: center; justify-content: center; position: absolute; z-index: 6;
+  top: 118px; left: 50%; right: auto; transform: translateX(-50%);
+  min-width: 0; height: auto; padding: 0; border: 0; border-radius: 0; background: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+${P} .brand-top .brand-wordmark { height: 64px; }
+${P} .brand-footer .brand-wordmark, ${P} .brand-footer .brand-id { display: none; }
+/* Gros titre blanc centré, sur le buste */
+${P} .safe { justify-content: flex-end; align-items: center; text-align: center; padding: 0 72px 256px; }
+${P} .safe .title {
+  font-size: 100px; font-weight: 800; line-height: 0.98; letter-spacing: -0.035em;
+  background: none; color: #ffffff; -webkit-text-fill-color: #ffffff;
+  text-shadow: 0 6px 44px ${rgba('#000000', 0.6)}, 0 2px 8px ${rgba('#000000', 0.35)};
+}
+${P} .safe .annotation, ${P} .safe .badge { align-self: center; }
+/* Pastille en verre centrée sous le titre */
+${P} .brand-footer { justify-content: center; bottom: 150px; }
+${P} .slide-counter {
+  position: static; font-family: inherit; font-size: 30px; font-weight: 600; letter-spacing: 0; color: #ffffff;
+  padding: 16px 36px; border-radius: 999px;
+  background: ${rgba('#ffffff', 0.16)}; border: 1px solid ${rgba('#ffffff', 0.34)};
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  box-shadow: inset 0 1px 0 ${rgba('#ffffff', 0.25)}, 0 10px 40px ${rgba('#000000', 0.35)};
+}
+${P} .slide-counter .swipe { color: #ffffff; }`
       : '';
 
   // --- Typographie -------------------------------------------------------
