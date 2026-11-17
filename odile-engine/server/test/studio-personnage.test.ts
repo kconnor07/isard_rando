@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { chromaKeyCutout, cutoutStats, fitCutout, removeImageBackground, solidifyAlpha } from '../src/imagegen/cutout.js';
-import { buildImagePrompt, CUTOUT_STYLES, IMAGE_STYLES } from '../src/imagegen/prompt.js';
+import { buildImagePrompt, CASTING, CUTOUT_STYLES, IMAGE_STYLES, membreDuCasting } from '../src/imagegen/prompt.js';
 import { buildSlideHtml, renderHtmlToPng } from '../src/render/renderer.js';
 import { getBrand } from '../src/db/settingsRepo.js';
 import { slideContentSchema } from '@odile/shared';
@@ -42,6 +42,16 @@ describe('style d’image « personnage »', () => {
     expect(prompt).toContain('Odile');
     expect(prompt).not.toContain('BLACK AND WHITE');
     expect(prompt).not.toContain('MONOCHROME');
+  });
+
+  it('l’avatar tourne d’un post à l’autre et reste le même pour un post', () => {
+    expect(membreDuCasting(14).id).toBe(membreDuCasting(14).id);
+    expect(new Set(CASTING.map((_, i) => membreDuCasting(i).id)).size).toBe(CASTING.length);
+    expect(membreDuCasting(0).mascotte).toBe(true);
+    const barbu = buildImagePrompt({ idea: 'Des devis en retard', style: 'personnage', casting: 1, hasReference: true });
+    expect(barbu).toContain('beard');
+    // un autre avatar que la mascotte ne reprend jamais l'image de référence
+    expect(barbu).not.toContain('shown in the reference image');
   });
 
   it('avec une image de référence, l’avatar est repris tel quel et la consigne « guide de rendu » ne s’applique pas', () => {

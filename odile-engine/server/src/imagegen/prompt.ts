@@ -6,8 +6,8 @@ import { isLightHex } from '../lib/color.js';
  * - full   : scène cinématique plein cadre, sujet en haut, bas calme pour le titre ;
  * - objets : un objet 3D isolé sur fond uni (couleur du template) → détouré ensuite ;
  * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet ;
- * - personnage : l'avatar de la marque (image de référence des réglages, sinon décrit), dans une
- *   scène drôle liée au sujet, en couleurs, cadré en buste
+ * - personnage : un des avatars de la marque (ils tournent d'un post à l'autre), dans une
+ *   scène drôle liée au sujet, en couleurs
  *   → détouré, posé sur la couverture (façon miniature de Reel « podcast »).
  * Le texte vit dans la couche HTML, JAMAIS dans l'image.
  */
@@ -20,7 +20,7 @@ export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
   { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
-  { id: 'personnage', label: 'Personnage 3D', hint: 'L’avatar de la marque dans une scène drôle liée au sujet, détouré, sur la couverture' },
+  { id: 'personnage', label: 'Personnage 3D', hint: 'Un des avatars de la marque (ils tournent d’un post à l’autre) dans une scène drôle liée au sujet' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -61,10 +61,67 @@ export function styleForArchetype(archetypeId?: string | null): ImageStyle {
 
 const NO_TEXT =
   'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons; any hue outside the palette (and the signature colour, if one is given). The image contains no writing of any kind.';
-/** L'avatar de la marque, décrit en toutes lettres quand aucune image de référence n'est réglée. */
-const MASCOTTE_PAR_DEFAUT =
-  'the brand mascot « Odile », a cheerful AI assistant: a young woman with brown hair tied in a high bun and two loose strands framing her face, large brown eyes, a warm smile, a slim white headset microphone, and a royal-blue polo shirt.';
-/** L'avatar de la marque, fourni en image de référence (réglages › Illustrations IA). */
+/**
+ * Les avatars de la marque : l'assistante (la mascotte, qui peut être fournie en image de
+ * référence), puis la famille d'avatars du site. Un post en reçoit un, toujours le même pour
+ * ce post, et ils tournent d'un post à l'autre.
+ */
+export interface MembreDuCasting {
+  id: string;
+  /** la mascotte : seule à pouvoir être reprise depuis l'image de référence des réglages */
+  mascotte: boolean;
+  description: string;
+}
+export const CASTING: MembreDuCasting[] = [
+  {
+    id: 'odile',
+    mascotte: true,
+    description:
+      'the brand mascot « Odile », a cheerful AI assistant: a young woman with brown hair tied in a high bun and two loose strands framing her face, large brown eyes, a warm smile, a slim white headset microphone, and a royal-blue polo shirt.',
+  },
+  {
+    id: 'barbu',
+    mascotte: false,
+    description:
+      'a man in his thirties with short brown hair swept back, a full, neatly trimmed brown beard, brown eyes and a friendly face, wearing a navy-blue knit sweater.',
+  },
+  {
+    id: 'mamie',
+    mascotte: false,
+    description:
+      'a lively grandmother in her seventies with short silver-grey hair, bright eyes, laugh lines and a mischievous smile, wearing a royal-blue polo shirt.',
+  },
+  {
+    id: 'boucles',
+    mascotte: false,
+    description:
+      'a woman with voluminous black curly hair, brown skin, brown eyes and a bright smile, wearing a colourful tropical-print shirt.',
+  },
+  {
+    id: 'lunettes',
+    mascotte: false,
+    description:
+      'a young man with tousled sandy-blond hair, round thin-rimmed glasses and fair skin, wearing a white tee with dusty-pink raglan sleeves.',
+  },
+  {
+    id: 'rousse',
+    mascotte: false,
+    description:
+      'a woman with long, straight copper-red hair, brown eyes and fair skin, wearing a khaki overshirt over a white tee.',
+  },
+  {
+    id: 'chignon',
+    mascotte: false,
+    description:
+      'a young woman with auburn hair in a top bun and two loose curls at the temples, brown eyes and fair skin, wearing a white tee under a dusty-pink cardigan.',
+  },
+];
+/** L'avatar d'un post : stable pour ce post, différent d'un post au suivant. */
+export function membreDuCasting(graine: number | null | undefined): MembreDuCasting {
+  const n = Number.isFinite(graine) ? Math.abs(Math.trunc(graine as number)) : 0;
+  return CASTING[n % CASTING.length]!;
+}
+/** La mascotte, fournie en image de référence (réglages › Illustrations IA). */
 const MASCOTTE_REFERENCE =
   'the brand mascot shown in the reference image — keep exactly her face, hairstyle, accessories, outfit and 3D style, so that she is instantly recognisable; do NOT copy the pose, the framing or the background of the reference.';
 /** Même interdiction du texte, sans la contrainte de palette (personnage en couleurs naturelles). */
@@ -80,7 +137,12 @@ const NO_TEXT_COULEURS =
 export const CUTOUT_BACKGROUND = '#7f7f7f';
 
 /** Guide de style d'un mode, dans la palette donnée (+ couleur signature éventuelle). */
-export function styleGuide(style: ImageStyle, p: ThemePalette, pop?: string | null, opts: { hasReference?: boolean } = {}): string {
+export function styleGuide(
+  style: ImageStyle,
+  p: ThemePalette,
+  pop?: string | null,
+  opts: { hasReference?: boolean; casting?: number | null } = {},
+): string {
   const dark = isLightHex(p.textColor); // texte clair ⇒ fond sombre
   const atmosphere = dark ? 'dark cosmic or deep studio atmosphere' : 'bright, airy high-key atmosphere';
   switch (style) {
@@ -108,16 +170,18 @@ OBJECT: mirror chrome and thick glass with refractions, dispersion and ${p.accen
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no glow, no gradient, no floor, no cast shadow on the background, no vignette, no environment, nothing else in the frame.
 LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highlights, ${dark ? 'high contrast' : 'gentle contrast'}, faint film grain.
 ${NO_TEXT}`;
-    case 'personnage':
+    case 'personnage': {
+      const membre = membreDuCasting(opts.casting);
       return `3D animated-feature-film character render — the house style of the brand's avatars: soft rounded shapes, big expressive eyes, smooth skin, glossy detailed hair, clean fabric. Made to be cut out.
-CHARACTER: ${opts.hasReference ? MASCOTTE_REFERENCE : MASCOTTE_PAR_DEFAUT} She is always the character: never replace her with someone else, never add a second person.
-SCENE: she acts out the subject above in a funny way — ONE clear visual gag, slightly exaggerated, with one or two props taken straight from the subject (for example: arms full of crumpled blank paper sheets, a phone in each hand, proudly presenting a tiny robot, peeking over a giant blank invoice…). Comic, expressive face and hands. Warm, friendly humour — never mocking, never crude.
-PROPS (strict): every prop is physically attached to her — held in her hands, tucked under an arm, sitting on her shoulder or head. Nothing floats in the air, nothing stands behind her, no scattered objects in the background. Props carry no writing: blank sheets, plain screens, simple pictograms only.
-FRAMING: from mid-chest up, body facing the camera, head turned slightly towards the RIGHT of the frame. Very large in the frame: her face sits in the UPPER half of the image (eyes about one third from the top), the head fills about 40% of the image height, the shoulders span most of the width and the chest runs down past the bottom edge. Her hands and props are raised to shoulder or face height, beside her head — the lower third of the image stays plain torso (a title will cover it).
-COLOUR: full natural colours — warm skin tones, her royal-blue polo, props in their real colours.
+CHARACTER: ${membre.mascotte && opts.hasReference ? MASCOTTE_REFERENCE : membre.description} This is the only person in the image: no one else, no second character.
+SCENE: the character acts out the subject above in a funny way — ONE clear visual gag, slightly exaggerated, with one or two props taken straight from the subject (for example: arms full of crumpled blank paper sheets, a phone in each hand, proudly presenting a tiny robot, peeking over a giant blank invoice…). Comic, expressive face and hands. Warm, friendly humour — never mocking, never crude.
+PROPS (strict): every prop is physically attached to the character — held in the hands, tucked under an arm, sitting on a shoulder or on the head. Nothing floats in the air, nothing stands behind, no scattered objects in the background. Props carry no writing: blank sheets, plain screens, simple pictograms only.
+FRAMING: from the waist up, body facing the camera, head turned slightly towards the RIGHT of the frame. The face sits in the UPPER half of the image (eyes about one third from the top) and the head fills about a third of the image height; the shoulders span about two thirds of the width and the torso runs down past the bottom edge. Hands and props are raised to shoulder or face height, beside the head — the lower third of the image stays plain torso (a title will cover it).
+COLOUR: full natural colours — warm skin tones, the outfit described above, props in their real colours.
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment.
 LIGHTING: soft warm key light on the face, cool blue rim light on both edges of the silhouette, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.
 ${NO_TEXT_COULEURS}`;
+    }
   }
 }
 
@@ -166,6 +230,8 @@ export interface ImagePromptArgs {
   popColor?: string | null;
   /** série d'objets : même matière, même lumière que l'image de référence (le 1er objet) */
   seriesOf?: string;
+  /** style « personnage » : graine du casting (identifiant du post) — choisit l'avatar */
+  casting?: number | null;
 }
 
 /** Assemble le prompt final envoyé au générateur d'images. */
@@ -177,7 +243,7 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
   const style = args.style ?? styleForArchetype(args.archetypeId);
   // Un objet à détourer garde son guide (fond gris neutre) même en monochrome : la scène N&B plein cadre ne se détoure pas
   const personnage = style === 'personnage';
-  const guide = mono && !isCutoutStyle(style) ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, mono ? null : args.popColor, { hasReference: args.hasReference });
+  const guide = mono && !isCutoutStyle(style) ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, mono ? null : args.popColor, { hasReference: args.hasReference, casting: args.casting });
   const parts = [
     `SUBJECT: ${args.idea}`,
     mono && isCutoutStyle(style) && !personnage

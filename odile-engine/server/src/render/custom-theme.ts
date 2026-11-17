@@ -837,7 +837,7 @@ ${P} .hero-glow {
 }
 /* Personnage : très grand, décalé à gauche, posé sur le bord bas */
 ${P} .hero-image {
-  z-index: 4; inset: calc(13% - 30% * (var(--hero-scale, 1) - 1)) 2% 0 -12%;
+  z-index: 4; inset: calc(20% - 30% * (var(--hero-scale, 1) - 1)) 2% 0 -12%;
   background-size: contain; background-position: center bottom; background-repeat: no-repeat;
 }
 /* Flou blanc vers le bas */
@@ -858,7 +858,7 @@ ${P} .brand-top {
 ${P} .brand-top .brand-wordmark { height: 62px; }
 ${P} .brand-footer .brand-wordmark, ${P} .brand-footer .brand-id { display: none; }
 /* Gros titre blanc (à peine grisé vers le bas), centré sur le buste */
-${P} .safe { justify-content: flex-end; align-items: center; text-align: center; padding: 0 60px 300px; }
+${P} .safe { justify-content: flex-end; align-items: center; text-align: center; padding: 0 84px 300px; }
 ${P} .safe .title {
   font-size: 104px; font-weight: 800; line-height: 0.96; letter-spacing: -0.04em;
   background: linear-gradient(180deg, #ffffff 65%, #eef1f6 100%);

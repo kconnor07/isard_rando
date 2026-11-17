@@ -12,7 +12,8 @@ import { acceptPopColor, extractPopColor, resolvePopColor } from './color.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
 import { chromaKeyCutout, cutoutStats, fitCutout, removeImageBackground, solidifyAlpha } from './cutout.js';
-import { buildImagePrompt, isCutoutStyle, resolvePalette, styleForArchetype, type ImageStyle, type ThemePalette } from './prompt.js';
+import {
+  membreDuCasting, buildImagePrompt, isCutoutStyle, resolvePalette, styleForArchetype, type ImageStyle, type ThemePalette } from './prompt.js';
 import { notesFor, referenceFor } from './references.js';
 import type { FreepikReference } from './providers/freepikCatalog.js';
 
@@ -334,8 +335,11 @@ export async function generateHeroImage(
       : settings.style !== 'auto'
         ? settings.style
         : (templateStyle ?? styleForArchetype(post?.archetype)));
-  const reference = usableReference(style);
+  // Personnage : l'avatar tourne d'un post à l'autre ; seule la mascotte reprend l'image de référence
+  const avatar = style === 'personnage' ? membreDuCasting(slide.postId) : null;
+  const reference = avatar && !avatar.mascotte ? null : usableReference(style);
   const prompt = buildImagePrompt({
+    casting: slide.postId,
     idea,
     archetypeId: post?.archetype,
     styleNotes: settings.styleNotes,
@@ -372,6 +376,7 @@ export async function generateHeroImage(
           instructions: opts.instructions ?? null,
           monochrome: settings.monochrome,
           style,
+          avatar: avatar?.id ?? null,
           cutout: image.cutout,
           popColor: image.popColor,
           gate: image.gate ?? null,
