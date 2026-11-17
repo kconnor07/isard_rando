@@ -424,13 +424,14 @@ export const imageGenSettingsSchema = z.object({
   /** toutes les images (illustrations, studio, bibliothèque) en noir et blanc */
   monochrome: z.boolean().default(false),
   /** style d'illustration : auto = selon l'archétype / la slide, sinon imposé */
-  style: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
+  style: z.enum(['auto', 'full', 'objets', 'chrome', 'personnage']).default('auto'),
   /** image de référence (asset de la bibliothèque) par style : guide le rendu, pas le sujet */
   references: z
     .object({
       full: z.string().max(30).nullable().optional(),
       objets: z.string().max(30).nullable().optional(),
       chrome: z.string().max(30).nullable().optional(),
+      personnage: z.string().max(30).nullable().optional(),
     })
     .default({}),
   /** consignes libres ajoutées au prompt, par style */
@@ -439,6 +440,7 @@ export const imageGenSettingsSchema = z.object({
       full: z.string().max(400).optional(),
       objets: z.string().max(400).optional(),
       chrome: z.string().max(400).optional(),
+      personnage: z.string().max(400).optional(),
     })
     .default({}),
   /** fournisseur : auto = Freepik/Magnific si clé présente, sinon Gemini direct */
@@ -451,6 +453,7 @@ export const imageGenSettingsSchema = z.object({
       full: z.string().max(60).optional(),
       objets: z.string().max(60).optional(),
       chrome: z.string().max(60).optional(),
+      personnage: z.string().max(60).optional(),
     })
     .default({}),
 });

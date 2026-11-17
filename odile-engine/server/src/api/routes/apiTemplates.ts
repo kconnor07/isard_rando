@@ -33,7 +33,7 @@ export const templateSchema = z.object({
   accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun']),
+  decor: z.enum(['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'studio', 'aucun']),
   bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z
@@ -79,7 +79,7 @@ export const templateSchema = z.object({
   floatTilt: z.number().int().min(0).max(30).default(12),
   floatSlides: z.enum(['centrees', 'accroche', 'toutes']).default('centrees'),
   // Illustration
-  imageStyle: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
+  imageStyle: z.enum(['auto', 'full', 'objets', 'chrome', 'personnage']).default('auto'),
   heroGrade: z.enum(['aucun', 'vif', 'teinte', 'doux']).default('vif'),
   heroPlacement: z.enum(['centre', 'haut', 'droite', 'gauche']).default('centre'),
   heroSize: z.number().int().min(60).max(140).default(100),

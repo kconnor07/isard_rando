@@ -27,7 +27,7 @@ interface Draft {
   decor:
     | 'orbes' | 'verre' | 'liquide' | 'lames' | 'rideau' | 'lamelles' | 'projecteur'
     | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges'
-    | 'eclipse' | 'prisme' | 'orbite' | 'grille' | 'rayons' | 'vagues' | 'aucun';
+    | 'eclipse' | 'prisme' | 'orbite' | 'grille' | 'rayons' | 'vagues' | 'studio' | 'aucun';
   bgTop: string | null;
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
@@ -67,7 +67,7 @@ interface Draft {
   floatBleed: boolean;
   floatTilt: number;
   floatSlides: 'centrees' | 'accroche' | 'toutes';
-  imageStyle: 'auto' | 'full' | 'objets' | 'chrome';
+  imageStyle: 'auto' | 'full' | 'objets' | 'chrome' | 'personnage';
   heroGrade: 'aucun' | 'vif' | 'teinte' | 'doux';
   heroPlacement: 'centre' | 'haut' | 'droite' | 'gauche';
   heroSize: number;
@@ -894,6 +894,33 @@ const RECIPES: StartPoint[] = [
 
 /** Autres points de départ : palettes et ambiances, un clic charge la recette. */
 const PRESETS: StartPoint[] = [
+  {
+    id: 'studio',
+    label: 'Studio noir & bleu',
+    hint: 'Fond noir à grain, titre argent, mot clé bleu, personnage 3D noir et blanc à droite, signature en bas',
+    swatch: 'linear-gradient(150deg,#040506,#0a0f1c 60%,#2f7bff)',
+    draft: {
+      accent: '#2f7bff',
+      secondary: '#9fc2ff',
+      bg1: '#040506',
+      bg2: '#080b12',
+      textColor: '#ffffff',
+      decor: 'studio',
+      decorIntensity: 100,
+      grainLevel: 55,
+      titleWeight: 600,
+      titleScale: 100,
+      titleGradient: 'argent',
+      accentStyle: 'plain',
+      align: 'left',
+      showAuthor: true,
+      showLogo: false,
+      imageStyle: 'personnage',
+      heroPlacement: 'droite',
+      heroSize: 100,
+      heroGlow: false,
+    },
+  },
   { id: 'nuit', label: 'Nuit bleue', hint: 'Le réglage d’origine : orbes de verre bleu nuit', swatch: 'linear-gradient(150deg,#050508,#0a1024 60%,#0099ff)', draft: {} },
   {
     id: 'ambre',
@@ -995,6 +1022,7 @@ const DECOR_LABELS: Record<Draft['decor'], string> = {
   disques: 'Disques nets + arcs',
   colonne: 'Colonne de lumière',
   'anneaux-larges': 'Grands anneaux',
+  studio: 'Studio : halo, courbe fine, astérisque, signature en bas',
   eclipse: 'Éclipse : disque net, double anneau, rayons fins, arcs',
   prisme: 'Prisme : faisceau diagonal, arête de lumière, grille fine',
   orbite: 'Orbite : sphère, orbites elliptiques, satellites, étoiles',
@@ -1930,6 +1958,7 @@ export default function Templates() {
                 { v: 'full', l: 'Plein cadre' },
                 { v: 'objets', l: 'Objets détourés' },
                 { v: 'chrome', l: 'Chrome & verre' },
+                { v: 'personnage', l: 'Personnage 3D' },
               ]}
               onChange={(v) => set('imageStyle', v)}
               hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant."

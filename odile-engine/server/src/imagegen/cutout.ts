@@ -44,21 +44,22 @@ export async function removeImageBackground(input: Buffer): Promise<Buffer> {
  * Pose un détourage sur une toile transparente aux dimensions des slides :
  * l'objet est rogné à ses bords utiles puis centré avec une marge, entier.
  */
-export async function fitCutout(png: Buffer, width = 1080, height = 1350): Promise<Buffer> {
+export async function fitCutout(png: Buffer, width = 1080, height = 1350, opts: { bleedBottom?: boolean } = {}): Promise<Buffer> {
   const trimmed = await sharp(png)
     .trim({ threshold: 6 })
     .png()
     .toBuffer()
     .catch(() => png);
   const inner = await sharp(trimmed)
-    .resize(Math.round(width * 0.84), Math.round(height * 0.84), { fit: 'inside' })
+    // Personnage : pleine toile, posé sur le bord bas (il « sort » du cadre) ; objet : marge de 8 %
+    .resize(Math.round(width * (opts.bleedBottom ? 1 : 0.84)), Math.round(height * (opts.bleedBottom ? 1 : 0.84)), { fit: 'inside' })
     .png()
     .toBuffer();
   const meta = await sharp(inner).metadata();
   const w = meta.width ?? width;
   const h = meta.height ?? height;
   const left = Math.floor((width - w) / 2);
-  const top = Math.floor((height - h) / 2);
+  const top = opts.bleedBottom ? height - h : Math.floor((height - h) / 2);
   return sharp(inner)
     .extend({
       top,
@@ -83,7 +84,7 @@ export interface CutoutStats {
  * Porte qualité d'un détourage : assez de matière (4 à 70 % du cadre) et un
  * objet entier (aucun bord touché). Sinon on regénère une fois.
  */
-export async function cutoutStats(png: Buffer): Promise<CutoutStats> {
+export async function cutoutStats(png: Buffer, opts: { personnage?: boolean } = {}): Promise<CutoutStats> {
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const w = info.width;
   const h = info.height;
@@ -101,6 +102,64 @@ export async function cutoutStats(png: Buffer): Promise<CutoutStats> {
     }
   }
   const coverage = opaque / (w * h);
-  const touchesEdge = Object.values(edge).some((n) => n > 8);
-  return { coverage, touchesEdge, ok: coverage >= 0.04 && coverage <= 0.7 && !touchesEdge };
+  // Un personnage cadré à la taille touche le bas (et peut frôler un côté) : seul le haut doit rester libre
+  const touchesEdge = opts.personnage ? edge.top > 8 : Object.values(edge).some((n) => n > 8);
+  const max = opts.personnage ? 0.9 : 0.7;
+  const min = opts.personnage ? 0.15 : 0.04;
+  return { coverage, touchesEdge, ok: coverage >= min && coverage <= max && !touchesEdge };
+}
+
+/**
+ * Couleur sélective : tout passe en noir et blanc, sauf les pixels dont la teinte
+ * est proche de `keepHex` (ils sont ramenés à cette teinte exacte). Garantit le
+ * rendu « personnage noir et blanc + éléments à la couleur d'accent », même si le
+ * modèle a coloré la peau ou les vêtements.
+ */
+export async function selectiveColor(png: Buffer, keepHex: string, toleranceDeg = 42): Promise<Buffer> {
+  const m = /^#?([0-9a-f]{6})$/i.exec(keepHex.trim());
+  if (!m) return sharp(png).grayscale().png().toBuffer();
+  const kr = parseInt(m[1]!.slice(0, 2), 16);
+  const kg = parseInt(m[1]!.slice(2, 4), 16);
+  const kb = parseInt(m[1]!.slice(4, 6), 16);
+  const hueOfRgb = (r: number, g: number, b: number): { h: number; s: number; v: number } => {
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const d = max - min;
+    let h = 0;
+    if (d > 0) {
+      if (max === r) h = ((g - b) / d) % 6;
+      else if (max === g) h = (b - r) / d + 2;
+      else h = (r - g) / d + 4;
+      h = (h * 60 + 360) % 360;
+    }
+    return { h, s: max === 0 ? 0 : d / max, v: max / 255 };
+  };
+  const keep = hueOfRgb(kr, kg, kb);
+  const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const ch = info.channels;
+  for (let i = 0; i < data.length; i += ch) {
+    const r = data[i]!;
+    const g = data[i + 1]!;
+    const b = data[i + 2]!;
+    const px = hueOfRgb(r, g, b);
+    const dist = Math.min(Math.abs(px.h - keep.h), 360 - Math.abs(px.h - keep.h));
+    const lum = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+    // Poids de la couleur : pleine dans la tolérance et bien saturée, fondue aux abords (pas de liseré)
+    const hueW = dist <= toleranceDeg ? 1 : Math.max(0, 1 - (dist - toleranceDeg) / 14);
+    const satW = Math.min(1, Math.max(0, (px.s - 0.22) / 0.2));
+    const w = hueW * satW;
+    if (w <= 0) {
+      data[i] = data[i + 1] = data[i + 2] = lum;
+      continue;
+    }
+    // Ramené à la teinte d'accent, en gardant la lumière du pixel
+    const k = px.v / Math.max(keep.v, 0.01);
+    const tr = Math.min(255, kr * k);
+    const tg = Math.min(255, kg * k);
+    const tb = Math.min(255, kb * k);
+    data[i] = Math.round(lum + (tr - lum) * w);
+    data[i + 1] = Math.round(lum + (tg - lum) * w);
+    data[i + 2] = Math.round(lum + (tb - lum) * w);
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: ch } }).png().toBuffer();
 }

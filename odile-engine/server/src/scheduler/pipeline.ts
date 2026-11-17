@@ -3,7 +3,7 @@ import { db, schema } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import { runDesignReview } from '../design-studio/index.js';
 import { getImageGen } from '../db/settingsRepo.js';
-import { generateImagesForPost, type ImagesSummary } from '../imagegen/index.js';
+import { generateImagesForPost, postAPersonnage, type ImagesSummary } from '../imagegen/index.js';
 import { renderPost } from '../render/renderer.js';
 import { captureForPost } from '../screenshot/capture.js';
 import { runVisualAgentForPipeline, type VisualRunSummary } from '../visuals/agent.js';
@@ -141,7 +141,7 @@ async function fabriquer(draft: { postId: number; screenshotUrl: string | null }
     captureForPost(draft.postId, draft.screenshotUrl),
     // Par défaut, aucune image n'est posée toute seule : l'agent visuel la propose
     // (idée d'image de l'accroche comprise) et l'humain la pose s'il la veut.
-    getImageGen().autoPlace
+    getImageGen().autoPlace || postAPersonnage(draft.postId)
       ? generateImagesForPost(draft.postId).catch((err): ImagesSummary => {
           logger.error({ err: String(err) }, "génération d'images en échec (non bloquant)");
           return { generated: 0, skipped: 0, failed: 1, tokens: 0 };

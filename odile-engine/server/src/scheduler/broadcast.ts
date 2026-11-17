@@ -15,6 +15,7 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getBrand, getCadence, getDmTriggers, getStrategieLinkedIn } from '../db/settingsRepo.js';
 import { verifierBudget } from '../lib/llmBudget.js';
+import { illustrationPermise } from '../render/custom-theme.js';
 import { logger } from '../lib/logger.js';
 import { completeJson } from '../llm/router.js';
 import { comptesLinkedIn, compteDuPost, type CompteLinkedIn } from '../publishers/linkedinAccounts.js';
@@ -648,10 +649,10 @@ export async function diffuserPartout(parentId: number): Promise<number[]> {
           idx: slide.idx,
           kind: slide.kind,
           content: slide.content,
-          // Une copie Instagram est refaite sans illustration : on ne reprend ni l'image ni le rendu.
+          // Une copie Instagram est refaite sans illustration (sauf template « personnage ») : on ne reprend ni l'image ni le rendu.
           renderAssetId: surface.platform === 'instagram' ? null : slide.renderAssetId,
           screenshotAssetId: slide.screenshotAssetId,
-          heroAssetId: surface.platform === 'instagram' ? null : slide.heroAssetId,
+          heroAssetId: illustrationPermise(surface.platform, parent.theme) ? slide.heroAssetId : null,
         })
         .run();
     }

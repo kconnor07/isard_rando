@@ -6,12 +6,12 @@ import { config } from '../config.js';
 import { db, schema } from '../db/client.js';
 import { getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
-import { getCustomTheme } from '../render/custom-theme.js';
+import { getCustomTheme, templateAPersonnage } from '../render/custom-theme.js';
 import { saveAsset } from '../render/renderer.js';
 import { acceptPopColor, extractPopColor, resolvePopColor } from './color.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
-import { cutoutStats, fitCutout, removeImageBackground } from './cutout.js';
+import { cutoutStats, fitCutout, removeImageBackground, selectiveColor } from './cutout.js';
 import { buildImagePrompt, isCutoutStyle, resolvePalette, styleForArchetype, type ImageStyle, type ThemePalette } from './prompt.js';
 import { notesFor, referenceFor } from './references.js';
 import type { FreepikReference } from './providers/freepikCatalog.js';
@@ -192,6 +192,8 @@ export interface StyledImageOpts {
   /** couleur signature demandée (repli si l'extraction n'en trouve pas) */
   requestedPop?: string | null;
   size?: { width: number; height: number };
+  /** style « personnage » : seule cette couleur reste, tout le reste passe en noir et blanc */
+  keepColor?: string | null;
 }
 
 export interface StyledImage {
@@ -243,6 +245,7 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
   }
 
   // Détourage avec porte qualité : une seconde génération si l'objet est rogné ou trop petit
+  const personnage = opts.style === 'personnage';
   const maxAttempts = config.LLM_MODE === 'mock' ? 1 : 2;
   let best: { generated: GeneratedImage; png: Buffer; stats: Awaited<ReturnType<typeof cutoutStats>> } | null = null;
   let tokens = 0;
@@ -252,7 +255,7 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
     const generated = await generate();
     tokens += generated.tokens;
     const png = await removeImageBackground(generated.buffer);
-    const stats = await cutoutStats(png);
+    const stats = await cutoutStats(png, { personnage });
     if (!best || (stats.ok && !best.stats.ok) || (stats.ok === best.stats.ok && stats.coverage > best.stats.coverage)) {
       best = { generated, png, stats };
     }
@@ -260,9 +263,16 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
     logger.info({ attempt, coverage: Number(stats.coverage.toFixed(3)), touchesEdge: stats.touchesEdge }, 'détourage insuffisant, nouvelle génération');
   }
   const chosen = best!;
-  let pipeline = sharp(await fitCutout(chosen.png, size.width, size.height));
-  if (opts.monochrome) pipeline = pipeline.grayscale();
-  const buffer = await pipeline.png().toBuffer();
+  const fitted = await fitCutout(chosen.png, size.width, size.height, { bleedBottom: personnage });
+  let buffer: Buffer;
+  if (personnage) {
+    // Noir et blanc + éléments à la couleur d'accent, quel que soit le réglage « monochrome »
+    buffer = await selectiveColor(fitted, opts.keepColor ?? '#2f7bff');
+  } else {
+    let pipeline = sharp(fitted);
+    if (opts.monochrome) pipeline = pipeline.grayscale();
+    buffer = await pipeline.png().toBuffer();
+  }
   return {
     buffer,
     raw: chosen.generated.buffer,
@@ -304,24 +314,30 @@ export function paletteForPost(post: { theme: string } | null | undefined): { pa
  */
 export async function generateHeroImage(
   slideId: number,
-  opts: { instructions?: string; quality?: 'pro' | 'fast'; style?: ImageStyle } = {},
+  opts: { instructions?: string; quality?: 'pro' | 'fast'; style?: ImageStyle; idea?: string } = {},
 ): Promise<{ ok: boolean; assetId?: string; model?: string; tokens?: number; reason?: string }> {
   const slide = db.select().from(schema.slides).where(eq(schema.slides.id, slideId)).get();
   if (!slide) return { ok: false, reason: `Slide ${slideId} introuvable` };
   const post = db.select().from(schema.posts).where(eq(schema.posts.id, slide.postId)).get();
   const content = JSON.parse(slide.content) as SlideContent;
-  if (!content.imageIdea) return { ok: false, reason: 'Pas de concept (imageIdea) sur cette slide' };
+  const idea = content.imageIdea?.trim() || opts.idea?.trim();
+  if (!idea) return { ok: false, reason: 'Pas de concept (imageIdea) sur cette slide' };
 
   const settings = getImageGen();
   // Template maison : l'illustration suit sa palette (et sa couleur signature), pas le bleu Odile
   const { palette, custom, popColor } = paletteForPost(post);
-  // Style : demandé > réglage global > style du template > archétype
+  // Style : demandé > template « personnage » (il fait partie de sa mise en page) > réglage global > style du template > archétype
   const templateStyle = custom && custom.imageStyle !== 'auto' ? custom.imageStyle : null;
   const style: ImageStyle =
-    opts.style ?? (settings.style !== 'auto' ? settings.style : (templateStyle ?? styleForArchetype(post?.archetype)));
+    opts.style ??
+    (templateStyle === 'personnage'
+      ? 'personnage'
+      : settings.style !== 'auto'
+        ? settings.style
+        : (templateStyle ?? styleForArchetype(post?.archetype)));
   const reference = usableReference(style);
   const prompt = buildImagePrompt({
-    idea: content.imageIdea,
+    idea,
     archetypeId: post?.archetype,
     styleNotes: settings.styleNotes,
     instructions: opts.instructions,
@@ -342,6 +358,7 @@ export async function generateHeroImage(
       monochrome: settings.monochrome,
       excludeHues: [palette.accent, palette.bg2],
       requestedPop: popColor,
+      keepColor: palette.accent,
     });
     const assetId = saveAsset(
       image.buffer,
@@ -350,7 +367,7 @@ export async function generateHeroImage(
         postId: slide.postId,
         slideId: slide.id,
         extraMeta: {
-          idea: content.imageIdea,
+          idea,
           archetype: post?.archetype ?? null,
           model: image.model,
           tokens: image.tokens,
@@ -378,6 +395,12 @@ export async function generateHeroImage(
   }
 }
 
+/** Le post utilise un template « personnage » : sa couverture reçoit un personnage, même sans pose automatique. */
+export function postAPersonnage(postId: number): boolean {
+  const post = db.select({ theme: schema.posts.theme }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
+  return templateAPersonnage(post?.theme);
+}
+
 export interface ImagesSummary {
   generated: number;
   skipped: number;
@@ -393,9 +416,37 @@ export interface ImagesSummary {
 export async function generateImagesForPost(postId: number): Promise<ImagesSummary> {
   const summary: ImagesSummary = { generated: 0, skipped: 0, failed: 0, tokens: 0 };
   const settings = getImageGen();
+  const cible = db
+    .select({ platform: schema.posts.platform, theme: schema.posts.theme })
+    .from(schema.posts)
+    .where(eq(schema.posts.id, postId))
+    .get();
+  // Template « personnage » : un seul personnage, sur la couverture — il fait partie de la mise en page.
+  if (cible && templateAPersonnage(cible.theme)) {
+    if (!settings.enabled) return summary;
+    const couverture = db
+      .select()
+      .from(schema.slides)
+      .where(eq(schema.slides.postId, postId))
+      .orderBy(schema.slides.idx)
+      .get();
+    if (!couverture) return summary;
+    if (couverture.heroAssetId) {
+      summary.skipped++;
+      return summary;
+    }
+    const contenu = JSON.parse(couverture.content) as SlideContent & { title?: string };
+    const result = await generateHeroImage(couverture.id, { idea: contenu.title?.replace(/[*_]/g, '') });
+    if (result.ok) {
+      summary.generated++;
+      summary.tokens += result.tokens ?? 0;
+    } else {
+      summary.failed++;
+    }
+    return summary;
+  }
   if (!settings.enabled || settings.imagesPerPost === 0) return summary;
   // Instagram ne porte pas d'illustration : rien à générer (ni à payer).
-  const cible = db.select({ platform: schema.posts.platform }).from(schema.posts).where(eq(schema.posts.id, postId)).get();
   if (cible?.platform === 'instagram') return summary;
 
   const slides = db

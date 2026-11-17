@@ -5,18 +5,21 @@ import { isLightHex } from '../lib/color.js';
  * Prompts d'illustration. Trois styles, tous fondus à la palette du template :
  * - full   : scène cinématique plein cadre, sujet en haut, bas calme pour le titre ;
  * - objets : un objet 3D isolé sur fond uni (couleur du template) → détouré ensuite ;
- * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet.
+ * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet ;
+ * - personnage : un personnage 3D de film d'animation, en noir et blanc, dont seuls
+ *   quelques éléments portent la couleur d'accent → détouré, posé à droite du titre.
  * Le texte vit dans la couche HTML, JAMAIS dans l'image.
  */
 
-export type ImageStyle = 'full' | 'objets' | 'chrome';
+export type ImageStyle = 'full' | 'objets' | 'chrome' | 'personnage';
 /** Styles dont l'objet est détouré après génération (fond uni → PNG transparent). */
-export const CUTOUT_STYLES: ImageStyle[] = ['objets', 'chrome'];
+export const CUTOUT_STYLES: ImageStyle[] = ['objets', 'chrome', 'personnage'];
 export const isCutoutStyle = (style: ImageStyle): boolean => CUTOUT_STYLES.includes(style);
 export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
   { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
+  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage de film d’animation en noir et blanc, détouré, avec des éléments à la couleur d’accent' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -95,6 +98,13 @@ OBJECT: mirror chrome and thick glass with refractions, dispersion and ${p.accen
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no glow, no gradient, no floor, no cast shadow on the background, no vignette, no environment, nothing else in the frame.
 LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highlights, ${dark ? 'high contrast' : 'gentle contrast'}, faint film grain.
 ${NO_TEXT}`;
+    case 'personnage':
+      return `Premium stylized 3D character render in the style of a modern animated feature film (expressive face, slightly oversized head, big eyes, detailed hair, skin pores and fabric fibres, subsurface scattering), made to be cut out.
+CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with one or two props from their trade. Bust portrait, framed from the chest up, three-quarter view, turned slightly towards the LEFT of the frame, a clear readable expression (amused, sceptical, surprised, confident — whatever fits the subject). Very large in the frame: the head alone fills about half of the image height, shoulders and chest run down past the bottom edge.
+COLOUR (strict): the character, hair, skin and clothes are fully BLACK AND WHITE — neutral greys only, like a monochrome clay or silver-gelatin render. The ONLY colour in the image is ${p.accent}: two or three small SOLID elements carry it, vivid and saturated (the props, glasses frames, a cap, a badge, floating icons or shapes around the character). Nothing else is coloured — no coloured light, glow or reflection on the skin, hair or clothes.
+BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment.
+LIGHTING: soft studio key light from the upper left, gentle white rim light on the right edge of the silhouette, deep but readable shadows, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.
+${NO_TEXT}`;
   }
 }
 
@@ -153,10 +163,11 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
   const mono = args.monochrome || args.theme === 'encre-blanche';
   const style = args.style ?? styleForArchetype(args.archetypeId);
   // Un objet à détourer garde son guide (fond gris neutre) même en monochrome : la scène N&B plein cadre ne se détoure pas
+  const personnage = style === 'personnage';
   const guide = mono && !isCutoutStyle(style) ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, mono ? null : args.popColor);
   const parts = [
     `SUBJECT: ${args.idea}`,
-    mono && isCutoutStyle(style)
+    mono && isCutoutStyle(style) && !personnage
       ? 'MONOCHROME: the object is fully desaturated (chrome, glass, greys, white highlights), no hue at all; the background stays the flat neutral mid-grey.'
       : null,
     archetype?.imageComposition && style === 'full' ? `COMPOSITION TEMPLATE: ${archetype.imageComposition}` : null,

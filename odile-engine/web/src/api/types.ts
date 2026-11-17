@@ -352,10 +352,10 @@ export interface ImageModelsDto {
   defaultModel: string;
   models: { id: string; label: string; family: string; speed: string; note: string | null; recommended: boolean }[];
   edits: { id: string; label: string; needsPrompt: boolean; needsReference: boolean; hint: string }[];
-  styles: { id: 'full' | 'objets' | 'chrome'; label: string; hint: string }[];
-  defaultStyle: 'auto' | 'full' | 'objets' | 'chrome';
+  styles: { id: 'full' | 'objets' | 'chrome' | 'personnage'; label: string; hint: string }[];
+  defaultStyle: 'auto' | 'full' | 'objets' | 'chrome' | 'personnage';
   /** image de référence par style (asset de la bibliothèque) */
-  references: { full?: string | null; objets?: string | null; chrome?: string | null };
+  references: { full?: string | null; objets?: string | null; chrome?: string | null; personnage?: string | null };
   notesByStyle: { full?: string; objets?: string; chrome?: string };
   cutoutStyles: string[];
   /** modèle par style (vide = modèle par défaut) */
@@ -380,7 +380,7 @@ export interface VisualCandidateDto {
   slideIdx: number | null;
   model?: string;
   monochrome?: boolean;
-  style?: 'full' | 'objets' | 'chrome';
+  style?: 'full' | 'objets' | 'chrome' | 'personnage';
   cutout?: boolean;
   popColor?: string | null;
   /** série d'objets cohérents */

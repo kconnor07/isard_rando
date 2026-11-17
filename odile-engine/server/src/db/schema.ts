@@ -508,7 +508,7 @@ export const customThemes = sqliteTable('custom_themes', {
   textColor: text('text_color').notNull().default('#fdfdfd'),
   /** décor : orbes de verre, halo, dégradé, grille de points, anneaux, arcs lumineux, ou rien */
   decor: text('decor', {
-    enum: ['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun'],
+    enum: ['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'studio', 'aucun'],
   })
     .notNull()
     .default('orbes'),
@@ -614,7 +614,7 @@ export const customThemes = sqliteTable('custom_themes', {
   /** position du logo : pied gauche (compteur à droite), pied centré, pilule en haut au centre */
   brandPosition: text('brand_position', { enum: ['bas', 'bas-centre', 'haut-centre'] }).notNull().default('bas'),
   /** style d'illustration des posts qui utilisent ce template (auto = selon la slide) */
-  imageStyle: text('image_style', { enum: ['auto', 'full', 'objets', 'chrome'] }).notNull().default('auto'),
+  imageStyle: text('image_style', { enum: ['auto', 'full', 'objets', 'chrome', 'personnage'] }).notNull().default('auto'),
   // --- Personnalisation fine (v4) ---
   /** corps de texte : police, taille (%), graisse, opacité (%), couleur (null = texte) */
   bodyFont: text('body_font', { enum: ['inter', 'playfair', 'fragment'] }).notNull().default('inter'),

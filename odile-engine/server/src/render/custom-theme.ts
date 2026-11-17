@@ -808,6 +808,69 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   filter: blur(40px);
 }
 .decor-3 { display: none; }`
+                      : theme.decor === 'studio'
+                        ? `
+/* Studio : fond noir, halo derrière le titre, courbe fine, astérisque lumineux, ligne méta en haut,
+   signature en bas à gauche, personnage détouré qui sort du cadre à droite */
+.decor-1 {
+  position: absolute; inset: 0; z-index: 2;
+  background:
+    radial-gradient(ellipse 40% 22% at 26% 54%, ${rgba(theme.textColor, 0.3)} 0%, ${rgba(accent, 0.2)} 44%, transparent 76%),
+    radial-gradient(ellipse 56% 38% at 88% 72%, ${rgba(accent, 0.2)} 0%, transparent 72%);
+  filter: blur(34px);
+}
+.decor-2 {
+  position: absolute; z-index: 3; left: -2100px; top: 1036px; width: 4000px; height: 4000px;
+  border-radius: 50%; box-sizing: border-box;
+  border: 3px solid ${mix(accent, '#ffffff', 0.4)};
+  box-shadow: 0 0 22px ${rgba(accent, 0.9)}, inset 0 0 22px ${rgba(accent, 0.55)};
+  -webkit-mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
+  mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
+}
+.decor-3 {
+  position: absolute; z-index: 3; left: -66px; top: 318px; width: 156px; height: 38px;
+  border-radius: 10px; background: ${mix(accent, '#ffffff', 0.25)};
+  transform: rotate(14deg);
+  filter: drop-shadow(0 0 26px ${rgba(accent, 0.95)}) drop-shadow(0 0 70px ${rgba(accent, 0.6)});
+}
+.decor-3::before, .decor-3::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: inherit; }
+.decor-3::before { transform: rotate(60deg); }
+.decor-3::after { transform: rotate(-60deg); }
+.slide .meta-top { display: grid; }
+/* Signature : photo + nom + métier, sans pilule, en bas à gauche */
+.slide .author-chip {
+  top: auto; bottom: 84px; left: 96px; padding: 0; gap: 20px; max-width: 62%;
+  background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.slide .author-avatar { width: 78px; height: 78px; }
+.slide .author-check { display: none; }
+.slide .author-name { font-size: 31px; }
+.slide .author-handle { font-size: 23px; }
+/* « swipe → » posé au-dessus de la signature */
+.slide .brand-footer { bottom: 84px; }
+.slide .slide-counter {
+  position: absolute; left: 0; bottom: 112px; padding: 0; border: 0; background: none; box-shadow: none;
+  font-family: inherit; font-size: 30px; font-weight: 500; letter-spacing: 0; color: ${rgba(theme.textColor, 0.6)};
+}
+.slide .slide-counter .swipe { color: ${accent}; }
+.slide .safe { padding-top: ${theme.padTop ?? 230}px; padding-bottom: ${theme.padBottom ?? 330}px; }
+/* Mot accentué : gras, à la couleur d'accent, avec une lueur */
+.slide .title { letter-spacing: -0.035em; line-height: 0.98; }
+.slide .title .accent {
+  font-family: inherit; font-style: normal; font-weight: 800; letter-spacing: inherit;
+  background: none; color: ${accent}; -webkit-text-fill-color: ${accent};
+  text-shadow: 0 0 46px ${rgba(accent, 0.55)};
+}
+.slide .big-number { filter: drop-shadow(0 0 60px ${rgba(theme.textColor, 0.35)}); }
+/* Personnage : grand, posé sur le bord bas, il sort du cadre à droite ; le texte tient la colonne gauche */
+.slide.hero-contain.hero-place-droite .hero-image {
+  inset: calc(17% - 30% * (var(--hero-scale, 1) - 1)) -17% 0 calc(43% - 26% * (var(--hero-scale, 1) - 1));
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+}
+.slide.hero-contain.hero-place-droite .hero-glow { display: none; }
+.slide.hero-contain.hero-place-droite .safe { justify-content: flex-end; padding-right: 380px; padding-bottom: 350px; }
+.slide.hero-contain.hero-place-droite .safe .title { font-size: 88px; }
+.slide.hero-contain.hero-place-droite.kind-hook .safe .title { font-size: 96px; }`
                       : `
 .decor-1, .decor-2, .decor-3 { display: none; }`;
 
@@ -1151,6 +1214,16 @@ ${
 `;
 }
 
+
+/** Le template du post pose un personnage 3D sur sa couverture (style d'image « personnage »). */
+export function templateAPersonnage(theme: string | null | undefined): boolean {
+  return theme ? getCustomTheme(theme)?.imageStyle === 'personnage' : false;
+}
+
+/** Une illustration est-elle rendue sur ce post ? Instagram n'en porte pas, sauf template « personnage ». */
+export function illustrationPermise(platform: string | null | undefined, theme: string | null | undefined): boolean {
+  return platform !== 'instagram' || templateAPersonnage(theme);
+}
 
 /** Indicateurs de rendu portés par les classes de la slide (voile, CTA, placement de l'objet, marque…). */
 export interface SlideStyle {

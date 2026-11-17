@@ -36,7 +36,7 @@ export default function Images() {
   const [quality, setQuality] = useState<'pro' | 'fast'>('pro');
   const [cutout, setCutout] = useState(false);
   const [model, setModel] = useState('');
-  const [style, setStyle] = useState<'auto' | 'full' | 'objets' | 'chrome'>('auto');
+  const [style, setStyle] = useState<'auto' | 'full' | 'objets' | 'chrome' | 'personnage'>('auto');
   const [editing, setEditing] = useState<LibraryImageDto | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [highlight, setHighlight] = useState<string | null>(null);

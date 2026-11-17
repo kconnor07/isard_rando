@@ -11,7 +11,7 @@ import { db, schema } from '../db/client.js';
 import { getBrand, getDmTriggers, getImageGen } from '../db/settingsRepo.js';
 import { logger } from '../lib/logger.js';
 import { getBrowser } from './browser.js';
-import { buildCustomThemeCss, getCustomTheme, slideStyleFor } from './custom-theme.js';
+import { buildCustomThemeCss, getCustomTheme, illustrationPermise, slideStyleFor } from './custom-theme.js';
 import { floatCss, floatsOnSlide, type FloatLayout, type FloatSlides } from './floats.js';
 import { iconSvg } from './icons.js';
 import { isLightHex } from '../lib/color.js';
@@ -200,6 +200,16 @@ export function buildSlideHtml(input: SlideRenderInput): string {
       : `<span class="author-avatar">${escapeHtml(brandInitials(input.brand))}</span>`;
   const authorLine = input.brand.authorLine?.trim() || input.brand.handle;
   const authorChip = `<div class="author-chip">${avatar}<div><div class="author-name">${escapeHtml(input.brand.name)}<span class="author-check">${VERIFIED_SVG(26)}</span></div><div class="author-handle">${escapeHtml(authorLine)}</div></div></div>`;
+  const site = (() => {
+    try {
+      return new URL(input.brand.siteUrl).hostname.replace(/^www\./, '');
+    } catch {
+      return '';
+    }
+  })();
+  const metaCol = (label: string, value: string) =>
+    value ? `<div><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>` : '<div></div>';
+  const metaTop = `<div class="meta-top">${metaCol('conçu par', input.brand.name)}${metaCol('pour vos projets', site)}${metaCol('à suivre', input.brand.handle)}</div>`;
   const counter =
     input.slideTotal > 1
       ? input.slideNum < input.slideTotal
@@ -250,6 +260,7 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
       : ''
   }
   <div class="float-1"></div><div class="float-2"></div><div class="float-3"></div><div class="float-4"></div>
+  ${metaTop}
   ${authorChip}
   <div class="verified-badge">${VERIFIED_SVG(40)}</div>
   <div class="brand-top">${brandBlock}</div>
@@ -484,19 +495,21 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
   const brand = getBrand();
   const logoDataUri = assetDataUri(brand.logoAssetId);
   const avatarDataUri = assetDataUri(brand.avatarAssetId);
-  const monochromeHero = getImageGen().monochrome;
   const format = post.format as PostFormat;
   const size = RENDER_SIZES[format];
   const assetIds: string[] = [];
   const custom = getCustomTheme(post.theme);
+  // Le personnage porte déjà son noir et blanc + accent : pas de filtre « monochrome » par-dessus
+  const monochromeHero = getImageGen().monochrome && custom?.imageStyle !== 'personnage';
   const darkTheme = custom ? isLightHex(custom.textColor) : post.theme !== 'papier-blanc';
   // CSS du template maison (image de fond + objets en base64) construit une seule fois pour tout le post
   const themeCssOverride = custom ? buildCustomThemeCss(custom) : undefined;
   // Objets flottants et placement propres au post (choisis dans « Visuels proposés »)
   const overrides = parseVisualOverrides(post.visualOverrides);
   const floatUris = FLOAT_KEYS.map((k) => assetDataUri(overrides[k] ?? null));
-  // Instagram : les mêmes templates que LinkedIn, sans illustration ni objet flottant.
-  const sansIllustration = post.platform === 'instagram';
+  // Instagram : les mêmes templates que LinkedIn, sans illustration ni objet flottant
+  // (sauf template « personnage », dont le personnage fait partie de la mise en page).
+  const sansIllustration = !illustrationPermise(post.platform, post.theme);
   const postCss = !sansIllustration && floatUris.some(Boolean)
     ? floatCss({
         uris: floatUris,

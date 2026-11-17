@@ -116,7 +116,7 @@ const generateSchema = z.object({
   /** modèle du catalogue Freepik/Magnific (sinon celui des réglages) */
   model: z.string().max(60).optional(),
   /** style : plein cadre, objets détourés, chrome & verre (auto = selon la composition) */
-  style: z.enum(['auto', 'full', 'objets', 'chrome']).default('auto'),
+  style: z.enum(['auto', 'full', 'objets', 'chrome', 'personnage']).default('auto'),
 });
 
 const editSchema = z.object({
