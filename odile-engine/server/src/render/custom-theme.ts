@@ -815,16 +815,37 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 
   // --- Personnage 3D (style d'image « personnage ») ----------------------------
   // La couverture reprend la composition des miniatures de Reels « podcast » de la marque, sur
-  // fond noir uni : logo en haut au centre, personnage en couleurs décalé à gauche, gros titre
+  // un fond bleu nuit quadrillé (halo et anneau bleus) : logo en haut au centre, personnage en couleurs décalé à gauche, gros titre
   // blanc centré sur le buste, pastille en verre dessous, flou blanc vers le bas. Les autres
   // slides gardent le template.
   const P = '.slide.hero-contain.hero-place-centre';
+  const neon = mix(accent, '#3f7bff', 0.6);
   const personnage =
     theme.imageStyle === 'personnage'
       ? `
-/* Fond noir uni (le grain du template reste), à peine éclairci derrière le personnage */
-${P} .bg { background: radial-gradient(ellipse 70% 52% at 46% 44%, #121318 0%, #060607 62%, #040405 100%); }
-${P} .bg::after, ${P} .decor-1, ${P} .decor-2, ${P} .decor-3, ${P}::before, ${P} .verified-badge, ${P} .hero-glow { display: none; }
+/* Fond bleu nuit (pas noir), quadrillé, avec un halo et un anneau bleus derrière le personnage */
+${P} .bg { background: radial-gradient(ellipse 85% 62% at 46% 42%, ${mix('#0b1040', neon, 0.22)} 0%, #080b26 52%, #05061a 100%); }
+${P} .bg::after, ${P} .decor-1, ${P} .decor-2, ${P} .decor-3, ${P}::before, ${P} .verified-badge { display: none; }
+${P} .hero-glow {
+  display: block; left: 0; top: 0; width: 100%; height: 100%; transform: none; border-radius: 0; filter: none; z-index: 2;
+  background:
+    repeating-linear-gradient(0deg, ${rgba(mix(neon, '#ffffff', 0.35), 0.16)} 0 1px, transparent 1px 60px),
+    repeating-linear-gradient(90deg, ${rgba(mix(neon, '#ffffff', 0.35), 0.16)} 0 1px, transparent 1px 60px);
+  -webkit-mask-image: radial-gradient(ellipse 100% 70% at 50% 38%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(ellipse 100% 70% at 50% 38%, #000 35%, transparent 100%);
+}
+/* Halo bleu diffus */
+${P} .hero-glow::before {
+  content: ''; position: absolute; left: 46%; top: 41%; width: 900px; height: 900px; transform: translate(-50%, -50%);
+  border-radius: 50%; filter: blur(30px);
+  background: radial-gradient(circle closest-side, ${rgba(neon, 0.6)} 0%, ${rgba(neon, 0.26)} 48%, transparent 100%);
+}
+/* Anneau bleu lumineux derrière la tête */
+${P} .hero-glow::after {
+  content: ''; position: absolute; left: 46%; top: 41%; width: 760px; height: 760px; transform: translate(-50%, -50%);
+  border-radius: 50%; box-sizing: border-box; border: 4px solid ${mix(neon, '#ffffff', 0.45)};
+  box-shadow: 0 0 26px 2px ${rgba(neon, 0.95)}, inset 0 0 26px 2px ${rgba(neon, 0.7)}, 0 0 120px 20px ${rgba(neon, 0.35)};
+}
 /* Personnage : très grand, décalé à gauche, posé sur le bord bas */
 ${P} .hero-image {
   z-index: 4; inset: calc(15% - 30% * (var(--hero-scale, 1) - 1)) 2% 0 -18%;

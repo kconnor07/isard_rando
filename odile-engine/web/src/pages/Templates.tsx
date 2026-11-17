@@ -1933,7 +1933,7 @@ export default function Templates() {
                 { v: 'personnage', l: 'Personnage 3D' },
               ]}
               onChange={(v) => set('imageStyle', v)}
-              hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant. « Personnage 3D » : la couverture passe sur fond noir uni — logo en haut, personnage 3D réaliste en couleurs, gros titre blanc, pastille, flou blanc vers le bas ; les autres slides ne changent pas."
+              hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant. « Personnage 3D » : la couverture passe sur un fond bleu nuit quadrillé (halo et anneau bleus) — logo en haut, personnage 3D en couleurs, gros titre blanc, pastille, flou blanc vers le bas ; les autres slides ne changent pas."
             />
             <Chips
               label="Traitement des images plein cadre"
