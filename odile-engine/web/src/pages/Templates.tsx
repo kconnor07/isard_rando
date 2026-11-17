@@ -27,7 +27,7 @@ interface Draft {
   decor:
     | 'orbes' | 'verre' | 'liquide' | 'lames' | 'rideau' | 'lamelles' | 'projecteur'
     | 'halo' | 'degrade' | 'points' | 'anneaux' | 'arcs' | 'disques' | 'colonne' | 'anneaux-larges'
-    | 'eclipse' | 'prisme' | 'orbite' | 'grille' | 'rayons' | 'vagues' | 'studio' | 'aucun';
+    | 'eclipse' | 'prisme' | 'orbite' | 'grille' | 'rayons' | 'vagues' | 'aucun';
   bgTop: string | null;
   decorIntensity: number;
   decorPosition: 'haut-droite' | 'haut-gauche' | 'bas-droite' | 'bas-gauche' | 'centre';
@@ -894,28 +894,6 @@ const RECIPES: StartPoint[] = [
 
 /** Autres points de départ : palettes et ambiances, un clic charge la recette. */
 const PRESETS: StartPoint[] = [
-  {
-    id: 'studio',
-    label: 'Studio bleu nuit',
-    hint: 'Fond du template par défaut (orbes bleu nuit), titre argent, mot clé bleu, personnage 3D noir et blanc à droite, flou vers le bas, logo en bas',
-    swatch: 'linear-gradient(150deg,#050508,#0a1024 60%,#0099ff)',
-    draft: {
-      // Couleurs et fond du template par défaut : seule la mise en page change
-      decor: 'studio',
-      titleWeight: 600,
-      titleScale: 100,
-      titleGradient: 'argent',
-      accentStyle: 'plain',
-      align: 'left',
-      showAuthor: false,
-      showLogo: true,
-      brandStyle: 'logo',
-      imageStyle: 'personnage',
-      heroPlacement: 'droite',
-      heroSize: 100,
-      heroGlow: false,
-    },
-  },
   { id: 'nuit', label: 'Nuit bleue', hint: 'Le réglage d’origine : orbes de verre bleu nuit', swatch: 'linear-gradient(150deg,#050508,#0a1024 60%,#0099ff)', draft: {} },
   {
     id: 'ambre',
@@ -1017,7 +995,6 @@ const DECOR_LABELS: Record<Draft['decor'], string> = {
   disques: 'Disques nets + arcs',
   colonne: 'Colonne de lumière',
   'anneaux-larges': 'Grands anneaux',
-  studio: 'Studio : fond par défaut (orbes), courbe fine, flou vers le bas',
   eclipse: 'Éclipse : disque net, double anneau, rayons fins, arcs',
   prisme: 'Prisme : faisceau diagonal, arête de lumière, grille fine',
   orbite: 'Orbite : sphère, orbites elliptiques, satellites, étoiles',
@@ -1956,7 +1933,7 @@ export default function Templates() {
                 { v: 'personnage', l: 'Personnage 3D' },
               ]}
               onChange={(v) => set('imageStyle', v)}
-              hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant."
+              hint="« Plein cadre » : scène cinématique sous le titre. « Objets » et « Chrome & verre » : objet 3D détouré, fondu à la palette, posé en illustration ou en objet flottant. « Personnage 3D » : un personnage de film d'animation sur la couverture, à droite du titre, teinté à la couleur d'accent — le fond et le reste du template ne changent pas."
             />
             <Chips
               label="Traitement des images plein cadre"

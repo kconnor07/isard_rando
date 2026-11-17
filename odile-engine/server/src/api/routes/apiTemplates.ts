@@ -33,7 +33,7 @@ export const templateSchema = z.object({
   accentLine: z.boolean().default(false),
   align: z.enum(['auto', 'left', 'center']).default('auto'),
   // Décor
-  decor: z.enum(['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'studio', 'aucun']),
+  decor: z.enum(['orbes', 'verre', 'liquide', 'lames', 'rideau', 'lamelles', 'projecteur', 'halo', 'degrade', 'points', 'anneaux', 'arcs', 'disques', 'colonne', 'anneaux-larges', 'eclipse', 'prisme', 'orbite', 'grille', 'rayons', 'vagues', 'aucun']),
   bgTop: z.string().regex(HEX).nullable().optional(),
   decorIntensity: pct(100),
   decorPosition: z

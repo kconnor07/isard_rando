@@ -392,21 +392,6 @@ body {
 
 /* --- Pack premium (activé par les templates maison) --------------------- */
 
-/* Ligne méta en trois colonnes, tout en haut (masquée par défaut ; décor « studio ») */
-.meta-top {
-  display: none;
-  position: absolute; z-index: 6;
-  top: 150px; left: 96px; right: 96px;
-  grid-template-columns: 1fr 1fr 1fr;
-  font-size: 17px; line-height: 1.25; letter-spacing: 0.01em;
-  color: var(--muted);
-}
-.meta-top > div { display: flex; flex-direction: column; }
-.meta-top > div:nth-child(2) { align-items: center; text-align: center; }
-.meta-top > div:nth-child(3) { align-items: flex-end; text-align: right; }
-.meta-top span { font-weight: 400; opacity: 0.8; }
-.meta-top b { font-weight: 600; color: var(--text); }
-
 /* Chip auteur : avatar + nom + coche, en haut à gauche */
 .author-chip {
   display: none;

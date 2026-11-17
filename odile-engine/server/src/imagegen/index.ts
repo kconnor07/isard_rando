@@ -180,6 +180,9 @@ export async function generateImageBuffer(
   throw new Error(lastError || "génération d'image impossible");
 }
 
+/** Part de couleur d'accent dans les gris du personnage : il s'accorde au fond du template. */
+export const TEINTE_PERSONNAGE = 0.12;
+
 export interface StyledImageOpts {
   style: ImageStyle;
   quality?: 'pro' | 'fast';
@@ -266,8 +269,8 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
   const fitted = await fitCutout(chosen.png, size.width, size.height, { bleedBottom: personnage });
   let buffer: Buffer;
   if (personnage) {
-    // Noir et blanc + éléments à la couleur d'accent, quel que soit le réglage « monochrome »
-    buffer = await selectiveColor(fitted, opts.keepColor ?? '#2f7bff');
+    // Gris teintés + éléments à la couleur d'accent, quel que soit le réglage « monochrome »
+    buffer = await selectiveColor(fitted, opts.keepColor ?? '#2f7bff', { tint: TEINTE_PERSONNAGE });
   } else {
     let pipeline = sharp(fitted);
     if (opts.monochrome) pipeline = pipeline.grayscale();

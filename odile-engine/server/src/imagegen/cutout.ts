@@ -115,7 +115,10 @@ export async function cutoutStats(png: Buffer, opts: { personnage?: boolean } = 
  * rendu « personnage noir et blanc + éléments à la couleur d'accent », même si le
  * modèle a coloré la peau ou les vêtements.
  */
-export async function selectiveColor(png: Buffer, keepHex: string, toleranceDeg = 42): Promise<Buffer> {
+export async function selectiveColor(png: Buffer, keepHex: string, opts: { toleranceDeg?: number; tint?: number } = {}): Promise<Buffer> {
+  const toleranceDeg = opts.toleranceDeg ?? 42;
+  // Part de teinte d'accent dans les gris (0 = noir et blanc pur) : le personnage s'accorde au fond
+  const tint = Math.min(1, Math.max(0, opts.tint ?? 0));
   const m = /^#?([0-9a-f]{6})$/i.exec(keepHex.trim());
   if (!m) return sharp(png).grayscale().png().toBuffer();
   const kr = parseInt(m[1]!.slice(0, 2), 16);
@@ -135,6 +138,7 @@ export async function selectiveColor(png: Buffer, keepHex: string, toleranceDeg 
     return { h, s: max === 0 ? 0 : d / max, v: max / 255 };
   };
   const keep = hueOfRgb(kr, kg, kb);
+  const keepLum = Math.max(1, 0.299 * kr + 0.587 * kg + 0.114 * kb);
   const { data, info } = await sharp(png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const ch = info.channels;
   for (let i = 0; i < data.length; i += ch) {
@@ -148,8 +152,15 @@ export async function selectiveColor(png: Buffer, keepHex: string, toleranceDeg 
     const hueW = dist <= toleranceDeg ? 1 : Math.max(0, 1 - (dist - toleranceDeg) / 14);
     const satW = Math.min(1, Math.max(0, (px.s - 0.22) / 0.2));
     const w = hueW * satW;
+    // Gris de base : neutre, ou tiré vers la teinte d'accent à lumière égale
+    const kl = lum / keepLum;
+    const gr = lum + (Math.min(255, kr * kl) - lum) * tint;
+    const gg = lum + (Math.min(255, kg * kl) - lum) * tint;
+    const gb = lum + (Math.min(255, kb * kl) - lum) * tint;
     if (w <= 0) {
-      data[i] = data[i + 1] = data[i + 2] = lum;
+      data[i] = Math.round(gr);
+      data[i + 1] = Math.round(gg);
+      data[i + 2] = Math.round(gb);
       continue;
     }
     // Ramené à la teinte d'accent, en gardant la lumière du pixel
@@ -157,9 +168,9 @@ export async function selectiveColor(png: Buffer, keepHex: string, toleranceDeg 
     const tr = Math.min(255, kr * k);
     const tg = Math.min(255, kg * k);
     const tb = Math.min(255, kb * k);
-    data[i] = Math.round(lum + (tr - lum) * w);
-    data[i + 1] = Math.round(lum + (tg - lum) * w);
-    data[i + 2] = Math.round(lum + (tb - lum) * w);
+    data[i] = Math.round(gr + (tr - gr) * w);
+    data[i + 1] = Math.round(gg + (tg - gg) * w);
+    data[i + 2] = Math.round(gb + (tb - gb) * w);
   }
   return sharp(data, { raw: { width: info.width, height: info.height, channels: ch } }).png().toBuffer();
 }

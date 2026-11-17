@@ -810,65 +810,35 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   filter: blur(40px);
 }
 .decor-3 { display: none; }`
-                      : theme.decor === 'studio'
-                        ? `
-/* Studio : fond du template par défaut (orbes), flou vers le bas, courbe fine, ligne méta en haut,
-   logo en bas à gauche, personnage détouré qui sort du cadre à droite */
-${orbesCss.trim()}
-/* Flou vers le bas : le personnage et le décor se fondent dans le fond */
-.slide::before {
-  content: ''; position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; height: 36%;
+                      : `
+.decor-1, .decor-2, .decor-3 { display: none; }`;
+
+  // --- Personnage 3D (style d'image « personnage ») ----------------------------
+  // Le fond, le logo, le compteur restent ceux du template : seule la slide qui porte le
+  // personnage change — il est grand, posé sur le bord bas, sort du cadre à droite ; le titre
+  // tient la colonne gauche, calé en bas ; le bas de la slide se fond dans un flou.
+  const personnage =
+    theme.imageStyle === 'personnage'
+      ? `
+.slide.hero-contain.hero-place-droite .hero-image {
+  /* au-dessus du décor (arcs, disques) : rien ne passe sur le visage */
+  z-index: 4;
+  inset: calc(17% - 30% * (var(--hero-scale, 1) - 1)) -21% 0 calc(47% - 26% * (var(--hero-scale, 1) - 1));
+  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
+}
+.slide.hero-contain.hero-place-droite .hero-glow { display: none; }
+.slide.hero-contain.hero-place-droite .hero-scrim {
+  display: block; opacity: 1; inset: auto 0 0 0; height: 36%;
   -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
   background: linear-gradient(180deg, ${rgba(theme.bg1, 0)} 0%, ${rgba(theme.bg1, 0.55)} 55%, ${rgba(theme.bg1, 0.9)} 100%);
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
 }
-/* Courbe fine, portée par le pied de slide (au-dessus du flou) */
-.slide .brand-footer::before {
-  content: ''; position: absolute; left: -2196px; bottom: -3770px; width: 4000px; height: 4000px;
-  border-radius: 50%; box-sizing: border-box; pointer-events: none;
-  border: 3px solid ${mix(accent, '#ffffff', 0.4)};
-  box-shadow: 0 0 22px ${rgba(accent, 0.9)}, inset 0 0 22px ${rgba(accent, 0.55)};
-  -webkit-mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
-  mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
-}
-.slide .meta-top { display: grid; }
-/* Signature : photo + nom + métier, sans pilule, en bas à gauche */
-.slide .author-chip {
-  top: auto; bottom: 84px; left: 96px; padding: 0; gap: 20px; max-width: 62%;
-  background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
-}
-.slide .author-avatar { width: 78px; height: 78px; }
-.slide .author-check { display: none; }
-.slide .author-name { font-size: 31px; }
-.slide .author-handle { font-size: 23px; }
-/* « swipe → » posé au-dessus de la signature */
-.slide .brand-footer { bottom: 84px; }
-.slide .slide-counter {
-  position: absolute; left: 0; bottom: 112px; padding: 0; border: 0; background: none; box-shadow: none;
-  font-family: inherit; font-size: 30px; font-weight: 500; letter-spacing: 0; color: ${rgba(theme.textColor, 0.6)};
-}
-.slide .slide-counter .swipe { color: ${accent}; }
-.slide .safe { padding-top: ${theme.padTop ?? 230}px; padding-bottom: ${theme.padBottom ?? 330}px; }
-/* Mot accentué : gras, à la couleur d'accent, avec une lueur */
-.slide .title { letter-spacing: -0.035em; line-height: 0.98; }
-.slide .title .accent {
-  font-family: inherit; font-style: normal; font-weight: 800; letter-spacing: inherit;
-  background: none; color: ${accent}; -webkit-text-fill-color: ${accent};
-  text-shadow: 0 0 46px ${rgba(accent, 0.55)};
-}
-.slide .big-number { filter: drop-shadow(0 0 60px ${rgba(theme.textColor, 0.35)}); }
-/* Personnage : grand, posé sur le bord bas, il sort du cadre à droite ; le texte tient la colonne gauche */
-.slide.hero-contain.hero-place-droite .hero-image {
-  inset: calc(17% - 30% * (var(--hero-scale, 1) - 1)) -17% 0 calc(43% - 26% * (var(--hero-scale, 1) - 1));
-  background-size: contain; background-position: center bottom; background-repeat: no-repeat;
-}
-.slide.hero-contain.hero-place-droite .hero-glow { display: none; }
-.slide.hero-contain.hero-place-droite .safe { justify-content: flex-end; padding-right: 380px; padding-bottom: 350px; }
-.slide.hero-contain.hero-place-droite .safe .title { font-size: 88px; }
-.slide.hero-contain.hero-place-droite.kind-hook .safe .title { font-size: 96px; }`
-                      : `
-.decor-1, .decor-2, .decor-3 { display: none; }`;
+.slide.hero-contain.hero-place-droite .safe { justify-content: flex-end; padding-right: 430px; padding-bottom: 290px; }
+.slide.hero-contain.hero-place-droite .safe .title { font-size: 80px; line-height: 1.02; }
+.slide.hero-contain.hero-place-droite.kind-hook .safe .title { font-size: 86px; }
+.slide.hero-contain.hero-place-droite .safe .annotation { align-self: flex-start; }`
+      : '';
 
   // --- Typographie -------------------------------------------------------
   const accentStyle =
@@ -1207,6 +1177,7 @@ ${
     : ''
 }
 .grain { opacity: ${grain.toFixed(3)}; ${light ? '' : 'mix-blend-mode: multiply;'} }
+${personnage}
 `;
 }
 

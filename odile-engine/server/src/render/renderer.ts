@@ -200,16 +200,6 @@ export function buildSlideHtml(input: SlideRenderInput): string {
       : `<span class="author-avatar">${escapeHtml(brandInitials(input.brand))}</span>`;
   const authorLine = input.brand.authorLine?.trim() || input.brand.handle;
   const authorChip = `<div class="author-chip">${avatar}<div><div class="author-name">${escapeHtml(input.brand.name)}<span class="author-check">${VERIFIED_SVG(26)}</span></div><div class="author-handle">${escapeHtml(authorLine)}</div></div></div>`;
-  const site = (() => {
-    try {
-      return new URL(input.brand.siteUrl).hostname.replace(/^www\./, '');
-    } catch {
-      return '';
-    }
-  })();
-  const metaCol = (label: string, value: string) =>
-    value ? `<div><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b></div>` : '<div></div>';
-  const metaTop = `<div class="meta-top">${metaCol('conçu par', input.brand.name)}${metaCol('pour vos projets', site)}${metaCol('à suivre', input.brand.handle)}</div>`;
   const counter =
     input.slideTotal > 1
       ? input.slideNum < input.slideTotal
@@ -260,7 +250,6 @@ html, body, .slide { width: ${width}px; height: ${height}px; }
       : ''
   }
   <div class="float-1"></div><div class="float-2"></div><div class="float-3"></div><div class="float-4"></div>
-  ${metaTop}
   ${authorChip}
   <div class="verified-badge">${VERIFIED_SVG(40)}</div>
   <div class="brand-top">${brandBlock}</div>
@@ -538,6 +527,10 @@ export async function renderPost(postId: number, opts: { onlyIdx?: number } = {}
       else if (content.kind === 'notifications' || content.kind === 'screenshot') {
         autoPlacement = { ...overrides, heroPlacement: 'haut', heroSize: Math.min(overrides.heroSize ?? custom?.heroSize ?? 100, 70) };
       }
+    }
+    // Personnage : toujours à droite du titre (il fait la mise en page de la couverture)
+    if (hero?.cutout && custom?.imageStyle === 'personnage' && !overrides.heroPlacement) {
+      autoPlacement = { ...overrides, heroPlacement: 'droite' };
     }
     const perSlide = slideStyleFor(custom, autoPlacement, content.kind);
     const html = buildSlideHtml({

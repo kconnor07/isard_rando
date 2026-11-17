@@ -8,7 +8,7 @@ import { buildSlideHtml, renderHtmlToPng } from '../src/render/renderer.js';
 import { getBrand } from '../src/db/settingsRepo.js';
 import { slideContentSchema } from '@odile/shared';
 
-const BLEU = '#0099ff';
+const BLEU = '#1613b4';
 
 /** Faux « personnage » : buste gris, peau orangée, lunettes bleues, sur fond transparent, coupé en bas. */
 async function fauxPersonnage(): Promise<Buffer> {
@@ -70,42 +70,45 @@ describe('style d’image « personnage »', () => {
     expect(Math.max(...peau) - Math.min(...peau)).toBeLessThan(4);
     const accessoire = px(230, 880);
     expect(accessoire[2]! - accessoire[0]!).toBeGreaterThan(100);
+    // Avec une teinte, les gris tirent vers l'accent sans devenir colorés
+    const teinte = await selectiveColor(await fauxPersonnage(), BLEU, { tint: 0.3 });
+    const t = await sharp(teinte).raw().toBuffer({ resolveWithObject: true });
+    const j = (560 * t.info.width + 400) * t.info.channels;
+    expect(t.data[j + 2]!).toBeGreaterThan(t.data[j]!);
   });
 });
 
-describe('décor « studio »', async () => {
+describe('template « personnage »', async () => {
   const { templateSchema } = await import('../src/api/routes/apiTemplates.js');
   const { buildCustomThemeCss, slideStyleFor } = await import('../src/render/custom-theme.js');
-  const parsed = templateSchema.parse({
-    name: 'Studio bleu nuit', accent: BLEU, bg1: '#050508', bg2: '#0a1024', textColor: '#fdfdfd',
-    decor: 'studio', backgroundOpacity: 35, grain: true, titleWeight: 600, titleGradient: 'argent',
-    accentStyle: 'plain', align: 'left', showAuthor: false, showLogo: true, brandStyle: 'logo', imageStyle: 'personnage',
-    heroPlacement: 'droite', heroGlow: false,
-  });
-  const theme = {
-    ...parsed, id: 'studio', createdAt: '', updatedAt: '',
-    backgroundAssetId: null, secondary: parsed.secondary ?? null, bgTop: parsed.bgTop ?? null,
-    floatAssetId1: null, floatAssetId2: null, floatAssetId3: null, floatAssetId4: null,
-    bodyColor: parsed.bodyColor ?? null, titleColor: parsed.titleColor ?? null,
-    padTop: parsed.padTop ?? null, padSide: parsed.padSide ?? null, padBottom: parsed.padBottom ?? null,
-    badgeColor: parsed.badgeColor ?? null, bulletColor: parsed.bulletColor ?? null, annotationColor: parsed.annotationColor ?? null,
-  } as Parameters<typeof buildCustomThemeCss>[0];
+  // Réglages du template de la marque (disques bleus + grille de points), seul le style d'image change
+  const reglages = {
+    name: 'template odile personnage', accent: BLEU, secondary: '#525252', bg1: '#06050a', bg2: '#050307', textColor: '#fdfdfd',
+    decor: 'disques', decorPosition: 'haut-gauche', backgroundOpacity: 35, grain: true, grainLevel: 25,
+    titleWeight: 700, titleScale: 92, titleTracking: -38, titleGradient: 'argent', accentStyle: 'highlight', align: 'center',
+    showLogo: true, brandStyle: 'logo', counterStyle: 'pilule', showVerifiedBadge: true, ctaStyle: 'chevron', ctaArrow: 'aucune',
+    radius: 'pill', glass: 50, bodyScale: 105, bodyWeight: 500, subtitleScale: 105,
+  };
+  const theme = (extra: Record<string, unknown>) => {
+    const parsed = templateSchema.parse({ ...reglages, ...extra });
+    return {
+      ...parsed, id: 'perso', createdAt: '', updatedAt: '',
+      backgroundAssetId: null, secondary: parsed.secondary ?? null, bgTop: parsed.bgTop ?? null,
+      floatAssetId1: null, floatAssetId2: null, floatAssetId3: null, floatAssetId4: null,
+      bodyColor: parsed.bodyColor ?? null, titleColor: parsed.titleColor ?? null,
+      padTop: parsed.padTop ?? null, padSide: parsed.padSide ?? null, padBottom: parsed.padBottom ?? null,
+      badgeColor: parsed.badgeColor ?? null, bulletColor: parsed.bulletColor ?? null, annotationColor: parsed.annotationColor ?? null,
+    } as Parameters<typeof buildCustomThemeCss>[0];
+  };
 
-  it('pose la ligne méta, le fond par défaut, le flou vers le bas et le mot clé à la couleur d’accent', () => {
-    const css = buildCustomThemeCss(theme);
-    expect(css).toContain('.slide .meta-top { display: grid; }');
-    expect(css).not.toContain('repeating-linear-gradient');
-    expect(css).toContain('.decor-1 {');
-    expect(css).toContain('backdrop-filter: blur(22px)');
-    expect(css).toContain(`-webkit-text-fill-color: ${BLEU}`);
-    expect(css).toContain('.slide.hero-contain.hero-place-droite .hero-image');
-  });
-
-  it('la slide porte la ligne méta (marque, site, compte)', () => {
-    const content = slideContentSchema.parse({ kind: 'hook', title: 'Un titre net', accentWord: 'net' });
-    const html = buildSlideHtml({ theme: 'odile-nuit', kind: content.kind, format: 'carousel', brand: getBrand(), slideNum: 1, slideTotal: 5, content });
-    expect(html).toContain('class="meta-top"');
-    expect(html).toContain('conçu par');
+  it('garde le fond du template et n’ajoute que la mise en page du personnage', () => {
+    const sans = buildCustomThemeCss(theme({ imageStyle: 'objets' }));
+    const avec = buildCustomThemeCss(theme({ imageStyle: 'personnage' }));
+    expect(sans).not.toContain('.slide.hero-contain.hero-place-droite .hero-image');
+    expect(avec).toContain('.slide.hero-contain.hero-place-droite .hero-image');
+    expect(avec).toContain('backdrop-filter: blur(22px)');
+    // Tout le reste (fond, décor, typographie) est identique
+    expect(avec.startsWith(sans.trimEnd())).toBe(true);
   });
 
   // Aperçu visuel à la demande : PREVIEW_DIR=/chemin npx vitest run test/studio-personnage.test.ts
@@ -113,18 +116,18 @@ describe('décor « studio »', async () => {
     const dir = process.env.PREVIEW_DIR!;
     const persoPath = process.env.PREVIEW_HERO;
     const brut = persoPath ? await removeImageBackground(fs.readFileSync(persoPath)) : await fauxPersonnage();
-    if (persoPath) console.log('porte qualité', await cutoutStats(brut, { personnage: true }));
-    const hero = await selectiveColor(await fitCutout(brut, 1080, 1350, { bleedBottom: true }), BLEU);
-    const css = buildCustomThemeCss(theme);
+    const hero = await selectiveColor(await fitCutout(brut, 1080, 1350, { bleedBottom: true }), BLEU, { tint: 0.12 });
+    const t = theme({ imageStyle: 'personnage' });
+    const css = buildCustomThemeCss(t);
     const slides = [
-      slideContentSchema.parse({ kind: 'hook', title: '4 réflexes simples pour un devis signé', accentWord: 'signé' }),
+      slideContentSchema.parse({ kind: 'hook', title: 'Ton graphiste facture 200€ ce visuel ?', accentWord: '200€', annotation: 'ChatGPT change la donne' }),
       slideContentSchema.parse({ kind: 'content', title: 'Répondez dans l’heure', accentWord: 'l’heure', bullets: ['Un client rappelle le premier qui répond', 'Un message type prêt à partir', 'Une relance à J+2, pas avant'] }),
     ];
     for (const [i, content] of slides.entries()) {
       const avecHero = i === 0;
-      const perSlide = slideStyleFor(theme, {}, content.kind);
+      const perSlide = slideStyleFor(t, avecHero ? { heroPlacement: 'droite' } : {}, content.kind);
       const html = buildSlideHtml({
-        theme: 'custom-studio', kind: content.kind, format: 'carousel', brand: { ...getBrand(), name: 'Odile AI', handle: '@odile.ai', authorLine: 'Agence IA pour TPE' },
+        theme: 'custom-perso', kind: content.kind, format: 'carousel', brand: getBrand(),
         slideNum: i + 1, slideTotal: 5, content, themeCssOverride: css,
         heroDataUri: avecHero ? `data:image/png;base64,${hero.toString('base64')}` : null, heroContain: avecHero,
         slideClasses: perSlide.classes, slideStyle: perSlide.style, brandStyle: perSlide.brandStyle, authorOn: perSlide.authorOn,
