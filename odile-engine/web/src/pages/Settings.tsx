@@ -878,7 +878,7 @@ export default function Settings() {
               <option value="full">Plein cadre — scène cinématique, sujet en haut, titre en bas</option>
               <option value="objets">Objets détourés — objet 3D isolé, fondu à la palette, détouré automatiquement</option>
               <option value="chrome">Chrome & verre — rendu 3D irisé, halo accent</option>
-              <option value="personnage">Personnage 3D — en couleurs, à gauche du titre sur la couverture</option>
+              <option value="personnage">Personnage 3D — en couleurs, couverture façon miniature de Reel</option>
             </select>
           </div>
           <div className="sm:col-span-2">
