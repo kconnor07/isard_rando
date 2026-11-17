@@ -147,7 +147,7 @@ describe('template « personnage »', async () => {
     const t = theme({ imageStyle: 'personnage' });
     const css = buildCustomThemeCss(t);
     const slides = [
-      slideContentSchema.parse({ kind: 'hook', title: 'Ton graphiste facture 200€ ce visuel ?', accentWord: '200€', annotation: 'ChatGPT change la donne' }),
+      slideContentSchema.parse({ kind: 'hook', title: process.env.PREVIEW_TITLE ?? 'Ton graphiste facture 200€ ce visuel ?' }),
       slideContentSchema.parse({ kind: 'content', title: 'Répondez dans l’heure', accentWord: 'l’heure', bullets: ['Un client rappelle le premier qui répond', 'Un message type prêt à partir', 'Une relance à J+2, pas avant'] }),
     ];
     for (const [i, content] of slides.entries()) {
@@ -160,7 +160,7 @@ describe('template « personnage »', async () => {
         slideClasses: perSlide.classes, slideStyle: perSlide.style, brandStyle: perSlide.brandStyle, authorOn: perSlide.authorOn,
       });
       if (process.env.PREVIEW_HTML) fs.writeFileSync(path.join(dir, `studio-${i + 1}.html`), html);
-      fs.writeFileSync(path.join(dir, `studio-${i + 1}.png`), await renderHtmlToPng(html, { width: 1080, height: 1350 }));
+      fs.writeFileSync(path.join(dir, `${process.env.PREVIEW_OUT ?? 'studio'}-${i + 1}.png`), await renderHtmlToPng(html, { width: 1080, height: 1350 }));
     }
   }, 120_000);
 });
