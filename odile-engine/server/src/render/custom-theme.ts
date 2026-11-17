@@ -278,6 +278,25 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   background: radial-gradient(circle closest-side at 50% 50%, ${lameRamp(wide)});${glow ? `\n  box-shadow: 0 0 ${glow}px ${rgba(accent, 0.18)};` : ''}`;
   const lames = lamesLayout(theme.decorPosition, dScale);
 
+  /** Fond du template par défaut : deux orbes de verre et un voile de lumière. */
+  const orbesCss = `
+.decor-1 {
+  position: absolute; z-index: 2; ${pos.d1}
+  width: 1300px; height: 1300px; border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%,
+    ${theme.bg1} 0%, ${theme.bg2} 46%,
+    ${rgba(accent, 0.55)} 82%, ${rgba(accent, 0.95)} 94%, ${rgba('#ffffff', 0.9)} 100%);
+  box-shadow: 0 0 3px ${rgba('#ffffff', 0.6)}, 0 0 120px ${rgba(accent, 0.35)};
+}
+.decor-2 {
+  position: absolute; z-index: 2; ${pos.d2}
+  width: 980px; height: 980px; border-radius: 50%;
+  background: radial-gradient(circle at 62% 34%,
+    ${theme.bg1} 0%, ${theme.bg2} 52%, ${rgba(accent, 0.4)} 88%, ${rgba(accent, 0.8)} 100%);
+  box-shadow: 0 0 90px ${rgba(accent, 0.2)};
+}
+.decor-3 { position: absolute; inset: 0; z-index: 3;
+  background: linear-gradient(172deg, ${rgba('#ffffff', 0.05)} 0%, transparent 32%); }`;
   const decor =
     theme.decor === 'lames'
       ? `
@@ -400,24 +419,7 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
   opacity: ${(0.75 * decorIntensity).toFixed(2)};
 }`
             : theme.decor === 'orbes'
-      ? `
-.decor-1 {
-  position: absolute; z-index: 2; ${pos.d1}
-  width: 1300px; height: 1300px; border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%,
-    ${theme.bg1} 0%, ${theme.bg2} 46%,
-    ${rgba(accent, 0.55)} 82%, ${rgba(accent, 0.95)} 94%, ${rgba('#ffffff', 0.9)} 100%);
-  box-shadow: 0 0 3px ${rgba('#ffffff', 0.6)}, 0 0 120px ${rgba(accent, 0.35)};
-}
-.decor-2 {
-  position: absolute; z-index: 2; ${pos.d2}
-  width: 980px; height: 980px; border-radius: 50%;
-  background: radial-gradient(circle at 62% 34%,
-    ${theme.bg1} 0%, ${theme.bg2} 52%, ${rgba(accent, 0.4)} 88%, ${rgba(accent, 0.8)} 100%);
-  box-shadow: 0 0 90px ${rgba(accent, 0.2)};
-}
-.decor-3 { position: absolute; inset: 0; z-index: 3;
-  background: linear-gradient(172deg, ${rgba('#ffffff', 0.05)} 0%, transparent 32%); }`
+      ? orbesCss
       : theme.decor === 'verre'
         ? `
 /* Verre : grandes courbes de verre sombres aux arêtes lumineuses + lame diagonale (grammaire « Verre Bleu ») */
@@ -810,40 +812,25 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .decor-3 { display: none; }`
                       : theme.decor === 'studio'
                         ? `
-/* Studio : fond noir quadrillé, halo derrière le titre, courbe fine, flou vers le bas, ligne méta en haut,
+/* Studio : fond du template par défaut (orbes), flou vers le bas, courbe fine, ligne méta en haut,
    logo en bas à gauche, personnage détouré qui sort du cadre à droite */
-.decor-1 { position: absolute; inset: 0; z-index: 2; }
-/* Quadrillage fin, qui s'efface vers les bords et le bas */
-.decor-1::before {
-  content: ''; position: absolute; inset: 0;
-  background:
-    repeating-linear-gradient(0deg, ${rgba(theme.textColor, 0.085)} 0 1px, transparent 1px 90px),
-    repeating-linear-gradient(90deg, ${rgba(theme.textColor, 0.085)} 0 1px, transparent 1px 90px);
-  -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 38%, #000 30%, transparent 100%);
-  mask-image: radial-gradient(ellipse 85% 70% at 50% 38%, #000 30%, transparent 100%);
-}
-.decor-1::after {
-  content: ''; position: absolute; inset: 0;
-  background:
-    radial-gradient(ellipse 40% 22% at 26% 54%, ${rgba(theme.textColor, 0.22)} 0%, ${rgba(accent, 0.18)} 44%, transparent 76%),
-    radial-gradient(ellipse 56% 38% at 88% 72%, ${rgba(accent, 0.2)} 0%, transparent 72%);
-}
-.decor-2 {
-  /* au-dessus du flou (z 4), sous le texte */
-  position: absolute; z-index: 5; left: -2100px; top: 1036px; width: 4000px; height: 4000px;
-  border-radius: 50%; box-sizing: border-box;
-  border: 3px solid ${mix(accent, '#ffffff', 0.4)};
-  box-shadow: 0 0 22px ${rgba(accent, 0.9)}, inset 0 0 22px ${rgba(accent, 0.55)};
-  -webkit-mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
-  mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
-}
-/* Flou vers le bas : le personnage et le décor se fondent dans le noir sous la courbe */
-.decor-3 {
-  position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; height: 36%;
+${orbesCss.trim()}
+/* Flou vers le bas : le personnage et le décor se fondent dans le fond */
+.slide::before {
+  content: ''; position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; height: 36%;
   -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
   background: linear-gradient(180deg, ${rgba(theme.bg1, 0)} 0%, ${rgba(theme.bg1, 0.55)} 55%, ${rgba(theme.bg1, 0.9)} 100%);
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
   mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
+}
+/* Courbe fine, portée par le pied de slide (au-dessus du flou) */
+.slide .brand-footer::before {
+  content: ''; position: absolute; left: -2196px; bottom: -3770px; width: 4000px; height: 4000px;
+  border-radius: 50%; box-sizing: border-box; pointer-events: none;
+  border: 3px solid ${mix(accent, '#ffffff', 0.4)};
+  box-shadow: 0 0 22px ${rgba(accent, 0.9)}, inset 0 0 22px ${rgba(accent, 0.55)};
+  -webkit-mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
+  mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
 }
 .slide .meta-top { display: grid; }
 /* Signature : photo + nom + métier, sans pilule, en bas à gauche */

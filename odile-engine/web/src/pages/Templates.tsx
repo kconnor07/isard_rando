@@ -896,18 +896,12 @@ const RECIPES: StartPoint[] = [
 const PRESETS: StartPoint[] = [
   {
     id: 'studio',
-    label: 'Studio noir & bleu',
-    hint: 'Fond noir quadrillé, titre argent, mot clé bleu, personnage 3D noir et blanc à droite, flou vers le bas, logo en bas',
-    swatch: 'linear-gradient(150deg,#040506,#0a0f1c 60%,#2f7bff)',
+    label: 'Studio bleu nuit',
+    hint: 'Fond du template par défaut (orbes bleu nuit), titre argent, mot clé bleu, personnage 3D noir et blanc à droite, flou vers le bas, logo en bas',
+    swatch: 'linear-gradient(150deg,#050508,#0a1024 60%,#0099ff)',
     draft: {
-      accent: '#2f7bff',
-      secondary: '#9fc2ff',
-      bg1: '#040506',
-      bg2: '#080b12',
-      textColor: '#ffffff',
+      // Couleurs et fond du template par défaut : seule la mise en page change
       decor: 'studio',
-      decorIntensity: 100,
-      grainLevel: 55,
       titleWeight: 600,
       titleScale: 100,
       titleGradient: 'argent',
@@ -1023,7 +1017,7 @@ const DECOR_LABELS: Record<Draft['decor'], string> = {
   disques: 'Disques nets + arcs',
   colonne: 'Colonne de lumière',
   'anneaux-larges': 'Grands anneaux',
-  studio: 'Studio : quadrillage, halo, courbe fine, flou vers le bas',
+  studio: 'Studio : fond par défaut (orbes), courbe fine, flou vers le bas',
   eclipse: 'Éclipse : disque net, double anneau, rayons fins, arcs',
   prisme: 'Prisme : faisceau diagonal, arête de lumière, grille fine',
   orbite: 'Orbite : sphère, orbites elliptiques, satellites, étoiles',

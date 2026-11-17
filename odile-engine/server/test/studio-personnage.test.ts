@@ -8,7 +8,7 @@ import { buildSlideHtml, renderHtmlToPng } from '../src/render/renderer.js';
 import { getBrand } from '../src/db/settingsRepo.js';
 import { slideContentSchema } from '@odile/shared';
 
-const BLEU = '#2f7bff';
+const BLEU = '#0099ff';
 
 /** Faux « personnage » : buste gris, peau orangée, lunettes bleues, sur fond transparent, coupé en bas. */
 async function fauxPersonnage(): Promise<Buffer> {
@@ -77,8 +77,8 @@ describe('décor « studio »', async () => {
   const { templateSchema } = await import('../src/api/routes/apiTemplates.js');
   const { buildCustomThemeCss, slideStyleFor } = await import('../src/render/custom-theme.js');
   const parsed = templateSchema.parse({
-    name: 'Studio noir & bleu', accent: BLEU, secondary: '#9fc2ff', bg1: '#040506', bg2: '#080b12', textColor: '#ffffff',
-    decor: 'studio', backgroundOpacity: 35, grain: true, grainLevel: 55, titleWeight: 600, titleGradient: 'argent',
+    name: 'Studio bleu nuit', accent: BLEU, bg1: '#050508', bg2: '#0a1024', textColor: '#fdfdfd',
+    decor: 'studio', backgroundOpacity: 35, grain: true, titleWeight: 600, titleGradient: 'argent',
     accentStyle: 'plain', align: 'left', showAuthor: false, showLogo: true, brandStyle: 'logo', imageStyle: 'personnage',
     heroPlacement: 'droite', heroGlow: false,
   });
@@ -91,10 +91,11 @@ describe('décor « studio »', async () => {
     badgeColor: parsed.badgeColor ?? null, bulletColor: parsed.bulletColor ?? null, annotationColor: parsed.annotationColor ?? null,
   } as Parameters<typeof buildCustomThemeCss>[0];
 
-  it('pose la ligne méta, le quadrillage, le flou vers le bas et le mot clé à la couleur d’accent', () => {
+  it('pose la ligne méta, le fond par défaut, le flou vers le bas et le mot clé à la couleur d’accent', () => {
     const css = buildCustomThemeCss(theme);
     expect(css).toContain('.slide .meta-top { display: grid; }');
-    expect(css).toContain('repeating-linear-gradient');
+    expect(css).not.toContain('repeating-linear-gradient');
+    expect(css).toContain('.decor-1 {');
     expect(css).toContain('backdrop-filter: blur(22px)');
     expect(css).toContain(`-webkit-text-fill-color: ${BLEU}`);
     expect(css).toContain('.slide.hero-contain.hero-place-droite .hero-image');
