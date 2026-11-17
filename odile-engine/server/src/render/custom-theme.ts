@@ -837,7 +837,7 @@ ${P} .hero-glow {
 }
 /* Personnage : très grand, décalé à gauche, posé sur le bord bas */
 ${P} .hero-image {
-  z-index: 4; inset: calc(15% - 30% * (var(--hero-scale, 1) - 1)) 2% 0 -18%;
+  z-index: 4; inset: calc(9% - 30% * (var(--hero-scale, 1) - 1)) 10% 0 -26%;
   background-size: contain; background-position: center bottom; background-repeat: no-repeat;
 }
 /* Flou blanc vers le bas */
