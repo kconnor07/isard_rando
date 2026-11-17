@@ -810,32 +810,41 @@ export function buildCustomThemeCss(theme: CustomTheme): string {
 .decor-3 { display: none; }`
                       : theme.decor === 'studio'
                         ? `
-/* Studio : fond noir, halo derrière le titre, courbe fine, astérisque lumineux, ligne méta en haut,
-   signature en bas à gauche, personnage détouré qui sort du cadre à droite */
-.decor-1 {
-  position: absolute; inset: 0; z-index: 2;
+/* Studio : fond noir quadrillé, halo derrière le titre, courbe fine, flou vers le bas, ligne méta en haut,
+   logo en bas à gauche, personnage détouré qui sort du cadre à droite */
+.decor-1 { position: absolute; inset: 0; z-index: 2; }
+/* Quadrillage fin, qui s'efface vers les bords et le bas */
+.decor-1::before {
+  content: ''; position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 40% 22% at 26% 54%, ${rgba(theme.textColor, 0.3)} 0%, ${rgba(accent, 0.2)} 44%, transparent 76%),
+    repeating-linear-gradient(0deg, ${rgba(theme.textColor, 0.085)} 0 1px, transparent 1px 90px),
+    repeating-linear-gradient(90deg, ${rgba(theme.textColor, 0.085)} 0 1px, transparent 1px 90px);
+  -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 38%, #000 30%, transparent 100%);
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 38%, #000 30%, transparent 100%);
+}
+.decor-1::after {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 40% 22% at 26% 54%, ${rgba(theme.textColor, 0.22)} 0%, ${rgba(accent, 0.18)} 44%, transparent 76%),
     radial-gradient(ellipse 56% 38% at 88% 72%, ${rgba(accent, 0.2)} 0%, transparent 72%);
-  filter: blur(34px);
 }
 .decor-2 {
-  position: absolute; z-index: 3; left: -2100px; top: 1036px; width: 4000px; height: 4000px;
+  /* au-dessus du flou (z 4), sous le texte */
+  position: absolute; z-index: 5; left: -2100px; top: 1036px; width: 4000px; height: 4000px;
   border-radius: 50%; box-sizing: border-box;
   border: 3px solid ${mix(accent, '#ffffff', 0.4)};
   box-shadow: 0 0 22px ${rgba(accent, 0.9)}, inset 0 0 22px ${rgba(accent, 0.55)};
   -webkit-mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
   mask-image: linear-gradient(90deg, transparent 51%, #000 53%, #000 60%, transparent 76%);
 }
+/* Flou vers le bas : le personnage et le décor se fondent dans le noir sous la courbe */
 .decor-3 {
-  position: absolute; z-index: 3; left: -66px; top: 318px; width: 156px; height: 38px;
-  border-radius: 10px; background: ${mix(accent, '#ffffff', 0.25)};
-  transform: rotate(14deg);
-  filter: drop-shadow(0 0 26px ${rgba(accent, 0.95)}) drop-shadow(0 0 70px ${rgba(accent, 0.6)});
+  position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; height: 36%;
+  -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
+  background: linear-gradient(180deg, ${rgba(theme.bg1, 0)} 0%, ${rgba(theme.bg1, 0.55)} 55%, ${rgba(theme.bg1, 0.9)} 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 60%);
 }
-.decor-3::before, .decor-3::after { content: ''; position: absolute; inset: 0; border-radius: inherit; background: inherit; }
-.decor-3::before { transform: rotate(60deg); }
-.decor-3::after { transform: rotate(-60deg); }
 .slide .meta-top { display: grid; }
 /* Signature : photo + nom + métier, sans pilule, en bas à gauche */
 .slide .author-chip {

@@ -79,7 +79,7 @@ describe('décor « studio »', async () => {
   const parsed = templateSchema.parse({
     name: 'Studio noir & bleu', accent: BLEU, secondary: '#9fc2ff', bg1: '#040506', bg2: '#080b12', textColor: '#ffffff',
     decor: 'studio', backgroundOpacity: 35, grain: true, grainLevel: 55, titleWeight: 600, titleGradient: 'argent',
-    accentStyle: 'plain', align: 'left', showAuthor: true, showLogo: false, imageStyle: 'personnage',
+    accentStyle: 'plain', align: 'left', showAuthor: false, showLogo: true, brandStyle: 'logo', imageStyle: 'personnage',
     heroPlacement: 'droite', heroGlow: false,
   });
   const theme = {
@@ -91,10 +91,11 @@ describe('décor « studio »', async () => {
     badgeColor: parsed.badgeColor ?? null, bulletColor: parsed.bulletColor ?? null, annotationColor: parsed.annotationColor ?? null,
   } as Parameters<typeof buildCustomThemeCss>[0];
 
-  it('pose la ligne méta, la signature en bas et le mot clé à la couleur d’accent', () => {
+  it('pose la ligne méta, le quadrillage, le flou vers le bas et le mot clé à la couleur d’accent', () => {
     const css = buildCustomThemeCss(theme);
     expect(css).toContain('.slide .meta-top { display: grid; }');
-    expect(css).toContain('.slide .author-chip');
+    expect(css).toContain('repeating-linear-gradient');
+    expect(css).toContain('backdrop-filter: blur(22px)');
     expect(css).toContain(`-webkit-text-fill-color: ${BLEU}`);
     expect(css).toContain('.slide.hero-contain.hero-place-droite .hero-image');
   });
