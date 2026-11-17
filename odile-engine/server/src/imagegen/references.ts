@@ -20,6 +20,8 @@ export function referenceFor(style: ImageStyle): FreepikReference | null {
   const publicBase = config.PUBLIC_URL.replace(/\/$/, '');
   const ext = asset.mime === 'image/png' ? 'png' : 'jpg';
   return {
+    // Personnage : l'image est l'avatar de la marque, à reproduire — pas un simple guide de rendu
+    role: style === 'personnage' ? 'character' : 'style',
     base64: fs.readFileSync(asset.path).toString('base64'),
     mime: asset.mime,
     publicUrl: publicBase.startsWith('https://') ? `${publicBase}/public-assets/${asset.id}.${ext}` : undefined,

@@ -143,7 +143,7 @@ export default function Settings() {
       ),
   });
   const [form, setForm] = useState<AllSettings | null>(null);
-  const [refPicker, setRefPicker] = useState<'full' | 'objets' | 'chrome' | null>(null);
+  const [refPicker, setRefPicker] = useState<'full' | 'objets' | 'chrome' | 'personnage' | null>(null);
   const [avatarPicker, setAvatarPicker] = useState(false);
   const { data: library } = useQuery({
     queryKey: ['library'],
@@ -878,7 +878,7 @@ export default function Settings() {
               <option value="full">Plein cadre — scène cinématique, sujet en haut, titre en bas</option>
               <option value="objets">Objets détourés — objet 3D isolé, fondu à la palette, détouré automatiquement</option>
               <option value="chrome">Chrome & verre — rendu 3D irisé, halo accent</option>
-              <option value="personnage">Personnage 3D — semi-stylisé, en couleurs, couverture bleu nuit quadrillée</option>
+              <option value="personnage">Personnage 3D — l'avatar de la marque dans une scène drôle liée au sujet</option>
             </select>
           </div>
           <div className="sm:col-span-2">
@@ -888,6 +888,7 @@ export default function Settings() {
                 ['full', 'Plein cadre', 'ex : la scène Superman'],
                 ['objets', 'Objets détourés', 'ex : les pièces 3D'],
                 ['chrome', 'Chrome & verre', 'ex : le token chrome'],
+                ['personnage', 'Personnage 3D', 'l’avatar de la marque : il sera repris sur chaque couverture'],
               ] as const).map(([key, label, hint]) => {
                 const refId = form.image_gen.references?.[key] ?? null;
                 const img = library?.find((i) => i.id === refId) ?? null;

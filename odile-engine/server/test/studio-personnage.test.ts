@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { cutoutStats, fitCutout, removeImageBackground } from '../src/imagegen/cutout.js';
+import { chromaKeyCutout, cutoutStats, fitCutout, removeImageBackground, solidifyAlpha } from '../src/imagegen/cutout.js';
 import { buildImagePrompt, CUTOUT_STYLES, IMAGE_STYLES } from '../src/imagegen/prompt.js';
 import { buildSlideHtml, renderHtmlToPng } from '../src/render/renderer.js';
 import { getBrand } from '../src/db/settingsRepo.js';
@@ -38,9 +38,16 @@ describe('style d’image « personnage »', () => {
       palette: { accent: BLEU, bg1: '#040506', bg2: '#080b12', textColor: '#ffffff' },
     });
     expect(prompt).toContain('full natural colours');
+    expect(prompt).toContain('visual gag');
+    expect(prompt).toContain('Odile');
     expect(prompt).not.toContain('BLACK AND WHITE');
-    expect(prompt).toContain(BLEU);
     expect(prompt).not.toContain('MONOCHROME');
+  });
+
+  it('avec une image de référence, l’avatar est repris tel quel et la consigne « guide de rendu » ne s’applique pas', () => {
+    const prompt = buildImagePrompt({ idea: 'Des devis en retard', style: 'personnage', hasReference: true });
+    expect(prompt).toContain('shown in the reference image');
+    expect(prompt).not.toContain('NOT its subject');
   });
 
   it('la porte qualité accepte un personnage coupé en bas, refuse une tête coupée en haut', async () => {
@@ -49,6 +56,41 @@ describe('style d’image « personnage »', () => {
     expect((await cutoutStats(perso)).ok).toBe(false);
     const teteCoupee = await sharp(perso).extract({ left: 0, top: 300, width: 800, height: 700 }).png().toBuffer();
     expect((await cutoutStats(teteCoupee, { personnage: true })).ok).toBe(false);
+  });
+
+  it('durcit le détourage : les restes à demi transparents disparaissent', async () => {
+    const brut = await sharp(Buffer.from([10, 10, 10, 60, 10, 10, 10, 150, 10, 10, 10, 230, 10, 10, 10, 255]), { raw: { width: 4, height: 1, channels: 4 } })
+      .png()
+      .toBuffer();
+    const { data } = await sharp(await solidifyAlpha(brut)).raw().toBuffer({ resolveWithObject: true });
+    expect(data[3]).toBe(0);
+    expect(data[7]).toBeGreaterThan(60);
+    expect(data[7]).toBeLessThan(200);
+    expect(data[11]).toBe(255);
+    expect(data[15]).toBe(255);
+  });
+
+  it('détourage par la couleur du fond : la feuille blanche tenue en main est gardée, le fond et les poches partent', async () => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="500">
+  <rect width="400" height="500" fill="#7f7f7f"/>
+  <ellipse cx="240" cy="520" rx="150" ry="260" fill="#1d4ed8"/>
+  <circle cx="240" cy="180" r="90" fill="#e8b08a"/>
+  <rect x="40" y="150" width="130" height="170" fill="#f4f4f4"/>
+  <circle cx="240" cy="400" r="30" fill="#7f7f7f"/>
+</svg>`;
+    const out = await chromaKeyCutout(await sharp(Buffer.from(svg)).png().toBuffer());
+    expect(out).not.toBeNull();
+    const { data, info } = await sharp(out!).raw().toBuffer({ resolveWithObject: true });
+    const alpha = (x: number, y: number) => data[(y * info.width + x) * info.channels + 3]!;
+    expect(alpha(10, 10)).toBe(0); // fond
+    expect(alpha(100, 230)).toBe(255); // feuille blanche
+    expect(alpha(240, 180)).toBe(255); // visage
+    expect(alpha(240, 400)).toBe(0); // poche fermée de la couleur du fond
+  });
+
+  it('détourage par la couleur du fond : renonce si le fond n’est pas uni', async () => {
+    const bruit = await sharp({ create: { width: 200, height: 250, channels: 3, background: '#808080', noise: { type: 'gaussian', mean: 128, sigma: 70 } } }).png().toBuffer();
+    expect(await chromaKeyCutout(bruit)).toBeNull();
   });
 
   it('le personnage est posé sur le bord bas de la toile', async () => {
@@ -99,7 +141,8 @@ describe('template « personnage »', async () => {
   it.runIf(Boolean(process.env.PREVIEW_DIR))('aperçu', async () => {
     const dir = process.env.PREVIEW_DIR!;
     const persoPath = process.env.PREVIEW_HERO;
-    const brut = persoPath ? await removeImageBackground(fs.readFileSync(persoPath)) : await fauxPersonnage();
+    const source = persoPath ? fs.readFileSync(persoPath) : null;
+    const brut = source ? ((await chromaKeyCutout(source)) ?? (await solidifyAlpha(await removeImageBackground(source)))) : await fauxPersonnage();
     const hero = await fitCutout(brut, 1080, 1350, { bleedBottom: true });
     const t = theme({ imageStyle: 'personnage' });
     const css = buildCustomThemeCss(t);

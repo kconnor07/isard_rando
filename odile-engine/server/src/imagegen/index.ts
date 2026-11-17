@@ -11,7 +11,7 @@ import { saveAsset } from '../render/renderer.js';
 import { acceptPopColor, extractPopColor, resolvePopColor } from './color.js';
 import { freepikAvailable, generateViaFreepik } from './providers/freepik.js';
 import { DEFAULT_FREEPIK_MODEL, FAST_FREEPIK_MODEL, findFreepikModel } from './providers/freepikCatalog.js';
-import { cutoutStats, fitCutout, removeImageBackground } from './cutout.js';
+import { chromaKeyCutout, cutoutStats, fitCutout, removeImageBackground, solidifyAlpha } from './cutout.js';
 import { buildImagePrompt, isCutoutStyle, resolvePalette, styleForArchetype, type ImageStyle, type ThemePalette } from './prompt.js';
 import { notesFor, referenceFor } from './references.js';
 import type { FreepikReference } from './providers/freepikCatalog.js';
@@ -144,7 +144,8 @@ export async function generateImageBuffer(
       // objet à détourer, ce modèle la prendrait comme image d'entrée (elle imposerait son fond)
       const fallback = findFreepikModel(config.FREEPIK_MODEL_IMAGE_FAST)?.id ?? FAST_FREEPIK_MODEL;
       const fallbackTakesStyle = findFreepikModel(fallback)?.reference === 'style';
-      const fallbackReference = opts.style && isCutoutStyle(opts.style) && !fallbackTakesStyle ? null : reference;
+      const fallbackReference =
+        opts.style && isCutoutStyle(opts.style) && opts.style !== 'personnage' && !fallbackTakesStyle ? null : reference;
       if (fallback !== chosen) attempts.push(() => generateViaFreepik(fallback, prompt, { aspect, quality: 'fast', reference: fallbackReference }));
     }
     if (settings.provider !== 'freepik' && config.GEMINI_API_KEY) {
@@ -252,7 +253,11 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
     attempts++;
     const generated = await generate();
     tokens += generated.tokens;
-    const png = await removeImageBackground(generated.buffer);
+    // Personnage : détourage par la couleur du fond (il garde les accessoires tenus en main) ;
+    // à défaut, détourage du sujet, durci pour ne pas laisser de restes fantômes
+    const png = personnage
+      ? ((await chromaKeyCutout(generated.buffer)) ?? (await solidifyAlpha(await removeImageBackground(generated.buffer))))
+      : await removeImageBackground(generated.buffer);
     const stats = await cutoutStats(png, { personnage });
     if (!best || (stats.ok && !best.stats.ok) || (stats.ok === best.stats.ok && stats.coverage > best.stats.coverage)) {
       best = { generated, png, stats };
@@ -288,7 +293,8 @@ export async function generateStyledImage(prompt: string, opts: StyledImageOpts)
  */
 export function usableReference(style: ImageStyle, explicitModel?: string | null): FreepikReference | null {
   const reference = referenceFor(style);
-  if (!reference || !isCutoutStyle(style)) return reference;
+  // L'avatar de la marque passe toujours : c'est le personnage à reproduire, le prompt impose le fond gris
+  if (!reference || !isCutoutStyle(style) || style === 'personnage') return reference;
   const model = findFreepikModel(modelForStyle(style, explicitModel));
   return model?.reference === 'style' ? reference : null;
 }

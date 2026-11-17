@@ -6,7 +6,8 @@ import { isLightHex } from '../lib/color.js';
  * - full   : scène cinématique plein cadre, sujet en haut, bas calme pour le titre ;
  * - objets : un objet 3D isolé sur fond uni (couleur du template) → détouré ensuite ;
  * - chrome : rendu chrome & verre irisé, halo accent, espace sous l'objet ;
- * - personnage : un personnage 3D semi-stylisé (entre film d'animation et réalisme), en couleurs, cadré en buste
+ * - personnage : l'avatar de la marque (image de référence des réglages, sinon décrit), dans une
+ *   scène drôle liée au sujet, en couleurs, cadré en buste
  *   → détouré, posé sur la couverture (façon miniature de Reel « podcast »).
  * Le texte vit dans la couche HTML, JAMAIS dans l'image.
  */
@@ -19,7 +20,7 @@ export const IMAGE_STYLES: { id: ImageStyle; label: string; hint: string }[] = [
   { id: 'full', label: 'Plein cadre', hint: 'Scène cinématique, sujet en haut, titre en bas' },
   { id: 'objets', label: 'Objets détourés', hint: 'Objet 3D isolé, détouré, fondu à la palette' },
   { id: 'chrome', label: 'Chrome & verre', hint: 'Objet 3D chrome / verre irisé, détouré — le halo vient du template' },
-  { id: 'personnage', label: 'Personnage 3D', hint: 'Personnage 3D semi-stylisé en couleurs, détouré, sur une couverture bleu nuit quadrillée' },
+  { id: 'personnage', label: 'Personnage 3D', hint: 'L’avatar de la marque dans une scène drôle liée au sujet, détouré, sur la couverture' },
 ];
 
 /** Palette d'un thème (template maison ou thème intégré). */
@@ -60,6 +61,12 @@ export function styleForArchetype(archetypeId?: string | null): ImageStyle {
 
 const NO_TEXT =
   'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons; any hue outside the palette (and the signature colour, if one is given). The image contains no writing of any kind.';
+/** L'avatar de la marque, décrit en toutes lettres quand aucune image de référence n'est réglée. */
+const MASCOTTE_PAR_DEFAUT =
+  'the brand mascot « Odile », a cheerful AI assistant: a young woman with brown hair tied in a high bun and two loose strands framing her face, large brown eyes, a warm smile, a slim white headset microphone, and a royal-blue polo shirt.';
+/** L'avatar de la marque, fourni en image de référence (réglages › Illustrations IA). */
+const MASCOTTE_REFERENCE =
+  'the brand mascot shown in the reference image — keep exactly her face, hairstyle, accessories, outfit and 3D style, so that she is instantly recognisable; do NOT copy the pose, the framing or the background of the reference.';
 /** Même interdiction du texte, sans la contrainte de palette (personnage en couleurs naturelles). */
 const NO_TEXT_COULEURS =
   'ABSOLUTELY FORBIDDEN: any text, letters, numbers as typography, words, captions, titles, signatures, logos, watermarks, user interfaces, buttons. The image contains no writing of any kind.';
@@ -73,7 +80,7 @@ const NO_TEXT_COULEURS =
 export const CUTOUT_BACKGROUND = '#7f7f7f';
 
 /** Guide de style d'un mode, dans la palette donnée (+ couleur signature éventuelle). */
-export function styleGuide(style: ImageStyle, p: ThemePalette, pop?: string | null): string {
+export function styleGuide(style: ImageStyle, p: ThemePalette, pop?: string | null, opts: { hasReference?: boolean } = {}): string {
   const dark = isLightHex(p.textColor); // texte clair ⇒ fond sombre
   const atmosphere = dark ? 'dark cosmic or deep studio atmosphere' : 'bright, airy high-key atmosphere';
   switch (style) {
@@ -102,11 +109,14 @@ BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BA
 LIGHTING: studio lighting with a ${p.accent} rim light and strong specular highlights, ${dark ? 'high contrast' : 'gentle contrast'}, faint film grain.
 ${NO_TEXT}`;
     case 'personnage':
-      return `Stylised-realism 3D character render, like the hero of a high-end video game: a real adult facial structure and true human proportions (normal-sized head, normal-sized eyes, normal nose and ears), but with clean simplified shapes, smooth slightly painterly skin without pores, sculpted hair in defined locks and tidy fabric — clearly a 3D character, not a photograph, and NOT a cartoon: no big eyes, no oversized head, no rubbery or toy-like features. Made to be cut out.
-CHARACTER: ONE single character embodying the subject above — if the subject is an object or a situation, show the person who lives it (a French small-business owner, craftsman, shopkeeper, accountant, receptionist… whoever fits), with at most one prop from their trade. Portrait framed from mid-chest up, like a guest filmed in a podcast studio: body facing the camera, head turned slightly towards the RIGHT of the frame, a lively readable expression (laughing, amused, sceptical, surprised — whatever fits the subject). Very large in the frame: the head fills about 40% of the image height, the shoulders span the full width and the chest runs down past the bottom edge.
-COLOUR: full natural colours — warm, lifelike skin tones, coloured hair and eyes. The character wears a plain WHITE or very light top (shirt, polo, overshirt), with at most one small accessory in ${p.accent}.
+      return `3D animated-feature-film character render — the house style of the brand's avatars: soft rounded shapes, big expressive eyes, smooth skin, glossy detailed hair, clean fabric. Made to be cut out.
+CHARACTER: ${opts.hasReference ? MASCOTTE_REFERENCE : MASCOTTE_PAR_DEFAUT} She is always the character: never replace her with someone else, never add a second person.
+SCENE: she acts out the subject above in a funny way — ONE clear visual gag, slightly exaggerated, with one or two props taken straight from the subject (for example: arms full of crumpled blank paper sheets, a phone in each hand, proudly presenting a tiny robot, peeking over a giant blank invoice…). Comic, expressive face and hands. Warm, friendly humour — never mocking, never crude.
+PROPS (strict): every prop is physically attached to her — held in her hands, tucked under an arm, sitting on her shoulder or head. Nothing floats in the air, nothing stands behind her, no scattered objects in the background. Props carry no writing: blank sheets, plain screens, simple pictograms only.
+FRAMING: from mid-chest up, body facing the camera, head turned slightly towards the RIGHT of the frame. Very large in the frame: her face sits in the UPPER half of the image (eyes about one third from the top), the head fills about 40% of the image height, the shoulders span most of the width and the chest runs down past the bottom edge. Her hands and props are raised to shoulder or face height, beside her head — the lower third of the image stays plain torso (a title will cover it).
+COLOUR: full natural colours — warm skin tones, her royal-blue polo, props in their real colours.
 BACKGROUND (strict): perfectly uniform, flat, solid neutral mid-grey ${CUTOUT_BACKGROUND} (a chroma-key grey) — no gradient, no floor, no cast shadow on the background, no vignette, no environment.
-LIGHTING: podcast-studio lighting — soft warm key light on the face, cool blue rim light on both edges of the silhouette, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.
+LIGHTING: soft warm key light on the face, cool blue rim light on both edges of the silhouette, ultra sharp, clean silhouette. Nothing touches the left, right or top borders.
 ${NO_TEXT_COULEURS}`;
   }
 }
@@ -167,7 +177,7 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
   const style = args.style ?? styleForArchetype(args.archetypeId);
   // Un objet à détourer garde son guide (fond gris neutre) même en monochrome : la scène N&B plein cadre ne se détoure pas
   const personnage = style === 'personnage';
-  const guide = mono && !isCutoutStyle(style) ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, mono ? null : args.popColor);
+  const guide = mono && !isCutoutStyle(style) ? (light ? STYLE_GUIDE_MONO_LIGHT : STYLE_GUIDE_MONO) : styleGuide(style, palette, mono ? null : args.popColor, { hasReference: args.hasReference });
   const parts = [
     `SUBJECT: ${args.idea}`,
     mono && isCutoutStyle(style) && !personnage
@@ -177,7 +187,7 @@ export function buildImagePrompt(args: ImagePromptArgs): string {
     guide,
     args.seriesOf
       ? `SAME SERIES: this object belongs to the same set as the reference image (« ${args.seriesOf} ») — identical material, finish, lighting, camera angle and background; only the object itself changes.`
-      : args.hasReference
+      : args.hasReference && !personnage
         ? 'REFERENCE IMAGE: match its rendering quality, lighting, contrast, depth and mood — NOT its subject, characters or text. Keep the subject described above.'
         : null,
     args.styleNotes ? `BRAND ART DIRECTION NOTES: ${args.styleNotes}` : null,

@@ -13,6 +13,8 @@ export interface FreepikReference {
   base64: string;
   mime: string;
   publicUrl?: string;
+  /** rôle de l'image : guide de rendu (défaut) ou personnage à reproduire (avatar de la marque) */
+  role?: 'style' | 'character';
 }
 export interface FreepikGenOpts {
   aspect: FreepikAspect;
@@ -58,7 +60,8 @@ function withReference(
   if (kind === 'base64') return { ...body, input_image: ref.base64 };
   if (kind === 'style') return { ...body, style_reference: ref.base64, adherence: 60 };
   if (kind === 'url' && ref.publicUrl) {
-    return { ...body, reference_images: [{ image: ref.publicUrl, text: 'style reference', mime_type: ref.mime }] };
+    const text = ref.role === 'character' ? 'character reference: draw this exact character' : 'style reference';
+    return { ...body, reference_images: [{ image: ref.publicUrl, text, mime_type: ref.mime }] };
   }
   return body;
 }
